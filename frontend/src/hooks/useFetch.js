@@ -66,8 +66,7 @@ export function useFetch(url, dependencies = [], options = {}) {
         setLoading(false);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, JSON.stringify(options), ...dependencies]);
+  }, [url, JSON.stringify(options)]);
 
   useEffect(() => {
     isMounted.current = true;
