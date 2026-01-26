@@ -5,13 +5,14 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# Anthropic client setup using Replit AI Integrations
+# OpenAI client setup (replaces Anthropic)
 try:
-    import anthropic
-    ANTHROPIC_AVAILABLE = True
+    from services.openai_provider import openai_client, chat_completion_sync, is_configured
+    OPENAI_AVAILABLE = is_configured()
 except ImportError:
-    ANTHROPIC_AVAILABLE = False
-    logger.warning("anthropic package not available for AgenticReasoningService")
+    OPENAI_AVAILABLE = False
+    openai_client = None
+    logger.warning("OpenAI provider not available for AgenticReasoningService")
 
 from config.agents_config import AGENT_CONFIGURATIONS
 from services.query_router import route_query
@@ -47,31 +48,13 @@ COMPLIANCE_PILLARS = {
 
 class AgenticReasoningService:
     def __init__(self):
-        self.client = None
-        self.model = "claude-sonnet-4-5"
-        
-        if not ANTHROPIC_AVAILABLE:
-            logger.warning("Anthropic package not available - agentic reasoning will be limited")
-            return
-        
-        # Try Replit AI Integrations first
-        ai_api_key = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_API_KEY')
-        ai_base_url = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_BASE_URL')
-        
-        if ai_api_key and ai_base_url:
-            try:
-                self.client = anthropic.Anthropic(api_key=ai_api_key, base_url=ai_base_url)
-                logger.info("✅ AgenticReasoningService initialized with Replit AI Integrations (Anthropic)")
-            except Exception as e:
-                logger.error(f"Failed to initialize Anthropic with AI Integrations: {e}")
-        elif os.environ.get('ANTHROPIC_API_KEY'):
-            try:
-                self.client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
-                logger.info("✅ AgenticReasoningService initialized with ANTHROPIC_API_KEY fallback")
-            except Exception as e:
-                logger.error(f"Failed to initialize Anthropic client: {e}")
+        self.client = openai_client
+        self.model = "gpt-4o"
+
+        if OPENAI_AVAILABLE:
+            logger.info("✅ AgenticReasoningService initialized with OpenAI")
         else:
-            logger.warning("No Anthropic credentials found - agentic reasoning will be limited")
+            logger.warning("OpenAI not configured - agentic reasoning will be limited")
     
     def get_agent_system_prompt(self, agent_id: str, include_rag_context: bool = True) -> str:
         agent_config = AGENT_CONFIGURATIONS.get(agent_id, {})
@@ -175,17 +158,13 @@ Evalúa los 4 pilares de cumplimiento SAT y proporciona tu recomendación fundam
                 selected_model = self.model
                 logger.info(f"Query Router deshabilitado, usando {self.model} por defecto")
             
-            # Use Anthropic Messages API
-            response = self.client.messages.create(
-                model=selected_model,
-                max_tokens=2000,
-                system=system_prompt,
-                messages=[
-                    {"role": "user", "content": user_message}
-                ]
+            # Use OpenAI Chat Completion API
+            analysis = chat_completion_sync(
+                messages=[{"role": "user", "content": user_message}],
+                system_message=system_prompt,
+                model=self.model,
+                max_tokens=2000
             )
-            
-            analysis = response.content[0].text if response.content else ""
             
             decision = self._extract_decision(analysis)
             pillars_evaluation = self._evaluate_compliance_pillars(analysis)
@@ -612,18 +591,14 @@ INSTRUCCIONES FINALES:
                 selected_model = self.model
                 logger.info(f"Query Router deshabilitado, usando {self.model} por defecto")
             
-            # Use Anthropic Messages API for PMO consolidation
-            response = self.client.messages.create(
-                model=selected_model,
-                max_tokens=4500,
-                system=system_prompt,
-                messages=[
-                    {"role": "user", "content": user_message}
-                ]
+            # Use OpenAI Chat Completion API for PMO consolidation
+            consolidation = chat_completion_sync(
+                messages=[{"role": "user", "content": user_message}],
+                system_message=system_prompt,
+                model=self.model,
+                max_tokens=4500
             )
-            
-            consolidation = response.content[0].text if response.content else ""
-            tokens_used = response.usage.input_tokens + response.usage.output_tokens if response.usage else 0
+            tokens_used = len(user_message.split()) + len(consolidation.split())  # Approximate token count
             
             print(f"🕵️ PMO: Sending draft to Strategy Council for audit...")
             logger.info("PMO: Starting Strategy Council audit for consolidation")

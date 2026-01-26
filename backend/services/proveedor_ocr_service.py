@@ -3,39 +3,32 @@ import base64
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
-import anthropic
 
 logger = logging.getLogger(__name__)
+
+# OpenAI provider
+try:
+    from services.openai_provider import openai_client, is_configured
+    OPENAI_AVAILABLE = is_configured()
+except ImportError:
+    OPENAI_AVAILABLE = False
+    openai_client = None
+    logger.warning("OpenAI provider not available for ProveedorOCRService")
 
 
 class ProveedorOCRService:
     """
-    Servicio OCR para documentos de proveedores usando Replit AI Integrations.
-    Usa créditos de Replit en lugar de API key externa.
-    Modelos soportados: claude-sonnet-4-5 (recomendado), claude-opus-4-5, claude-haiku-4-5
+    Servicio OCR para documentos de proveedores usando OpenAI GPT-4o Vision.
     """
     def __init__(self):
-        # Prioriza Replit AI Integrations (usa créditos de tu cuenta Replit)
-        api_key = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_API_KEY')
-        base_url = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_BASE_URL')
-        
-        if api_key and base_url:
-            # Usar Replit AI Integrations
-            self.client = anthropic.Anthropic(api_key=api_key, base_url=base_url)
+        if OPENAI_AVAILABLE:
+            self.client = openai_client
             self.available = True
-            self.using_replit_credits = True
-            logger.info("OCR de proveedores usando Replit AI Integrations (créditos Replit)")
-        elif os.environ.get('ANTHROPIC_API_KEY'):
-            # Fallback a API key directa
-            self.client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
-            self.available = True
-            self.using_replit_credits = False
-            logger.info("OCR de proveedores usando API key de Anthropic directa")
+            logger.info("OCR de proveedores usando OpenAI GPT-4o Vision")
         else:
             self.client = None
             self.available = False
-            self.using_replit_credits = False
-            logger.warning("Anthropic API no disponible para OCR de proveedores")
+            logger.warning("OpenAI API no disponible para OCR de proveedores")
 
     def _get_media_type(self, media_type: str) -> str:
         valid_types = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"]
@@ -76,18 +69,17 @@ Si no puedes identificar algún campo, déjalo como null.
 Responde SOLO con el JSON, sin explicaciones adicionales."""
 
         try:
-            response = self.client.messages.create(
-                model="claude-sonnet-4-5",
+            # OpenAI Vision API format
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
                 max_tokens=2000,
                 messages=[{
                     "role": "user",
                     "content": [
                         {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": self._get_media_type(media_type),
-                                "data": archivo_base64
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{self._get_media_type(media_type)};base64,{archivo_base64}"
                             }
                         },
                         {"type": "text", "text": prompt}
@@ -95,7 +87,7 @@ Responde SOLO con el JSON, sin explicaciones adicionales."""
                 }]
             )
 
-            content = response.content[0].text
+            content = response.choices[0].message.content
             import json
             
             if "```json" in content:
@@ -280,18 +272,17 @@ Si no puedes identificar algún campo, déjalo como null.
 Responde SOLO con el JSON, sin explicaciones adicionales."""
 
         try:
-            response = self.client.messages.create(
-                model="claude-sonnet-4-5",
+            # OpenAI Vision API format
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
                 max_tokens=2000,
                 messages=[{
                     "role": "user",
                     "content": [
                         {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": self._get_media_type(media_type),
-                                "data": archivo_base64
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{self._get_media_type(media_type)};base64,{archivo_base64}"
                             }
                         },
                         {"type": "text", "text": prompt}
@@ -299,7 +290,7 @@ Responde SOLO con el JSON, sin explicaciones adicionales."""
                 }]
             )
 
-            content = response.content[0].text
+            content = response.choices[0].message.content
             import json
             
             if "```json" in content:

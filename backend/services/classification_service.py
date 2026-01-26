@@ -119,23 +119,16 @@ class ClassificationService:
             return await self._fallback_classification(filename)
     
     async def _classify_with_ai(self, text: str, filename: str) -> Dict[str, Any]:
-        """Use Claude to classify the document."""
+        """Use OpenAI to classify the document."""
         try:
-            from anthropic import Anthropic
-            
-            ai_api_key = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_API_KEY')
-            ai_base_url = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_BASE_URL')
-            
-            if ai_api_key and ai_base_url:
-                client = Anthropic(api_key=ai_api_key, base_url=ai_base_url)
-            elif os.environ.get('ANTHROPIC_API_KEY'):
-                client = Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
-            else:
-                logger.warning("Anthropic not configured, using fallback classification")
+            from services.openai_provider import chat_completion, is_configured
+
+            if not is_configured():
+                logger.warning("OpenAI not configured, using fallback classification")
                 return await self._fallback_classification(filename)
-            
+
             text_sample = text[:4000] if len(text) > 4000 else text
-            
+
             prompt = f"""Analiza el siguiente documento y clasifícalo según la taxonomía fiscal mexicana.
 
 TAXONOMÍA DISPONIBLE:
@@ -149,7 +142,7 @@ CONTENIDO DEL DOCUMENTO:
 Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
 {{
     "categoria": "categoria_principal",
-    "subcategoria": "subcategoria_especifica", 
+    "subcategoria": "subcategoria_especifica",
     "confianza": 0.85,
     "tags": ["tag1", "tag2", "tag3"],
     "requires_review": false,
@@ -160,13 +153,12 @@ Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
 Valores para nivel_confidencialidad: "publico", "interno", "confidencial", "restringido"
 """
 
-            response = await client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=500,
-                messages=[{"role": "user", "content": prompt}]
+            response_text = await chat_completion(
+                messages=[{"role": "user", "content": prompt}],
+                model="gpt-4o",
+                max_tokens=500
             )
-            
-            response_text = response.content[0].text.strip()
+            response_text = response_text.strip()
             json_match = re.search(r'\{[\s\S]*\}', response_text)
             if json_match:
                 result = json.loads(json_match.group())

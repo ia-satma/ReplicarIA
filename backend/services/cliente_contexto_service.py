@@ -9,9 +9,16 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 import asyncpg
-from anthropic import Anthropic
 
 logger = logging.getLogger(__name__)
+
+# OpenAI provider
+try:
+    from services.openai_provider import chat_completion_sync, is_configured
+    OPENAI_AVAILABLE = is_configured()
+except ImportError:
+    OPENAI_AVAILABLE = False
+    logger.warning("OpenAI provider not available for ClienteContextoService")
 
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
@@ -21,19 +28,14 @@ class ClienteContextoService:
     Servicio para gestionar el contexto evolutivo de clientes.
     Proporciona información contextual a los agentes A1-A7.
     """
-    
+
     def __init__(self):
         self._pool: Optional[asyncpg.Pool] = None
-        api_key = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_API_KEY')
-        base_url = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_BASE_URL')
-        
-        if api_key and base_url:
-            self.client = Anthropic(api_key=api_key, base_url=base_url)
-        else:
-            self.client = None
-            logger.warning("Anthropic AI integration not configured")
-        
-        self.model = "claude-sonnet-4-5"
+        self.client = OPENAI_AVAILABLE
+        self.model = "gpt-4o"
+
+        if not self.client:
+            logger.warning("OpenAI AI integration not configured")
     
     async def _get_pool(self) -> asyncpg.Pool:
         """Obtiene o crea el pool de conexiones a PostgreSQL"""
@@ -360,13 +362,11 @@ class ClienteContextoService:
         )
         
         try:
-            response = self.client.messages.create(
+            texto_respuesta = chat_completion_sync(
+                messages=[{"role": "user", "content": prompt}],
                 model=self.model,
-                max_tokens=3000,
-                messages=[{"role": "user", "content": prompt}]
+                max_tokens=3000
             )
-            
-            texto_respuesta = response.content[0].text
             
             if "```json" in texto_respuesta:
                 texto_respuesta = texto_respuesta.split("```json")[1].split("```")[0]
@@ -379,7 +379,7 @@ class ClienteContextoService:
             logger.error(f"Error parseando respuesta de IA: {e}")
             return
         except Exception as e:
-            logger.error(f"Error llamando a Anthropic: {e}")
+            logger.error(f"Error llamando a OpenAI: {e}")
             return
         
         version_actual = contexto_actual['version'] if contexto_actual else 0

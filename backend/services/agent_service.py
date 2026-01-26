@@ -31,84 +31,40 @@ except ImportError:
     RateLimitExceeded = Exception
     logger.warning("Rate limiter not available")
 
-# Anthropic client setup using Replit AI Integrations
+# OpenAI client setup (replaces Anthropic)
 try:
-    import anthropic
-    ANTHROPIC_AVAILABLE = True
-except ImportError:
-    ANTHROPIC_AVAILABLE = False
-    logger.warning("anthropic package not available")
-
-# Initialize Anthropic client with Replit AI Integrations (priority) or fallback to ANTHROPIC_API_KEY
-anthropic_client = None
-ANTHROPIC_FALLBACK = False
-
-if ANTHROPIC_AVAILABLE:
-    ai_api_key = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_API_KEY')
-    ai_base_url = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_BASE_URL')
-    
-    if ai_api_key and ai_base_url:
-        try:
-            anthropic_client = anthropic.Anthropic(api_key=ai_api_key, base_url=ai_base_url)
-            ANTHROPIC_FALLBACK = True
-            logger.info("✅ Anthropic client initialized with Replit AI Integrations")
-        except Exception as e:
-            logger.error(f"Failed to initialize Anthropic with AI Integrations: {e}")
-    elif os.environ.get('ANTHROPIC_API_KEY'):
-        try:
-            anthropic_client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
-            ANTHROPIC_FALLBACK = True
-            logger.info("✅ Anthropic client initialized with ANTHROPIC_API_KEY fallback")
-        except Exception as e:
-            logger.error(f"Failed to initialize Anthropic with API key: {e}")
+    from services.openai_provider import (
+        LlmChat, UserMessage, openai_client,
+        chat_completion, is_configured as openai_is_configured
+    )
+    OPENAI_AVAILABLE = openai_is_configured()
+    if OPENAI_AVAILABLE:
+        logger.info("✅ OpenAI client initialized for agent service")
     else:
-        logger.warning("No Anthropic credentials found - using demo mode")
+        logger.warning("OpenAI not configured - using demo mode")
+except ImportError as e:
+    logger.warning(f"OpenAI provider not available: {e}")
+    OPENAI_AVAILABLE = False
 
-try:
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
-    EMERGENT_AVAILABLE = True
-except ImportError:
-    EMERGENT_AVAILABLE = False
-    logger.warning("emergentintegrations not available - using Anthropic fallback")
-    
     class UserMessage:
         def __init__(self, text: str):
             self.text = text
-    
+
     class LlmChat:
         def __init__(self, api_key: str = "", session_id: str = "", system_message: str = ""):
-            self.api_key = api_key
-            self.session_id = session_id
             self.system_message = system_message
-            self.provider = "anthropic"
-            self.model = "claude-sonnet-4-5"
-        
+            self.model = "gpt-4o"
+
         def with_model(self, provider: str, model: str):
-            self.provider = provider
-            # Map to Claude models
-            if model and "claude" in model.lower():
-                self.model = model
-            else:
-                self.model = "claude-sonnet-4-5"
             return self
-        
+
         async def send_message(self, message: UserMessage) -> str:
-            if ANTHROPIC_FALLBACK and anthropic_client:
-                try:
-                    response = anthropic_client.messages.create(
-                        model=self.model,
-                        max_tokens=2000,
-                        system=self.system_message,
-                        messages=[
-                            {"role": "user", "content": message.text}
-                        ]
-                    )
-                    return response.content[0].text
-                except Exception as e:
-                    logger.error(f"Anthropic API error: {e}")
-                    return f"[Error en LLM] No se pudo procesar la solicitud: {str(e)[:100]}"
-            else:
-                return f"[Demo Mode] Agente respondiendo a: {message.text[:100]}..."
+            return f"[Demo Mode] Agente respondiendo a: {message.text[:100]}..."
+
+# Legacy compatibility flags
+EMERGENT_AVAILABLE = False
+ANTHROPIC_FALLBACK = OPENAI_AVAILABLE
+anthropic_client = None  # Not used anymore but kept for compatibility
 
 # --- INICIO: imports nuevos/asegurar dependencias ---
 try:

@@ -2,24 +2,27 @@ import json
 import logging
 import os
 from typing import List, Dict, Any
-from anthropic import Anthropic
 
 logger = logging.getLogger(__name__)
 
+# OpenAI provider
+try:
+    from services.openai_provider import chat_completion_sync, is_configured
+    OPENAI_AVAILABLE = is_configured()
+except ImportError:
+    OPENAI_AVAILABLE = False
+    logger.warning("OpenAI provider not available for DocumentAnalyzer")
+
+
 class DocumentAnalyzerService:
     """Servicio de análisis de documentos con IA para extracción de datos"""
-    
+
     def __init__(self):
-        api_key = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_API_KEY')
-        base_url = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_BASE_URL')
-        
-        if not api_key or not base_url:
-            logger.warning("Replit AI Integrations not configured")
-            self.client = None
-        else:
-            self.client = Anthropic(api_key=api_key, base_url=base_url)
-        
-        self.model = "claude-sonnet-4-5"
+        self.client = OPENAI_AVAILABLE
+        self.model = "gpt-4o"
+
+        if not self.client:
+            logger.warning("OpenAI not configured for DocumentAnalyzer")
     
     async def analizar_documentos(
         self,
@@ -95,13 +98,11 @@ Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
 }}"""
 
         try:
-            response = self.client.messages.create(
+            texto_respuesta = chat_completion_sync(
+                messages=[{"role": "user", "content": prompt}],
                 model=self.model,
-                max_tokens=2500,
-                messages=[{"role": "user", "content": prompt}]
+                max_tokens=2500
             )
-            
-            texto_respuesta = response.content[0].text
             
             if "```json" in texto_respuesta:
                 texto_respuesta = texto_respuesta.split("```json")[1].split("```")[0]
