@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List
-from backend.models.proyecto_sib import (
+from models.proyecto_sib import (
     FormularioSIB, ScoreDetalleA1, DictamenA1, 
     EstadoA1, RecomendacionF2, RedFlagA1, TipoBeneficio
 )

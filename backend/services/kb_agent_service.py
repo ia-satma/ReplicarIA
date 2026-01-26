@@ -213,7 +213,7 @@ class KBAgentService:
                 current_chunk += "\n\n" + section
             else:
                 if current_chunk.strip():
-                    from backend.services.kb_chunkers import ChunkMetadata
+                    from services.kb_chunkers import ChunkMetadata
                     chunks.append(DocumentChunk(
                         content=current_chunk.strip(),
                         metadata=ChunkMetadata(
@@ -226,7 +226,7 @@ class KBAgentService:
                 current_chunk = section
         
         if current_chunk.strip():
-            from backend.services.kb_chunkers import ChunkMetadata
+            from services.kb_chunkers import ChunkMetadata
             chunks.append(DocumentChunk(
                 content=current_chunk.strip(),
                 metadata=ChunkMetadata(

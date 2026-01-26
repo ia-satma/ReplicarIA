@@ -8,7 +8,7 @@ from datetime import datetime, time, timedelta, timezone as dt_timezone
 from typing import Callable, Dict, List
 from zoneinfo import ZoneInfo
 
-from backend.services.dreamhost_email_service import DreamHostEmailService
+from services.dreamhost_email_service import DreamHostEmailService
 
 logger = logging.getLogger(__name__)
 

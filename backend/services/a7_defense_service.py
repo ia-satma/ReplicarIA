@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from backend.models.defense_file import (
+from models.defense_file import (
     DefenseFileJson, SeccionContenido, SeccionDefenseFile,
     DocumentoEvidencia, HitoTimeline, MatrizMaterialidad,
     ResumenDictamenes

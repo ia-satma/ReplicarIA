@@ -913,13 +913,13 @@ async def startup_event():
         lambda t: logger.warning(f"SSE cleanup task ended unexpectedly: {t.exception()}") if t.exception() else None
     )
     
-    from backend.services.scheduler_service import scheduler_service
+    from services.scheduler_service import scheduler_service
     await scheduler_service.start()
     logger.info("Application startup complete - SSE cleanup and scheduler tasks started")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    from backend.services.scheduler_service import scheduler_service
+    from services.scheduler_service import scheduler_service
     await scheduler_service.stop()
     
     # Stop Guardian Agent
