@@ -8,19 +8,33 @@ logger = logging.getLogger(__name__)
 
 
 async def get_sendgrid_credentials() -> Dict[str, str]:
-    """Get SendGrid credentials from Replit connector."""
+    """
+    Get SendGrid credentials from environment variables or Replit connector.
+    Priority: Direct env vars > Replit connector
+    """
+    # First try direct environment variables (works on Railway, Render, etc.)
+    api_key = os.environ.get('SENDGRID_API_KEY')
+    from_email = os.environ.get('SENDGRID_FROM_EMAIL', 'noreply@revisar-ia.com')
+
+    if api_key:
+        logger.debug("Using SendGrid credentials from environment variables")
+        return {"api_key": api_key, "from_email": from_email}
+
+    # Fall back to Replit connector
     hostname = os.environ.get('REPLIT_CONNECTORS_HOSTNAME')
-    
+    if not hostname:
+        raise ValueError("SendGrid not configured - set SENDGRID_API_KEY or use Replit connector")
+
     repl_identity = os.environ.get('REPL_IDENTITY')
     web_repl_renewal = os.environ.get('WEB_REPL_RENEWAL')
-    
+
     if repl_identity:
         x_replit_token = f"repl {repl_identity}"
     elif web_repl_renewal:
         x_replit_token = f"depl {web_repl_renewal}"
     else:
         raise ValueError("X_REPLIT_TOKEN not found for repl/depl")
-    
+
     async with httpx.AsyncClient() as client:
         response = await client.get(
             f"https://{hostname}/api/v2/connection?include_secrets=true&connector_names=sendgrid",
@@ -30,32 +44,39 @@ async def get_sendgrid_credentials() -> Dict[str, str]:
             }
         )
         data = response.json()
-        
+
     connection_settings = data.get('items', [{}])[0] if data.get('items') else {}
     settings = connection_settings.get('settings', {})
-    
+
     api_key = settings.get('api_key')
     from_email = settings.get('from_email')
-    
+
     if not api_key or not from_email:
         raise ValueError("SendGrid not connected - missing api_key or from_email")
-    
+
     return {"api_key": api_key, "from_email": from_email}
 
 
 def is_configured() -> bool:
-    return bool(os.environ.get('REPLIT_CONNECTORS_HOSTNAME'))
+    """Check if email service is configured via env vars or Replit connector"""
+    return bool(
+        os.environ.get('SENDGRID_API_KEY') or
+        os.environ.get('REPLIT_CONNECTORS_HOSTNAME')
+    )
 
 
 class EmailService:
     
     def __init__(self):
         self._configured = is_configured()
-        
+
         if self._configured:
-            logger.info("✅ Email service configured with SendGrid via Replit connector")
+            if os.environ.get('SENDGRID_API_KEY'):
+                logger.info("✅ Email service configured with SendGrid via environment variables")
+            else:
+                logger.info("✅ Email service configured with SendGrid via Replit connector")
         else:
-            logger.warning("⚠️ Email service not configured - running in demo mode")
+            logger.warning("⚠️ Email service not configured - running in demo mode. Set SENDGRID_API_KEY to enable.")
     
     def is_available(self) -> bool:
         return self._configured
