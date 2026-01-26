@@ -64,6 +64,10 @@ pytest-cov>=4.0.0
 # === Optional Services ===
 redis>=5.0.0
 
+# === RAG / Vector Database (CRÍTICO - faltaba para el chatbot ARCHIVO) ===
+chromadb>=0.4.0
+sentence-transformers>=2.2.0
+
 # === Email (si se usa) ===
 google-api-python-client>=2.100.0
 google-auth-httplib2>=0.1.0
