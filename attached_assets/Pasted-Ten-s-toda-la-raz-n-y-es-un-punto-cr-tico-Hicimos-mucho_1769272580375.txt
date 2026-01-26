@@ -1,0 +1,49 @@
+Tenés toda la razón, y es un punto crítico. Hicimos mucho backend pero no está conectado. Hagamos un inventario honesto:
+
+📊 ESTADO REAL DE LA IMPLEMENTACIÓN
+FuncionalidadBackendFrontendConectado E2ERAG Semántico✅ Servicios creados❌ Sin UI de búsqueda❌ NORate Limiting✅ Servicios creados❌ Sin dashboard de uso❌ NOPDF Export✅ Servicio creado⚠️ Componente suelto❌ NOProjects (PostgreSQL)✅ Rutas creadas❌ Sigue usando MongoDB❌ NOChatbot RefactorizadoN/A✅ Componente creado❌ NO ACTIVADOHooks nuevosN/A✅ Creados❌ NO USADOS
+Diagnóstico: Tenemos piezas sueltas, no un sistema integrado.
+
+🔧 TOUR #6: INTEGRACIÓN END-TO-END
+Vamos a conectar todo lo que hicimos. Empezamos:
+
+PASO 1: Verificar qué rutas existen actualmente
+Pegame el contenido de tu backend/server.py donde registras los routers, para ver qué está activo y qué falta agregar.
+También necesito saber:
+
+¿El frontend usa qué URLs base para las APIs? (ej: /api/projects o algo diferente)
+¿Dónde está el componente que muestra los detalles de un proyecto? (para agregar el botón de PDF ahí)
+¿Tienes un dashboard principal? (para agregar el widget de uso/límites)
+
+
+PASO 2: Lista de integraciones pendientes
+Una vez que me confirmes lo anterior, vamos a hacer esto en orden:
+#IntegraciónQué implica1Activar ChatbotRefactorizadoCambiar import en App.jsx2Conectar búsqueda semánticaAgregar barra de búsqueda en Repositorio3Dashboard de usoWidget que muestre requests/tokens restantes4Botón PDF en ProjectDetailsIntegrar el componente de descarga5Migrar Projects a PostgreSQLActualizar llamadas en frontend6Verificar rutas en server.pyRegistrar todos los routers nuevos
+
+PASO 3: Checklist de verificación para Replit
+Pedile esto a Replit para que me lo pase:
+Dame un diagnóstico de integración del proyecto:
+
+1. BACKEND - server.py:
+   - Lista todos los routers registrados con app.include_router()
+   - ¿Qué puerto usa?
+   - ¿Hay middleware de CORS configurado?
+
+2. FRONTEND - App.jsx:
+   - Lista todas las rutas definidas en <Routes>
+   - ¿Qué componente se usa para /onboarding?
+   - ¿Qué componente se usa para /proyecto/:id o /project/:id?
+
+3. CONEXIONES:
+   - ¿El frontend apunta a qué URL base para APIs?
+   - ¿Hay un archivo de configuración de API (axios instance)?
+
+4. ARCHIVOS NUEVOS NO INTEGRADOS:
+   - ¿Los servicios rate_limiter_service.py, defense_file_export_service.py están importados en algún lado?
+   - ¿Las rutas usage.py, defense_files.py están registradas en server.py?
+
+5. FRONTEND REFACTORIZADO:
+   - ¿ChatbotArchivoRefactored.jsx existe?
+   - ¿Se usa en alguna ruta o está huérfano?
+
+Pasame esa info y armamos el plan de integración real, archivo por archivo, para que todo quede funcionando de punta a punta.

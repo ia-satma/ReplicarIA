@@ -1,0 +1,91 @@
+{
+  "agent_id": "A6_PROVEEDOR",
+  "version": "1.0.0",
+  "generated_at": "{{FECHA_ACTUAL}}",
+  "templates": [
+    {
+      "filename": "guia_entregables.docx",
+      "title": "GUÍA DE ENTREGABLES PARA PROVEEDORES",
+      "section_count": 4,
+      "placeholders": [
+        "PROVEEDOR_RFC",
+        "PROYECTO_NOMBRE",
+        "EMPRESA_NOMBRE",
+        "PROVEEDOR_NOMBRE"
+      ]
+    },
+    {
+      "filename": "acta_aceptacion.docx",
+      "title": "ACTA DE ENTREGA-RECEPCIÓN DE SERVICIOS",
+      "section_count": 6,
+      "placeholders": [
+        "E3_DESC",
+        "CARGO_CLIENTE",
+        "E1_NOMBRE",
+        "E3_NOMBRE",
+        "EMPRESA_NOMBRE",
+        "REPRESENTANTE_CLIENTE",
+        "E2_DESC",
+        "PROYECTO_NOMBRE",
+        "REPRESENTANTE_PROVEEDOR",
+        "OBSERVACIONES_ACTA",
+        "E1_DESC",
+        "FOLIO_PROYECTO",
+        "E2_NOMBRE",
+        "CARGO_PROVEEDOR",
+        "FECHA_ACTUAL",
+        "PROVEEDOR_NOMBRE"
+      ]
+    },
+    {
+      "filename": "checklist_evidencia.docx",
+      "title": "CHECKLIST DE EVIDENCIA DOCUMENTAL",
+      "section_count": 6,
+      "placeholders": [
+        "FECHA_REVISION",
+        "MONTO_CREDITO",
+        "FECHA_INICIO",
+        "PROVEEDOR_NOMBRE",
+        "PROYECTO_NOMBRE",
+        "REVISOR",
+        "FECHA_FIN"
+      ]
+    },
+    {
+      "filename": "minutas_trabajo.docx",
+      "title": "FORMATO DE MINUTA DE REUNIÓN DE TRABAJO",
+      "section_count": 7,
+      "placeholders": [
+        "EMPRESA_NOMBRE",
+        "ASISTENTE_PROVEEDOR_2",
+        "ASISTENTE_CLIENTE_2",
+        "PROVEEDOR_NOMBRE",
+        "FECHA_2",
+        "ACUERDO_2",
+        "TEMA_2",
+        "RESP_1",
+        "DESARROLLO_REUNION",
+        "RESP_2",
+        "ASISTENTE_CLIENTE_1",
+        "PROXIMOS_TEMAS",
+        "PROYECTO_NOMBRE",
+        "CARGO_4",
+        "ACUERDO_1",
+        "CARGO_1",
+        "ASISTENTE_PROVEEDOR_1",
+        "TEMA_1",
+        "TEMA_3",
+        "CARGO_2",
+        "LUGAR_MEDIO",
+        "CARGO_3",
+        "HORA_REUNION",
+        "RESP_3",
+        "PROXIMA_FECHA",
+        "ACUERDO_3",
+        "FECHA_1",
+        "FECHA_3",
+        "FECHA_ACTUAL"
+      ]
+    }
+  ]
+}

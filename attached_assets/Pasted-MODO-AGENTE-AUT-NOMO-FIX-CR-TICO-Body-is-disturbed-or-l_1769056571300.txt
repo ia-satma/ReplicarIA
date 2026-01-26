@@ -1,0 +1,547 @@
+MODO AGENTE AUTÓNOMO - FIX CRÍTICO "Body is disturbed or locked"
+
+PRIORIDAD MÁXIMA. NO PREGUNTAR. ARREGLAR TODO.
+
+<TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+ERROR: "Body is disturbed or locked"
+═══════════════════════════════════════════════════════════════════════════════
+
+Este error significa que el body de la request está siendo leído DOS VECES.
+Causa típica: middleware mal configurado o fetch mal usado en el frontend.
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 1: VERIFICAR Y ARREGLAR MIDDLEWARE EN SERVER
+═══════════════════════════════════════════════════════════════════════════════
+
+Abrir server/index.ts (o app.ts) y ASEGURAR que el middleware esté así:
+
+```typescript
+import express from 'express';
+import cors from 'cors';
+
+const app = express();
+
+// CRÍTICO: Orden correcto de middleware
+// 1. CORS primero
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
+
+// 2. Body parsers ANTES de las rutas
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// 3. Logger opcional
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`);
+  next();
+});
+
+// 4. Rutas DESPUÉS de los parsers
+// app.use('/api/clientes', clientesRoutes);
+// etc.
+```
+
+VERIFICAR QUE NO HAYA:
+- Doble llamada a express.json()
+- Middleware que lea req.body antes de express.json()
+- body-parser separado (ya no es necesario, usar express.json())
+
+```bash
+# Buscar problemas de body parser
+grep -r "body-parser\|bodyParser\|express.json\|express.urlencoded" server/ --include="*.ts" --include="*.js"
+```
+
+SI ENCUENTRAS body-parser, ELIMINARLO:
+```bash
+npm uninstall body-parser
+```
+
+Y usar solo express.json() y express.urlencoded()
+
+□ Middleware verificado y ordenado correctamente
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 2: ARREGLAR ENDPOINT DE CLIENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+REEMPLAZAR COMPLETAMENTE server/routes/clientes.ts:
+
+```typescript
+import { Router, Request, Response } from 'express';
+import { db } from '../db';
+
+const router = Router();
+
+// POST - Crear cliente
+router.post('/', async (req: Request, res: Response) => {
+  console.log('📥 POST /api/clientes - Body recibido:', JSON.stringify(req.body));
+  
+  try {
+    const { 
+      nombre, 
+      rfc, 
+      razon_social, 
+      direccion, 
+      email, 
+      telefono, 
+      giro, 
+      sitio_web,
+      empresa_id 
+    } = req.body;
+
+    // Validación
+    if (!nombre || nombre.trim() === '') {
+      console.log('❌ Error: Nombre vacío');
+      return res.status(400).json({ 
+        success: false,
+        error: 'El nombre del cliente es requerido' 
+      });
+    }
+
+    // Verificar si ya existe un cliente con ese RFC
+    if (rfc && rfc.trim() !== '') {
+      const existente = await db.query(
+        'SELECT id, nombre FROM clientes WHERE UPPER(rfc) = UPPER($1)',
+        [rfc.trim()]
+      );
+      
+      if (existente.rows.length > 0) {
+        console.log('❌ RFC duplicado:', rfc);
+        return res.status(409).json({ 
+          success: false,
+          error: `Ya existe un cliente con RFC ${rfc}: ${existente.rows[0].nombre}` 
+        });
+      }
+    }
+
+    // Insertar
+    const result = await db.query(`
+      INSERT INTO clientes (
+        nombre, rfc, razon_social, direccion, 
+        email, telefono, giro, sitio_web, empresa_id, activo
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE)
+      RETURNING *
+    `, [
+      nombre.trim(),
+      rfc?.trim()?.toUpperCase() || null,
+      razon_social?.trim() || nombre.trim(),
+      direccion?.trim() || null,
+      email?.trim()?.toLowerCase() || null,
+      telefono?.trim() || null,
+      giro?.trim() || null,
+      sitio_web?.trim() || null,
+      empresa_id || null
+    ]);
+
+    const cliente = result.rows[0];
+    console.log('✅ Cliente creado:', cliente.id, cliente.nombre);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Cliente creado exitosamente',
+      cliente
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error creando cliente:', error);
+    
+    // Error de constraint único
+    if (error.code === '23505') {
+      return res.status(409).json({ 
+        success: false,
+        error: 'Ya existe un cliente con esos datos' 
+      });
+    }
+    
+    return res.status(500).json({ 
+      success: false,
+      error: 'Error interno al crear cliente',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// GET - Listar clientes
+router.get('/', async (req: Request, res: Response) => {
+  try {
+    const { empresa_id, search, limit = 50 } = req.query;
+    
+    let query = 'SELECT * FROM clientes WHERE activo = TRUE';
+    const params: any[] = [];
+    
+    if (empresa_id) {
+      params.push(empresa_id);
+      query += ` AND empresa_id = $${params.length}`;
+    }
+    
+    if (search) {
+      params.push(`%${search}%`);
+      query += ` AND (nombre ILIKE $${params.length} OR rfc ILIKE $${params.length} OR razon_social ILIKE $${params.length})`;
+    }
+    
+    query += ' ORDER BY created_at DESC';
+    params.push(limit);
+    query += ` LIMIT $${params.length}`;
+    
+    const result = await db.query(query, params);
+    
+    return res.json({
+      success: true,
+      clientes: result.rows,
+      total: result.rows.length
+    });
+
+  } catch (error: any) {
+    console.error('Error listando clientes:', error);
+    return res.status(500).json({ 
+      success: false,
+      error: 'Error al obtener clientes' 
+    });
+  }
+});
+
+// GET - Obtener cliente por ID
+router.get('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await db.query(
+      'SELECT * FROM clientes WHERE id = $1 AND activo = TRUE',
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Cliente no encontrado' 
+      });
+    }
+    
+    return res.json({
+      success: true,
+      cliente: result.rows[0]
+    });
+
+  } catch (error: any) {
+    console.error('Error obteniendo cliente:', error);
+    return res.status(500).json({ 
+      success: false,
+      error: 'Error al obtener cliente' 
+    });
+  }
+});
+
+// PUT - Actualizar cliente
+router.put('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { nombre, rfc, razon_social, direccion, email, telefono, giro, sitio_web } = req.body;
+    
+    const result = await db.query(`
+      UPDATE clientes SET
+        nombre = COALESCE($1, nombre),
+        rfc = COALESCE(UPPER($2), rfc),
+        razon_social = COALESCE($3, razon_social),
+        direccion = COALESCE($4, direccion),
+        email = COALESCE(LOWER($5), email),
+        telefono = COALESCE($6, telefono),
+        giro = COALESCE($7, giro),
+        sitio_web = COALESCE($8, sitio_web),
+        updated_at = NOW()
+      WHERE id = $9 AND activo = TRUE
+      RETURNING *
+    `, [nombre, rfc, razon_social, direccion, email, telefono, giro, sitio_web, id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Cliente no encontrado' 
+      });
+    }
+    
+    return res.json({
+      success: true,
+      message: 'Cliente actualizado',
+      cliente: result.rows[0]
+    });
+
+  } catch (error: any) {
+    console.error('Error actualizando cliente:', error);
+    return res.status(500).json({ 
+      success: false,
+      error: 'Error al actualizar cliente' 
+    });
+  }
+});
+
+// DELETE - Eliminar cliente (soft delete)
+router.delete('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await db.query(
+      'UPDATE clientes SET activo = FALSE, updated_at = NOW() WHERE id = $1 RETURNING id',
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Cliente no encontrado' 
+      });
+    }
+    
+    return res.json({ 
+      success: true, 
+      message: 'Cliente eliminado' 
+    });
+
+  } catch (error: any) {
+    console.error('Error eliminando cliente:', error);
+    return res.status(500).json({ 
+      success: false,
+      error: 'Error al eliminar cliente' 
+    });
+  }
+});
+
+export default router;
+```
+
+□ Endpoint de clientes reescrito completamente
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 3: ARREGLAR FRONTEND - LA LLAMADA FETCH
+═══════════════════════════════════════════════════════════════════════════════
+
+Buscar el componente que hace la llamada:
+
+```bash
+grep -r "Confirmar y Crear\|crearCliente\|crear.*cliente" frontend/src/ --include="*.tsx" --include="*.ts" -l
+```
+
+El código del frontend DEBE verse así (sin clonar el body):
+
+```typescript
+const handleCrearCliente = async () => {
+  // Evitar doble click
+  if (isLoading) return;
+  setIsLoading(true);
+  setError(null);
+
+  try {
+    // Preparar datos - crear objeto UNA sola vez
+    const clienteData = {
+      nombre: formData.nombre?.trim(),
+      rfc: formData.rfc?.trim(),
+      razon_social: formData.razonSocial?.trim() || formData.nombre?.trim(),
+      direccion: formData.direccion?.trim(),
+      email: formData.email?.trim(),
+      telefono: formData.telefono?.trim(),
+      giro: formData.giro?.trim(),
+      sitio_web: formData.sitioWeb?.trim()
+    };
+
+    console.log('Enviando datos:', clienteData);
+
+    const response = await fetch('/api/clientes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(clienteData)
+    });
+
+    // Leer response UNA sola vez
+    const data = await response.json();
+    
+    console.log('Respuesta:', data);
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Error al crear cliente');
+    }
+
+    // Éxito
+    toast.success(`Cliente ${data.cliente.nombre} creado exitosamente`);
+    
+    // Callback si existe
+    if (onClienteCreado) {
+      onClienteCreado(data.cliente);
+    }
+    
+    // Cerrar modal/form
+    if (onClose) {
+      onClose();
+    }
+
+    // Resetear form
+    setFormData({});
+
+  } catch (error: any) {
+    console.error('Error creando cliente:', error);
+    setError(error.message || 'Error al crear cliente');
+    toast.error(error.message || 'Error al crear cliente');
+  } finally {
+    setIsLoading(false);
+  }
+};
+```
+
+ERRORES COMUNES A EVITAR:
+❌ NO hacer: response.json() más de una vez
+❌ NO hacer: clonar el response (response.clone())
+❌ NO hacer: leer response.text() y luego response.json()
+❌ NO hacer: usar el mismo body object en múltiples fetches
+
+□ Frontend corregido
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 4: VERIFICAR TABLA EN BASE DE DATOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Ejecutar en base de datos:
+
+```sql
+-- Verificar/crear tabla
+CREATE TABLE IF NOT EXISTS clientes (
+  id SERIAL PRIMARY KEY,
+  nombre VARCHAR(255) NOT NULL,
+  rfc VARCHAR(13),
+  razon_social VARCHAR(255),
+  direccion TEXT,
+  email VARCHAR(255),
+  telefono VARCHAR(50),
+  giro VARCHAR(100),
+  sitio_web VARCHAR(255),
+  empresa_id INTEGER,
+  activo BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Verificar que la tabla existe
+SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'clientes';
+```
+
+□ Tabla clientes verificada
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 5: AGREGAR TABLA AL SEED DE PRODUCCIÓN
+═══════════════════════════════════════════════════════════════════════════════
+
+En server/scripts/forceSeed.ts, agregar ANTES de los usuarios:
+
+```typescript
+// Crear tabla clientes
+await client.query(`
+  CREATE TABLE IF NOT EXISTS clientes (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL,
+    rfc VARCHAR(13),
+    razon_social VARCHAR(255),
+    direccion TEXT,
+    email VARCHAR(255),
+    telefono VARCHAR(50),
+    giro VARCHAR(100),
+    sitio_web VARCHAR(255),
+    empresa_id INTEGER,
+    activo BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )
+`);
+console.log('✅ Tabla clientes creada/verificada');
+```
+
+□ Seed actualizado con tabla clientes
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 6: REGISTRAR RUTA EN SERVER
+═══════════════════════════════════════════════════════════════════════════════
+
+En server/index.ts verificar que existe:
+
+```typescript
+import clientesRoutes from './routes/clientes';
+
+// DESPUÉS de app.use(express.json())
+app.use('/api/clientes', clientesRoutes);
+```
+
+□ Ruta registrada
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 7: TEST LOCAL ANTES DE DEPLOY
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+# Reiniciar servidor
+npm run dev
+
+# En otra terminal, probar endpoint
+curl -X POST http://localhost:5000/api/clientes \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "nombre": "FORTEZZA TEST",
+    "rfc": "XAXX010101000",
+    "razon_social": "FORTEZZA TEST SA DE CV",
+    "direccion": "Av. Test 123",
+    "email": "test@fortezza.mx",
+    "telefono": "8183030870",
+    "giro": "CONSTRUCCION",
+    "sitio_web": "https://fortezza.mx"
+  }'
+```
+
+DEBE RETORNAR:
+```json
+{
+  "success": true,
+  "message": "Cliente creado exitosamente",
+  "cliente": { "id": 1, "nombre": "FORTEZZA TEST", ... }
+}
+```
+
+SI RETORNA ERROR, ver el log del servidor para el mensaje exacto.
+
+□ Test local exitoso
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 8: DEPLOY
+═══════════════════════════════════════════════════════════════════════════════
+
+Una vez que el test local funcione:
+
+1. Commit cambios
+2. Click en "Redeploy"
+3. Esperar que termine
+4. Probar en producción
+
+□ Deploy exitoso
+□ Crear cliente funciona en producción
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST FINAL OBLIGATORIO
+═══════════════════════════════════════════════════════════════════════════════
+
+□ express.json() está ANTES de las rutas
+□ NO hay body-parser instalado (usar solo express.json)
+□ Endpoint POST /api/clientes existe y funciona
+□ Frontend no lee response.json() dos veces
+□ Tabla clientes existe en BD desarrollo
+□ Tabla clientes existe en BD producción (via seed)
+□ Test local con curl funciona
+□ Deploy ejecutado
+□ Test en producción funciona
+
+</TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+EJECUTAR TODO EN ORDEN. NO SALTAR PASOS. NO PREGUNTAR.
+═══════════════════════════════════════════════════════════════════════════════

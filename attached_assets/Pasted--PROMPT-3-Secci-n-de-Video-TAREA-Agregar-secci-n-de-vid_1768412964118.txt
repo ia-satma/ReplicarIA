@@ -1,0 +1,177 @@
+### **PROMPT 3: Sección de Video**
+
+
+TAREA: Agregar sección de video demo de Vimeo.
+
+En frontend/src/pages/LoginPage.js, DESPUÉS de la sección Hero (</section>), agrega:
+
+{/* Video Section */}
+<section className="bg-gray-50 py-20">
+  <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+    <h2 className="text-4xl font-bold text-center text-[#1A1A1A] mb-4">
+      Mira cómo funciona
+    </h2>
+    <p className="text-xl text-center text-gray-600 mb-12">
+      Descubre cómo Revisar.ia transforma proyectos en activos intangibles deducibles
+    </p>
+    
+    <div className="relative pb-[56.25%] h-0 overflow-hidden rounded-2xl shadow-2xl">
+      <iframe
+        src="https://player.vimeo.com/video/1153036275?badge=0&autopause=0&player_id=0&app_id=58479"
+        frameBorder="0"
+        allow="autoplay; fullscreen; picture-in-picture; clipboard-write"
+        className="absolute top-0 left-0 w-full h-full"
+        title="Demo Revisar.ia"
+      ></iframe>
+    </div>
+    <script src="https://player.vimeo.com/api/player.js"></script>
+  </div>
+</section>
+
+
+---
+
+### **PROMPT 4: Sección de Features**
+
+
+TAREA: Agregar sección de 3 características principales.
+
+En frontend/src/pages/LoginPage.js, DESPUÉS de la sección de video, agrega:
+
+{/* Features Section */}
+<section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+  <h2 className="text-4xl font-bold text-center text-[#1A1A1A] mb-16">
+    Cumplimiento Fiscal por Diseño
+  </h2>
+  
+  <div className="grid md:grid-cols-3 gap-8">
+    {/* Feature 1 */}
+    <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-xl transition-shadow border-2 border-transparent hover:border-[#7FEDD8]">
+      <div className="text-5xl mb-4">📊</div>
+      <h3 className="text-2xl font-bold text-[#1A1A1A] mb-4">
+        Trazabilidad SAT Completa
+      </h3>
+      <p className="text-gray-600 leading-relaxed">
+        Evidencia fiscal en cada fase del POE (F0-F9). Cumple los 4 pilares: Razón de Negocios, Materialidad, Indispensabilidad y Trazabilidad.
+      </p>
+    </div>
+
+    {/* Feature 2 */}
+    <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-xl transition-shadow border-2 border-transparent hover:border-[#7FEDD8]">
+      <div className="text-5xl mb-4">🤖</div>
+      <h3 className="text-2xl font-bold text-[#1A1A1A] mb-4">
+        6 Agentes de IA Especializados
+      </h3>
+      <p className="text-gray-600 leading-relaxed">
+        Tu equipo de Gobernanza Cognitiva: Strategy, PMO, Fiscal, Legal, Finanzas y Proveedor. Validan cada proyecto con revisión iterativa controlada.
+      </p>
+    </div>
+
+    {/* Feature 3 */}
+    <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-xl transition-shadow border-2 border-transparent hover:border-[#7FEDD8]">
+      <div className="text-5xl mb-4">📄</div>
+      <h3 className="text-2xl font-bold text-[#1A1A1A] mb-4">
+        Defense File Automático
+      </h3>
+      <p className="text-gray-600 leading-relaxed">
+        Repositorio central de toda la evidencia: SIB, contratos con fecha cierta, logs de ejecución, actas de entrega y documentación fiscal completa.
+      </p>
+    </div>
+  </div>
+</section>
+
+
+---
+
+### **PROMPT 5: Sección de Agentes**
+
+
+TAREA: Agregar sección "Conoce a tu Equipo de Gobernanza Digital".
+
+En frontend/src/pages/LoginPage.js, DESPUÉS de la sección de features, agrega:
+
+{/* Agentes Section */}
+<section className="bg-gradient-to-b from-gray-50 to-white py-20">
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <h2 className="text-4xl font-bold text-center text-[#1A1A1A] mb-4">
+      Conoce a tu Equipo de Gobernanza Digital
+    </h2>
+    <p className="text-xl text-center text-gray-600 mb-16">
+      6 agentes de IA especializados que validan cada fase de tu proyecto
+    </p>
+    
+    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+      {/* A1-Sponsor */}
+      <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-purple-500">
+        <div className="text-4xl mb-3">⭐</div>
+        <h3 className="text-xl font-bold text-[#1A1A1A] mb-2">
+          A1-Sponsor (María)
+        </h3>
+        <p className="text-sm text-purple-600 font-semibold mb-3">Validador Estratégico</p>
+        <p className="text-gray-600 text-sm">
+          Alineación con BEE y validación de Razón de Negocios (Art. 5-A CFF).
+        </p>
+      </div>
+
+      {/* A2-PMO */}
+      <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-blue-500">
+        <div className="text-4xl mb-3">🎯</div>
+        <h3 className="text-xl font-bold text-[#1A1A1A] mb-2">
+          A2-PMO (Carlos)
+        </h3>
+        <p className="text-sm text-blue-600 font-semibold mb-3">Orquestador Central</p>
+        <p className="text-gray-600 text-sm">
+          Guardián del POE, gestiona estados y coordina revisiones iterativas.
+        </p>
+      </div>
+
+      {/* A3-Fiscal */}
+      <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-green-500">
+        <div className="text-4xl mb-3">💰</div>
+        <h3 className="text-xl font-bold text-[#1A1A1A] mb-2">
+          A3-Fiscal (Laura)
+        </h3>
+        <p className="text-sm text-green-600 font-semibold mb-3">Motor de Cumplimiento</p>
+        <p className="text-gray-600 text-sm">
+          Genera Razón de Negocios (SIB) y valida materialidad fiscal.
+        </p>
+      </div>
+
+      {/* A4-Legal */}
+      <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-yellow-500">
+        <div className="text-4xl mb-3">⚖️</div>
+        <h3 className="text-xl font-bold text-[#1A1A1A] mb-2">
+          A4-Legal (Gestor IA)
+        </h3>
+        <p className="text-sm text-yellow-600 font-semibold mb-3">Validador Contractual</p>
+        <p className="text-gray-600 text-sm">
+          Valida SOW y Fecha Cierta (NOM-151) con sellos digitales.
+        </p>
+      </div>
+
+      {/* A5-Finanzas */}
+      <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-red-500">
+        <div className="text-4xl mb-3">📈</div>
+        <h3 className="text-xl font-bold text-[#1A1A1A] mb-2">
+          A5-Finanzas (Roberto)
+        </h3>
+        <p className="text-sm text-red-600 font-semibold mb-3">Controlador Financiero</p>
+        <p className="text-gray-600 text-sm">
+          Presupuesto y 3-Way Match (CFDI, SPEI) para trazabilidad completa.
+        </p>
+      </div>
+
+      {/* A6-Proveedor */}
+      <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-[#7FEDD8]">
+        <div className="text-4xl mb-3">🔧</div>
+        <h3 className="text-xl font-bold text-[#1A1A1A] mb-2">
+          A6-Proveedor (Ana)
+        </h3>
+        <p className="text-sm text-[#5DD5C0] font-semibold mb-3">Ejecutor del Servicio</p>
+        <p className="text-gray-600 text-sm">
+          Genera entregables y logs que alimentan el Defense File.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>

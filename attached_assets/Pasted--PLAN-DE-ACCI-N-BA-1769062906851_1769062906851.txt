@@ -1,0 +1,775 @@
+═══════════════════════════════════════════════════════════════════════════════
+🚨 PLAN DE ACCIÓN BASADO EN AUDITORÍA REAL 🚨
+═══════════════════════════════════════════════════════════════════════════════
+
+SISTEMA: Python/Flask (NO TypeScript)
+ESTADO ACTUAL: 65% operativo
+BLOQUEADORES DE DEMO: 3
+
+═══════════════════════════════════════════════════════════════════════════════
+PRIORIDAD 1: ARREGLAR ASISTENTE FACTURACIÓN (BLOQUEA DEMO)
+═══════════════════════════════════════════════════════════════════════════════
+
+PROBLEMA: El chat de Facturar.IA no responde / timeout
+
+DIAGNÓSTICO:
+```bash
+# Ver logs del endpoint
+grep -i "asistente_facturacion" server/*.py
+grep -i "error" /var/log/app.log | tail -50
+
+# Probar endpoint directamente
+curl -X POST http://localhost:5000/api/asistente-facturacion/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"hola"}' \
+  -v
+```
+
+PROBABLE CAUSA: El modelo de Claude está mal configurado (como pasó con biblioteca)
+
+ARREGLO en server/routes/asistente_facturacion_routes.py:
+
+```python
+# BUSCAR esta línea (probablemente incorrecta):
+model="claude-3-sonnet..."  # o similar
+
+# CAMBIAR A:
+model="claude-sonnet-4-20250514"
+
+# O si usa AI Integrations de Replit:
+# Verificar que el client esté configurado correctamente
+```
+
+VERIFICAR:
+```bash
+curl -X POST http://localhost:5000/api/asistente-facturacion/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"hola"}'
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PRIORIDAD 2: CREAR CLIENTE SIN CAMPOS OBLIGATORIOS
+═══════════════════════════════════════════════════════════════════════════════
+
+PROBLEMA: Crear cliente requiere razon_social obligatorio
+
+ARREGLO en server/routes/clientes_routes.py:
+
+```python
+# BUSCAR la validación:
+if not data.get('razon_social'):
+    return jsonify({'error': 'razon_social es requerido'}), 422
+
+# CAMBIAR A:
+razon_social = data.get('razon_social') or data.get('nombre') or 'Sin razón social'
+```
+
+O hacer el campo opcional en la creación:
+
+```python
+@clientes_bp.route('', methods=['POST'])
+def crear_cliente():
+    data = request.get_json()
+    
+    # Solo nombre es obligatorio
+    if not data.get('nombre'):
+        return jsonify({'error': 'nombre es requerido'}), 400
+    
+    # razon_social es opcional, usa nombre si no viene
+    razon_social = data.get('razon_social') or data.get('nombre')
+    
+    # ... resto del código
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PRIORIDAD 3: IMPLEMENTAR ENDPOINT /api/onboarding/investigar
+═══════════════════════════════════════════════════════════════════════════════
+
+PROBLEMA: Endpoint retorna 405 Method Not Allowed (no existe)
+
+Verificar en server/routes/onboarding_routes.py:
+
+```python
+# Agregar o verificar que existe:
+@onboarding_bp.route('/investigar', methods=['POST'])
+def investigar_empresa():
+    """
+    Recibe datos mínimos y usa AI para auto-completar información de empresa
+    """
+    data = request.get_json()
+    
+    sitio_web = data.get('sitio_web')
+    nombre = data.get('nombre')
+    rfc = data.get('rfc')
+    texto_libre = data.get('texto_libre')
+    
+    # Si no hay datos, error
+    if not any([sitio_web, nombre, rfc, texto_libre]):
+        return jsonify({
+            'success': False,
+            'error': 'Proporciona al menos un dato: sitio_web, nombre, rfc o texto_libre'
+        }), 400
+    
+    try:
+        # Usar Claude para investigar
+        resultado = investigar_con_ai(sitio_web, nombre, rfc, texto_libre)
+        
+        return jsonify({
+            'success': True,
+            'confidence': resultado.get('confidence', 50),
+            'datos': resultado.get('datos', {}),
+            'campos_autocompletados': resultado.get('campos_autocompletados', []),
+            'campos_para_confirmar': resultado.get('campos_para_confirmar', []),
+            'fuentes': resultado.get('fuentes', [])
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def investigar_con_ai(sitio_web, nombre, rfc, texto_libre):
+    """Usa Claude para investigar y auto-completar datos de empresa"""
+    
+    from anthropic import Anthropic
+    
+    # Usar AI Integrations de Replit o API key directa
+    client = Anthropic()
+    
+    prompt = f"""Eres un investigador experto en empresas mexicanas.
+
+DATOS PROPORCIONADOS:
+- Sitio web: {sitio_web or 'No proporcionado'}
+- Nombre: {nombre or 'No proporcionado'}
+- RFC: {rfc or 'No proporcionado'}
+- Información adicional: {texto_libre or 'No proporcionado'}
+
+INSTRUCCIONES:
+1. Analiza los datos proporcionados
+2. Si hay sitio web, imagina qué información típicamente encontrarías
+3. Si hay RFC, determina si es persona física o moral
+4. Completa todos los campos posibles
+
+Responde en JSON:
+{{
+  "confidence": 0-100,
+  "datos": {{
+    "nombre": "...",
+    "rfc": "...",
+    "razon_social": "...",
+    "direccion": "...",
+    "ciudad": "...",
+    "estado": "...",
+    "codigo_postal": "...",
+    "email": "...",
+    "telefono": "...",
+    "giro": "...",
+    "sitio_web": "...",
+    "regimen_fiscal": "...",
+    "tipo_persona": "fisica o moral"
+  }},
+  "campos_autocompletados": ["lista de campos que pudiste completar"],
+  "campos_para_confirmar": ["campos que necesitan verificación"],
+  "fuentes": ["de dónde obtuviste la información"]
+}}
+
+IMPORTANTE: Solo incluye datos que puedas inferir razonablemente. No inventes."""
+
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=2000,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    
+    # Parsear respuesta
+    import json
+    import re
+    
+    text = response.content[0].text
+    json_match = re.search(r'\{[\s\S]*\}', text)
+    
+    if json_match:
+        return json.loads(json_match.group())
+    
+    return {
+        'confidence': 30,
+        'datos': {},
+        'campos_autocompletados': [],
+        'campos_para_confirmar': ['nombre', 'rfc'],
+        'fuentes': []
+    }
+```
+
+VERIFICAR que la ruta está registrada en server/main.py o app.py:
+
+```python
+from routes.onboarding_routes import onboarding_bp
+app.register_blueprint(onboarding_bp, url_prefix='/api/onboarding')
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PRIORIDAD 4: ESTADO DEL ACERVO FUNCIONAL (para Bibliotecar.IA)
+═══════════════════════════════════════════════════════════════════════════════
+
+PROBLEMA: La función "Estado del Acervo" no muestra documentos por agente
+
+Agregar a server/routes/biblioteca_routes.py:
+
+```python
+# ═══════════════════════════════════════════════════════════════════════════
+# CONFIGURACIÓN DE DOCUMENTOS REQUERIDOS POR AGENTE
+# ═══════════════════════════════════════════════════════════════════════════
+
+AGENTES_DOCUMENTOS = {
+    'A1': {
+        'nombre': 'Razón de Negocios',
+        'icono': '⚖️',
+        'documentos': [
+            {'id': 'cff', 'nombre': 'Código Fiscal de la Federación', 'codigos': ['CFF'], 'critico': True},
+            {'id': 'juris_razon', 'nombre': 'Jurisprudencias Razón de Negocios', 'codigos': ['JURIS_RAZON'], 'critico': True},
+            {'id': 'criterios_sim', 'nombre': 'Criterios SAT Simulación', 'codigos': ['CRITERIOS_SIM'], 'critico': False},
+        ]
+    },
+    'A2': {
+        'nombre': 'Materialidad y Sustancia',
+        'icono': '📋',
+        'documentos': [
+            {'id': 'cff_cfdi', 'nombre': 'CFF - Comprobantes Fiscales', 'codigos': ['CFF'], 'critico': True},
+            {'id': 'rmf_cfdi', 'nombre': 'RMF - Reglas CFDI', 'codigos': ['RMF'], 'critico': True},
+        ]
+    },
+    'A3': {
+        'nombre': 'Deducciones Autorizadas',
+        'icono': '💰',
+        'documentos': [
+            {'id': 'lisr', 'nombre': 'Ley del ISR', 'codigos': ['LISR'], 'critico': True},
+            {'id': 'rlisr', 'nombre': 'Reglamento LISR', 'codigos': ['RLISR'], 'critico': True},
+            {'id': 'rmf_ded', 'nombre': 'RMF - Deducciones', 'codigos': ['RMF'], 'critico': True},
+        ]
+    },
+    'A4': {
+        'nombre': 'Obligaciones Formales',
+        'icono': '📝',
+        'documentos': [
+            {'id': 'cff_oblig', 'nombre': 'CFF - Obligaciones', 'codigos': ['CFF'], 'critico': True},
+            {'id': 'rcff', 'nombre': 'Reglamento CFF', 'codigos': ['RCFF'], 'critico': False},
+        ]
+    },
+    'A5': {
+        'nombre': 'Intangibles y Regalías',
+        'icono': '💎',
+        'documentos': [
+            {'id': 'lisr_inv', 'nombre': 'LISR - Inversiones', 'codigos': ['LISR'], 'critico': True},
+            {'id': 'ocde_pt', 'nombre': 'Guías OCDE Precios Transferencia', 'codigos': ['OCDE_PT'], 'critico': False},
+        ]
+    },
+    'A6': {
+        'nombre': 'Verificación EFOS',
+        'icono': '🔍',
+        'documentos': [
+            {'id': 'lista_69b', 'nombre': 'Lista 69-B (EFOS)', 'codigos': ['LISTA_69B', 'EFOS'], 'critico': True},
+            {'id': 'proc_69b', 'nombre': 'Procedimiento Art. 69-B', 'codigos': ['CFF'], 'critico': True},
+        ]
+    },
+    'A7': {
+        'nombre': 'Defensa y Estrategia',
+        'icono': '🛡️',
+        'documentos': [
+            {'id': 'cff_recursos', 'nombre': 'CFF - Medios de Defensa', 'codigos': ['CFF'], 'critico': True},
+            {'id': 'lfpca', 'nombre': 'Ley Procedimiento Contencioso', 'codigos': ['LFPCA'], 'critico': True},
+        ]
+    }
+}
+
+@biblioteca_bp.route('/acervo/estado', methods=['GET'])
+def estado_acervo():
+    """Estado completo del acervo por agente"""
+    try:
+        # Obtener documentos cargados
+        docs_cargados = db.session.execute(text("""
+            SELECT id, nombre, ley_codigo, categoria, total_chunks, 
+                   created_at, procesado, version
+            FROM kb_documentos 
+            WHERE activo = TRUE
+        """)).fetchall()
+        
+        # Crear mapa de códigos cargados
+        codigos_cargados = {}
+        for doc in docs_cargados:
+            if doc.ley_codigo:
+                codigos_cargados[doc.ley_codigo] = {
+                    'id': doc.id,
+                    'nombre': doc.nombre,
+                    'chunks': doc.total_chunks or 0,
+                    'fecha': doc.created_at.isoformat() if doc.created_at else None,
+                    'procesado': doc.procesado,
+                    'version': doc.version or '1.0'
+                }
+        
+        # Construir estado por agente
+        agentes_estado = []
+        total_requeridos = 0
+        total_cargados = 0
+        alertas = []
+        
+        for agente_id, config in AGENTES_DOCUMENTOS.items():
+            docs_estado = []
+            cargados_agente = 0
+            
+            for doc_req in config['documentos']:
+                # Buscar si está cargado
+                doc_cargado = None
+                for codigo in doc_req['codigos']:
+                    if codigo in codigos_cargados:
+                        doc_cargado = codigos_cargados[codigo]
+                        break
+                
+                cargado = doc_cargado is not None and doc_cargado.get('procesado', False)
+                pendiente = doc_cargado is not None and not doc_cargado.get('procesado', False)
+                
+                if cargado:
+                    cargados_agente += 1
+                    total_cargados += 1
+                
+                total_requeridos += 1
+                
+                # Alerta si es crítico y falta
+                if doc_req['critico'] and not cargado and not pendiente:
+                    alertas.append({
+                        'tipo': 'critico',
+                        'mensaje': f"{config['nombre']} necesita: {doc_req['nombre']}",
+                        'agente': agente_id
+                    })
+                
+                docs_estado.append({
+                    'id': doc_req['id'],
+                    'nombre': doc_req['nombre'],
+                    'critico': doc_req['critico'],
+                    'cargado': cargado,
+                    'pendiente_procesar': pendiente,
+                    'documento_id': doc_cargado['id'] if doc_cargado else None,
+                    'chunks': doc_cargado['chunks'] if doc_cargado else 0,
+                    'fecha_carga': doc_cargado['fecha'] if doc_cargado else None,
+                    'version': doc_cargado['version'] if doc_cargado else None
+                })
+            
+            progreso = round((cargados_agente / len(config['documentos'])) * 100) if config['documentos'] else 0
+            
+            agentes_estado.append({
+                'id': agente_id,
+                'nombre': config['nombre'],
+                'icono': config['icono'],
+                'progreso': progreso,
+                'total_documentos': len(config['documentos']),
+                'documentos_cargados': cargados_agente,
+                'documentos': docs_estado,
+                'operativo': progreso >= 50
+            })
+        
+        progreso_global = round((total_cargados / total_requeridos) * 100) if total_requeridos > 0 else 0
+        
+        # Documentos pendientes de procesar
+        pendientes = db.session.execute(text("""
+            SELECT COUNT(*) FROM kb_documentos WHERE activo = TRUE AND procesado = FALSE
+        """)).scalar()
+        
+        return jsonify({
+            'success': True,
+            'progreso_global': progreso_global,
+            'total_documentos_requeridos': total_requeridos,
+            'total_documentos_cargados': total_cargados,
+            'documentos_pendientes': pendientes or 0,
+            'agentes': agentes_estado,
+            'alertas': alertas[:10]
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@biblioteca_bp.route('/documento/<int:doc_id>/reingestar', methods=['POST'])
+def reingestar_documento(doc_id):
+    """Reprocesar documento que falló"""
+    try:
+        # Verificar que existe
+        doc = db.session.execute(text(
+            "SELECT * FROM kb_documentos WHERE id = :id"
+        ), {'id': doc_id}).fetchone()
+        
+        if not doc:
+            return jsonify({'success': False, 'error': 'Documento no encontrado'}), 404
+        
+        # Eliminar chunks anteriores
+        db.session.execute(text(
+            "DELETE FROM kb_chunks WHERE documento_id = :id"
+        ), {'id': doc_id})
+        
+        # Marcar como no procesado
+        db.session.execute(text("""
+            UPDATE kb_documentos 
+            SET procesado = FALSE, 
+                intentos_proceso = COALESCE(intentos_proceso, 0) + 1,
+                error_procesamiento = NULL
+            WHERE id = :id
+        """), {'id': doc_id})
+        
+        db.session.commit()
+        
+        # Reprocesar
+        from services.knowledge_base.rag_processor import RAGProcessor
+        processor = RAGProcessor()
+        
+        resultado = processor.procesar_documento_existente(doc_id)
+        
+        return jsonify({
+            'success': True,
+            'chunks': resultado.get('chunks', 0),
+            'mensaje': 'Documento reingestado exitosamente'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@biblioteca_bp.route('/documento/<int:doc_id>/stats', methods=['GET'])
+def stats_documento(doc_id):
+    """Estadísticas detalladas de un documento"""
+    try:
+        # Info del documento
+        doc = db.session.execute(text("""
+            SELECT * FROM kb_documentos WHERE id = :id
+        """), {'id': doc_id}).fetchone()
+        
+        if not doc:
+            return jsonify({'success': False, 'error': 'No encontrado'}), 404
+        
+        # Chunks por tipo
+        chunks_tipo = db.session.execute(text("""
+            SELECT tipo_contenido, COUNT(*) as cantidad
+            FROM kb_chunks WHERE documento_id = :id
+            GROUP BY tipo_contenido
+        """), {'id': doc_id}).fetchall()
+        
+        # Artículos
+        articulos = db.session.execute(text("""
+            SELECT COUNT(DISTINCT articulo) FROM kb_chunks
+            WHERE documento_id = :id AND articulo IS NOT NULL
+        """), {'id': doc_id}).scalar()
+        
+        # Agentes asignados
+        agentes = db.session.execute(text("""
+            SELECT ca.agente_id, COUNT(*) as chunks
+            FROM kb_chunk_agente ca
+            JOIN kb_chunks c ON ca.chunk_id = c.id
+            WHERE c.documento_id = :id
+            GROUP BY ca.agente_id
+        """), {'id': doc_id}).fetchall()
+        
+        return jsonify({
+            'success': True,
+            'documento': {
+                'id': doc.id,
+                'nombre': doc.nombre,
+                'version': doc.version,
+                'fecha_carga': doc.created_at.isoformat() if doc.created_at else None,
+                'procesado': doc.procesado
+            },
+            'estadisticas': {
+                'total_chunks': doc.total_chunks or 0,
+                'total_articulos': articulos or 0,
+                'chunks_por_tipo': [{'tipo': c.tipo_contenido, 'cantidad': c.cantidad} for c in chunks_tipo],
+                'agentes_asignados': [{'agente': a.agente_id, 'chunks': a.chunks} for a in agentes]
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PRIORIDAD 5: FRONTEND - COMPONENTE ESTADO ACERVO
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear o actualizar frontend/src/components/biblioteca/EstadoAcervo.jsx:
+
+```jsx
+import React, { useState, useEffect } from 'react';
+
+export default function EstadoAcervo({ onUpload, onView }) {
+  const [estado, setEstado] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [expandido, setExpandido] = useState(null);
+  const [reingestando, setReingestando] = useState(null);
+
+  useEffect(() => {
+    cargarEstado();
+  }, []);
+
+  const cargarEstado = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/biblioteca/acervo/estado');
+      const data = await res.json();
+      if (data.success) {
+        setEstado(data);
+        // Expandir primer agente incompleto
+        const incompleto = data.agentes.find(a => a.progreso < 100);
+        if (incompleto) setExpandido(incompleto.id);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReingestar = async (docId) => {
+    if (!confirm('¿Reprocesar este documento?')) return;
+    setReingestando(docId);
+    try {
+      const res = await fetch(`/api/biblioteca/documento/${docId}/reingestar`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`✅ ${data.chunks} chunks creados`);
+        cargarEstado();
+      } else {
+        alert(`❌ ${data.error}`);
+      }
+    } finally {
+      setReingestando(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6 text-center">
+        <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full mx-auto" />
+        <p className="mt-2 text-gray-400">Cargando estado del acervo...</p>
+      </div>
+    );
+  }
+
+  if (!estado) return null;
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="bg-gray-800 rounded-lg p-4">
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-xl font-bold text-white">📚 Estado del Acervo</h2>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={cargarEstado}
+              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded"
+            >
+              🔄 Actualizar
+            </button>
+            <span className="text-2xl font-bold text-cyan-400">{estado.progreso_global}%</span>
+          </div>
+        </div>
+        
+        {/* Barra progreso global */}
+        <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
+          <div 
+            className={`h-full transition-all ${
+              estado.progreso_global >= 80 ? 'bg-green-500' :
+              estado.progreso_global >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+            }`}
+            style={{ width: `${estado.progreso_global}%` }}
+          />
+        </div>
+        
+        <div className="mt-2 text-sm text-gray-400 flex justify-between">
+          <span>{estado.total_documentos_cargados} documentos cargados</span>
+          <span>{estado.total_documentos_requeridos - estado.total_documentos_cargados} faltantes</span>
+        </div>
+      </div>
+
+      {/* Alertas */}
+      {estado.alertas?.length > 0 && (
+        <div className="bg-red-900/30 border border-red-600 rounded-lg p-3">
+          <h3 className="text-red-400 font-semibold mb-2">⚠️ Documentos Críticos Faltantes</h3>
+          <ul className="space-y-1 text-sm text-red-200">
+            {estado.alertas.slice(0, 5).map((a, i) => (
+              <li key={i}>• {a.mensaje}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Lista de agentes */}
+      {estado.agentes.map(agente => (
+        <div key={agente.id} className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+          {/* Header agente */}
+          <button
+            onClick={() => setExpandido(expandido === agente.id ? null : agente.id)}
+            className="w-full p-4 flex items-center justify-between hover:bg-gray-700/50"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{agente.icono}</span>
+              <div className="text-left">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-white">{agente.id}</span>
+                  <span className="text-gray-300">- {agente.nombre}</span>
+                  {!agente.operativo && (
+                    <span className="px-2 py-0.5 bg-red-600 text-white text-xs rounded">NO OPERATIVO</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <div className="w-24">
+                <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full ${
+                      agente.progreso >= 80 ? 'bg-green-500' :
+                      agente.progreso >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${agente.progreso}%` }}
+                  />
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {agente.documentos_cargados}/{agente.total_documentos} • {agente.progreso}%
+                </div>
+              </div>
+              <span className={`transform transition ${expandido === agente.id ? 'rotate-180' : ''}`}>▼</span>
+            </div>
+          </button>
+
+          {/* Documentos (expandible) */}
+          {expandido === agente.id && (
+            <div className="border-t border-gray-700 p-4 space-y-2">
+              {agente.documentos.map(doc => (
+                <div 
+                  key={doc.id}
+                  className={`p-3 rounded-lg flex items-center justify-between ${
+                    doc.cargado 
+                      ? 'bg-green-900/20 border border-green-700'
+                      : doc.pendiente_procesar
+                        ? 'bg-yellow-900/20 border border-yellow-700'
+                        : doc.critico
+                          ? 'bg-red-900/20 border border-red-700'
+                          : 'bg-gray-700/30 border border-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">
+                      {doc.cargado ? '✅' : doc.pendiente_procesar ? '⚠️' : doc.critico ? '🔴' : '⬚'}
+                    </span>
+                    <div>
+                      <div className={doc.cargado ? 'font-bold text-white' : 'text-gray-300'}>
+                        {doc.nombre}
+                        {doc.cargado && (
+                          <span className="ml-2 text-sm text-green-400">[{doc.chunks} chunks]</span>
+                        )}
+                      </div>
+                      {doc.cargado && doc.fecha_carga && (
+                        <div className="text-xs text-gray-500">
+                          v{doc.version} • 📅 {new Date(doc.fecha_carga).toLocaleDateString('es-MX')}
+                        </div>
+                      )}
+                      {doc.pendiente_procesar && (
+                        <div className="text-xs text-yellow-400">Pendiente de procesar</div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    {doc.cargado ? (
+                      <>
+                        <button
+                          onClick={() => onView?.(doc.documento_id)}
+                          className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-sm"
+                        >
+                          👁️ Ver
+                        </button>
+                        <button
+                          onClick={() => handleReingestar(doc.documento_id)}
+                          disabled={reingestando === doc.documento_id}
+                          className="px-3 py-1 bg-yellow-600 hover:bg-yellow-500 text-white rounded text-sm disabled:opacity-50"
+                        >
+                          {reingestando === doc.documento_id ? '⏳' : '⟳'}
+                        </button>
+                      </>
+                    ) : doc.pendiente_procesar ? (
+                      <button
+                        onClick={() => handleReingestar(doc.documento_id)}
+                        disabled={reingestando === doc.documento_id}
+                        className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white rounded text-sm"
+                      >
+                        {reingestando === doc.documento_id ? '⏳ Procesando...' : '⟳ Procesar'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onUpload?.(doc.id, doc.nombre)}
+                        className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white rounded text-sm"
+                      >
+                        📤 Subir
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST DE VERIFICACIÓN
+═══════════════════════════════════════════════════════════════════════════════
+
+DESPUÉS DE CADA ARREGLO, VERIFICAR:
+
+□ 1. Chat Facturar.IA responde:
+   curl -X POST http://localhost:5000/api/asistente-facturacion/chat \
+     -H "Content-Type: application/json" \
+     -d '{"message":"hola"}'
+
+□ 2. Crear cliente sin razon_social:
+   curl -X POST http://localhost:5000/api/clientes \
+     -H "Content-Type: application/json" \
+     -d '{"nombre":"Test Cliente"}'
+
+□ 3. Endpoint investigar existe:
+   curl -X POST http://localhost:5000/api/onboarding/investigar \
+     -H "Content-Type: application/json" \
+     -d '{"sitio_web":"google.com"}'
+
+□ 4. Estado del acervo funciona:
+   curl http://localhost:5000/api/biblioteca/acervo/estado
+
+□ 5. Reingestar documento:
+   curl -X POST http://localhost:5000/api/biblioteca/documento/1/reingestar
+
+═══════════════════════════════════════════════════════════════════════════════
+ORDEN DE EJECUCIÓN
+═══════════════════════════════════════════════════════════════════════════════
+
+1. PRIMERO: Arreglar Chat Facturar.IA (5 min)
+2. SEGUNDO: Arreglar crear cliente (5 min)
+3. TERCERO: Implementar /investigar (15 min)
+4. CUARTO: Estado del Acervo backend (20 min)
+5. QUINTO: Componente EstadoAcervo frontend (15 min)
+
+TIEMPO TOTAL ESTIMADO: 1 hora para tener todo operativo
+
+═══════════════════════════════════════════════════════════════════════════════
+RESULTADO ESPERADO DESPUÉS DE ARREGLOS
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ Chat Facturar.IA - FUNCIONA
+✅ Crear cliente - SIN campos obligatorios extras
+✅ Onboarding investigar - AUTO-COMPLETA datos
+✅ Estado Acervo - MUESTRA documentos por agente
+✅ Reingestar - REPROCESA documentos fallidos
+
+SISTEMA: 90% operativo
+LISTO PARA DEMO: SÍ

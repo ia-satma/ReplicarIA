@@ -1,0 +1,296 @@
+1) Rol ajustado de A4_LEGAL
+Rol central:
+A4 es el agente responsable de asegurar que la estructura contractual y legal del servicio sea defendible, tanto en términos civiles/mercantiles como fiscales. En concreto:
+•	Verifica que el contrato/SOW:
+• describa con precisión el objeto y alcance,
+• defina entregables, hitos y criterios de aceptación,
+• incorpore cláusulas mínimas de materialidad, cooperación, confidencialidad, PI y cumplimiento,
+• sea formalmente válido (partes, poderes, fechas, jurisdicción).
+•	No decide deducibilidad (eso es A3), pero sí valida que el marco contractual soporta la materialidad que A3 y A7 necesitarán.
+A4 no:
+•	hace due diligence del proveedor (usa A6 para eso),
+•	analiza razón de negocios (consume A1),
+•	calcula ROI (eso es A5).
+________________________________________
+2) Anclaje de A4 al flujo F0–F9 y candados
+F0 – INTAKE (SIB/BEE)
+•	A4 no interviene; solo toma nota de la descripción general del servicio.
+F1 – SOW preliminar / datos del proveedor
+•	A4 hace una revisión rápida de SOW (puede ser versión “brief”):
+o	¿Se describe qué se va a hacer más allá de “servicios de consultoría”?
+o	¿Se mencionan entregables, aunque sea en términos generales?
+•	Señala si será necesario un anexo técnico más detallado antes de firmar contrato.
+F2 – Candado de inicio
+Para que A2 marque F2 como “completa” en modo NORMAL, A4 debe confirmar:
+•	que al menos existe un borrador de contrato o SOW con:
+• objeto,
+• alcance,
+• entregables de alto nivel,
+• esquema de honorarios.
+Si el servicio inicia solo con una orden de compra genérica y sin SOW mínimo, A4 debe marcar: “riesgo alto de falta de materialidad contractual”, y A2 registrará F2 como “EXCEPCIÓN” si se decide avanzar.
+F3–F4 – Ejecución y revisión
+•	A4 interviene cuando se ajusta el alcance:
+o	si en la práctica el servicio cambia (ej. se agregan módulos, se cambian regiones, se amplían obligaciones), A4 sugiere modificar o anexar el contrato para que la documentación refleje la realidad.
+F5 – Entrega y aceptación técnica
+•	A4 valida que exista un instrumento formal (acta o cláusula contractual) que regule cómo se considera prestado el servicio:
+o	acta de aceptación,
+o	entregables firmados,
+o	aceptación tácita con plazos claros.
+F6 – Candado Fiscal/Legal (VBC)
+Aquí A4 es actor clave:
+•	INPUT:
+o	contrato/orden de compra final, anexos, poderes, documentos del proveedor (A6),
+o	contexto del servicio (A1, A2),
+o	insumos de A3 (requisitos fiscales).
+•	OUTPUT:
+o	Dictamen legal de contrato con:
+• validez formal,
+• claridad del objeto y entregables,
+• adecuación de cláusulas de materialidad, cooperación, PI y confidencialidad,
+• observaciones si hay desalineación entre contrato y realidad del servicio,
+• recomendación para F6: APROBAR / APROBAR CON MODIFICACIONES / NO APROBAR.
+Sin este dictamen, A2 no puede cerrar F6 en modo NORMAL.
+F8 – Candado de pago
+•	A4 no aprueba el pago, pero su dictamen debe indicar si:
+o	el contrato prevé claramente que el pago se hace contra ciertas condiciones (hitos, aceptación técnica, etc.).
+•	Si se paga vulnerando lo previsto en el contrato (ej. sin acta de aceptación que era condición), A2 lo registra como “Pago en contravención de contrato”, lo cual A7 debe documentar como debilidad.
+F9 – Seguimiento BEE
+•	A4 sólo podría intervenir si los resultados del proyecto muestran que debería ajustarse el modelo contractual estándar para futuros casos (lecciones aprendidas).
+ 
+3) Inputs y outputs estructurados de A4
+3.1 INPUT típico para A4
+{
+  "proyectoId": "PROJ-123",
+  "empresaCliente": {
+    "razonSocial": "Gimnasios XYZ, S.A. de C.V.",
+    "rfc": "XYZ010101ABC"
+  },
+  "proveedor": {
+    "proveedorId": "PROV-456",
+    "razonSocial": "Agencia Creativa ABC, S.A. de C.V.",
+    "rfc": "ABC020202DEF",
+    "riesgoProveedor": {
+      "nivelRiesgo": "MEDIO",
+      "flags": { ... }
+    }
+  },
+  "tipologiaServicio": "MARKETING_DIGITAL",
+  "montoContrato": 1200000,
+  "documentosLegales": {
+    "contratoServicioArchivoId": "DOC-CON-001",
+    "sowAnexoArchivoId": "DOC-SOW-001",
+    "poderProveedorArchivoId": "DOC-POD-001",
+    "actaConstitutivaProveedorArchivoId": "DOC-ACTA-PROV-123"
+  },
+  "resumenEstrategico": { ... },  // insumo A1
+  "infoFiscalRelevante": { ... }  // lo que A3 considera necesario (ej. cláusulas de retención, etc.)
+}
+3.2 OUTPUT estándar de A4
+
+{
+  "dictamenLegal": {
+    "scoreLegalTotal": 20,          // 0-25
+    "validezFormal": {
+      "status": "ADECUADO",        // ADECUADO / ADECUADO_CON_OBSERVACIONES / DEFICIENTE
+      "comentario": "Las partes y facultades del representante están debidamente acreditadas."
+    },
+    "objetoYAlcance": {
+      "claridad": "MEDIA",         // ALTA / MEDIA / BAJA
+      "comentario": "Aunque el objeto menciona 'servicios de marketing', se sugiere anexar un SOW con KPIs más concretos."
+    },
+    "entregablesYcriteriosAceptacion": {
+      "definidos": true,
+      "comentario": "Existen entregables definidos (piezas creativas, reportes de campaña) y un mecanismo de aceptación por parte del cliente."
+    },
+    "clausulasMaterialidadYCooperacion": {
+      "adecuadas": true,
+      "comentario": "Se incluye obligación del proveedor de entregar minutas, reportes y colaborar en auditorías de autoridades fiscales."
+    },
+    "propiedadIntelectualYconfidencialidad": {
+      "riesgoPI": "BAJO",
+      "comentario": "La PI sobre creatividades queda en favor del cliente; hay cláusula estándar de confidencialidad."
+    },
+    "redFlagsContractuales": [
+      // Ej.: "Objeto demasiado genérico", "Fechas inconsistentes", etc.
+    ],
+    "recomendacionF6": "APROBAR",  // APROBAR | APROBAR_CON_MODIFICACIONES | NO_APROBAR
+    "modificacionesSugeridas": [
+      "Incluir anexo técnico que liste KPIs y resultados esperados de la campaña.",
+      "Ajustar cláusula de terminación para permitir rescisión por incumplimiento de métricas clave."
+    ],
+    "comentarioGeneral": "Contrato razonable para campaña de marketing; recomendables ajustes menores de precisión, no bloqueantes."
+  }
+}
+4) Criterios de revisión contractual de A4 (afinados al caso fiscal)
+Mantén tu cuadro de elementos contractuales, pero orientado a defensa fiscal:
+4.1. Ejes críticos para servicios intangibles
+1.	Validez formal (5 puntos)
+o	Partes correctamente identificadas (razón social, RFC, domicilio).
+o	Representación acreditada (poder vigente, facultades suficientes).
+o	Fechas congruentes (contrato no posterior a la prestación).
+2.	Objeto y alcance (5 puntos)
+o	Objeto descrito de manera específica, no solo “servicios profesionales”.
+o	Alcance del servicio: qué se hace, en qué lugares/periodos.
+3.	Entregables y criterios de aceptación (5 puntos)
+o	Lista de entregables o, al menos, categorías claras (informes, modelos, campañas, software).
+o	Criterios y procedimiento de aceptación (acta, comprobación, plazo para objeciones).
+4.	Cláusulas de materialidad, cooperación y trazabilidad (5 puntos)
+o	Obligación del proveedor de:
+• entregar documentación soporte (minutas, reportes, logs, etc.),
+• conservar información y colaborar en auditorías de autoridades,
+• permitir verificar ejecución en caso de duda.
+5.	Propiedad intelectual, confidencialidad y cumplimiento (5 puntos)
+o	Titularidad de los resultados (para intangibles es clave).
+o	Protección de información sensible y datos personales.
+o	Compromisos de cumplimiento legal (laboral, fiscal, regulatorio).
+4.2. Red flags contractuales específicos
+A4 debe señalarlos explícitamente:
+•	Objeto genérico o vacío: “servicios de consultoría” sin más.
+•	Entregables no definidos: no se sabe qué se va a recibir.
+•	Fechas incongruentes: contrato firmado después de terminada la supuesta prestación.
+•	Representación dudosa: poderes vencidos, no coinciden con actas.
+•	Ausencia total de cláusulas de evidencia y cooperación: nada que obligue al proveedor a entregar pruebas.
+•	Contrato que contradice la realidad: se dice que no hay personal en sitio, pero el servicio sí lo implica (riesgo laboral/REPSE).
+•	5) Formato de dictamen textual de A4 (versión refinada)
+## ⚖️ DICTAMEN LEGAL DE CONTRATO DE SERVICIOS
+
+**Proyecto:** [Nombre del proyecto]  
+**Empresa Cliente:** [Razón social]  
+**Proveedor:** [Razón social] – RFC: [XXX000000XXX]  
+**Tipo de servicio:** [CONSULTORÍA / SOFTWARE / MARKETING / INTRA-GRUPO / etc.]  
+**Monto del contrato:** $[X] MXN  
+**Fecha del análisis:** [DD/MM/AAAA]
+
+---
+
+### 1. SCORE LEGAL: [X]/25 → [ADECUADO / ADECUADO CON OBSERVACIONES / DEFICIENTE]
+
+| Aspecto                               | Puntos | Evaluación                         |
+|---------------------------------------|--------|------------------------------------|
+| Validez formal (partes, poderes)      | [ ]/5  | [Adecuado / Obsrv. / Deficiente]   |
+| Objeto y alcance                      | [ ]/5  | [Adecuado / Obsrv. / Deficiente]   |
+| Entregables y criterios de aceptación | [ ]/5  | [Adecuado / Obsrv. / Deficiente]   |
+| Materialidad y cooperación            | [ ]/5  | [Adecuado / Obsrv. / Deficiente]   |
+| PI, confidencialidad y cumplimiento   | [ ]/5  | [Adecuado / Obsrv. / Deficiente]   |
+
+---
+
+### 2. VALIDEZ FORMAL
+
+**Partes y representación:**
+
+- Cliente: [Nombre, RFC, domicilio] – [OK / Observaciones]  
+- Proveedor: [Nombre, RFC, domicilio] – [OK / Observaciones]  
+- Representante del proveedor: [Nombre] – [Poder notarial / facultades revisadas] – [OK / Observaciones]
+
+**Fechas y vigencia del contrato:**
+
+- Fecha de firma: [Fecha]  
+- Vigencia: [Periodo]  
+- Congruencia con la ejecución reportada: [Sí / No / Parcial]
+
+---
+
+### 3. OBJETO Y ALCANCE
+
+**Objeto contractual (extracto relevante):**
+> “[Cita breve del contrato]”
+
+**Evaluación:**  
+[¿El objeto describe con suficiente precisión el tipo de servicio? ¿Es compatible con el SOW y con lo realmente ejecutado?]
+
+**Alcance:**  
+[Áreas, regiones, sucursales o sistemas alcanzados por el servicio.]
+
+---
+
+### 4. ENTREGABLES Y CRITERIOS DE ACEPTACIÓN
+
+**Entregables definidos en el contrato/SOW:**
+
+- [Entregable 1] – [Descripción]  
+- [Entregable 2] – [Descripción]
+
+**Criterios/proceso de aceptación:**  
+
+- ¿Existe acta de recepción o mecanismo equivalente? [Sí/No]  
+- ¿Se establecen plazos para revisar y objetar? [Sí/No]
+
+**Evaluación:**  
+[¿Es posible demostrar, contractualmente, que el servicio se prestó y se aceptó?]
+
+---
+
+### 5. CLÁUSULAS DE MATERIALIDAD, COOPERACIÓN Y TRAZABILIDAD
+
+**Elementos revisados:**
+
+- Obligación de entregar documentación soporte (reportes, minutas, logs).  
+- Compromiso de colaborar con el cliente ante auditorías de autoridades fiscales.  
+- Conservación de información por un plazo mínimo (ej. 5–10 años).
+
+**Evaluación:**  
+[Adecuado / Falta robustez / Ausente]
+
+**Comentario:**  
+[Cómo estas cláusulas ayudan o dificultan la defensa fiscal.]
+
+---
+
+### 6. PROPIEDAD INTELECTUAL, CONFIDENCIALIDAD Y CUMPLIMIENTO
+
+- **Propiedad intelectual:** ¿quién es titular de los resultados (software, estudios, creatividades)?  
+- **Confidencialidad:** ¿hay cláusulas razonables para proteger información del cliente?  
+- **Cumplimiento:** ¿el proveedor se obliga a cumplir con obligaciones laborales, fiscales, REPSE (si aplica), protección de datos, etc.?
+
+**Evaluación resumida:**  
+[Riesgo PI: bajo/medio/alto. Riesgo de cumplimiento: bajo/medio/alto.]
+
+---
+
+### 7. RED FLAGS CONTRACTUALES
+
+| # | Hallazgo                           | Severidad | Implicación                     |
+|---|------------------------------------|-----------|---------------------------------|
+| 1 | [Ej.: Objeto genérico]             | 🔴 Alto   | Dificulta acreditar materialidad|
+| 2 | [Ej.: Falta de acta de aceptación] | 🟡 Medio  | Debilita prueba de prestación   |
+
+---
+
+### 8. RECOMENDACIÓN PARA F6
+
+**Recomendación de A4:** [APROBAR / APROBAR CON MODIFICACIONES / NO APROBAR]
+
+**Modificaciones sugeridas (si aplica):**
+
+1. [Ej.: Incluir anexo técnico describiendo entregables y KPIs.]  
+2. [Ej.: Incorporar cláusula de cooperación para auditorías SAT.]
+
+**Comentario final:**  
+[2–3 líneas con la visión global de A4 sobre el contrato y su impacto en la defensa.]
+
+---
+
+*Dictamen emitido por A4 Legal – [Nombre]*  
+*Este dictamen forma parte del Defense File y es insumo para el candado F6.*
+6) Integración depurada con A1, A2, A3, A5, A6, A7
+•	Con A1:
+o	A4 revisa que el objeto contractual sea congruente con la razón de negocios descrita por A1 (no puede haber disonancia).
+•	Con A2:
+o	A2 no cierra F2/F6 como “NORMAL” sin dictamen A4.
+o	A2 registra si se decidió seguir pese a “NO APROBAR” (excepción).
+•	Con A3:
+o	A4 se coordina con A3 para cláusulas con impacto fiscal:
+• retenciones,
+• forma de pago,
+• responsabilidad frente al SAT.
+•	Con A5:
+o	Si el precio depende de cierto alcance o resultados (por ejemplo, success fees), A4 se asegura de que esto esté clara y legalmente descrito para que A5 pueda modelar adecuadamente.
+•	Con A6:
+o	A4 usa el perfil de proveedor (A6) para valorar riesgos legales especiales (ej. REPSE, cumplimiento laboral).
+•	Con A7:
+o	El dictamen de A4 alimenta la sección de “Análisis Contractual” del Defense File.
+o	A7 usa los red flags de A4 para anticipar puntos de ataque de la autoridad.
+ 
+Si estás conforme con este ajuste de A4_LEGAL, el siguiente paso sería hacer lo mismo con A5_FINANZAS (delimitarlo frente a A1/A3, alinearlo a F0/F6/F9 y conectar sus salidas con el Defense File). ¿Continuamos con A5 en el mismo nivel de detalle?
+

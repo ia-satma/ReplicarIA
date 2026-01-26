@@ -1,0 +1,137 @@
+🚀 PROMPT 14 (REVISADO): Implementar Caché de Embeddings
+TAREA: Implementar caché de embeddings en RAG Repository para evitar regenerar vectores de textos repetidos.
+
+PASO 1: En backend/services/rag_repository.py, modifica los IMPORTS (línea 1-8).
+
+AGREGA estos imports:
+```python
+from functools import lru_cache
+import pickle
+
+PASO 2: DESPUÉS de la línea 16 (donde está _OAI = None), agrega esta nueva clase de caché:
+
+class EmbeddingCache:
+    """Caché persistente de embeddings para evitar regeneración"""
+    
+    def __init__(self, cache_file: str = "/tmp/embedding_cache.pkl"):
+        self.cache_file = cache_file
+        self.cache = self._load_cache()
+        logger.info(f"Embedding cache initialized with {len(self.cache)} entries")
+    
+    def _load_cache(self) -> Dict[str, List[float]]:
+        """Carga caché desde disco"""
+        try:
+            if os.path.exists(self.cache_file):
+                with open(self.cache_file, 'rb') as f:
+                    return pickle.load(f)
+        except Exception as e:
+            logger.warning(f"Could not load embedding cache: {e}")
+        return {}
+    
+    def _save_cache(self):
+        """Guarda caché a disco"""
+        try:
+            with open(self.cache_file, 'wb') as f:
+                pickle.dump(self.cache, f)
+        except Exception as e:
+            logger.error(f"Could not save embedding cache: {e}")
+    
+    def get_hash(self, text: str) -> str:
+        """Genera hash único para el texto"""
+        return hashlib.md5(text.encode('utf-8')).hexdigest()
+    
+    def get(self, text: str) -> Optional[List[float]]:
+        """Recupera embedding del caché"""
+        text_hash = self.get_hash(text)
+        return self.cache.get(text_hash)
+    
+    def set(self, text: str, embedding: List[float]):
+        """Guarda embedding en caché"""
+        text_hash = self.get_hash(text)
+        self.cache[text_hash] = embedding
+        
+        # Guarda cada 10 inserciones para no saturar disco
+        if len(self.cache) % 10 == 0:
+            self._save_cache()
+
+# Instancia global del caché
+_embedding_cache = EmbeddingCache()
+
+PASO 3: Modifica la función _embed_batch() (línea 18 aproximadamente).
+
+BUSCA donde se generan los embeddings. Debería verse algo así:
+
+def _embed_batch(texts: List[str]) -> List[List[float]]:
+    # ... código existente ...
+    embeddings = embeddings_model.embed_documents(texts)
+    return embeddings
+
+REEMPLÁZALO con:
+
+def _embed_batch(texts: List[str]) -> List[List[float]]:
+    """Genera embeddings con caché para evitar regeneración"""
+    global _embedding_cache
+    
+    # Verificar caché primero
+    cached_results = []
+    texts_to_embed = []
+    cache_hits = 0
+    
+    for text in texts:
+        cached_emb = _embedding_cache.get(text)
+        if cached_emb is not None:
+            cached_results.append(cached_emb)
+            cache_hits += 1
+        else:
+            cached_results.append(None)
+            texts_to_embed.append(text)
+    
+    # Log de estadísticas de caché
+    if cache_hits > 0:
+        logger.info(f"📦 Embedding Cache: {cache_hits}/{len(texts)} hits ({cache_hits*100//len(texts)}% saved)")
+    
+    # Si todos están en caché, retornar directo
+    if not texts_to_embed:
+        return cached_results
+    
+    # Generar embeddings solo para textos no cacheados
+    # MANTÉN TODO TU CÓDIGO EXISTENTE AQUÍ (OpenAI o SentenceTransformers)
+    global _OAI, _ST_model, EMB_PROVIDER, EMB_MODEL
+    
+    if EMB_PROVIDER == 'openai':
+        if _OAI is None:
+            from langchain_openai import OpenAIEmbeddings
+            _OAI = OpenAIEmbeddings(model=EMB_MODEL)
+        new_embeddings = _OAI.embed_documents(texts_to_embed)
+    else:
+        # ... código de SentenceTransformers existente ...
+        pass
+    
+    # Guardar nuevos embeddings en caché
+    for text, emb in zip(texts_to_embed, new_embeddings):
+        _embedding_cache.set(text, emb)
+    
+    # Combinar resultados cacheados + nuevos
+    result = []
+    new_idx = 0
+    for cached_emb in cached_results:
+        if cached_emb is not None:
+            result.append(cached_emb)
+        else:
+            result.append(new_embeddings[new_idx])
+            new_idx += 1
+    
+    return result
+
+PASO 4: Verifica la sintaxis y reinicia el backend.
+
+IMPORTANTE:
+
+NO toques las funciones upsert_document() o query()
+Solo modifica _embed_batch() para usar el caché
+El caché se guardará en /tmp/embedding_cache.pkl
+Muéstrame:
+
+¿Se creó la clase EmbeddingCache correctamente?
+¿La función _embed_batch() usa el caché?
+¿Hay algún error de sintaxis?

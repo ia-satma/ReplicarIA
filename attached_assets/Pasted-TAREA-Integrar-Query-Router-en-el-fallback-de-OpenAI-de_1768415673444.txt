@@ -1,0 +1,77 @@
+TAREA: Integrar Query Router en el fallback de OpenAI del Strategy Agent.
+
+IMPORTANTE: NO toques las llamadas a OpenRouter (multi-LLM council). Solo optimiza el fallback de OpenAI.
+
+PASO 1: En backend/agents/strategy_agent.py, agrega estos imports DESPUÉS de la línea 28:
+
+```python
+from services.query_router import route_query
+
+PASO 2: Modifica la función _get_persona_critique() (aproximadamente línea 558-590):
+
+BUSCA la línea 581 donde está:
+
+response = self.client.chat.completions.create(
+    model=self.model,
+    messages=[...],
+    temperature=0.7
+)
+
+REEMPLÁZALA con:
+
+# Query Router para fallback OpenAI
+enable_router = os.getenv("ENABLE_QUERY_ROUTER", "true").lower() == "true"
+
+if enable_router:
+    routing = route_query(
+        prompt=messages[-1]["content"] if messages else "",
+        task_type="validation"  # Strategy agent valida, usa tier "validation"
+    )
+    selected_model = routing["model"]
+    logger.info(f"🎯 Strategy Router (Persona): {routing['model']} | Tokens: {routing['token_count']} | Cost: ${routing['estimated_cost']:.6f} | {routing['reasoning']}")
+else:
+    selected_model = self.model
+
+response = self.client.chat.completions.create(
+    model=selected_model,  # ← Dinámico
+    messages=messages,
+    temperature=0.7
+)
+
+PASO 3: Modifica la función _chairman_phase() (aproximadamente línea 603-650):
+
+BUSCA la línea 641 donde está:
+
+response = self.client.chat.completions.create(
+    model=self.model,
+    messages=[...],
+    temperature=0.3
+)
+
+REEMPLÁZALA con:
+
+# Query Router para Chairman consolidation
+enable_router = os.getenv("ENABLE_QUERY_ROUTER", "true").lower() == "true"
+
+if enable_router:
+    routing = route_query(
+        prompt=messages[-1]["content"] if messages else "",
+        task_type="reasoning"  # Chairman consolida, usa "reasoning"
+    )
+    selected_model = routing["model"]
+    logger.info(f"🎯 Strategy Router (Chairman): {routing['model']} | Tokens: {routing['token_count']} | Cost: ${routing['estimated_cost']:.6f}")
+else:
+    selected_model = self.model
+
+response = self.client.chat.completions.create(
+    model=selected_model,  # ← Dinámico
+    messages=messages,
+    temperature=0.3
+)
+
+RESUMEN DE CAMBIOS:
+
+✅ Import de route_query agregado
+✅ 2 llamadas OpenAI optimizadas (_get_persona_critique, _chairman_phase)
+❌ OpenRouter multi-LLM council NO modificado (esos modelos ya están definidos estratégicamente)
+VERIFICA que no hay errores de sintaxis y reinicia el backend.

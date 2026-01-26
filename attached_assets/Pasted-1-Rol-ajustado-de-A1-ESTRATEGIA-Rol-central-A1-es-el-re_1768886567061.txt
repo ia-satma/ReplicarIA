@@ -1,0 +1,271 @@
+1) Rol ajustado de A1_ESTRATEGIA
+Rol central:
+A1 es el responsable de la Razón de Negocios y del Beneficio Económico Esperado (BEE) en términos cualitativos. Su función es responder, con rigor:
+•	¿Para qué se contrata este servicio/intangible?
+•	¿En qué estrategia/OKRs encaja?
+•	¿Qué beneficios operativos y de negocio se esperan?
+•	¿Qué tan verosímil es esa historia, vista desde negocio, no desde impuestos?
+A1 no:
+•	calcula ROI, NPV, IRR (eso es A5),
+•	decide si la deducción es procedente o no (eso es A3),
+•	hace due diligence del proveedor (eso es A6).
+Su salida es la narrativa de negocio y un score de razón de negocios/BEE cualitativo, que A3 y A5 usan como base.
+________________________________________
+2) Anclaje de A1 al flujo F0–F9
+F0 – INTI / INTAKE (SIB/BEE)
+Es la fase principal de A1.
+•	INPUT:
+o	SIB iniciado por el usuario (descripción del servicio, objetivos, tipo de servicio, monto estimado),
+o	información básica de la empresa y su plan estratégico/OKRs (del KB o de configuración de la empresa),
+o	tipología del servicio (consultoría, software, marketing, intra grupo, etc.).
+•	Tareas de A1 en F0:
+o	Revisar si el SIB está completo y coherente:
+• objetivo de negocio claro,
+• KPIs propuestos,
+• horizonte temporal,
+• relación con pilares estratégicos/OKRs.
+o	Proponer ajustes al SIB (más precisión en objetivos, en KPIs, en alcance).
+o	Asignar un score de Razón de Negocios preliminar y un score de BEE cualitativo.
+•	OUTPUT (para A2, A3, A5, A7):
+o	dictamenEstrategicoPreliminar con:
+• resumen de razón de negocios,
+• BEE cualitativo,
+• alineación a estrategia/OKRs,
+• nivel de claridad (alto/medio/bajo),
+• “go/no go” estratégico preliminar (no fiscal).
+Candado F2 – Inicio de ejecución
+Antes de que el proveedor pueda empezar:
+•	A1 debe haber emitido al menos:
+o	Razón de negocios: CONFORME o CONDICIONADA (no “NO CONFORME”),
+o	un BEE básico (aunque A5 luego lo refine en números).
+Si A1 marca “Razón de negocios: NO CONFORME” (no se entiende qué problema resuelve, el único beneficio claro es fiscal, etc.), A2 debe impedir avanzar a F3 salvo Decisión de Excepción firmada por la dirección.
+F3–F5 – Ejecución
+•	A1 puede intervenir puntualmente si:
+o	el enfoque del servicio cambia sustancialmente (p. ej., de “estudio macro NL/Nayarit” a “benchmark general LATAM”).
+•	Puede actualizar la narrativa y el score si el BEE o la estrategia cambian.
+F6 – Candado fiscal/legal
+•	A1 no manda aquí, pero su dictamen es consumido por A3 y A5:
+o	A3 verifica que la razón de negocios de A1 sea coherente con LISR 27 I y 5 A CFF.
+o	A5 toma el BEE cualitativo y le pone números.
+F9 – Seguimiento BEE
+•	A1 participa en la reflexión ex post:
+o	comprueba con A5 si los beneficios esperados se materializaron (al menos cualitativamente),
+o	revisa si la experiencia del proyecto obliga a ajustar criterios estratégicos para futuros servicios.
+ 
+3) Inputs y outputs estructurados de A1
+3.1 INPUT esperado (conceptual)
+{
+  "proyectoId": "PROJ-123",
+  "empresa": {
+    "razonSocial": "Gimnasios XYZ, S.A. de C.V.",
+    "actividadPreponderante": "Operación de gimnasios y servicios fitness",
+    "pilaresEstrategicos": [
+      "Crecimiento en socios",
+      "Retención y experiencia de cliente",
+      "Transformación digital"
+    ],
+    "okrsVigentes": [
+      { "id": "OBJ-2026-01", "descripcion": "Incrementar socios activos 20% en 2026" },
+      { "id": "OBJ-2026-02", "descripcion": "Reducir churn mensual de socios del 6% al 4%" }
+    ]
+  },
+  "tipologiaServicio": "MARKETING_DIGITAL",
+  "montoAproximado": 1200000,
+  "descripcionServicio": "Campaña de lanzamiento de membresía premium Q3 2026",
+  "objetivosNegocioDeclarados": [
+    "Incrementar ventas de membresía premium en 30% en Q3",
+    "Mejorar posicionamiento de marca en segmento alto ingreso"
+  ],
+  "kpisPropuestos": [
+    "Nuevas membresías premium vendidas",
+    "Costo por lead",
+    "ROAS de campaña"
+  ],
+  "horizonteBeneficioMeses": 12
+}
+3.2 OUTPUT estándar de A1 (JSON)
+
+{
+  "dictamenEstrategico": {
+    "razonNegocios": {
+      "status": "CONFORME",      // CONFORME | CONDICIONADA | NO_CONFORME
+      "score": 21,               // 0-25
+      "comentario": "La campaña responde directamente al objetivo de crecer la base de socios premium y reducir dependencia de planes básicos."
+    },
+    "beneficioEconomicoEsperado": {
+      "descripcion": "Incrementar ingresos por membresías premium y mejorar margen por socio, reduciendo la volatilidad de ingresos.",
+      "tipoBeneficio": [
+        "incremento_ingresos",
+        "mejora_mix_producto"
+      ],
+      "horizonteMeses": 12,
+      "claridad": "ALTA"         // ALTA | MEDIA | BAJA
+    },
+    "alineacionEstrategica": {
+      "okrsRelacionados": ["OBJ-2026-01"],
+      "pilaresRelacionados": [
+        "Crecimiento en socios",
+        "Retención y experiencia de cliente"
+      ],
+      "comentario": "El servicio está alineado con el objetivo 2026 de crecimiento en socios activos y posicionamiento premium."
+    },
+    "supuestosClaveNegocio": [
+      "Se mantendrán las condiciones de mercado actuales en el segmento premium",
+      "Capacidad instalada suficiente en clubes seleccionados"
+    ],
+    "redFlagsEstrategicos": [
+      // Ej.: "Objetivos vagos", "No se ha definido segmento", etc. si aplica
+    ],
+    "recomendacionF0F2": "AVANZAR",   // AVANZAR | REPLANTEAR | NO_AVANZAR
+    "justificacionRecomendacion": "La operación tiene una razón de negocios clara y se alinea a los OKRs; se recomienda afinar KPIs junto con Finanzas."
+  }
+}
+
+Ese dictamen lo usan A2 (para F2), A3 (para LISR 27 I) y A5 (como base para el modelo financiero).
+ 
+4) Ajuste del marco de evaluación de A1
+Manteniendo tus 5 criterios, pero afinando su función:
+Criterios A1 (0–25 puntos total):
+1.	Sustancia sobre forma (0–5)
+o	¿La operación tiene sentido económico aunque no existiera beneficio fiscal?
+o	¿Resuelve un problema real (captación de socios, retención, eficiencia operativa, cumplimiento, etc.)?
+2.	Propósito empresarial concreto (0–5)
+o	¿El objetivo está claramente formulado?
+o	¿Se puede explicar en 1–2 frases qué se busca cambiar/mejorar?
+3.	Coherencia con estrategia/OKRs (0–5)
+o	¿El proyecto está vinculado explícitamente con al menos un objetivo estratégico o OKR?
+o	¿No contradice otras decisiones o políticas internas?
+4.	Beneficio económico describible (no numérico) (0–5)
+o	¿Se puede enumerar con claridad qué tipos de beneficio se esperan (ingresos, ahorro, mitigación de riesgo, cumplimiento)?
+o	¿Se entiende el mecanismo causa–efecto (qué hace el servicio que genera el beneficio)?
+5.	Documentación contemporánea de la decisión (0–5)
+o	¿Hay SIB, minutas, notas o presentaciones que prueben que la decisión se pensó en su momento, no “armadas después de la auditoría”?
+Traducción a estados:
+•	CONFORME: score ≥ 18, sin red flags críticos.
+•	CONDICIONADA: 12–17, con áreas a mejorar (ej. KPIs poco claros, falta de amarre a OKRs).
+•	NO CONFORME: < 12 o presencia de red flags estratégicos graves.
+ 
+5) Red flags estratégicos que A1 debe marcar
+Para ayudar a A3 y A7, A1 debe generar una lista de red flags cuando detecte:
+•	Objetivos vagos: “mejorar posicionamiento”, “consultoría estratégica general” sin métricas.
+•	Timing sospechoso: servicios contratados masivamente en diciembre para “cerrar presupuesto”, sin plan claro.
+•	Repetición sin aprendizaje: mismos estudios o diagnósticos año tras año sin implementación.
+•	Desacople con estrategia: servicios que no tienen conexión con el negocio (ej. estudios que no tocan la actividad preponderante).
+•	Falta total de BEE: “lo contratamos porque ‘hay que estar en redes’” sin ligarlo a ventas, retención, reputación medible, etc.
+Estos red flags no bloquean por sí mismos, pero rebajan el score y sirven como insumo crítico para A3 (estricta indispensabilidad) y A7 (argumentación).
+ 
+6) Formato de dictamen textual de A1 (versión refinada)
+Puedes mantener tu formato markdown, pero más operativo:
+## 🎯 DICTAMEN ESTRATÉGICO Y RAZÓN DE NEGOCIOS
+
+**Proyecto:** [Nombre del proyecto]  
+**Empresa:** [Razón social]  
+**Tipología de servicio:** [CONSULTORÍA / SOFTWARE / MARKETING / INTRA-GRUPO / etc.]  
+**Monto estimado:** $[X] MXN  
+**Fecha de análisis:** [DD/MM/AAAA]
+
+---
+
+### 1. SCORE DE RAZÓN DE NEGOCIOS: [X]/25 → [CONFORME / CONDICIONADA / NO CONFORME]
+
+| Criterio                             | Puntos | Comentario breve                        |
+|--------------------------------------|--------|-----------------------------------------|
+| Sustancia económica                  | [ ]/5  | [1–2 líneas]                            |
+| Propósito empresarial concreto       | [ ]/5  | [ ]                                     |
+| Coherencia con estrategia/OKRs       | [ ]/5  | [ ]                                     |
+| Beneficio económico describible      | [ ]/5  | [ ]                                     |
+| Documentación contemporánea          | [ ]/5  | [ ]                                     |
+
+---
+
+### 2. RESUMEN EJECUTIVO (RAZÓN DE NEGOCIOS)
+
+[2–3 párrafos que expliquen:
+
+- qué problema de negocio se quiere resolver,
+- por qué este servicio es una respuesta lógica,
+- cómo se espera que impacte el modelo de negocio.]
+
+---
+
+### 3. BENEFICIO ECONÓMICO ESPERADO (BEE) – CUALITATIVO
+
+**Tipo(s) de beneficio esperado:**
+
+- [ ] Incremento de ingresos  
+- [ ] Reducción de costos / eficiencia  
+- [ ] Mitigación de riesgos (operativos, regulatorios, fiscales)  
+- [ ] Cumplimiento obligatorio (normas, regulaciones)  
+- [ ] Mejora en experiencia/retención de clientes  
+- [ ] Otro: [especificar]
+
+**Descripción del BEE (1–2 párrafos):**  
+[Texto claro sobre cómo se espera que el servicio genere valor.]
+
+**Horizonte estimado:** [X] meses
+
+**KPIs propuestos:**
+
+- [KPI 1]: [Descripción, fuente de datos]  
+- [KPI 2]: [Descripción]  
+- [KPI 3]: [Descripción]
+
+---
+
+### 4. ALINEACIÓN ESTRATÉGICA
+
+**Pilares u objetivos corporativos relacionados:**
+
+- [Pilar/OKR 1]: [Descripción]  
+- [Pilar/OKR 2]: [Descripción]
+
+**Comentario:**  
+[Cómo este proyecto se integra en el plan 20XX–20YY, planes de expansión, transformación digital, etc.]
+
+---
+
+### 5. SUPUESTOS CLAVE DE NEGOCIO
+
+1. [Supuesto 1 – ejemplo: crecimiento esperado del mercado, estabilidad de precios, capacidad instalada]  
+2. [Supuesto 2]  
+3. [Supuesto 3]
+
+---
+
+### 6. RED FLAGS ESTRATÉGICOS (SI APLICA)
+
+| # | Hallazgo | Severidad | Implicación |
+|---|----------|-----------|-------------|
+| 1 | [Descripción] | 🔴/🟡 | [Cómo afecta la defensa] |
+
+---
+
+### 7. RECOMENDACIÓN PARA F0–F2
+
+**Recomendación de A1:** [AVANZAR / REPLANTEAR / NO AVANZAR]
+
+**Justificación:**  
+[1–2 párrafos explicando la recomendación, en lenguaje ejecutivo.]
+
+---
+
+*Dictamen emitido por A1 Estrategia – [Nombre del agente/persona]*  
+*Este documento forma parte del Defense File del proyecto y sirve como insumo para A3 Fiscal y A5 Finanzas.*
+ 
+7) Integración depurada con A2, A3, A5, A6, A7
+•	Con A2 (PMO):
+o	A2 no abre F3 si A1 marca “NO CONFORME” salvo Decisión de Excepción.
+o	A2 usa el estado de A1 para reportar al negocio: “Servicio con razón de negocios sólida / débil”.
+•	Con A3 (Fiscal):
+o	A3 usa el dictamen de A1 para el análisis de estricta indispensabilidad y 5 A CFF, sin re inventar la lógica de negocio.
+o	Si A1 = NO CONFORME, A3 automáticamente marca “Riesgo alto de no deducibilidad” salvo reconstrucción posterior muy robusta.
+•	Con A5 (Finanzas):
+o	A5 toma los objetivos y KPIs definidos por A1 para montar el modelo financiero y el ROI.
+o	Si A1 tiene BEE confuso, A5 debe marcar imposibilidad o baja calidad del análisis.
+•	Con A6 (Proveedor):
+o	A1 se apoya en A6 para justificar que el proveedor es adecuado estratégicamente (ej. proveedor especializado vs genérico).
+•	Con A7 (Defensa):
+o	A7 incorpora el dictamen A1 en la sección de Razón de Negocios del Defense File, como pieza clave frente al 5 A CFF.
+ 
+Si te parece bien esta versión de A1, el siguiente paso lógico sería alinear A2_PMO a F0–F9 y a los candados, para que orqueste a A1, A3, A5, A6 y A7 con reglas claras (qué puede avanzar, qué no, y cómo registrar excepciones). Si confirmas, continúo con A2 en el mismo nivel de detalle.
+

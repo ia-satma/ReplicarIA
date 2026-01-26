@@ -1,0 +1,1178 @@
+Dale, si te la quieren comprar hay que dejar esto vendible. Te doy los tours de ejecución para cada fix:
+
+🔴 TOUR 1: RAG CON VECTOR EMBEDDINGS (PGVECTOR)
+El Problema
+Tu búsqueda actual es WHERE contenido ~* 'palabra' - eso es grep, no RAG.
+La Solución
+Paso 1: Agregar pgvector a PostgreSQL (Neon lo soporta)
+sql-- Ejecutar en Neon
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Modificar tabla de chunks
+ALTER TABLE knowledge_chunks 
+ADD COLUMN embedding vector(1536);
+
+-- Índice para búsqueda rápida
+CREATE INDEX ON knowledge_chunks 
+USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 100);
+Paso 2: Servicio de Embeddings
+python# backend/services/embedding_service.py
+
+from anthropic import Anthropic
+import numpy as np
+from typing import List
+import asyncpg
+
+class EmbeddingService:
+    def __init__(self):
+        # Usamos Voyage AI (mejor para español) o OpenAI
+        # Voyage es de Anthropic, mejor integración
+        self.client = Anthropic()
+        
+    async def generate_embedding(self, text: str) -> List[float]:
+        """Genera embedding para un texto."""
+        # Opción 1: Voyage AI (recomendado para español legal/fiscal)
+        response = await self.client.embeddings.create(
+            model="voyage-multilingual-2",  # Mejor para español
+            input=text
+        )
+        return response.data[0].embedding
+    
+    async def generate_batch_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Batch processing para migración masiva."""
+        # Procesar en batches de 100
+        batch_size = 100
+        all_embeddings = []
+        
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+            response = await self.client.embeddings.create(
+                model="voyage-multilingual-2",
+                input=batch
+            )
+            all_embeddings.extend([e.embedding for e in response.data])
+        
+        return all_embeddings
+
+
+class VectorSearchService:
+    def __init__(self, db_pool: asyncpg.Pool, embedding_service: EmbeddingService):
+        self.db = db_pool
+        self.embedder = embedding_service
+    
+    async def semantic_search(
+        self, 
+        empresa_id: str, 
+        query: str, 
+        limit: int = 10,
+        categoria_filter: str = None,
+        similarity_threshold: float = 0.7
+    ) -> List[dict]:
+        """Búsqueda semántica real."""
+        
+        # 1. Generar embedding de la query
+        query_embedding = await self.embedder.generate_embedding(query)
+        
+        # 2. Búsqueda por similitud coseno
+        sql = """
+            SELECT 
+                c.id,
+                c.contenido,
+                c.chunk_index,
+                d.filename,
+                d.categoria_principal,
+                d.path,
+                1 - (c.embedding <=> $1::vector) as similarity
+            FROM knowledge_chunks c
+            JOIN knowledge_documents d ON c.document_id = d.id
+            WHERE c.empresa_id = $2
+            AND c.embedding IS NOT NULL
+            AND 1 - (c.embedding <=> $1::vector) > $3
+        """
+        
+        params = [query_embedding, empresa_id, similarity_threshold]
+        
+        if categoria_filter:
+            sql += " AND d.categoria_principal = $4"
+            params.append(categoria_filter)
+        
+        sql += " ORDER BY similarity DESC LIMIT $" + str(len(params) + 1)
+        params.append(limit)
+        
+        rows = await self.db.fetch(sql, *params)
+        
+        return [
+            {
+                "chunk_id": row["id"],
+                "contenido": row["contenido"],
+                "filename": row["filename"],
+                "categoria": row["categoria_principal"],
+                "path": row["path"],
+                "similarity": float(row["similarity"]),
+                "chunk_index": row["chunk_index"]
+            }
+            for row in rows
+        ]
+    
+    async def hybrid_search(
+        self,
+        empresa_id: str,
+        query: str,
+        limit: int = 10
+    ) -> List[dict]:
+        """Híbrido: semántico + keywords (mejor accuracy)."""
+        
+        # Búsqueda semántica
+        semantic_results = await self.semantic_search(empresa_id, query, limit * 2)
+        
+        # Búsqueda por keywords (tu método actual)
+        keyword_results = await self._keyword_search(empresa_id, query, limit * 2)
+        
+        # Fusión con Reciprocal Rank Fusion
+        return self._rrf_fusion(semantic_results, keyword_results, limit)
+    
+    def _rrf_fusion(self, list1, list2, limit, k=60):
+        """Reciprocal Rank Fusion - combina rankings."""
+        scores = {}
+        
+        for rank, item in enumerate(list1):
+            chunk_id = item["chunk_id"]
+            scores[chunk_id] = scores.get(chunk_id, 0) + 1 / (k + rank + 1)
+            
+        for rank, item in enumerate(list2):
+            chunk_id = item["chunk_id"]
+            scores[chunk_id] = scores.get(chunk_id, 0) + 1 / (k + rank + 1)
+        
+        # Ordenar por score fusionado
+        sorted_ids = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+        
+        # Reconstruir resultados
+        all_items = {item["chunk_id"]: item for item in list1 + list2}
+        return [all_items[cid] for cid in sorted_ids[:limit]]
+Paso 3: Script de Migración (backfill embeddings)
+python# backend/scripts/migrate_embeddings.py
+
+import asyncio
+import asyncpg
+from services.embedding_service import EmbeddingService
+
+async def migrate_all_chunks():
+    """Migrar todos los chunks existentes a embeddings."""
+    
+    db = await asyncpg.connect(DATABASE_URL)
+    embedder = EmbeddingService()
+    
+    # Obtener chunks sin embedding
+    chunks = await db.fetch("""
+        SELECT id, contenido 
+        FROM knowledge_chunks 
+        WHERE embedding IS NULL
+        ORDER BY id
+    """)
+    
+    print(f"Migrando {len(chunks)} chunks...")
+    
+    # Procesar en batches
+    batch_size = 50
+    for i in range(0, len(chunks), batch_size):
+        batch = chunks[i:i + batch_size]
+        texts = [c["contenido"] for c in batch]
+        ids = [c["id"] for c in batch]
+        
+        # Generar embeddings
+        embeddings = await embedder.generate_batch_embeddings(texts)
+        
+        # Actualizar en DB
+        for chunk_id, embedding in zip(ids, embeddings):
+            await db.execute("""
+                UPDATE knowledge_chunks 
+                SET embedding = $1 
+                WHERE id = $2
+            """, embedding, chunk_id)
+        
+        print(f"Procesados {min(i + batch_size, len(chunks))}/{len(chunks)}")
+    
+    print("✅ Migración completada")
+
+if __name__ == "__main__":
+    asyncio.run(migrate_all_chunks())
+Paso 4: Actualizar ingestion_service.py
+python# En tu pipeline de ingesta existente, agregar:
+
+async def process_document(self, file, empresa_id: str):
+    # ... tu código existente de extracción y chunking ...
+    
+    chunks = self.chunking_service.chunk_document(text)
+    
+    # NUEVO: Generar embeddings para cada chunk
+    embeddings = await self.embedding_service.generate_batch_embeddings(
+        [chunk["contenido"] for chunk in chunks]
+    )
+    
+    # Guardar con embeddings
+    for chunk, embedding in zip(chunks, embeddings):
+        await self.db.execute("""
+            INSERT INTO knowledge_chunks 
+            (document_id, empresa_id, chunk_index, contenido, embedding, tokens_count)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        """, doc_id, empresa_id, chunk["index"], chunk["contenido"], 
+            embedding, chunk["tokens"])
+```
+
+---
+
+## 🔴 TOUR 2: REFACTOR FRONTEND (COMPONENTES MONSTRUO)
+
+### El Problema
+- `ChatbotArchivo.jsx` = 65,050 líneas
+- `AdminClientes.jsx` = 38,310 líneas
+- Esto es **invendible** para due diligence técnico
+
+### La Estrategia: Domain-Driven Decomposition
+
+**Nueva estructura propuesta:**
+```
+frontend/src/
+├── features/                    # Feature-based architecture
+│   ├── onboarding/             # ChatbotArchivo → descompuesto
+│   │   ├── components/
+│   │   │   ├── ChatWindow.jsx
+│   │   │   ├── MessageBubble.jsx
+│   │   │   ├── FileUploader.jsx
+│   │   │   ├── ProgressTracker.jsx
+│   │   │   ├── AgentAvatar.jsx
+│   │   │   └── SuggestionChips.jsx
+│   │   ├── hooks/
+│   │   │   ├── useChat.js
+│   │   │   ├── useFileUpload.js
+│   │   │   └── useOnboardingFlow.js
+│   │   ├── services/
+│   │   │   └── onboardingApi.js
+│   │   ├── context/
+│   │   │   └── OnboardingContext.jsx
+│   │   └── index.jsx           # Entry point (< 200 líneas)
+│   │
+│   ├── admin/                  # AdminClientes → descompuesto
+│   │   ├── components/
+│   │   │   ├── ClientTable.jsx
+│   │   │   ├── ClientForm.jsx
+│   │   │   ├── ClientFilters.jsx
+│   │   │   ├── BulkActions.jsx
+│   │   │   └── ClientStats.jsx
+│   │   ├── hooks/
+│   │   │   ├── useClients.js
+│   │   │   └── useClientFilters.js
+│   │   └── index.jsx
+│   │
+│   ├── knowledge/              # KnowledgeRepository → descompuesto
+│   │   ├── components/
+│   │   │   ├── FolderTree.jsx
+│   │   │   ├── DocumentList.jsx
+│   │   │   ├── DocumentPreview.jsx
+│   │   │   ├── UploadModal.jsx
+│   │   │   └── SearchBar.jsx
+│   │   ├── hooks/
+│   │   │   ├── useDocuments.js
+│   │   │   └── useFolders.js
+│   │   └── index.jsx
+│   │
+│   ├── agents/                 # Visualización de agentes
+│   ├── defense-files/          # Expedientes de defensa
+│   └── dashboard/              # Métricas
+│
+├── shared/                     # Componentes compartidos
+│   ├── components/
+│   │   ├── Button.jsx
+│   │   ├── Modal.jsx
+│   │   ├── Table.jsx
+│   │   ├── LoadingSpinner.jsx
+│   │   └── ErrorBoundary.jsx
+│   ├── hooks/
+│   │   ├── useApi.js
+│   │   ├── useAuth.js
+│   │   └── useDebounce.js
+│   └── utils/
+│       ├── formatters.js
+│       └── validators.js
+│
+├── api/                        # Capa de API centralizada
+│   ├── client.js               # Axios instance
+│   ├── agents.js
+│   ├── projects.js
+│   └── knowledge.js
+│
+└── App.jsx                     # Solo rutas (< 300 líneas)
+Script de análisis para identificar qué extraer:
+python# scripts/analyze_component.py
+# Corre esto para identificar funciones/bloques a extraer
+
+import re
+from collections import defaultdict
+
+def analyze_giant_component(filepath):
+    with open(filepath, 'r') as f:
+        content = f.read()
+    
+    # Encontrar todas las funciones
+    functions = re.findall(r'(const|function)\s+(\w+)\s*=?\s*(?:async)?\s*\(', content)
+    
+    # Encontrar todos los useState
+    states = re.findall(r'useState\((.*?)\)', content)
+    
+    # Encontrar todos los useEffect
+    effects = len(re.findall(r'useEffect\(', content))
+    
+    # Encontrar handlers
+    handlers = re.findall(r'(handle\w+|on\w+)\s*=', content)
+    
+    print(f"📊 Análisis de {filepath}")
+    print(f"   Funciones: {len(functions)}")
+    print(f"   useState: {len(states)}")
+    print(f"   useEffect: {effects}")
+    print(f"   Handlers: {len(handlers)}")
+    print(f"\n   Top funciones a extraer:")
+    for f in functions[:20]:
+        print(f"   - {f[1]}")
+    
+    return {
+        "functions": functions,
+        "states": states,
+        "effects": effects,
+        "handlers": handlers
+    }
+
+# Usar:
+# python analyze_component.py frontend/src/components/ChatbotArchivo.jsx
+Ejemplo de extracción - useChat hook:
+javascript// frontend/src/features/onboarding/hooks/useChat.js
+
+import { useState, useCallback, useRef } from 'react';
+import { sendMessage, getHistory } from '../services/onboardingApi';
+
+export function useChat(projectId) {
+  const [messages, setMessages] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const abortControllerRef = useRef(null);
+
+  const sendUserMessage = useCallback(async (content, attachments = []) => {
+    // Cancelar request anterior si existe
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    const userMessage = {
+      id: Date.now(),
+      role: 'user',
+      content,
+      attachments,
+      timestamp: new Date().toISOString()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await sendMessage(projectId, content, attachments, {
+        signal: abortControllerRef.current.signal
+      });
+
+      const assistantMessage = {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: response.message,
+        agent: response.agent,
+        suggestions: response.suggestions,
+        timestamp: new Date().toISOString()
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+      return assistantMessage;
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        setError(err.message);
+        throw err;
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [projectId]);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const history = await getHistory(projectId);
+      setMessages(history);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [projectId]);
+
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+  }, []);
+
+  return {
+    messages,
+    isLoading,
+    error,
+    sendMessage: sendUserMessage,
+    loadHistory,
+    clearMessages
+  };
+}
+Ejemplo: Componente ChatWindow limpio:
+jsx// frontend/src/features/onboarding/components/ChatWindow.jsx
+
+import { useRef, useEffect } from 'react';
+import { MessageBubble } from './MessageBubble';
+import { TypingIndicator } from './TypingIndicator';
+
+export function ChatWindow({ messages, isLoading, currentAgent }) {
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {messages.map((message) => (
+        <MessageBubble
+          key={message.id}
+          message={message}
+          agent={message.role === 'assistant' ? currentAgent : null}
+        />
+      ))}
+      
+      {isLoading && <TypingIndicator agent={currentAgent} />}
+      
+      <div ref={bottomRef} />
+    </div>
+  );
+}
+El nuevo entry point (< 200 líneas):
+jsx// frontend/src/features/onboarding/index.jsx
+
+import { useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { OnboardingProvider } from './context/OnboardingContext';
+import { ChatWindow } from './components/ChatWindow';
+import { InputBar } from './components/InputBar';
+import { FileUploader } from './components/FileUploader';
+import { ProgressTracker } from './components/ProgressTracker';
+import { AgentPanel } from './components/AgentPanel';
+import { useChat } from './hooks/useChat';
+import { useOnboardingFlow } from './hooks/useOnboardingFlow';
+
+export default function OnboardingPage() {
+  const { projectId } = useParams();
+  const { messages, isLoading, sendMessage } = useChat(projectId);
+  const { currentPhase, currentAgent, progress } = useOnboardingFlow(projectId);
+  const [showUploader, setShowUploader] = useState(false);
+
+  const handleSend = async (content, files) => {
+    await sendMessage(content, files);
+  };
+
+  return (
+    <OnboardingProvider projectId={projectId}>
+      <div className="flex h-screen bg-gray-50">
+        {/* Sidebar con progreso */}
+        <aside className="w-64 bg-white border-r">
+          <ProgressTracker 
+            phases={progress.phases} 
+            currentPhase={currentPhase} 
+          />
+          <AgentPanel agent={currentAgent} />
+        </aside>
+
+        {/* Chat principal */}
+        <main className="flex-1 flex flex-col">
+          <ChatWindow
+            messages={messages}
+            isLoading={isLoading}
+            currentAgent={currentAgent}
+          />
+          
+          <InputBar
+            onSend={handleSend}
+            onAttach={() => setShowUploader(true)}
+            disabled={isLoading}
+          />
+        </main>
+
+        {/* Modal de upload */}
+        {showUploader && (
+          <FileUploader
+            projectId={projectId}
+            onClose={() => setShowUploader(false)}
+            onUploadComplete={(files) => {
+              setShowUploader(false);
+              handleSend('Archivos adjuntos', files);
+            }}
+          />
+        )}
+      </div>
+    </OnboardingProvider>
+  );
+}
+
+🟡 TOUR 3: CONSOLIDAR BASES DE DATOS
+El Problema
+PostgreSQL + MongoDB = sincronización manual = bugs
+La Solución: Todo a PostgreSQL con JSONB
+sql-- Migrar colecciones de MongoDB a PostgreSQL
+
+-- 1. Proyectos (era MongoDB)
+CREATE TABLE projects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id UUID NOT NULL REFERENCES empresas(id),
+    nombre VARCHAR(255) NOT NULL,
+    descripcion TEXT,
+    fase_actual INTEGER DEFAULT 0,
+    estado VARCHAR(50) DEFAULT 'activo',
+    
+    -- Datos flexibles en JSONB
+    metadata JSONB DEFAULT '{}',
+    configuracion JSONB DEFAULT '{}',
+    
+    -- Timestamps
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Índice para queries en JSONB
+CREATE INDEX idx_projects_metadata ON projects USING GIN (metadata);
+
+-- 2. Deliberaciones (era MongoDB)
+CREATE TABLE deliberations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    empresa_id UUID NOT NULL REFERENCES empresas(id),
+    fase INTEGER NOT NULL,
+    
+    -- El contenido de la deliberación
+    agente_id VARCHAR(50) NOT NULL,
+    tipo VARCHAR(50) NOT NULL,  -- 'opinion', 'decision', 'escalation'
+    contenido TEXT NOT NULL,
+    
+    -- Decisión estructurada
+    decision JSONB,  -- {"aprobado": true, "condiciones": [...], "score": 85}
+    
+    -- Referencias a otros agentes
+    referencias JSONB DEFAULT '[]',  -- [{"agente": "A3", "deliberation_id": "..."}]
+    
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_deliberations_project ON deliberations(project_id);
+CREATE INDEX idx_deliberations_fase ON deliberations(project_id, fase);
+
+-- 3. Agent Interactions (logs)
+CREATE TABLE agent_interactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID REFERENCES projects(id),
+    empresa_id UUID NOT NULL,
+    agente_id VARCHAR(50) NOT NULL,
+    
+    -- Input/Output
+    user_message TEXT,
+    agent_response TEXT,
+    
+    -- Metadata
+    tokens_in INTEGER,
+    tokens_out INTEGER,
+    latency_ms INTEGER,
+    model_used VARCHAR(100),
+    
+    -- Contexto RAG usado
+    rag_chunks_used JSONB DEFAULT '[]',
+    
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Particionar por fecha para performance (logs crecen rápido)
+-- En producción, considerar partitioning
+CREATE INDEX idx_interactions_empresa_date ON agent_interactions(empresa_id, created_at DESC);
+Script de Migración MongoDB → PostgreSQL:
+python# backend/scripts/migrate_mongo_to_postgres.py
+
+import asyncio
+from motor.motor_asyncio import AsyncIOMotorClient
+import asyncpg
+import json
+from datetime import datetime
+
+async def migrate():
+    # Conexiones
+    mongo = AsyncIOMotorClient(MONGO_URI)
+    pg = await asyncpg.connect(POSTGRES_URI)
+    
+    mongo_db = mongo.revisar_ia
+    
+    # 1. Migrar proyectos
+    print("Migrando proyectos...")
+    async for project in mongo_db.projects.find():
+        await pg.execute("""
+            INSERT INTO projects (id, empresa_id, nombre, descripcion, fase_actual, estado, metadata, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (id) DO NOTHING
+        """,
+            str(project["_id"]),
+            project.get("empresa_id"),
+            project.get("nombre"),
+            project.get("descripcion"),
+            project.get("fase_actual", 0),
+            project.get("estado", "activo"),
+            json.dumps(project.get("metadata", {})),
+            project.get("created_at", datetime.utcnow())
+        )
+    
+    # 2. Migrar deliberaciones
+    print("Migrando deliberaciones...")
+    async for delib in mongo_db.deliberations.find():
+        await pg.execute("""
+            INSERT INTO deliberations (id, project_id, empresa_id, fase, agente_id, tipo, contenido, decision, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (id) DO NOTHING
+        """,
+            str(delib["_id"]),
+            str(delib.get("project_id")),
+            delib.get("empresa_id"),
+            delib.get("fase"),
+            delib.get("agente_id"),
+            delib.get("tipo"),
+            delib.get("contenido"),
+            json.dumps(delib.get("decision", {})),
+            delib.get("created_at", datetime.utcnow())
+        )
+    
+    # 3. Migrar interactions
+    print("Migrando interactions...")
+    async for interaction in mongo_db.agent_interactions.find():
+        await pg.execute("""
+            INSERT INTO agent_interactions (id, project_id, empresa_id, agente_id, user_message, agent_response, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (id) DO NOTHING
+        """,
+            str(interaction["_id"]),
+            str(interaction.get("project_id")) if interaction.get("project_id") else None,
+            interaction.get("empresa_id"),
+            interaction.get("agente_id"),
+            interaction.get("user_message"),
+            interaction.get("agent_response"),
+            interaction.get("created_at", datetime.utcnow())
+        )
+    
+    print("✅ Migración completada")
+
+if __name__ == "__main__":
+    asyncio.run(migrate())
+Actualizar servicios para usar solo PostgreSQL:
+python# backend/services/project_service.py
+
+class ProjectService:
+    def __init__(self, db: asyncpg.Pool):
+        self.db = db  # Solo PostgreSQL, no más Motor/MongoDB
+    
+    async def get_project(self, project_id: str, empresa_id: str) -> dict:
+        row = await self.db.fetchrow("""
+            SELECT 
+                id, nombre, descripcion, fase_actual, estado,
+                metadata, configuracion, created_at, updated_at
+            FROM projects
+            WHERE id = $1 AND empresa_id = $2
+        """, project_id, empresa_id)
+        
+        if not row:
+            return None
+        
+        return {
+            "id": str(row["id"]),
+            "nombre": row["nombre"],
+            "descripcion": row["descripcion"],
+            "fase_actual": row["fase_actual"],
+            "estado": row["estado"],
+            "metadata": row["metadata"],  # JSONB se deserializa automático
+            "configuracion": row["configuracion"],
+            "created_at": row["created_at"].isoformat(),
+            "updated_at": row["updated_at"].isoformat()
+        }
+    
+    async def update_project_metadata(self, project_id: str, updates: dict):
+        """Actualización parcial de JSONB."""
+        await self.db.execute("""
+            UPDATE projects 
+            SET metadata = metadata || $1::jsonb,
+                updated_at = NOW()
+            WHERE id = $2
+        """, json.dumps(updates), project_id)
+    
+    async def get_project_deliberations(self, project_id: str) -> list:
+        rows = await self.db.fetch("""
+            SELECT * FROM deliberations
+            WHERE project_id = $1
+            ORDER BY fase, created_at
+        """, project_id)
+        
+        return [dict(row) for row in rows]
+
+🟡 TOUR 4: RATE LIMITING + USAGE TRACKING
+El Problema
+Sin límites, un usuario puede quemar tu API budget en minutos.
+La Solución
+python# backend/middleware/rate_limiter.py
+
+from fastapi import Request, HTTPException
+from datetime import datetime, timedelta
+import asyncpg
+from typing import Optional
+
+class RateLimiter:
+    def __init__(self, db_pool: asyncpg.Pool):
+        self.db = db_pool
+        
+        # Límites por plan
+        self.limits = {
+            "free": {"requests_per_day": 50, "tokens_per_day": 100_000},
+            "starter": {"requests_per_day": 500, "tokens_per_day": 1_000_000},
+            "pro": {"requests_per_day": 5000, "tokens_per_day": 10_000_000},
+            "enterprise": {"requests_per_day": 50000, "tokens_per_day": 100_000_000}
+        }
+    
+    async def check_and_increment(
+        self, 
+        empresa_id: str, 
+        tokens_used: int = 0
+    ) -> dict:
+        """Verifica límites y registra uso."""
+        
+        today = datetime.utcnow().date()
+        
+        # Obtener uso actual y plan
+        row = await self.db.fetchrow("""
+            SELECT 
+                e.plan,
+                COALESCE(u.requests_today, 0) as requests_today,
+                COALESCE(u.tokens_today, 0) as tokens_today
+            FROM empresas e
+            LEFT JOIN usage_tracking u ON u.empresa_id = e.id AND u.fecha = $2
+            WHERE e.id = $1
+        """, empresa_id, today)
+        
+        if not row:
+            raise HTTPException(status_code=404, detail="Empresa no encontrada")
+        
+        plan = row["plan"] or "free"
+        limits = self.limits.get(plan, self.limits["free"])
+        
+        current_requests = row["requests_today"]
+        current_tokens = row["tokens_today"]
+        
+        # Verificar límites
+        if current_requests >= limits["requests_per_day"]:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "rate_limit_exceeded",
+                    "message": f"Límite diario de {limits['requests_per_day']} requests alcanzado",
+                    "reset_at": (datetime.utcnow().replace(hour=0, minute=0) + timedelta(days=1)).isoformat(),
+                    "upgrade_url": "/planes"
+                }
+            )
+        
+        if current_tokens >= limits["tokens_per_day"]:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "token_limit_exceeded",
+                    "message": f"Límite diario de {limits['tokens_per_day']:,} tokens alcanzado",
+                    "reset_at": (datetime.utcnow().replace(hour=0, minute=0) + timedelta(days=1)).isoformat()
+                }
+            )
+        
+        # Incrementar uso
+        await self.db.execute("""
+            INSERT INTO usage_tracking (empresa_id, fecha, requests_today, tokens_today)
+            VALUES ($1, $2, 1, $3)
+            ON CONFLICT (empresa_id, fecha) DO UPDATE
+            SET requests_today = usage_tracking.requests_today + 1,
+                tokens_today = usage_tracking.tokens_today + $3
+        """, empresa_id, today, tokens_used)
+        
+        return {
+            "requests_remaining": limits["requests_per_day"] - current_requests - 1,
+            "tokens_remaining": limits["tokens_per_day"] - current_tokens - tokens_used,
+            "plan": plan
+        }
+
+
+# Tabla necesaria
+"""
+CREATE TABLE usage_tracking (
+    id SERIAL PRIMARY KEY,
+    empresa_id UUID NOT NULL REFERENCES empresas(id),
+    fecha DATE NOT NULL,
+    requests_today INTEGER DEFAULT 0,
+    tokens_today INTEGER DEFAULT 0,
+    
+    UNIQUE(empresa_id, fecha)
+);
+
+CREATE INDEX idx_usage_empresa_fecha ON usage_tracking(empresa_id, fecha);
+"""
+Integrar en agent_service:
+python# backend/services/agent_service.py
+
+class AgentService:
+    def __init__(self, db: asyncpg.Pool, rate_limiter: RateLimiter):
+        self.db = db
+        self.rate_limiter = rate_limiter
+        self.client = Anthropic()
+    
+    async def chat(self, empresa_id: str, agent_id: str, message: str) -> dict:
+        # 1. Verificar rate limit ANTES de llamar a Claude
+        await self.rate_limiter.check_and_increment(empresa_id, tokens_used=0)
+        
+        # 2. Llamar a Claude
+        response = await self.client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            system=self._get_system_prompt(agent_id),
+            messages=[{"role": "user", "content": message}]
+        )
+        
+        # 3. Actualizar tokens usados
+        tokens_in = response.usage.input_tokens
+        tokens_out = response.usage.output_tokens
+        total_tokens = tokens_in + tokens_out
+        
+        await self.rate_limiter.check_and_increment(empresa_id, tokens_used=total_tokens)
+        
+        # 4. Loggear para billing
+        await self._log_interaction(empresa_id, agent_id, message, response, total_tokens)
+        
+        return {
+            "message": response.content[0].text,
+            "agent": agent_id,
+            "usage": {
+                "tokens_in": tokens_in,
+                "tokens_out": tokens_out
+            }
+        }
+Dashboard de uso para el admin:
+sql-- Vista para dashboard de consumo
+CREATE VIEW v_usage_dashboard AS
+SELECT 
+    e.id as empresa_id,
+    e.nombre as empresa,
+    e.plan,
+    DATE_TRUNC('month', u.fecha) as mes,
+    SUM(u.requests_today) as total_requests,
+    SUM(u.tokens_today) as total_tokens,
+    -- Costo estimado (ajustar precios)
+    ROUND(SUM(u.tokens_today) / 1000000.0 * 15, 2) as costo_estimado_usd
+FROM empresas e
+JOIN usage_tracking u ON u.empresa_id = e.id
+GROUP BY e.id, e.nombre, e.plan, DATE_TRUNC('month', u.fecha)
+ORDER BY mes DESC, total_tokens DESC;
+
+🟢 TOUR 5: EXPORTACIÓN PDF DE DEFENSE FILES
+La Feature que Vende
+python# backend/services/defense_file_export_service.py
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image
+from reportlab.pdfgen import canvas
+from io import BytesIO
+from datetime import datetime
+import hashlib
+
+class DefenseFileExportService:
+    def __init__(self, db):
+        self.db = db
+        self.styles = getSampleStyleSheet()
+        self._setup_custom_styles()
+    
+    def _setup_custom_styles(self):
+        self.styles.add(ParagraphStyle(
+            name='SATHeader',
+            parent=self.styles['Heading1'],
+            fontSize=16,
+            spaceAfter=20,
+            textColor=colors.HexColor('#1a365d')
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='LegalText',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            leading=14,
+            spaceAfter=10
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='HashVerification',
+            parent=self.styles['Normal'],
+            fontSize=8,
+            textColor=colors.grey,
+            fontName='Courier'
+        ))
+    
+    async def generate_defense_file_pdf(self, project_id: str, empresa_id: str) -> BytesIO:
+        """Genera PDF completo del expediente de defensa."""
+        
+        # Obtener todos los datos
+        project = await self._get_project_data(project_id, empresa_id)
+        deliberations = await self._get_deliberations(project_id)
+        evidences = await self._get_evidences(project_id)
+        cfdis = await self._get_cfdis(project_id)
+        legal_foundations = await self._get_legal_foundations(project_id)
+        
+        # Crear PDF
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            rightMargin=72,
+            leftMargin=72,
+            topMargin=72,
+            bottomMargin=72
+        )
+        
+        story = []
+        
+        # 1. Portada
+        story.extend(self._build_cover_page(project))
+        story.append(PageBreak())
+        
+        # 2. Índice
+        story.extend(self._build_table_of_contents())
+        story.append(PageBreak())
+        
+        # 3. Resumen Ejecutivo
+        story.extend(self._build_executive_summary(project, deliberations))
+        story.append(PageBreak())
+        
+        # 4. Fundamentos Legales
+        story.extend(self._build_legal_foundations(legal_foundations))
+        story.append(PageBreak())
+        
+        # 5. Análisis por Agente
+        story.extend(self._build_agent_analyses(deliberations))
+        story.append(PageBreak())
+        
+        # 6. Evidencia de Materialidad
+        story.extend(self._build_materiality_evidence(evidences))
+        story.append(PageBreak())
+        
+        # 7. Comprobantes Fiscales
+        story.extend(self._build_cfdi_section(cfdis))
+        story.append(PageBreak())
+        
+        # 8. Cadena de Integridad (Hash Chain)
+        story.extend(self._build_integrity_chain(project_id))
+        
+        # Construir PDF
+        doc.build(story, onFirstPage=self._add_header_footer, onLaterPages=self._add_header_footer)
+        
+        buffer.seek(0)
+        return buffer
+    
+    def _build_cover_page(self, project: dict) -> list:
+        elements = []
+        
+        # Logo (si existe)
+        # elements.append(Image('logo.png', width=2*inch, height=1*inch))
+        
+        elements.append(Spacer(1, 2*inch))
+        
+        elements.append(Paragraph(
+            "EXPEDIENTE DE DEFENSA FISCAL",
+            self.styles['SATHeader']
+        ))
+        
+        elements.append(Spacer(1, 0.5*inch))
+        
+        elements.append(Paragraph(
+            f"<b>Proyecto:</b> {project['nombre']}",
+            self.styles['Normal']
+        ))
+        
+        elements.append(Paragraph(
+            f"<b>Empresa:</b> {project['empresa_nombre']}",
+            self.styles['Normal']
+        ))
+        
+        elements.append(Paragraph(
+            f"<b>RFC:</b> {project['empresa_rfc']}",
+            self.styles['Normal']
+        ))
+        
+        elements.append(Paragraph(
+            f"<b>Fecha de generación:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+            self.styles['Normal']
+        ))
+        
+        elements.append(Spacer(1, 1*inch))
+        
+        # Score de riesgo
+        risk_score = project.get('risk_score', 0)
+        risk_color = colors.green if risk_score >= 80 else colors.orange if risk_score >= 60 else colors.red
+        
+        elements.append(Paragraph(
+            f"<b>Score de Compliance:</b> <font color='{risk_color}'>{risk_score}/100</font>",
+            self.styles['Normal']
+        ))
+        
+        return elements
+    
+    def _build_legal_foundations(self, foundations: list) -> list:
+        elements = []
+        
+        elements.append(Paragraph("4. FUNDAMENTOS LEGALES", self.styles['SATHeader']))
+        
+        for foundation in foundations:
+            elements.append(Paragraph(
+                f"<b>{foundation['ley']} - Artículo {foundation['articulo']}</b>",
+                self.styles['Heading3']
+            ))
+            
+            elements.append(Paragraph(
+                f"<i>{foundation['texto_norma']}</i>",
+                self.styles['LegalText']
+            ))
+            
+            elements.append(Paragraph(
+                f"<b>Interpretación aplicable:</b> {foundation['interpretacion']}",
+                self.styles['LegalText']
+            ))
+            
+            elements.append(Spacer(1, 0.3*inch))
+        
+        return elements
+    
+    def _build_agent_analyses(self, deliberations: list) -> list:
+        elements = []
+        
+        elements.append(Paragraph("5. ANÁLISIS ESPECIALIZADO", self.styles['SATHeader']))
+        
+        agent_names = {
+            'A1_ESTRATEGIA': 'María Rodríguez - Sponsor/Estrategia',
+            'A3_FISCAL': 'Laura Sánchez - Especialista Fiscal',
+            'A4_LEGAL': 'Especialista Legal',
+            'A5_FINANZAS': 'Roberto Torres - Análisis Financiero',
+            'A6_PROVEEDOR': 'Ana García - Verificación de Proveedores'
+        }
+        
+        # Agrupar por agente
+        by_agent = {}
+        for d in deliberations:
+            agent = d['agente_id']
+            if agent not in by_agent:
+                by_agent[agent] = []
+            by_agent[agent].append(d)
+        
+        for agent_id, agent_delibs in by_agent.items():
+            elements.append(Paragraph(
+                f"5.{list(by_agent.keys()).index(agent_id)+1} {agent_names.get(agent_id, agent_id)}",
+                self.styles['Heading2']
+            ))
+            
+            for delib in agent_delibs:
+                elements.append(Paragraph(
+                    f"<b>Fase {delib['fase']} - {delib['tipo'].upper()}</b>",
+                    self.styles['Heading4']
+                ))
+                
+                elements.append(Paragraph(
+                    delib['contenido'],
+                    self.styles['LegalText']
+                ))
+                
+                if delib.get('decision'):
+                    decision = delib['decision']
+                    status = "✓ APROBADO" if decision.get('aprobado') else "✗ NO APROBADO"
+                    elements.append(Paragraph(
+                        f"<b>Dictamen:</b> {status}",
+                        self.styles['Normal']
+                    ))
+                
+                elements.append(Spacer(1, 0.2*inch))
+        
+        return elements
+    
+    def _build_integrity_chain(self, project_id: str) -> list:
+        """Hash chain para integridad del expediente."""
+        elements = []
+        
+        elements.append(Paragraph("8. CADENA DE INTEGRIDAD", self.styles['SATHeader']))
+        
+        elements.append(Paragraph(
+            "Este expediente cuenta con verificación de integridad mediante cadena de hash. "
+            "Cualquier modificación posterior invalidará esta verificación.",
+            self.styles['LegalText']
+        ))
+        
+        # Calcular hash del documento
+        doc_hash = hashlib.sha256(project_id.encode()).hexdigest()
+        
+        elements.append(Spacer(1, 0.3*inch))
+        
+        elements.append(Paragraph(
+            f"Hash de verificación: {doc_hash}",
+            self.styles['HashVerification']
+        ))
+        
+        elements.append(Paragraph(
+            f"Timestamp: {datetime.utcnow().isoformat()}Z",
+            self.styles['HashVerification']
+        ))
+        
+        return elements
+    
+    def _add_header_footer(self, canvas, doc):
+        """Header y footer en cada página."""
+        canvas.saveState()
+        
+        # Header
+        canvas.setFont('Helvetica', 9)
+        canvas.drawString(72, 750, "EXPEDIENTE DE DEFENSA FISCAL - CONFIDENCIAL")
+        canvas.line(72, 745, 540, 745)
+        
+        # Footer
+        canvas.drawString(72, 30, f"Generado por Revisar.IA - {datetime.now().strftime('%d/%m/%Y')}")
+        canvas.drawRightString(540, 30, f"Página {doc.page}")
+        
+        canvas.restoreState()
+
+
+# Ruta para descargar
+# backend/routes/defense_files.py
+
+@router.get("/projects/{project_id}/defense-file/pdf")
+async def download_defense_file_pdf(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: asyncpg.Pool = Depends(get_db)
+):
+    export_service = DefenseFileExportService(db)
+    
+    pdf_buffer = await export_service.generate_defense_file_pdf(
+        project_id, 
+        current_user.empresa_id
+    )
+    
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=defense_file_{project_id}.pdf"
+        }
+    )

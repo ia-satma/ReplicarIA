@@ -1,0 +1,2037 @@
+PASO 7: Hook useChatMessages
+frontend/src/features/onboarding/hooks/useChatMessages.js:
+javascriptimport { useState, useCallback, useRef, useEffect } from 'react';
+
+export function useChatMessages() {
+  const [messages, setMessages] = useState([]);
+  const [conversationHistory, setConversationHistory] = useState([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const streamingMessageRef = useRef(null);
+  const messagesEndRef = useRef(null);
+
+  // Auto-scroll al final cuando hay nuevos mensajes
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const addUserMessage = useCallback((content, attachments = []) => {
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content,
+      attachments,
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    
+    // Agregar al historial para la API
+    setConversationHistory((prev) => [
+      ...prev,
+      { role: 'user', content }
+    ]);
+
+    return userMessage;
+  }, []);
+
+  const addBotMessage = useCallback((content, metadata = {}) => {
+    const botMessage = {
+      id: `bot-${Date.now()}`,
+      role: 'assistant',
+      content,
+      timestamp: new Date().toISOString(),
+      ...metadata, // agent, agentName, suggestions, etc.
+    };
+
+    setMessages((prev) => [...prev, botMessage]);
+    
+    // Agregar al historial para la API
+    setConversationHistory((prev) => [
+      ...prev,
+      { role: 'assistant', content }
+    ]);
+
+    return botMessage;
+  }, []);
+
+  const addSystemMessage = useCallback((content, type = 'info') => {
+    const systemMessage = {
+      id: `system-${Date.now()}`,
+      role: 'system',
+      content,
+      type, // 'info', 'error', 'success', 'warning'
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, systemMessage]);
+    return systemMessage;
+  }, []);
+
+  const startStreaming = useCallback((metadata = {}) => {
+    setIsStreaming(true);
+    
+    const streamingMessage = {
+      id: `streaming-${Date.now()}`,
+      role: 'assistant',
+      content: '',
+      isStreaming: true,
+      timestamp: new Date().toISOString(),
+      ...metadata,
+    };
+
+    streamingMessageRef.current = streamingMessage.id;
+    setMessages((prev) => [...prev, streamingMessage]);
+    
+    return streamingMessage.id;
+  }, []);
+
+  const updateStreamingMessage = useCallback((chunk) => {
+    if (!streamingMessageRef.current) return;
+
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === streamingMessageRef.current
+          ? { ...msg, content: msg.content + chunk }
+          : msg
+      )
+    );
+  }, []);
+
+  const finalizeStreamingMessage = useCallback((finalContent = null, metadata = {}) => {
+    if (!streamingMessageRef.current) return;
+
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === streamingMessageRef.current
+          ? {
+              ...msg,
+              content: finalContent || msg.content,
+              isStreaming: false,
+              ...metadata,
+            }
+          : msg
+      )
+    );
+
+    // Agregar al historial
+    const finalMessage = messages.find(m => m.id === streamingMessageRef.current);
+    if (finalMessage) {
+      setConversationHistory((prev) => [
+        ...prev,
+        { role: 'assistant', content: finalContent || finalMessage.content }
+      ]);
+    }
+
+    streamingMessageRef.current = null;
+    setIsStreaming(false);
+  }, [messages]);
+
+  const cancelStreaming = useCallback(() => {
+    if (!streamingMessageRef.current) return;
+
+    // Remover mensaje de streaming
+    setMessages((prev) => prev.filter((msg) => msg.id !== streamingMessageRef.current));
+    
+    streamingMessageRef.current = null;
+    setIsStreaming(false);
+  }, []);
+
+  const setTyping = useCallback((typing, delay = 0) => {
+    if (delay > 0) {
+      setTimeout(() => setIsTyping(typing), delay);
+    } else {
+      setIsTyping(typing);
+    }
+  }, []);
+
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+    setConversationHistory([]);
+  }, []);
+
+  const removeMessage = useCallback((messageId) => {
+    setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+  }, []);
+
+  const updateMessage = useCallback((messageId, updates) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId ? { ...msg, ...updates } : msg
+      )
+    );
+  }, []);
+
+  return {
+    // State
+    messages,
+    conversationHistory,
+    isTyping,
+    isStreaming,
+    messagesEndRef,
+
+    // Actions
+    addUserMessage,
+    addBotMessage,
+    addSystemMessage,
+    startStreaming,
+    updateStreamingMessage,
+    finalizeStreamingMessage,
+    cancelStreaming,
+    setTyping,
+    clearMessages,
+    removeMessage,
+    updateMessage,
+  };
+}
+
+PASO 8: Hook useFileUpload
+frontend/src/features/onboarding/hooks/useFileUpload.js:
+javascriptimport { useState, useCallback } from 'react';
+import { onboardingApi } from '../../../api/onboarding';
+
+const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.xlsx', '.txt', '.xml', '.png', '.jpg', '.jpeg'];
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+export function useFileUpload(projectId, onAnalysisComplete) {
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [additionalFiles, setAdditionalFiles] = useState([]);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
+  const [fileAnalysisResults, setFileAnalysisResults] = useState([]);
+  const [extractedDocumentContents, setExtractedDocumentContents] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState({});
+  const [error, setError] = useState(null);
+
+  const validateFile = useCallback((file) => {
+    const extension = '.' + file.name.split('.').pop().toLowerCase();
+    
+    if (!ALLOWED_EXTENSIONS.includes(extension)) {
+      return {
+        valid: false,
+        error: `Tipo de archivo no permitido: ${extension}. Permitidos: ${ALLOWED_EXTENSIONS.join(', ')}`
+      };
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      return {
+        valid: false,
+        error: `Archivo muy grande: ${(file.size / 1024 / 1024).toFixed(2)}MB. Máximo: 50MB`
+      };
+    }
+
+    return { valid: true };
+  }, []);
+
+  const handleFileSelect = useCallback(async (files, options = {}) => {
+    const { analyzeWithAI = true, categoria = null } = options;
+    
+    setError(null);
+    const validFiles = [];
+    const errors = [];
+
+    // Validar archivos
+    for (const file of files) {
+      const validation = validateFile(file);
+      if (validation.valid) {
+        validFiles.push({
+          id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          file,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          status: 'pending',
+          progress: 0,
+        });
+      } else {
+        errors.push({ file: file.name, error: validation.error });
+      }
+    }
+
+    if (errors.length > 0) {
+      setError(errors.map(e => `${e.file}: ${e.error}`).join('\n'));
+    }
+
+    if (validFiles.length === 0) return [];
+
+    setUploadedFiles((prev) => [...prev, ...validFiles]);
+
+    // Analizar con IA si está habilitado
+    if (analyzeWithAI) {
+      await analyzeFiles(validFiles);
+    }
+
+    return validFiles;
+  }, [validateFile]);
+
+  const analyzeFiles = useCallback(async (files) => {
+    setIsProcessingFile(true);
+    
+    const results = [];
+
+    for (const fileObj of files) {
+      try {
+        // Actualizar estado a "analizando"
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileObj.id ? { ...f, status: 'analyzing' } : f
+          )
+        );
+
+        // Llamar API para análisis con IA
+        const formData = new FormData();
+        formData.append('file', fileObj.file);
+        formData.append('project_id', projectId);
+
+        const response = await onboardingApi.analyzeDocument(projectId, fileObj.file);
+
+        const analysisResult = {
+          fileId: fileObj.id,
+          fileName: fileObj.name,
+          extractedData: response.extracted_data || {},
+          categoria: response.categoria,
+          subcategoria: response.subcategoria,
+          resumen: response.resumen,
+          entidades: response.entidades || [],
+          confidence: response.confidence || 0,
+        };
+
+        results.push(analysisResult);
+
+        // Actualizar estado a "analizado"
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileObj.id
+              ? { ...f, status: 'analyzed', analysis: analysisResult }
+              : f
+          )
+        );
+
+        // Guardar contenido extraído
+        if (response.content) {
+          setExtractedDocumentContents((prev) => [
+            ...prev,
+            { fileId: fileObj.id, content: response.content }
+          ]);
+        }
+
+      } catch (err) {
+        console.error(`Error analizando ${fileObj.name}:`, err);
+        
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileObj.id
+              ? { ...f, status: 'error', error: err.message }
+              : f
+          )
+        );
+      }
+    }
+
+    setFileAnalysisResults((prev) => [...prev, ...results]);
+    setIsProcessingFile(false);
+
+    // Callback con resultados
+    if (onAnalysisComplete && results.length > 0) {
+      onAnalysisComplete(results);
+    }
+
+    return results;
+  }, [projectId, onAnalysisComplete]);
+
+  const uploadFilesToCloud = useCallback(async (categoria = null) => {
+    const pendingFiles = uploadedFiles.filter(
+      (f) => f.status === 'analyzed' || f.status === 'pending'
+    );
+
+    if (pendingFiles.length === 0) return [];
+
+    setIsUploadingDocuments(true);
+    const uploaded = [];
+
+    try {
+      const files = pendingFiles.map((f) => f.file);
+      const response = await onboardingApi.uploadFiles(projectId, files, categoria);
+
+      // Actualizar estados
+      for (const fileObj of pendingFiles) {
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileObj.id ? { ...f, status: 'uploaded' } : f
+          )
+        );
+        uploaded.push(fileObj);
+      }
+
+      return response;
+    } catch (err) {
+      setError(`Error subiendo archivos: ${err.message}`);
+      throw err;
+    } finally {
+      setIsUploadingDocuments(false);
+    }
+  }, [uploadedFiles, projectId]);
+
+  const removeFile = useCallback((fileId) => {
+    setUploadedFiles((prev) => prev.filter((f) => f.id !== fileId));
+    setFileAnalysisResults((prev) => prev.filter((r) => r.fileId !== fileId));
+    setExtractedDocumentContents((prev) => prev.filter((c) => c.fileId !== fileId));
+  }, []);
+
+  const clearAllFiles = useCallback(() => {
+    setUploadedFiles([]);
+    setAdditionalFiles([]);
+    setFileAnalysisResults([]);
+    setExtractedDocumentContents([]);
+    setError(null);
+  }, []);
+
+  const getFileById = useCallback((fileId) => {
+    return uploadedFiles.find((f) => f.id === fileId);
+  }, [uploadedFiles]);
+
+  const getAnalysisForFile = useCallback((fileId) => {
+    return fileAnalysisResults.find((r) => r.fileId === fileId);
+  }, [fileAnalysisResults]);
+
+  return {
+    // State
+    uploadedFiles,
+    additionalFiles,
+    isProcessingFile,
+    isUploadingDocuments,
+    fileAnalysisResults,
+    extractedDocumentContents,
+    uploadProgress,
+    error,
+
+    // Actions
+    handleFileSelect,
+    analyzeFiles,
+    uploadFilesToCloud,
+    removeFile,
+    clearAllFiles,
+    getFileById,
+    getAnalysisForFile,
+    setAdditionalFiles,
+    clearError: () => setError(null),
+  };
+}
+
+PASO 9: Hook useOnboardingSteps
+frontend/src/features/onboarding/hooks/useOnboardingSteps.js:
+javascriptimport { useState, useCallback, useEffect } from 'react';
+
+// Definición de pasos del onboarding
+const ONBOARDING_STEPS = [
+  {
+    id: 0,
+    key: 'welcome',
+    title: 'Bienvenida',
+    description: 'Identificar tipo de entidad',
+    requiredFields: [],
+    agent: 'ARCHIVO',
+  },
+  {
+    id: 1,
+    key: 'entity_type',
+    title: 'Tipo de Entidad',
+    description: 'Seleccionar cliente o proveedor',
+    requiredFields: ['entityType'],
+    agent: 'ARCHIVO',
+  },
+  {
+    id: 2,
+    key: 'basic_info',
+    title: 'Información Básica',
+    description: 'RFC, razón social, datos de contacto',
+    requiredFields: ['rfc', 'razonSocial'],
+    agent: 'ARCHIVO',
+  },
+  {
+    id: 3,
+    key: 'documents',
+    title: 'Documentación',
+    description: 'Subir constancia fiscal, identificación',
+    requiredFields: ['constanciaFiscal'],
+    agent: 'ARCHIVO',
+  },
+  {
+    id: 4,
+    key: 'ai_analysis',
+    title: 'Análisis IA',
+    description: 'Extracción automática de datos',
+    requiredFields: [],
+    agent: 'ARCHIVO',
+  },
+  {
+    id: 5,
+    key: 'confirmation',
+    title: 'Confirmación',
+    description: 'Validar datos extraídos',
+    requiredFields: ['dataConfirmed'],
+    agent: 'ARCHIVO',
+  },
+  {
+    id: 6,
+    key: 'efos_check',
+    title: 'Verificación EFOS',
+    description: 'Consulta Lista 69-B SAT',
+    requiredFields: [],
+    agent: 'A6_PROVEEDOR',
+  },
+  {
+    id: 7,
+    key: 'complete',
+    title: 'Completado',
+    description: 'Entidad registrada exitosamente',
+    requiredFields: [],
+    agent: 'ARCHIVO',
+  },
+];
+
+export function useOnboardingSteps(initialStep = 0) {
+  const [currentStep, setCurrentStep] = useState(initialStep);
+  const [collectedData, setCollectedData] = useState({});
+  const [entityType, setEntityType] = useState(null); // 'cliente' | 'proveedor'
+  const [extractedData, setExtractedData] = useState({});
+  const [onboardingStatus, setOnboardingStatus] = useState('idle'); // idle, in_progress, completed, error
+  const [onboardingError, setOnboardingError] = useState(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [intelligentMode, setIntelligentMode] = useState(false);
+  const [createdEntity, setCreatedEntity] = useState(null);
+  const [emailContacto, setEmailContacto] = useState('');
+
+  const currentStepData = ONBOARDING_STEPS[currentStep];
+
+  const validateStep = useCallback((stepIndex = currentStep) => {
+    const step = ONBOARDING_STEPS[stepIndex];
+    if (!step) return { valid: false, missingFields: [] };
+
+    const missingFields = step.requiredFields.filter((field) => {
+      // Verificar en collectedData y extractedData
+      const value = collectedData[field] || extractedData[field];
+      return !value || (typeof value === 'string' && value.trim() === '');
+    });
+
+    return {
+      valid: missingFields.length === 0,
+      missingFields,
+    };
+  }, [currentStep, collectedData, extractedData]);
+
+  const nextStep = useCallback(() => {
+    const validation = validateStep();
+    
+    if (!validation.valid) {
+      setOnboardingError(`Campos requeridos faltantes: ${validation.missingFields.join(', ')}`);
+      return false;
+    }
+
+    if (currentStep < ONBOARDING_STEPS.length - 1) {
+      setCurrentStep((prev) => prev + 1);
+      setOnboardingError(null);
+      return true;
+    }
+
+    return false;
+  }, [currentStep, validateStep]);
+
+  const prevStep = useCallback(() => {
+    if (currentStep > 0) {
+      setCurrentStep((prev) => prev - 1);
+      setOnboardingError(null);
+      return true;
+    }
+    return false;
+  }, [currentStep]);
+
+  const goToStep = useCallback((stepIndex) => {
+    if (stepIndex >= 0 && stepIndex < ONBOARDING_STEPS.length) {
+      setCurrentStep(stepIndex);
+      setOnboardingError(null);
+      return true;
+    }
+    return false;
+  }, []);
+
+  const updateCollectedData = useCallback((key, value) => {
+    setCollectedData((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  }, []);
+
+  const mergeCollectedData = useCallback((data) => {
+    setCollectedData((prev) => ({
+      ...prev,
+      ...data,
+    }));
+  }, []);
+
+  const mergeExtractedData = useCallback((data) => {
+    setExtractedData((prev) => ({
+      ...prev,
+      ...data,
+    }));
+  }, []);
+
+  const selectEntityType = useCallback((type) => {
+    if (type === 'cliente' || type === 'proveedor') {
+      setEntityType(type);
+      updateCollectedData('entityType', type);
+      return true;
+    }
+    return false;
+  }, [updateCollectedData]);
+
+  const confirmExtractedData = useCallback(() => {
+    // Mergear datos extraídos a datos recolectados
+    setCollectedData((prev) => ({
+      ...prev,
+      ...extractedData,
+      dataConfirmed: true,
+    }));
+    setShowConfirmation(false);
+  }, [extractedData]);
+
+  const completeOnboarding = useCallback(async (entityData) => {
+    setOnboardingStatus('completed');
+    setCreatedEntity(entityData);
+    goToStep(ONBOARDING_STEPS.length - 1); // Ir al último paso
+  }, [goToStep]);
+
+  const resetOnboarding = useCallback(() => {
+    setCurrentStep(0);
+    setCollectedData({});
+    setEntityType(null);
+    setExtractedData({});
+    setOnboardingStatus('idle');
+    setOnboardingError(null);
+    setShowConfirmation(false);
+    setCreatedEntity(null);
+    setEmailContacto('');
+  }, []);
+
+  const getProgress = useCallback(() => {
+    return {
+      current: currentStep,
+      total: ONBOARDING_STEPS.length,
+      percentage: Math.round((currentStep / (ONBOARDING_STEPS.length - 1)) * 100),
+    };
+  }, [currentStep]);
+
+  const isStepCompleted = useCallback((stepIndex) => {
+    return stepIndex < currentStep;
+  }, [currentStep]);
+
+  const isStepAccessible = useCallback((stepIndex) => {
+    // Solo puede acceder a pasos anteriores o al actual
+    return stepIndex <= currentStep;
+  }, [currentStep]);
+
+  return {
+    // State
+    currentStep,
+    currentStepData,
+    steps: ONBOARDING_STEPS,
+    collectedData,
+    entityType,
+    extractedData,
+    onboardingStatus,
+    onboardingError,
+    showConfirmation,
+    intelligentMode,
+    createdEntity,
+    emailContacto,
+
+    // Navigation
+    nextStep,
+    prevStep,
+    goToStep,
+
+    // Data management
+    updateCollectedData,
+    mergeCollectedData,
+    mergeExtractedData,
+    selectEntityType,
+    confirmExtractedData,
+    setShowConfirmation,
+    setIntelligentMode,
+    setEmailContacto,
+
+    // Lifecycle
+    completeOnboarding,
+    resetOnboarding,
+
+    // Utils
+    validateStep,
+    getProgress,
+    isStepCompleted,
+    isStepAccessible,
+
+    // Error handling
+    clearError: () => setOnboardingError(null),
+  };
+}
+
+PASO 10: Hook useChatAPI
+frontend/src/features/onboarding/hooks/useChatAPI.js:
+javascriptimport { useState, useCallback, useRef } from 'react';
+import apiClient from '../../../api/client';
+
+export function useChatAPI() {
+  const [isSearchingWeb, setIsSearchingWeb] = useState(false);
+  const [useRealAI, setUseRealAI] = useState(true);
+  const [lastError, setLastError] = useState(null);
+  const abortControllerRef = useRef(null);
+
+  const sendToClaudeAPI = useCallback(async ({
+    message,
+    conversationHistory = [],
+    agentId = 'ARCHIVO',
+    projectId = null,
+    empresaId = null,
+    contextData = {},
+    stream = false,
+    onStreamChunk = null,
+  }) => {
+    // Cancelar request anterior si existe
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    setLastError(null);
+
+    try {
+      const payload = {
+        message,
+        conversation_history: conversationHistory,
+        agent_id: agentId,
+        project_id: projectId,
+        empresa_id: empresaId,
+        context: contextData,
+        stream,
+      };
+
+      if (stream && onStreamChunk) {
+        // Streaming response
+        const response = await fetch('/api/agents/chat/stream', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify(payload),
+          signal: abortControllerRef.current.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullContent = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          fullContent += chunk;
+          onStreamChunk(chunk);
+        }
+
+        return {
+          message: fullContent,
+          agent: agentId,
+          streamed: true,
+        };
+      } else {
+        // Regular response
+        const response = await apiClient.post('/agents/chat', payload, {
+          signal: abortControllerRef.current.signal,
+        });
+
+        return {
+          message: response.data.message,
+          agent: response.data.agent || agentId,
+          agentName: response.data.agent_name,
+          suggestions: response.data.suggestions || [],
+          extractedData: response.data.extracted_data,
+          nextAction: response.data.next_action,
+          currentPhase: response.data.current_phase,
+        };
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        return null; // Cancelled
+      }
+
+      const errorMessage = err.response?.data?.detail || err.message || 'Error de conexión';
+      setLastError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  }, []);
+
+  const searchWeb = useCallback(async (query) => {
+    setIsSearchingWeb(true);
+    setLastError(null);
+
+    try {
+      const response = await apiClient.post('/agents/web-search', { query });
+      return response.data;
+    } catch (err) {
+      const errorMessage = err.response?.data?.detail || err.message;
+      setLastError(errorMessage);
+      throw err;
+    } finally {
+      setIsSearchingWeb(false);
+    }
+  }, []);
+
+  const analyzeDocumentWithAI = useCallback(async (file, extractionPrompt = null) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (extractionPrompt) {
+      formData.append('extraction_prompt', extractionPrompt);
+    }
+
+    try {
+      const response = await apiClient.post('/agents/analyze-document', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      return {
+        extractedData: response.data.extracted_data,
+        content: response.data.content,
+        categoria: response.data.categoria,
+        confidence: response.data.confidence,
+      };
+    } catch (err) {
+      const errorMessage = err.response?.data?.detail || err.message;
+      setLastError(errorMessage);
+      throw err;
+    }
+  }, []);
+
+  const cancelRequest = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  }, []);
+
+  const toggleRealAI = useCallback((enabled) => {
+    setUseRealAI(enabled);
+  }, []);
+
+  return {
+    // State
+    isSearchingWeb,
+    useRealAI,
+    lastError,
+
+    // Actions
+    sendToClaudeAPI,
+    searchWeb,
+    analyzeDocumentWithAI,
+    cancelRequest,
+    toggleRealAI,
+    clearError: () => setLastError(null),
+  };
+}
+
+PASO 11: Archivo de constantes
+frontend/src/features/onboarding/constants/index.js:
+javascript// Agentes del sistema
+export const AGENTS = {
+  ARCHIVO: {
+    id: 'ARCHIVO',
+    name: 'Archivo',
+    displayName: 'Asistente de Onboarding',
+    avatar: '📁',
+    color: '#6366f1',
+  },
+  A1_ESTRATEGIA: {
+    id: 'A1_ESTRATEGIA',
+    name: 'María Rodríguez',
+    displayName: 'María Rodríguez',
+    role: 'Sponsor/Estrategia',
+    avatar: '👩‍💼',
+    color: '#8b5cf6',
+  },
+  A3_FISCAL: {
+    id: 'A3_FISCAL',
+    name: 'Laura Sánchez',
+    displayName: 'Laura Sánchez',
+    role: 'Especialista Fiscal',
+    avatar: '👩‍⚖️',
+    color: '#10b981',
+  },
+  A6_PROVEEDOR: {
+    id: 'A6_PROVEEDOR',
+    name: 'Ana García',
+    displayName: 'Ana García',
+    role: 'Verificación Proveedores',
+    avatar: '🔍',
+    color: '#f59e0b',
+  },
+};
+
+// Tipos de entidad
+export const ENTITY_TYPES = {
+  CLIENTE: 'cliente',
+  PROVEEDOR: 'proveedor',
+};
+
+// Estados de archivos
+export const FILE_STATUS = {
+  PENDING: 'pending',
+  ANALYZING: 'analyzing',
+  ANALYZED: 'analyzed',
+  UPLOADING: 'uploading',
+  UPLOADED: 'uploaded',
+  ERROR: 'error',
+};
+
+// Extensiones permitidas
+export const ALLOWED_FILE_EXTENSIONS = [
+  '.pdf',
+  '.docx',
+  '.xlsx',
+  '.txt',
+  '.xml',
+  '.png',
+  '.jpg',
+  '.jpeg',
+];
+
+// Tamaño máximo de archivo (50MB)
+export const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+// Mensajes del sistema
+export const SYSTEM_MESSAGES = {
+  WELCOME: '¡Hola! Soy tu asistente de onboarding. ¿Vamos a registrar un cliente o un proveedor?',
+  FILE_UPLOADED: 'Archivo recibido. Analizando con IA...',
+  ANALYSIS_COMPLETE: 'He extraído la siguiente información del documento. Por favor confirma que es correcta.',
+  EFOS_CHECKING: 'Verificando RFC en la Lista 69-B del SAT...',
+  EFOS_CLEAR: '✅ El RFC no aparece en la Lista 69-B. Proveedor verificado.',
+  EFOS_WARNING: '⚠️ ALERTA: El RFC aparece en la Lista 69-B del SAT.',
+  COMPLETE: '¡Listo! La entidad ha sido registrada exitosamente.',
+};
+
+// Sugerencias rápidas
+export const QUICK_SUGGESTIONS = {
+  welcome: [
+    { text: 'Registrar cliente', value: 'cliente' },
+    { text: 'Registrar proveedor', value: 'proveedor' },
+  ],
+  documents: [
+    { text: 'Subir constancia fiscal', action: 'upload_constancia' },
+    { text: 'Subir identificación', action: 'upload_id' },
+    { text: 'Subir contrato', action: 'upload_contrato' },
+  ],
+};
+
+✅ CHECKLIST TOUR #2 - HOOKS
+#ArchivoEstado1Crear estructura carpetas⬜2api/client.js⬜3api/onboarding.js⬜4shared/hooks/useApi.js⬜5shared/hooks/useDebounce.js⬜6shared/components/LoadingSpinner.jsx⬜7shared/components/ErrorMessage.jsx⬜8shared/components/Modal.jsx⬜9hooks/useChatMessages.js⬜10hooks/useFileUpload.js⬜11hooks/useOnboardingSteps.js⬜12hooks/useChatAPI.js⬜13constants/index.js⬜
+
+¿Seguimos con los componentes visuales (MessageBubble, ChatInput, etc.) o querés implementar estos hooks primero y probarlos?tambien me habia dicho esto lo solucionamos de una vez?Todo está configurado correctamente:
+ComponenteEstadopgvector extension✅ InstaladaColumna embedding✅ Creada (vector 1536)Índice HNSW✅ Activoembedding_service.py✅ Implementadovector_search_service.py✅ Con búsqueda híbrida RRFRate limiter✅ IntegradoPDF export✅ Con ReportLab
+Actualmente no hay chunks en la base de datos (0 documentos). Cuando subas documentos al Acervo de Conocimiento, se generarán embeddings automáticamente y la búsqueda semántica funcionará.
+Endpoints disponibles:
+* POST /api/knowledge/hybrid_search - Búsqueda combinada (semántica + keywords)
+* POST /api/knowledge/semantic_search - Solo búsqueda por significado
+* GET /api/knowledge/vector_status - Estado del sistema vectorial
+* GET /api/defense-files/projects/{id}/pdf - Descargar expediente PDF
+¿Qué más necesitas? ¿Quieres que agreguemos documentos de prueba al acervo, o hay otra funcionalidad que implementar?
+esto también
+Revisando el checklist del documento:
+#TareaEstado1SQL: Crear extensión vector✅2SQL: Agregar columna embedding✅3SQL: Crear índices✅4Crear embedding_service.py✅5Crear vector_search_service.py✅6Agregar OPENAI_API_KEY en Secrets✅ (AI_INTEGRATIONS)7Crear ruta /search/semantic✅8Crear migrate_embeddings.py✅9-10Ejecutar migración⏸️ (0 chunks)11Integrar en ingestion_service❓12Integrar en agent_service❓
+Déjame verificar e integrar los embeddings en el pipeline de ingesta y en los agentes:
+Checklist completado:
+#TareaEstado1SQL: Crear extensión vector✅2SQL: Agregar columna embedding✅3SQL: Crear índices HNSW✅4Crear embedding_service.py✅5Crear vector_search_service.py✅6OPENAI_API_KEY (AI Integrations)✅7Rutas /hybrid_search, /semantic_search✅8Crear migrate_embeddings.py✅9-10Ejecutar migración⏸️ (0 chunks aún)11Integrar en ingestion✅ Nuevo12Integrar en agent_service✅ Nuevo
+Lo que agregué ahora:
+1. Ingesta automática de embeddings: Cuando subes un documento al Acervo, ahora genera embeddings automáticamente para cada chunk
+2. RAGQueryService actualizado: Usa búsqueda híbrida (semántica + keywords) con fallback
+3. Agentes con RAG semántico: Cuando un agente analiza con empresa_id, busca en el Acervo de Conocimiento usando similitud semántica
+Flujo completo:Documento → Chunking → Embeddings (OpenAI) → PostgreSQL (pgvector)                                                    ↓
+Agente consulta → Búsqueda híbrida → Contexto relevante → Claude
+El sistema está listo. Cuando subas documentos al Acervo de Conocimiento, se generarán embeddings automáticamente y los agentes podrán encontrar información por significado, no solo por palabras exactas.
+¿Procedemos al Tour #2: Refactor Frontend?Mostrar más10:07 a.m.Planificó componentes visuales para continuar refactor frontend.El usuario me está mostrando que ya tiene implementado el Tour #1 (RAG con pgvector) completo. Ahora quiere continuar con el Tour #2 del refactor de frontend. Ya le di los hooks principales, ahora toca darle los componentes visuales para completar la descomposición de ChatbotArchivo.jsx.
+Voy a continuar con los componentes visuales:
+
+MessageBubble.jsx
+MessageList.jsx
+ChatInput.jsx
+FileUploadArea.jsx
+ProgressIndicator.jsx
+ConfirmationCard.jsx
+AgentAvatar.jsx
+SuggestionChips.jsx
+
+Y luego el componente principal refactorizado ChatbotArchivo.jsx que use todos estos hooks y componentes.Perfecto, el Tour #1 (RAG) está completo. Continuamos con los componentes visuales del Tour #2 para terminar el refactor del frontend.
+
+PASO 12: Componente MessageBubble.jsx
+frontend/src/features/onboarding/components/MessageBubble.jsx:
+jsximport { memo } from 'react';
+import { AGENTS } from '../constants';
+
+function MessageBubbleComponent({ message, onSuggestionClick }) {
+  const isUser = message.role === 'user';
+  const isSystem = message.role === 'system';
+  const isStreaming = message.isStreaming;
+
+  // Obtener datos del agente
+  const agent = message.agent ? AGENTS[message.agent] || AGENTS.ARCHIVO : null;
+
+  if (isSystem) {
+    return (
+      <div className={`flex justify-center my-2`}>
+        <div
+          className={`px-4 py-2 rounded-lg text-sm ${
+            message.type === 'error'
+              ? 'bg-red-100 text-red-700'
+              : message.type === 'success'
+              ? 'bg-green-100 text-green-700'
+              : message.type === 'warning'
+              ? 'bg-yellow-100 text-yellow-700'
+              : 'bg-gray-100 text-gray-600'
+          }`}
+        >
+          {message.content}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
+      <div
+        className={`flex ${isUser ? 'flex-row-reverse' : 'flex-row'} items-end gap-2 max-w-[80%]`}
+      >
+        {/* Avatar */}
+        {!isUser && agent && (
+          <div
+            className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-lg"
+            style={{ backgroundColor: agent.color + '20' }}
+            title={agent.displayName}
+          >
+            {agent.avatar}
+          </div>
+        )}
+
+        <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+          {/* Nombre del agente */}
+          {!isUser && agent && (
+            <span className="text-xs text-gray-500 mb-1 ml-1">
+              {agent.displayName}
+              {agent.role && <span className="text-gray-400"> · {agent.role}</span>}
+            </span>
+          )}
+
+          {/* Burbuja del mensaje */}
+          <div
+            className={`px-4 py-3 rounded-2xl ${
+              isUser
+                ? 'bg-blue-600 text-white rounded-br-md'
+                : 'bg-gray-100 text-gray-800 rounded-bl-md'
+            } ${isStreaming ? 'animate-pulse' : ''}`}
+          >
+            {/* Contenido */}
+            <div className="whitespace-pre-wrap break-words">
+              {message.content}
+              {isStreaming && (
+                <span className="inline-block w-2 h-4 ml-1 bg-gray-400 animate-pulse rounded" />
+              )}
+            </div>
+
+            {/* Archivos adjuntos */}
+            {message.attachments && message.attachments.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-gray-200">
+                {message.attachments.map((file, idx) => (
+                  <div key={idx} className="flex items-center gap-2 text-sm opacity-80">
+                    <span>📎</span>
+                    <span>{file.name}</span>
+                    {file.size && (
+                      <span className="text-xs">
+                        ({(file.size / 1024).toFixed(1)} KB)
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Sugerencias */}
+          {!isUser && message.suggestions && message.suggestions.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {message.suggestions.map((suggestion, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => onSuggestionClick?.(suggestion)}
+                  className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-full hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                >
+                  {typeof suggestion === 'string' ? suggestion : suggestion.text}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Timestamp */}
+          <span className="text-xs text-gray-400 mt-1 mx-1">
+            {new Date(message.timestamp).toLocaleTimeString('es-MX', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </span>
+        </div>
+
+        {/* Avatar usuario */}
+        {isUser && (
+          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
+            Tú
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export const MessageBubble = memo(MessageBubbleComponent);
+
+PASO 13: Componente MessageList.jsx
+frontend/src/features/onboarding/components/MessageList.jsx:
+jsximport { useRef, useEffect } from 'react';
+import { MessageBubble } from './MessageBubble';
+import { TypingIndicator } from './TypingIndicator';
+
+export function MessageList({
+  messages,
+  isTyping,
+  currentAgent,
+  onSuggestionClick,
+  className = '',
+}) {
+  const bottomRef = useRef(null);
+  const containerRef = useRef(null);
+
+  // Auto-scroll al final cuando hay nuevos mensajes
+  useEffect(() => {
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isTyping]);
+
+  return (
+    <div
+      ref={containerRef}
+      className={`flex-1 overflow-y-auto p-4 space-y-1 ${className}`}
+    >
+      {messages.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-full text-gray-400">
+          <div className="text-6xl mb-4">💬</div>
+          <p className="text-lg">Inicia la conversación</p>
+          <p className="text-sm">Escribe un mensaje para comenzar</p>
+        </div>
+      ) : (
+        <>
+          {messages.map((message) => (
+            <MessageBubble
+              key={message.id}
+              message={message}
+              onSuggestionClick={onSuggestionClick}
+            />
+          ))}
+
+          {isTyping && <TypingIndicator agent={currentAgent} />}
+
+          <div ref={bottomRef} />
+        </>
+      )}
+    </div>
+  );
+}
+
+PASO 14: Componente TypingIndicator.jsx
+frontend/src/features/onboarding/components/TypingIndicator.jsx:
+jsximport { AGENTS } from '../constants';
+
+export function TypingIndicator({ agent }) {
+  const agentData = agent ? AGENTS[agent] || AGENTS.ARCHIVO : AGENTS.ARCHIVO;
+
+  return (
+    <div className="flex items-end gap-2 mb-4">
+      {/* Avatar */}
+      <div
+        className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-lg"
+        style={{ backgroundColor: agentData.color + '20' }}
+      >
+        {agentData.avatar}
+      </div>
+
+      {/* Indicador */}
+      <div className="flex flex-col items-start">
+        <span className="text-xs text-gray-500 mb-1 ml-1">
+          {agentData.displayName}
+        </span>
+        
+        <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-gray-100">
+          <div className="flex gap-1">
+            <span
+              className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+              style={{ animationDelay: '0ms' }}
+            />
+            <span
+              className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+              style={{ animationDelay: '150ms' }}
+            />
+            <span
+              className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+              style={{ animationDelay: '300ms' }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+PASO 15: Componente ChatInput.jsx
+frontend/src/features/onboarding/components/ChatInput.jsx:
+jsximport { useState, useRef, useCallback, useEffect } from 'react';
+
+export function ChatInput({
+  onSend,
+  onAttach,
+  disabled = false,
+  placeholder = 'Escribe un mensaje...',
+  showAttachButton = true,
+  maxLength = 4000,
+}) {
+  const [value, setValue] = useState('');
+  const textareaRef = useRef(null);
+
+  // Auto-resize del textarea
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+    }
+  }, [value]);
+
+  // Focus al montar
+  useEffect(() => {
+    if (!disabled) {
+      textareaRef.current?.focus();
+    }
+  }, [disabled]);
+
+  const handleSubmit = useCallback(
+    (e) => {
+      e?.preventDefault();
+      
+      const trimmedValue = value.trim();
+      if (!trimmedValue || disabled) return;
+
+      onSend(trimmedValue);
+      setValue('');
+      
+      // Reset height
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
+    },
+    [value, disabled, onSend]
+  );
+
+  const handleKeyDown = useCallback(
+    (e) => {
+      // Enter para enviar, Shift+Enter para nueva línea
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmit();
+      }
+    },
+    [handleSubmit]
+  );
+
+  const handleChange = useCallback(
+    (e) => {
+      const newValue = e.target.value;
+      if (newValue.length <= maxLength) {
+        setValue(newValue);
+      }
+    },
+    [maxLength]
+  );
+
+  const charactersRemaining = maxLength - value.length;
+  const showCharacterCount = value.length > maxLength * 0.8;
+
+  return (
+    <form onSubmit={handleSubmit} className="border-t bg-white p-4">
+      <div className="flex items-end gap-2">
+        {/* Botón de adjuntar */}
+        {showAttachButton && (
+          <button
+            type="button"
+            onClick={onAttach}
+            disabled={disabled}
+            className="flex-shrink-0 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
+            title="Adjuntar archivo"
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+              />
+            </svg>
+          </button>
+        )}
+
+        {/* Input */}
+        <div className="flex-1 relative">
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            disabled={disabled}
+            placeholder={placeholder}
+            rows={1}
+            className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
+            style={{ maxHeight: '200px' }}
+          />
+
+          {/* Contador de caracteres */}
+          {showCharacterCount && (
+            <span
+              className={`absolute bottom-1 right-14 text-xs ${
+                charactersRemaining < 100 ? 'text-red-500' : 'text-gray-400'
+              }`}
+            >
+              {charactersRemaining}
+            </span>
+          )}
+        </div>
+
+        {/* Botón enviar */}
+        <button
+          type="submit"
+          disabled={disabled || !value.trim()}
+          className="flex-shrink-0 p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+          title="Enviar mensaje"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+            />
+          </svg>
+        </button>
+      </div>
+
+      {/* Hint */}
+      <p className="text-xs text-gray-400 mt-2 text-center">
+        Presiona Enter para enviar, Shift+Enter para nueva línea
+      </p>
+    </form>
+  );
+}
+
+PASO 16: Componente FileUploadArea.jsx
+frontend/src/features/onboarding/components/FileUploadArea.jsx:
+jsximport { useState, useRef, useCallback } from 'react';
+import { ALLOWED_FILE_EXTENSIONS, MAX_FILE_SIZE, FILE_STATUS } from '../constants';
+
+export function FileUploadArea({
+  onFilesSelected,
+  uploadedFiles = [],
+  isProcessing = false,
+  onRemoveFile,
+  maxFiles = 10,
+  className = '',
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+  const inputRef = useRef(null);
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e) => {
+      e.preventDefault();
+      setIsDragging(false);
+
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length > 0) {
+        onFilesSelected(files);
+      }
+    },
+    [onFilesSelected]
+  );
+
+  const handleClick = useCallback(() => {
+    inputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback(
+    (e) => {
+      const files = Array.from(e.target.files || []);
+      if (files.length > 0) {
+        onFilesSelected(files);
+      }
+      // Reset input para permitir seleccionar el mismo archivo
+      e.target.value = '';
+    },
+    [onFilesSelected]
+  );
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case FILE_STATUS.PENDING:
+        return '⏳';
+      case FILE_STATUS.ANALYZING:
+        return '🔍';
+      case FILE_STATUS.ANALYZED:
+        return '✅';
+      case FILE_STATUS.UPLOADING:
+        return '📤';
+      case FILE_STATUS.UPLOADED:
+        return '☁️';
+      case FILE_STATUS.ERROR:
+        return '❌';
+      default:
+        return '📄';
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case FILE_STATUS.PENDING:
+        return 'Pendiente';
+      case FILE_STATUS.ANALYZING:
+        return 'Analizando con IA...';
+      case FILE_STATUS.ANALYZED:
+        return 'Analizado';
+      case FILE_STATUS.UPLOADING:
+        return 'Subiendo...';
+      case FILE_STATUS.UPLOADED:
+        return 'Subido';
+      case FILE_STATUS.ERROR:
+        return 'Error';
+      default:
+        return '';
+    }
+  };
+
+  const canAddMore = uploadedFiles.length < maxFiles;
+
+  return (
+    <div className={className}>
+      {/* Zona de drop */}
+      {canAddMore && (
+        <div
+          onClick={handleClick}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+            isDragging
+              ? 'border-blue-500 bg-blue-50'
+              : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+          } ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            multiple
+            accept={ALLOWED_FILE_EXTENSIONS.join(',')}
+            onChange={handleFileChange}
+            className="hidden"
+          />
+
+          <div className="text-4xl mb-3">📁</div>
+          <p className="text-gray-700 font-medium">
+            {isDragging ? 'Suelta los archivos aquí' : 'Arrastra archivos o haz clic para seleccionar'}
+          </p>
+          <p className="text-sm text-gray-500 mt-2">
+            Formatos: {ALLOWED_FILE_EXTENSIONS.join(', ')}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            Máximo {MAX_FILE_SIZE / 1024 / 1024}MB por archivo
+          </p>
+        </div>
+      )}
+
+      {/* Lista de archivos */}
+      {uploadedFiles.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <p className="text-sm font-medium text-gray-700">
+            Archivos ({uploadedFiles.length}/{maxFiles})
+          </p>
+
+          {uploadedFiles.map((file) => (
+            <div
+              key={file.id}
+              className={`flex items-center justify-between p-3 bg-gray-50 rounded-lg ${
+                file.status === FILE_STATUS.ERROR ? 'bg-red-50' : ''
+              }`}
+            >
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <span className="text-xl">{getStatusIcon(file.status)}</span>
+                
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">
+                    {file.name}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {(file.size / 1024).toFixed(1)} KB · {getStatusText(file.status)}
+                  </p>
+                  {file.error && (
+                    <p className="text-xs text-red-600 mt-1">{file.error}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Botón eliminar */}
+              {file.status !== FILE_STATUS.UPLOADING && (
+                <button
+                  onClick={() => onRemoveFile?.(file.id)}
+                  className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                  title="Eliminar archivo"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Spinner de carga */}
+              {(file.status === FILE_STATUS.ANALYZING || file.status === FILE_STATUS.UPLOADING) && (
+                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Resultados de análisis */}
+      {uploadedFiles.some((f) => f.analysis) && (
+        <div className="mt-4 p-4 bg-green-50 rounded-lg">
+          <p className="text-sm font-medium text-green-800 mb-2">
+            ✨ Datos extraídos por IA
+          </p>
+          {uploadedFiles
+            .filter((f) => f.analysis)
+            .map((file) => (
+              <div key={file.id} className="text-sm text-green-700">
+                <p className="font-medium">{file.name}:</p>
+                {file.analysis.categoria && (
+                  <p className="ml-2">Categoría: {file.analysis.categoria}</p>
+                )}
+                {file.analysis.resumen && (
+                  <p className="ml-2 text-xs">{file.analysis.resumen}</p>
+                )}
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+PASO 17: Componente ProgressIndicator.jsx
+frontend/src/features/onboarding/components/ProgressIndicator.jsx:
+jsxexport function ProgressIndicator({
+  steps,
+  currentStep,
+  onStepClick,
+  className = '',
+}) {
+  return (
+    <div className={`bg-white rounded-xl p-4 ${className}`}>
+      <h3 className="text-sm font-semibold text-gray-700 mb-4">
+        Progreso del Onboarding
+      </h3>
+
+      <div className="space-y-3">
+        {steps.map((step, index) => {
+          const isCompleted = index < currentStep;
+          const isCurrent = index === currentStep;
+          const isClickable = index <= currentStep && onStepClick;
+
+          return (
+            <div
+              key={step.id}
+              onClick={() => isClickable && onStepClick(index)}
+              className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${
+                isClickable ? 'cursor-pointer hover:bg-gray-50' : ''
+              } ${isCurrent ? 'bg-blue-50' : ''}`}
+            >
+              {/* Indicador */}
+              <div
+                className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                  isCompleted
+                    ? 'bg-green-500 text-white'
+                    : isCurrent
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-500'
+                }`}
+              >
+                {isCompleted ? (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  index + 1
+                )}
+              </div>
+
+              {/* Contenido */}
+              <div className="flex-1 min-w-0">
+                <p
+                  className={`text-sm font-medium truncate ${
+                    isCurrent ? 'text-blue-700' : isCompleted ? 'text-gray-700' : 'text-gray-400'
+                  }`}
+                >
+                  {step.title}
+                </p>
+                {isCurrent && step.description && (
+                  <p className="text-xs text-gray-500 truncate">{step.description}</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Barra de progreso general */}
+      <div className="mt-4 pt-4 border-t">
+        <div className="flex justify-between text-xs text-gray-500 mb-1">
+          <span>Progreso total</span>
+          <span>{Math.round((currentStep / (steps.length - 1)) * 100)}%</span>
+        </div>
+        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-blue-600 transition-all duration-300"
+            style={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+PASO 18: Componente ConfirmationCard.jsx
+frontend/src/features/onboarding/components/ConfirmationCard.jsx:
+jsxexport function ConfirmationCard({
+  title = 'Confirmar datos',
+  data,
+  onConfirm,
+  onEdit,
+  onCancel,
+  isLoading = false,
+  fieldLabels = {},
+}) {
+  // Campos a mostrar (excluir internos)
+  const displayFields = Object.entries(data || {}).filter(
+    ([key]) => !key.startsWith('_') && !['dataConfirmed', 'entityType'].includes(key)
+  );
+
+  const getFieldLabel = (key) => {
+    return fieldLabels[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase());
+  };
+
+  const formatValue = (value) => {
+    if (value === null || value === undefined) return '—';
+    if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+    if (Array.isArray(value)) return value.join(', ');
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-4 bg-gray-50 border-b">
+        <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+        <p className="text-sm text-gray-500 mt-1">
+          Revisa que la información sea correcta antes de continuar
+        </p>
+      </div>
+
+      {/* Campos */}
+      <div className="p-6">
+        <dl className="space-y-4">
+          {displayFields.map(([key, value]) => (
+            <div key={key} className="flex flex-col sm:flex-row sm:gap-4">
+              <dt className="text-sm font-medium text-gray-500 sm:w-1/3">
+                {getFieldLabel(key)}
+              </dt>
+              <dd className="text-sm text-gray-900 sm:w-2/3 mt-1 sm:mt-0">
+                {formatValue(value)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+
+        {displayFields.length === 0 && (
+          <p className="text-sm text-gray-500 text-center py-4">
+            No hay datos para mostrar
+          </p>
+        )}
+      </div>
+
+      {/* Acciones */}
+      <div className="px-6 py-4 bg-gray-50 border-t flex flex-col sm:flex-row gap-3 sm:justify-end">
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            disabled={isLoading}
+            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+        )}
+        
+        {onEdit && (
+          <button
+            onClick={onEdit}
+            disabled={isLoading}
+            className="px-4 py-2 text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+          >
+            Editar datos
+          </button>
+        )}
+        
+        {onConfirm && (
+          <button
+            onClick={onConfirm}
+            disabled={isLoading}
+            className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {isLoading && (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            )}
+            Confirmar y continuar
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+PASO 19: Componente principal refactorizado ChatbotOnboarding.jsx
+frontend/src/features/onboarding/index.jsx:
+jsximport { useState, useCallback, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+
+// Hooks
+import { useChatMessages } from './hooks/useChatMessages';
+import { useChatAPI } from './hooks/useChatAPI';
+import { useFileUpload } from './hooks/useFileUpload';
+import { useOnboardingSteps } from './hooks/useOnboardingSteps';
+
+// Components
+import { MessageList } from './components/MessageList';
+import { ChatInput } from './components/ChatInput';
+import { FileUploadArea } from './components/FileUploadArea';
+import { ProgressIndicator } from './components/ProgressIndicator';
+import { ConfirmationCard } from './components/ConfirmationCard';
+import { Modal } from '../../../shared/components/Modal';
+import { ErrorMessage } from '../../../shared/components/ErrorMessage';
+
+// Constants
+import { SYSTEM_MESSAGES, AGENTS } from './constants';
+
+export default function ChatbotOnboarding() {
+  const { projectId } = useParams();
+  
+  // Hooks
+  const chat = useChatMessages();
+  const api = useChatAPI();
+  const files = useFileUpload(projectId, handleFileAnalysisComplete);
+  const steps = useOnboardingSteps();
+
+  // Local state
+  const [showFileUpload, setShowFileUpload] = useState(false);
+
+  // Mensaje de bienvenida al montar
+  useEffect(() => {
+    if (chat.messages.length === 0) {
+      chat.addBotMessage(SYSTEM_MESSAGES.WELCOME, {
+        agent: 'ARCHIVO',
+        suggestions: [
+          { text: 'Registrar cliente', value: 'cliente' },
+          { text: 'Registrar proveedor', value: 'proveedor' },
+        ],
+      });
+    }
+  }, []);
+
+  // Handler para enviar mensaje
+  const handleSendMessage = useCallback(async (content) => {
+    // Agregar mensaje del usuario
+    chat.addUserMessage(content);
+    chat.setTyping(true);
+
+    try {
+      // Enviar a la API
+      const response = await api.sendToClaudeAPI({
+        message: content,
+        conversationHistory: chat.conversationHistory,
+        agentId: steps.currentStepData?.agent || 'ARCHIVO',
+        projectId,
+        contextData: {
+          currentStep: steps.currentStep,
+          entityType: steps.entityType,
+          collectedData: steps.collectedData,
+          extractedData: steps.extractedData,
+        },
+      });
+
+      chat.setTyping(false);
+
+      if (response) {
+        // Agregar respuesta del bot
+        chat.addBotMessage(response.message, {
+          agent: response.agent,
+          agentName: response.agentName,
+          suggestions: response.suggestions,
+        });
+
+        // Procesar datos extraídos
+        if (response.extractedData) {
+          steps.mergeExtractedData(response.extractedData);
+        }
+
+        // Procesar acciones
+        if (response.nextAction) {
+          handleBotAction(response.nextAction);
+        }
+      }
+    } catch (err) {
+      chat.setTyping(false);
+      chat.addSystemMessage(`Error: ${err.message}`, 'error');
+    }
+  }, [chat, api, steps, projectId]);
+
+  // Handler para acciones del bot
+  const handleBotAction = useCallback((action) => {
+    switch (action.type) {
+      case 'select_entity_type':
+        steps.selectEntityType(action.value);
+        steps.nextStep();
+        break;
+      case 'request_documents':
+        setShowFileUpload(true);
+        break;
+      case 'show_confirmation':
+        steps.setShowConfirmation(true);
+        break;
+      case 'complete_onboarding':
+        steps.completeOnboarding(action.data);
+        break;
+      default:
+        console.log('Acción no manejada:', action);
+    }
+  }, [steps]);
+
+  // Handler para sugerencias clickeadas
+  const handleSuggestionClick = useCallback((suggestion) => {
+    const value = typeof suggestion === 'string' ? suggestion : suggestion.value || suggestion.text;
+    handleSendMessage(value);
+  }, [handleSendMessage]);
+
+  // Handler para análisis de archivos completado
+  function handleFileAnalysisComplete(results) {
+    // Notificar en el chat
+    chat.addSystemMessage(SYSTEM_MESSAGES.ANALYSIS_COMPLETE, 'success');
+
+    // Mergear datos extraídos
+    results.forEach((result) => {
+      if (result.extractedData) {
+        steps.mergeExtractedData(result.extractedData);
+      }
+    });
+
+    // Mostrar confirmación
+    if (Object.keys(steps.extractedData).length > 0) {
+      steps.setShowConfirmation(true);
+    }
+  }
+
+  // Handler para confirmar datos
+  const handleConfirmData = useCallback(async () => {
+    steps.confirmExtractedData();
+    steps.nextStep();
+
+    chat.addBotMessage('¡Perfecto! Los datos han sido confirmados. Continuemos con el siguiente paso.', {
+      agent: 'ARCHIVO',
+    });
+  }, [steps, chat]);
+
+  return (
+    <div className="flex h-screen bg-gray-100">
+      {/* Sidebar con progreso */}
+      <aside className="hidden lg:block w-80 bg-white border-r overflow-y-auto">
+        <div className="p-4">
+          <h2 className="text-xl font-bold text-gray-800 mb-2">
+            Onboarding
+          </h2>
+          <p className="text-sm text-gray-500 mb-6">
+            {steps.entityType === 'cliente' ? 'Nuevo Cliente' : 
+             steps.entityType === 'proveedor' ? 'Nuevo Proveedor' : 
+             'Selecciona el tipo de entidad'}
+          </p>
+
+          <ProgressIndicator
+            steps={steps.steps}
+            currentStep={steps.currentStep}
+            onStepClick={steps.goToStep}
+          />
+        </div>
+      </aside>
+
+      {/* Chat principal */}
+      <main className="flex-1 flex flex-col">
+        {/* Header móvil */}
+        <header className="lg:hidden bg-white border-b px-4 py-3 flex items-center justify-between">
+          <h1 className="font-semibold text-gray-800">Onboarding</h1>
+          <span className="text-sm text-gray-500">
+            Paso {steps.currentStep + 1} de {steps.steps.length}
+          </span>
+        </header>
+
+        {/* Mensajes */}
+        <MessageList
+          messages={chat.messages}
+          isTyping={chat.isTyping}
+          currentAgent={steps.currentStepData?.agent}
+          onSuggestionClick={handleSuggestionClick}
+          className="flex-1"
+        />
+
+        {/* Error */}
+        {(api.lastError || steps.onboardingError) && (
+          <div className="px-4">
+            <ErrorMessage
+              message={api.lastError || steps.onboardingError}
+              onRetry={() => {
+                api.clearError();
+                steps.clearError();
+              }}
+            />
+          </div>
+        )}
+
+        {/* Input */}
+        <ChatInput
+          onSend={handleSendMessage}
+          onAttach={() => setShowFileUpload(true)}
+          disabled={chat.isTyping || api.isSearchingWeb}
+          placeholder={
+            steps.entityType
+              ? `Escribe aquí para continuar con el registro del ${steps.entityType}...`
+              : 'Escribe aquí para comenzar...'
+          }
+        />
+      </main>
+
+      {/* Modal de subida de archivos */}
+      <Modal
+        isOpen={showFileUpload}
+        onClose={() => setShowFileUpload(false)}
+        title="Subir documentos"
+        size="lg"
+      >
+        <FileUploadArea
+          onFilesSelected={(selectedFiles) => files.handleFileSelect(selectedFiles)}
+          uploadedFiles={files.uploadedFiles}
+          isProcessing={files.isProcessingFile}
+          onRemoveFile={files.removeFile}
+        />
+
+        {files.uploadedFiles.length > 0 && (
+          <div className="mt-4 flex justify-end gap-3">
+            <button
+              onClick={() => setShowFileUpload(false)}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={async () => {
+                await files.uploadFilesToCloud();
+                setShowFileUpload(false);
+              }}
+              disabled={files.isUploadingDocuments}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {files.isUploadingDocuments ? 'Subiendo...' : 'Confirmar y subir'}
+            </button>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal de confirmación de datos */}
+      <Modal
+        isOpen={steps.showConfirmation}
+        onClose={() => steps.setShowConfirmation(false)}
+        title="Confirmar información extraída"
+        size="lg"
+      >
+        <ConfirmationCard
+          data={{ ...steps.collectedData, ...steps.extractedData }}
+          onConfirm={handleConfirmData}
+          onEdit={() => {
+            steps.setShowConfirmation(false);
+            chat.addBotMessage('¿Qué datos necesitas corregir?', { agent: 'ARCHIVO' });
+          }}
+          onCancel={() => steps.setShowConfirmation(false)}
+          fieldLabels={{
+            rfc: 'RFC',
+            razonSocial: 'Razón Social',
+            nombreComercial: 'Nombre Comercial',
+            regimenFiscal: 'Régimen Fiscal',
+            domicilioFiscal: 'Domicilio Fiscal',
+            email: 'Email',
+            telefono: 'Teléfono',
+          }}
+        />
+      </Modal>
+    </div>
+  );
+}
+
+✅ CHECKLIST COMPLETO TOUR #2
+#ArchivoEstado1Estructura carpetas⬜2api/client.js⬜3api/onboarding.js⬜4shared/hooks/useApi.js⬜5shared/hooks/useDebounce.js⬜6shared/components/LoadingSpinner.jsx⬜7shared/components/ErrorMessage.jsx⬜8shared/components/Modal.jsx⬜9hooks/useChatMessages.js⬜10hooks/useFileUpload.js⬜11hooks/useOnboardingSteps.js⬜12hooks/useChatAPI.js⬜13constants/index.js⬜14components/MessageBubble.jsx⬜15components/MessageList.jsx⬜16components/TypingIndicator.jsx⬜17components/ChatInput.jsx⬜18components/FileUploadArea.jsx⬜19components/ProgressIndicator.jsx⬜20components/ConfirmationCard.jsx⬜21index.jsx (componente principal)⬜
+
+Resultado: De 65,000 líneas en un solo archivo a ~21 archivos de menos de 300 líneas cada uno.

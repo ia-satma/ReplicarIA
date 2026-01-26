@@ -1,0 +1,51 @@
+{
+  "agente_id": "A6_PROVEEDOR",
+  "nombre": "Proveedor - Gestión de Entregables y Evidencia",
+  "descripcion": "Documentos para validación de entregables, actas de aceptación y evidencia de ejecución",
+  "documentos": [
+    {
+      "id": "001_guia_entregables_tipologia",
+      "titulo": "Guía de Entregables por Tipología",
+      "tipo": "metodologia",
+      "uso": "Especificación de entregables esperados según tipo de servicio",
+      "personalizable": true,
+      "campos_clave": ["tipologia_servicio", "entregables_minimos", "formatos_aceptados"]
+    },
+    {
+      "id": "002_plantilla_acta_aceptacion",
+      "titulo": "Plantilla Acta de Aceptación",
+      "tipo": "plantilla",
+      "uso": "Formato estándar para documentar aceptación de entregables",
+      "personalizable": true,
+      "campos_clave": ["partes", "entregables_recibidos", "observaciones", "firmas"]
+    },
+    {
+      "id": "003_checklist_evidencia_ejecucion",
+      "titulo": "Checklist de Evidencia de Ejecución",
+      "tipo": "plantilla",
+      "uso": "Lista de verificación de evidencias para demostrar materialidad",
+      "personalizable": true,
+      "campos_clave": ["tipos_evidencia", "requisitos_minimos", "formatos"]
+    },
+    {
+      "id": "004_formato_minutas_trabajo",
+      "titulo": "Formato de Minutas de Trabajo",
+      "tipo": "plantilla",
+      "uso": "Plantilla para documentar reuniones y acuerdos de trabajo",
+      "personalizable": true,
+      "campos_clave": ["participantes", "temas", "acuerdos", "seguimiento"]
+    }
+  ],
+  "contexto_requerido": {
+    "obligatorio": [
+      "tipologia_servicio",
+      "entregables_contratados",
+      "fecha_limite"
+    ],
+    "deseable": [
+      "historial_proveedor",
+      "evaluaciones_previas",
+      "incidencias"
+    ]
+  }
+}

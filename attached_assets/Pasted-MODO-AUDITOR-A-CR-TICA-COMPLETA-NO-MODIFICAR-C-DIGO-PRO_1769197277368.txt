@@ -1,0 +1,168 @@
+MODO: AUDITORÍA CRÍTICA COMPLETA - NO MODIFICAR CÓDIGO
+
+PROBLEMAS REPORTADOS:
+1. OTP no funciona - "Error al solicitar codigo. Intenta de nuevo" para fortezza@revisar-ia.com
+2. Pestaña "Empresa" muestra "Este usuario no tiene empresa asociada" cuando debería mostrar documentos
+3. No se pueden ver/agregar/eliminar documentos de empresa
+4. RAG e ingestión de documentos posiblemente no funciona
+
+PRIORIDAD: El login OTP es CRÍTICO - sin él no se puede acceder al sistema.
+
+=== REGLAS ABSOLUTAS ===
+1. NO modifiques NINGÚN archivo todavía
+2. Diagnostica TODO antes de proponer soluciones
+3. Sé exhaustivo - necesito entender el estado real del sistema
+4. Incluye código, rutas, y evidencia específica
+
+==========================================================
+SECCIÓN A: LOGIN OTP (PRIORIDAD MÁXIMA)
+==========================================================
+
+A.1 ENDPOINT DE SOLICITUD DE OTP
+- ¿Qué endpoint se llama cuando el usuario hace clic en "Solicitar codigo de acceso"?
+- ¿En qué archivo está definido?
+- Muestra el código COMPLETO del endpoint
+- ¿Qué servicio de email usa? (SendGrid, SES, SMTP, Resend, etc)
+- ¿Las credenciales del servicio de email están configuradas?
+
+A.2 VERIFICAR CONFIGURACIÓN DE EMAIL
+- Lista TODAS las variables de entorno relacionadas con email
+- ¿Están configuradas? (no muestres valores sensibles, solo confirma si existen)
+- ¿Hay archivo de configuración de email? Muéstralo
+
+A.3 LOGS DEL ERROR
+- Intenta llamar al endpoint de OTP manualmente:
+  curl -X POST "http://localhost:5000/api/auth/request-otp" \
+    -H "Content-Type: application/json" \
+    -d '{"email": "fortezza@revisar-ia.com"}'
+- ¿Qué responde?
+- ¿Qué aparece en los logs del servidor?
+- ¿Hay excepciones o errores?
+
+A.4 FLUJO COMPLETO DE OTP
+- ¿Cómo se genera el código OTP?
+- ¿Dónde se almacena? (Redis, DB, memoria)
+- ¿Cuánto tiempo es válido?
+- ¿Cómo se verifica cuando el usuario lo ingresa?
+
+A.5 VERIFICAR SI EL USUARIO EXISTE
+- ¿El usuario fortezza@revisar-ia.com existe en la base de datos?
+- ¿El endpoint requiere que el usuario exista previamente?
+- ¿O crea usuarios nuevos automáticamente?
+
+==========================================================
+SECCIÓN B: ASOCIACIÓN USUARIO-EMPRESA
+==========================================================
+
+B.1 MODELO DE DATOS
+- Muestra el schema/modelo de la tabla users
+- ¿Qué campo relaciona usuario con empresa? (company, empresa_id, etc)
+- Muestra el schema de la tabla empresas
+
+B.2 DATOS ACTUALES DEL USUARIO
+Ejecuta query para ver el usuario completo:
+SELECT * FROM users WHERE email = 'fortezza@revisar-ia.com';
+
+- ¿Tiene valor en el campo de empresa?
+- Si tiene company (string), ¿coincide exactamente con el nombre en la tabla empresas?
+
+B.3 DATOS DE LA EMPRESA
+SELECT * FROM empresas WHERE nombre ILIKE '%fortezza%';
+
+- ¿Existe?
+- ¿Cuál es su ID exacto?
+
+B.4 LÓGICA DE ASOCIACIÓN
+- ¿Cómo el backend determina qué empresa tiene un usuario?
+- Muestra el código que hace esta asociación
+- ¿Busca por nombre exacto? ¿Por ID? ¿Por tabla intermedia?
+
+==========================================================
+SECCIÓN C: DOCUMENTOS DE EMPRESA
+==========================================================
+
+C.1 ENDPOINTS DE DOCUMENTOS
+Lista TODOS los endpoints que manejan documentos:
+grep -rn "document" backend/routes/*.py | grep -E "@router\.(get|post|put|delete)"
+grep -rn "archivo" backend/routes/*.py | grep -E "@router\.(get|post|put|delete)"
+grep -rn "file" backend/routes/*.py | grep -E "@router\.(get|post|put|delete)"
+
+C.2 ALMACENAMIENTO DE DOCUMENTOS
+- ¿Dónde se guardan los documentos subidos?
+- ¿Hay carpeta de uploads? Lista su contenido
+- ¿Hay tabla de documentos en la DB? Muestra su schema
+
+C.3 ¿EXISTEN DOCUMENTOS?
+- Busca archivos PDF/DOCX en el proyecto
+- Busca registros en tabla de documentos si existe
+- ¿Hay documentos asociados a la empresa Fortezza?
+
+==========================================================
+SECCIÓN D: SISTEMA RAG
+==========================================================
+
+D.1 ¿ESTÁ IMPLEMENTADO?
+- ¿Hay código de RAG/embeddings en el proyecto?
+- ¿Qué tecnología usa? (LangChain, LlamaIndex, OpenAI, etc)
+- ¿Hay vector database configurada?
+
+D.2 INGESTIÓN DE DOCUMENTOS
+- ¿Hay proceso de ingestión implementado?
+- ¿Cómo se activa? ¿Automático al subir? ¿Manual?
+- Muestra el código relevante si existe
+
+D.3 ESTADO ACTUAL
+- ¿El RAG está funcional o es código placeholder?
+- ¿Hay embeddings almacenados?
+
+==========================================================
+SECCIÓN E: ESTADO GENERAL DEL SISTEMA
+==========================================================
+
+E.1 SERVICIOS EXTERNOS REQUERIDOS
+Lista todos los servicios externos que el sistema necesita:
+- Email (¿cuál? ¿configurado?)
+- Base de datos PostgreSQL (¿conectada?)
+- MongoDB (¿conectada?)
+- Vector DB (¿cuál? ¿conectada?)
+- OpenAI/LLM (¿configurado?)
+- Otros
+
+E.2 VARIABLES DE ENTORNO
+Lista TODAS las variables de entorno que el sistema espera (sin valores):
+grep -rh "os.getenv\|os.environ\|env\." backend/ | grep -oE "[A-Z_]{3,}" | sort -u
+
+¿Cuáles están configuradas y cuáles faltan?
+
+E.3 HEALTH CHECK
+- ¿Hay endpoint de health check?
+- ¿Qué dice sobre el estado de las conexiones?
+
+==========================================================
+SECCIÓN F: DIAGNÓSTICO CONSOLIDADO
+==========================================================
+
+F.1 PROBLEMAS ENCONTRADOS
+Lista TODOS los problemas en orden de prioridad:
+
+| # | Problema | Causa | Archivo(s) | Severidad |
+|---|----------|-------|------------|-----------|
+| 1 | ... | ... | ... | CRÍTICA/ALTA/MEDIA |
+
+F.2 DEPENDENCIAS ENTRE PROBLEMAS
+- ¿Resolver el OTP desbloquea los demás?
+- ¿Hay problemas independientes?
+
+F.3 ORDEN DE REPARACIÓN SUGERIDO
+1. Primero arreglar: ...
+2. Luego: ...
+3. Después: ...
+
+==========================================================
+FORMATO DE RESPUESTA
+==========================================================
+Responde CADA sección con:
+- Código relevante
+- Resultados de comandos/queries
+- Evidencia específica
+- NO suposiciones - solo hechos verificados

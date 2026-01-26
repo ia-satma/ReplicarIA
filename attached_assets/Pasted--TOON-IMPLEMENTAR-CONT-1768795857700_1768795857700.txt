@@ -1,0 +1,739 @@
+=============================================================================
+TOON: IMPLEMENTAR CONTEXTO_REQUERIDO POR AGENTE - DUREZZA 4.0
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta todas las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. SOLO EJECUTA.
+
+CONTEXTO: Los agentes tienen configuración pero NO especifican qué campos
+de contexto son OBLIGATORIOS vs DESEABLES. Esto causa que los agentes
+reciban contexto incompleto o irrelevante.
+
+=============================================================================
+PASO 1: CREAR DEFINICIÓN DE CONTEXTO POR AGENTE
+=============================================================================
+
+Crea archivo "backend/config/contexto_requerido.py":
+
+"""
+Definición de contexto requerido por cada agente.
+Especifica qué campos son OBLIGATORIOS vs DESEABLES para que cada
+agente pueda deliberar correctamente.
+"""
+
+from typing import Dict, List
+from enum import Enum
+
+class NivelRequerimiento(str, Enum):
+    OBLIGATORIO = "obligatorio"
+    DESEABLE = "deseable"
+    NO_NECESITA = "no_necesita"
+
+
+CONTEXTO_POR_AGENTE: Dict[str, Dict] = {
+    
+    "A1_SPONSOR": {
+        "descripcion": "Valida alineación estratégica y razón de negocios",
+        "contexto_requerido": {
+            "obligatorio": [
+                "proyecto.nombre",
+                "proyecto.descripcion",
+                "proyecto.objetivo_declarado",
+                "proyecto.monto",
+                "proyecto.tipologia",
+                "empresa.giro_principal",
+                "empresa.plan_estrategico_resumen"
+            ],
+            "deseable": [
+                "proyecto.area_solicitante",
+                "proyecto.sponsor_nombre",
+                "historico.proyectos_similares",
+                "empresa.objetivos_anuales"
+            ],
+            "no_necesita": [
+                "proveedor.datos_bancarios",
+                "documentos.cfdi",
+                "proyecto.three_way_match"
+            ]
+        },
+        "output_esperado": [
+            "validacion_razon_negocios",
+            "alineacion_estrategica",
+            "recomendacion"
+        ]
+    },
+    
+    "A2_PMO": {
+        "descripcion": "Valida viabilidad operativa y gestión del proyecto",
+        "contexto_requerido": {
+            "obligatorio": [
+                "proyecto.nombre",
+                "proyecto.descripcion",
+                "proyecto.monto",
+                "proyecto.cronograma_estimado",
+                "proyecto.entregables_esperados",
+                "proyecto.fase_actual"
+            ],
+            "deseable": [
+                "proyecto.riesgos_identificados",
+                "proyecto.dependencias",
+                "historico.proyectos_area",
+                "recursos.disponibilidad"
+            ],
+            "no_necesita": [
+                "proveedor.rfc",
+                "documentos.estudio_tp",
+                "empresa.estructura_accionaria"
+            ]
+        },
+        "output_esperado": [
+            "viabilidad_operativa",
+            "riesgos_ejecucion",
+            "recomendacion_cronograma"
+        ]
+    },
+    
+    "A3_FISCAL": {
+        "descripcion": "Evalúa cumplimiento fiscal y riesgo tributario",
+        "contexto_requerido": {
+            "obligatorio": [
+                "proyecto.nombre",
+                "proyecto.descripcion",
+                "proyecto.monto",
+                "proyecto.tipologia",
+                "proveedor.rfc",
+                "proveedor.tipo_relacion",
+                "proveedor.alerta_efos",
+                "documentos.sib_bee",
+                "documentos.contrato"
+            ],
+            "deseable": [
+                "proveedor.historial_operaciones",
+                "documentos.sow",
+                "documentos.entregables",
+                "historico.risk_scores_similares",
+                "contexto_normativo.cff_5a",
+                "contexto_normativo.cff_69b"
+            ],
+            "no_necesita": [
+                "empresa.organigrama",
+                "proyecto.minutas_internas"
+            ]
+        },
+        "output_esperado": [
+            "conclusion_por_pilar",
+            "checklist_evidencia_exigible",
+            "risk_score_calculado",
+            "decision",
+            "justificacion"
+        ],
+        "validaciones_especiales": {
+            "checklist_evidencia_exigible": {"min_items": 3},
+            "conclusion_por_pilar": {"pilares_requeridos": ["razon_negocios", "beneficio_economico", "materialidad", "trazabilidad"]}
+        }
+    },
+    
+    "A4_LEGAL": {
+        "descripcion": "Evalúa cumplimiento legal y contractual",
+        "contexto_requerido": {
+            "obligatorio": [
+                "proyecto.nombre",
+                "proyecto.descripcion",
+                "proyecto.monto",
+                "proveedor.razon_social",
+                "proveedor.tipo_relacion",
+                "documentos.contrato",
+                "documentos.anexos_tecnicos"
+            ],
+            "deseable": [
+                "documentos.sow",
+                "documentos.acta_aceptacion",
+                "proveedor.representante_legal",
+                "historico.contratos_proveedor"
+            ],
+            "no_necesita": [
+                "proyecto.roi_esperado",
+                "empresa.estados_financieros"
+            ]
+        },
+        "output_esperado": [
+            "validacion_contractual",
+            "riesgos_legales",
+            "clausulas_faltantes",
+            "recomendacion"
+        ]
+    },
+    
+    "A5_FINANZAS": {
+        "descripcion": "Evalúa impacto financiero y presupuestal",
+        "contexto_requerido": {
+            "obligatorio": [
+                "proyecto.nombre",
+                "proyecto.monto",
+                "proyecto.moneda",
+                "proyecto.forma_pago",
+                "empresa.presupuesto_area",
+                "empresa.flujo_caja_disponible"
+            ],
+            "deseable": [
+                "proyecto.roi_esperado",
+                "proyecto.payback_esperado",
+                "historico.gastos_similares",
+                "empresa.tipo_cambio_presupuestado"
+            ],
+            "no_necesita": [
+                "proveedor.alerta_efos",
+                "documentos.entregables_tecnicos"
+            ]
+        },
+        "output_esperado": [
+            "impacto_presupuestal",
+            "disponibilidad_recursos",
+            "recomendacion_financiera"
+        ]
+    },
+    
+    "A6_PROVEEDOR": {
+        "descripcion": "Evalúa capacidad y riesgo del proveedor",
+        "contexto_requerido": {
+            "obligatorio": [
+                "proveedor.rfc",
+                "proveedor.razon_social",
+                "proveedor.tipo_relacion",
+                "proveedor.alerta_efos",
+                "proveedor.fecha_constitucion",
+                "proyecto.tipologia",
+                "proyecto.monto"
+            ],
+            "deseable": [
+                "proveedor.empleados_estimados",
+                "proveedor.certificaciones",
+                "proveedor.clientes_referencia",
+                "historico.operaciones_proveedor",
+                "proveedor.estados_financieros"
+            ],
+            "no_necesita": [
+                "empresa.plan_estrategico",
+                "proyecto.minutas"
+            ]
+        },
+        "output_esperado": [
+            "evaluacion_capacidad",
+            "riesgo_proveedor",
+            "alertas_detectadas",
+            "recomendacion"
+        ]
+    },
+    
+    "A7_DEFENSA": {
+        "descripcion": "Genera Defense File y evalúa defendibilidad",
+        "contexto_requerido": {
+            "obligatorio": [
+                "proyecto.id",
+                "proyecto.nombre",
+                "proyecto.tipologia",
+                "proyecto.monto",
+                "proyecto.risk_score_total",
+                "proyecto.risk_score_razon_negocios",
+                "proyecto.risk_score_beneficio_economico",
+                "proyecto.risk_score_materialidad",
+                "proyecto.risk_score_trazabilidad",
+                "deliberaciones.todas",
+                "documentos.todos",
+                "matriz_materialidad",
+                "vbc.fiscal",
+                "vbc.legal"
+            ],
+            "deseable": [
+                "historial.fases",
+                "minutas.todas",
+                "correspondencia.relevante"
+            ],
+            "no_necesita": []
+        },
+        "output_esperado": [
+            "defense_file_completo",
+            "indice_defendibilidad",
+            "evaluacion_por_criterio",
+            "argumentos_defensa",
+            "puntos_vulnerables",
+            "recomendaciones_refuerzo"
+        ]
+    },
+    
+    "SUB_TIPIFICACION": {
+        "descripcion": "Clasifica proyectos en tipología correcta",
+        "contexto_requerido": {
+            "obligatorio": [
+                "proyecto.nombre",
+                "proyecto.descripcion",
+                "proyecto.objetivo_declarado",
+                "proveedor.tipo_relacion",
+                "proyecto.monto"
+            ],
+            "deseable": [
+                "documentos.sow_preliminar",
+                "proyecto.entregables_esperados"
+            ],
+            "no_necesita": [
+                "deliberaciones.previas",
+                "documentos.cfdi"
+            ]
+        },
+        "output_esperado": [
+            "tipologia_asignada",
+            "confianza_clasificacion",
+            "justificacion",
+            "alertas_tipologia"
+        ]
+    },
+    
+    "SUB_MATERIALIDAD": {
+        "descripcion": "Monitorea matriz de materialidad",
+        "contexto_requerido": {
+            "obligatorio": [
+                "proyecto.id",
+                "proyecto.tipologia",
+                "proyecto.fase_actual",
+                "documentos.cargados",
+                "checklist.tipologia_fase"
+            ],
+            "deseable": [
+                "deliberaciones.previas",
+                "defense_file.actual"
+            ],
+            "no_necesita": [
+                "empresa.datos_generales",
+                "proveedor.datos_bancarios"
+            ]
+        },
+        "output_esperado": [
+            "matriz_materialidad",
+            "completitud_porcentaje",
+            "brechas_criticas",
+            "puede_emitir_vbc"
+        ]
+    },
+    
+    "SUB_RIESGOS_ESPECIALES": {
+        "descripcion": "Detecta EFOS, TP, esquemas reportables",
+        "contexto_requerido": {
+            "obligatorio": [
+                "proyecto.id",
+                "proyecto.descripcion",
+                "proyecto.monto",
+                "proyecto.tipologia",
+                "proveedor.rfc",
+                "proveedor.tipo_relacion",
+                "proveedor.alerta_efos",
+                "proveedor.historial_riesgo_score"
+            ],
+            "deseable": [
+                "lista_69b_sat",
+                "proyectos.similares_proveedor"
+            ],
+            "no_necesita": [
+                "empresa.organigrama",
+                "documentos.minutas"
+            ]
+        },
+        "output_esperado": [
+            "alertas_detectadas",
+            "nivel_riesgo_global",
+            "puede_continuar",
+            "requiere_revision_humana_inmediata"
+        ]
+    }
+}
+
+
+def get_contexto_requerido(agente_id: str) -> Dict:
+    """Obtiene la configuración de contexto para un agente"""
+    return CONTEXTO_POR_AGENTE.get(agente_id, {})
+
+
+def get_campos_obligatorios(agente_id: str) -> List[str]:
+    """Obtiene lista de campos obligatorios para un agente"""
+    config = CONTEXTO_POR_AGENTE.get(agente_id, {})
+    return config.get("contexto_requerido", {}).get("obligatorio", [])
+
+
+def get_campos_deseables(agente_id: str) -> List[str]:
+    """Obtiene lista de campos deseables para un agente"""
+    config = CONTEXTO_POR_AGENTE.get(agente_id, {})
+    return config.get("contexto_requerido", {}).get("deseable", [])
+
+
+def validar_contexto_completo(agente_id: str, contexto: Dict) -> Dict:
+    """
+    Valida si el contexto tiene todos los campos obligatorios.
+    
+    Returns:
+        {
+            "completo": bool,
+            "campos_faltantes": list,
+            "campos_presentes": list,
+            "porcentaje_completitud": float
+        }
+    """
+    obligatorios = get_campos_obligatorios(agente_id)
+    
+    campos_faltantes = []
+    campos_presentes = []
+    
+    for campo in obligatorios:
+        # Soporta notación con punto: "proyecto.nombre"
+        valor = contexto
+        try:
+            for parte in campo.split('.'):
+                valor = valor.get(parte) if isinstance(valor, dict) else None
+            
+            if valor is not None and valor != "" and valor != []:
+                campos_presentes.append(campo)
+            else:
+                campos_faltantes.append(campo)
+        except:
+            campos_faltantes.append(campo)
+    
+    total = len(obligatorios)
+    presentes = len(campos_presentes)
+    
+    return {
+        "completo": len(campos_faltantes) == 0,
+        "campos_faltantes": campos_faltantes,
+        "campos_presentes": campos_presentes,
+        "porcentaje_completitud": (presentes / total * 100) if total > 0 else 100
+    }
+
+=============================================================================
+PASO 2: CREAR SERVICIO DE PREPARACIÓN DE CONTEXTO
+=============================================================================
+
+Crea archivo "backend/services/contexto_service.py":
+
+"""
+Servicio para preparar el contexto que se envía a cada agente.
+Filtra y estructura los datos según lo que cada agente necesita.
+"""
+
+from typing import Dict, Optional
+from config.contexto_requerido import (
+    get_contexto_requerido,
+    get_campos_obligatorios,
+    get_campos_deseables,
+    validar_contexto_completo
+)
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class ContextoIncompleto(Exception):
+    """Excepción cuando faltan campos obligatorios"""
+    def __init__(self, agente_id: str, campos_faltantes: list):
+        self.agente_id = agente_id
+        self.campos_faltantes = campos_faltantes
+        super().__init__(
+            f"Contexto incompleto para {agente_id}. "
+            f"Faltan: {', '.join(campos_faltantes)}"
+        )
+
+
+async def preparar_contexto_para_agente(
+    agente_id: str,
+    proyecto: Dict,
+    proveedor: Optional[Dict] = None,
+    empresa: Optional[Dict] = None,
+    documentos: Optional[Dict] = None,
+    deliberaciones: Optional[list] = None,
+    extras: Optional[Dict] = None,
+    validar_obligatorios: bool = True
+) -> Dict:
+    """
+    Prepara el contexto filtrado para un agente específico.
+    
+    Args:
+        agente_id: ID del agente (A1_SPONSOR, A3_FISCAL, etc.)
+        proyecto: Datos del proyecto
+        proveedor: Datos del proveedor (opcional)
+        empresa: Datos de la empresa (opcional)
+        documentos: Diccionario de documentos (opcional)
+        deliberaciones: Lista de deliberaciones previas (opcional)
+        extras: Campos adicionales (opcional)
+        validar_obligatorios: Si True, lanza excepción si faltan obligatorios
+    
+    Returns:
+        Diccionario con contexto filtrado para el agente
+    
+    Raises:
+        ContextoIncompleto si validar_obligatorios=True y faltan campos
+    """
+    
+    config = get_contexto_requerido(agente_id)
+    if not config:
+        logger.warning(f"No hay configuración de contexto para {agente_id}")
+        return {}
+    
+    # Construir contexto base
+    contexto = {
+        "proyecto": proyecto or {},
+        "proveedor": proveedor or {},
+        "empresa": empresa or {},
+        "documentos": documentos or {},
+        "deliberaciones": deliberaciones or [],
+        **(extras or {})
+    }
+    
+    # Validar campos obligatorios
+    if validar_obligatorios:
+        validacion = validar_contexto_completo(agente_id, contexto)
+        
+        if not validacion["completo"]:
+            logger.error(
+                f"Contexto incompleto para {agente_id}: "
+                f"faltan {validacion['campos_faltantes']}"
+            )
+            raise ContextoIncompleto(agente_id, validacion["campos_faltantes"])
+    
+    # Filtrar solo campos relevantes (obligatorios + deseables)
+    campos_relevantes = (
+        get_campos_obligatorios(agente_id) + 
+        get_campos_deseables(agente_id)
+    )
+    
+    contexto_filtrado = _filtrar_contexto(contexto, campos_relevantes)
+    
+    # Agregar metadata
+    contexto_filtrado["_meta"] = {
+        "agente_id": agente_id,
+        "campos_incluidos": list(contexto_filtrado.keys()),
+        "timestamp": _get_timestamp()
+    }
+    
+    logger.info(
+        f"Contexto preparado para {agente_id}: "
+        f"{len(contexto_filtrado)} campos"
+    )
+    
+    return contexto_filtrado
+
+
+def _filtrar_contexto(contexto: Dict, campos: list) -> Dict:
+    """Filtra el contexto para incluir solo los campos especificados"""
+    resultado = {}
+    
+    for campo in campos:
+        partes = campo.split('.')
+        
+        # Navegar al valor
+        valor = contexto
+        for parte in partes:
+            if isinstance(valor, dict) and parte in valor:
+                valor = valor[parte]
+            else:
+                valor = None
+                break
+        
+        # Si encontramos valor, agregarlo al resultado
+        if valor is not None:
+            # Reconstruir estructura anidada
+            actual = resultado
+            for i, parte in enumerate(partes[:-1]):
+                if parte not in actual:
+                    actual[parte] = {}
+                actual = actual[parte]
+            actual[partes[-1]] = valor
+    
+    return resultado
+
+
+def _get_timestamp():
+    from datetime import datetime
+    return datetime.utcnow().isoformat()
+
+
+def obtener_resumen_contexto_agente(agente_id: str) -> Dict:
+    """Retorna resumen de qué contexto necesita un agente"""
+    config = get_contexto_requerido(agente_id)
+    
+    return {
+        "agente_id": agente_id,
+        "descripcion": config.get("descripcion", ""),
+        "campos_obligatorios": config.get("contexto_requerido", {}).get("obligatorio", []),
+        "campos_deseables": config.get("contexto_requerido", {}).get("deseable", []),
+        "campos_no_necesita": config.get("contexto_requerido", {}).get("no_necesita", []),
+        "output_esperado": config.get("output_esperado", [])
+    }
+
+=============================================================================
+PASO 3: INTEGRAR EN DELIBERATION SERVICE
+=============================================================================
+
+Actualiza el servicio de deliberación para usar el contexto filtrado.
+
+Busca el archivo que ejecuta las deliberaciones de agentes 
+(puede ser deliberation_service.py, agentic_reasoning_service.py o similar)
+y agrega:
+
+from services.contexto_service import (
+    preparar_contexto_para_agente,
+    ContextoIncompleto
+)
+
+# Antes de llamar al LLM, preparar contexto:
+async def ejecutar_deliberacion(agente_id: str, proyecto_id: str, db):
+    # Cargar datos
+    proyecto = await obtener_proyecto(proyecto_id, db)
+    proveedor = await obtener_proveedor(proyecto.proveedor_id, db)
+    documentos = await obtener_documentos_proyecto(proyecto_id, db)
+    deliberaciones_previas = await obtener_deliberaciones(proyecto_id, db)
+    
+    # Preparar contexto filtrado para el agente
+    try:
+        contexto = await preparar_contexto_para_agente(
+            agente_id=agente_id,
+            proyecto=proyecto,
+            proveedor=proveedor,
+            documentos=documentos,
+            deliberaciones=deliberaciones_previas,
+            validar_obligatorios=True
+        )
+    except ContextoIncompleto as e:
+        return {
+            "success": False,
+            "error": "CONTEXTO_INCOMPLETO",
+            "campos_faltantes": e.campos_faltantes,
+            "mensaje": f"No se puede ejecutar {agente_id}: faltan datos obligatorios"
+        }
+    
+    # Llamar al LLM con contexto filtrado
+    resultado = await llamar_llm(agente_id, contexto)
+    
+    return resultado
+
+=============================================================================
+PASO 4: CREAR ENDPOINT PARA CONSULTAR CONTEXTO REQUERIDO
+=============================================================================
+
+Agrega a las rutas (routes/agentes_routes.py o similar):
+
+from fastapi import APIRouter
+from config.contexto_requerido import CONTEXTO_POR_AGENTE, get_contexto_requerido
+from services.contexto_service import obtener_resumen_contexto_agente
+
+router = APIRouter()
+
+@router.get("/agentes/contexto-requerido")
+async def listar_contexto_todos_agentes():
+    """Lista el contexto requerido por todos los agentes"""
+    return {
+        "agentes": [
+            obtener_resumen_contexto_agente(agente_id)
+            for agente_id in CONTEXTO_POR_AGENTE.keys()
+        ]
+    }
+
+@router.get("/agentes/{agente_id}/contexto-requerido")
+async def obtener_contexto_agente(agente_id: str):
+    """Obtiene el contexto requerido por un agente específico"""
+    config = get_contexto_requerido(agente_id)
+    
+    if not config:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Agente {agente_id} no encontrado"
+        )
+    
+    return obtener_resumen_contexto_agente(agente_id)
+
+=============================================================================
+PASO 5: CREAR TESTS
+=============================================================================
+
+Crea archivo "backend/tests/test_contexto_requerido.py":
+
+import pytest
+from config.contexto_requerido import (
+    get_campos_obligatorios,
+    get_campos_deseables,
+    validar_contexto_completo,
+    CONTEXTO_POR_AGENTE
+)
+from services.contexto_service import (
+    preparar_contexto_para_agente,
+    ContextoIncompleto
+)
+
+class TestContextoRequerido:
+    
+    def test_todos_agentes_tienen_configuracion(self):
+        """Todos los agentes deben tener configuración de contexto"""
+        agentes_esperados = [
+            "A1_SPONSOR", "A2_PMO", "A3_FISCAL", "A4_LEGAL", 
+            "A5_FINANZAS", "A6_PROVEEDOR", "A7_DEFENSA",
+            "SUB_TIPIFICACION", "SUB_MATERIALIDAD", "SUB_RIESGOS_ESPECIALES"
+        ]
+        
+        for agente in agentes_esperados:
+            assert agente in CONTEXTO_POR_AGENTE
+            assert "contexto_requerido" in CONTEXTO_POR_AGENTE[agente]
+    
+    def test_a3_fiscal_tiene_campos_criticos(self):
+        """A3_FISCAL debe requerir campos fiscales críticos"""
+        obligatorios = get_campos_obligatorios("A3_FISCAL")
+        
+        assert "proveedor.rfc" in obligatorios
+        assert "proveedor.alerta_efos" in obligatorios
+        assert "proyecto.tipologia" in obligatorios
+    
+    def test_validar_contexto_detecta_faltantes(self):
+        """Debe detectar campos faltantes"""
+        contexto_incompleto = {
+            "proyecto": {"nombre": "Test"},
+            # Falta proveedor, documentos, etc.
+        }
+        
+        resultado = validar_contexto_completo("A3_FISCAL", contexto_incompleto)
+        
+        assert resultado["completo"] == False
+        assert len(resultado["campos_faltantes"]) > 0
+    
+    def test_validar_contexto_completo_pasa(self):
+        """Contexto completo debe pasar validación"""
+        contexto_completo = {
+            "proyecto": {
+                "nombre": "Test",
+                "descripcion": "Descripción",
+                "monto": 1000000,
+                "tipologia": "CONSULTORIA_ESTRATEGICA"
+            },
+            "proveedor": {
+                "rfc": "TEST123456ABC",
+                "tipo_relacion": "TERCERO_INDEPENDIENTE",
+                "alerta_efos": False
+            },
+            "documentos": {
+                "sib_bee": {"id": "doc1"},
+                "contrato": {"id": "doc2"}
+            }
+        }
+        
+        resultado = validar_contexto_completo("A3_FISCAL", contexto_completo)
+        
+        assert resultado["completo"] == True
+        assert resultado["porcentaje_completitud"] == 100
+
+=============================================================================
+PASO 6: VERIFICACIÓN
+=============================================================================
+
+Verifica que:
+
+1. GET /api/agentes/contexto-requerido retorna lista de todos los agentes
+2. GET /api/agentes/A3_FISCAL/contexto-requerido retorna campos específicos
+3. La deliberación falla con CONTEXTO_INCOMPLETO si faltan obligatorios
+4. Los tests pasan: pytest tests/test_contexto_requerido.py -v
+
+=============================================================================
+FIN PROMPT 5: CONTEXTO REQUERIDO POR AGENTE
+=============================================================================

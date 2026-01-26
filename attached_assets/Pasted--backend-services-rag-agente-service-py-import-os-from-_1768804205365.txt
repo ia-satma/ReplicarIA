@@ -1,0 +1,84 @@
+# backend/services/rag_agente_service.py
+
+import os
+from typing import List, Dict, Optional
+from pathlib import Path
+from backend.config.agentes_config import get_agente_config, get_documentos_rag
+
+class RAGAgenteService:
+    """Servicio para cargar documentos RAG específicos por agente y tenant"""
+    
+    def __init__(self):
+        self.templates_base = Path("backend/rag/templates")
+        self.tenants_base = Path("backend/rag/tenants")
+    
+    async def cargar_documentos_para_agente(
+        self,
+        agente_id: str,
+        empresa_id: Optional[str] = None
+    ) -> Dict[str, str]:
+        """
+        Carga los documentos RAG para un agente específico.
+        
+        Prioridad:
+        1. Documentos personalizados del tenant (si existen)
+        2. Plantillas base (fallback)
+        
+        Para KNOWLEDGE_BASE, siempre usa las plantillas (son universales).
+        """
+        config = get_agente_config(agente_id)
+        documentos_ids = config.documentos_rag
+        
+        resultado = {}
+        
+        for doc_id in documentos_ids:
+            contenido = await self._cargar_documento(
+                agente_id=agente_id,
+                doc_id=doc_id,
+                empresa_id=empresa_id
+            )
+            if contenido:
+                resultado[doc_id] = contenido
+        
+        return resultado
+    
+    async def _cargar_documento(
+        self,
+        agente_id: str,
+        doc_id: str,
+        empresa_id: Optional[str] = None
+    ) -> Optional[str]:
+        """Carga un documento individual con lógica de fallback"""
+        
+        # 1. Si hay empresa_id, buscar primero en tenant
+        if empresa_id:
+            tenant_path = self.tenants_base / empresa_id / agente_id / f"{doc_id}.md"
+            if tenant_path.exists():
+                return tenant_path.read_text(encoding='utf-8')
+        
+        # 2. Buscar en plantillas base
+        template_path = self.templates_base / agente_id / f"{doc_id}.md"
+        if template_path.exists():
+            return template_path.read_text(encoding='utf-8')
+        
+        # 3. Si el doc_id es de KNOWLEDGE_BASE, buscar ahí
+        kb_path = self.templates_base / "KNOWLEDGE_BASE" / f"{doc_id}.md"
+        if kb_path.exists():
+            return kb_path.read_text(encoding='utf-8')
+        
+        return None
+    
+    async def verificar_documentos_tenant(
+        self,
+        empresa_id: str,
+        agente_id: str
+    ) -> Dict[str, bool]:
+        """Verifica qué documentos tiene configurados un tenant"""
+        config = get_agente_config(agente_id)
+        
+        resultado = {}
+        for doc_id in config.documentos_rag:
+            tenant_path = self.tenants_base / empresa_id / agente_id / f"{doc_id}.md"
+            resultado[doc_id] = tenant_path.exists()
+        
+        return resultado

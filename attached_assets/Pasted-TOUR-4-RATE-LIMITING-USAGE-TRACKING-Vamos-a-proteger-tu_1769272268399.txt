@@ -1,0 +1,891 @@
+TOUR #4: RATE LIMITING + USAGE TRACKING
+Vamos a proteger tu API de consumo excesivo y trackear el uso para facturación.
+
+PASO 1: Crear tabla de tracking de uso
+Ejecutá este SQL en Neon:
+sql-- =====================================================
+-- RATE LIMITING + USAGE TRACKING
+-- =====================================================
+
+-- 1. TRACKING DE USO DIARIO
+CREATE TABLE IF NOT EXISTS usage_tracking (
+    id SERIAL PRIMARY KEY,
+    empresa_id UUID NOT NULL,
+    fecha DATE NOT NULL,
+    
+    -- Contadores diarios
+    requests_count INTEGER DEFAULT 0,
+    tokens_input INTEGER DEFAULT 0,
+    tokens_output INTEGER DEFAULT 0,
+    
+    -- Por tipo de operación
+    chat_requests INTEGER DEFAULT 0,
+    rag_queries INTEGER DEFAULT 0,
+    document_uploads INTEGER DEFAULT 0,
+    embeddings_generated INTEGER DEFAULT 0,
+    
+    -- Costos estimados (centavos USD)
+    costo_estimado_cents INTEGER DEFAULT 0,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    CONSTRAINT uq_usage_empresa_fecha UNIQUE (empresa_id, fecha)
+);
+
+CREATE INDEX IF NOT EXISTS idx_usage_empresa ON usage_tracking(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_usage_fecha ON usage_tracking(fecha DESC);
+
+
+-- 2. PLANES Y LÍMITES
+CREATE TABLE IF NOT EXISTS planes (
+    id VARCHAR(50) PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    
+    -- Límites diarios
+    requests_per_day INTEGER NOT NULL,
+    tokens_per_day INTEGER NOT NULL,
+    
+    -- Límites mensuales
+    requests_per_month INTEGER,
+    tokens_per_month INTEGER,
+    
+    -- Features
+    max_projects INTEGER,
+    max_documents INTEGER,
+    max_users INTEGER,
+    
+    -- Precio (centavos USD)
+    precio_mensual_cents INTEGER DEFAULT 0,
+    
+    -- Features habilitados
+    features JSONB DEFAULT '{}',
+    
+    activo BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Insertar planes por defecto
+INSERT INTO planes (id, nombre, requests_per_day, tokens_per_day, requests_per_month, tokens_per_month, max_projects, max_documents, max_users, precio_mensual_cents) VALUES
+    ('free', 'Gratuito', 50, 100000, 500, 1000000, 3, 50, 1, 0),
+    ('starter', 'Starter', 500, 1000000, 10000, 20000000, 20, 500, 5, 4900),
+    ('pro', 'Profesional', 5000, 10000000, 100000, 200000000, 100, 5000, 20, 14900),
+    ('enterprise', 'Enterprise', 50000, 100000000, 1000000, 2000000000, -1, -1, -1, 49900)
+ON CONFLICT (id) DO NOTHING;
+
+
+-- 3. AGREGAR PLAN A EMPRESAS (si no existe)
+ALTER TABLE empresas 
+ADD COLUMN IF NOT EXISTS plan_id VARCHAR(50) DEFAULT 'free' REFERENCES planes(id);
+
+ALTER TABLE empresas
+ADD COLUMN IF NOT EXISTS plan_expira_at TIMESTAMPTZ;
+
+ALTER TABLE empresas
+ADD COLUMN IF NOT EXISTS uso_suspendido BOOLEAN DEFAULT false;
+
+ALTER TABLE empresas
+ADD COLUMN IF NOT EXISTS suspension_motivo VARCHAR(500);
+
+
+-- 4. LOG DE REQUESTS (para auditoría y debugging)
+CREATE TABLE IF NOT EXISTS request_logs (
+    id BIGSERIAL PRIMARY KEY,
+    empresa_id UUID NOT NULL,
+    user_id UUID,
+    
+    -- Request info
+    endpoint VARCHAR(500),
+    method VARCHAR(10),
+    
+    -- Uso
+    tokens_in INTEGER,
+    tokens_out INTEGER,
+    latency_ms INTEGER,
+    
+    -- Status
+    status_code INTEGER,
+    error_message TEXT,
+    
+    -- Metadata
+    ip_address VARCHAR(50),
+    user_agent VARCHAR(500),
+    
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Índice para limpieza automática (particionar por fecha en producción)
+CREATE INDEX IF NOT EXISTS idx_request_logs_created ON request_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_request_logs_empresa ON request_logs(empresa_id, created_at DESC);
+
+
+-- 5. VISTA DE USO MENSUAL
+CREATE OR REPLACE VIEW v_usage_monthly AS
+SELECT 
+    empresa_id,
+    DATE_TRUNC('month', fecha) as mes,
+    SUM(requests_count) as total_requests,
+    SUM(tokens_input + tokens_output) as total_tokens,
+    SUM(chat_requests) as total_chats,
+    SUM(rag_queries) as total_rag,
+    SUM(document_uploads) as total_uploads,
+    SUM(costo_estimado_cents) as costo_total_cents,
+    COUNT(DISTINCT fecha) as dias_activos
+FROM usage_tracking
+GROUP BY empresa_id, DATE_TRUNC('month', fecha);
+
+
+-- 6. VISTA DE DASHBOARD DE USO
+CREATE OR REPLACE VIEW v_usage_dashboard AS
+SELECT 
+    e.id as empresa_id,
+    e.nombre as empresa_nombre,
+    e.plan_id,
+    p.nombre as plan_nombre,
+    p.requests_per_day as limite_requests_dia,
+    p.tokens_per_day as limite_tokens_dia,
+    
+    -- Uso de hoy
+    COALESCE(u_hoy.requests_count, 0) as requests_hoy,
+    COALESCE(u_hoy.tokens_input + u_hoy.tokens_output, 0) as tokens_hoy,
+    
+    -- Porcentaje de uso
+    CASE WHEN p.requests_per_day > 0 
+        THEN ROUND(COALESCE(u_hoy.requests_count, 0)::numeric / p.requests_per_day * 100, 1)
+        ELSE 0 
+    END as pct_requests_usado,
+    
+    CASE WHEN p.tokens_per_day > 0 
+        THEN ROUND(COALESCE(u_hoy.tokens_input + u_hoy.tokens_output, 0)::numeric / p.tokens_per_day * 100, 1)
+        ELSE 0 
+    END as pct_tokens_usado,
+    
+    -- Estado
+    e.uso_suspendido,
+    e.plan_expira_at
+    
+FROM empresas e
+JOIN planes p ON p.id = e.plan_id
+LEFT JOIN usage_tracking u_hoy ON u_hoy.empresa_id = e.id AND u_hoy.fecha = CURRENT_DATE;
+
+
+-- 7. FUNCIÓN PARA INCREMENTAR USO
+CREATE OR REPLACE FUNCTION increment_usage(
+    p_empresa_id UUID,
+    p_requests INTEGER DEFAULT 1,
+    p_tokens_in INTEGER DEFAULT 0,
+    p_tokens_out INTEGER DEFAULT 0,
+    p_tipo VARCHAR DEFAULT 'chat'
+)
+RETURNS TABLE(
+    allowed BOOLEAN,
+    requests_remaining INTEGER,
+    tokens_remaining INTEGER,
+    message TEXT
+) AS $$
+DECLARE
+    v_plan_id VARCHAR;
+    v_limite_requests INTEGER;
+    v_limite_tokens INTEGER;
+    v_uso_requests INTEGER;
+    v_uso_tokens INTEGER;
+    v_suspendido BOOLEAN;
+BEGIN
+    -- Obtener plan y estado de la empresa
+    SELECT e.plan_id, e.uso_suspendido, p.requests_per_day, p.tokens_per_day
+    INTO v_plan_id, v_suspendido, v_limite_requests, v_limite_tokens
+    FROM empresas e
+    JOIN planes p ON p.id = e.plan_id
+    WHERE e.id = p_empresa_id;
+    
+    -- Verificar si está suspendido
+    IF v_suspendido THEN
+        RETURN QUERY SELECT false, 0, 0, 'Cuenta suspendida'::TEXT;
+        RETURN;
+    END IF;
+    
+    -- Obtener uso actual
+    SELECT COALESCE(requests_count, 0), COALESCE(tokens_input + tokens_output, 0)
+    INTO v_uso_requests, v_uso_tokens
+    FROM usage_tracking
+    WHERE empresa_id = p_empresa_id AND fecha = CURRENT_DATE;
+    
+    -- Si no existe registro de hoy, será 0
+    IF v_uso_requests IS NULL THEN
+        v_uso_requests := 0;
+        v_uso_tokens := 0;
+    END IF;
+    
+    -- Verificar límites
+    IF v_uso_requests + p_requests > v_limite_requests THEN
+        RETURN QUERY SELECT false, v_limite_requests - v_uso_requests, v_limite_tokens - v_uso_tokens, 
+            'Límite de requests diarios alcanzado'::TEXT;
+        RETURN;
+    END IF;
+    
+    IF v_uso_tokens + p_tokens_in + p_tokens_out > v_limite_tokens THEN
+        RETURN QUERY SELECT false, v_limite_requests - v_uso_requests, v_limite_tokens - v_uso_tokens,
+            'Límite de tokens diarios alcanzado'::TEXT;
+        RETURN;
+    END IF;
+    
+    -- Incrementar uso
+    INSERT INTO usage_tracking (empresa_id, fecha, requests_count, tokens_input, tokens_output,
+        chat_requests, rag_queries, document_uploads)
+    VALUES (p_empresa_id, CURRENT_DATE, p_requests, p_tokens_in, p_tokens_out,
+        CASE WHEN p_tipo = 'chat' THEN p_requests ELSE 0 END,
+        CASE WHEN p_tipo = 'rag' THEN p_requests ELSE 0 END,
+        CASE WHEN p_tipo = 'upload' THEN p_requests ELSE 0 END)
+    ON CONFLICT (empresa_id, fecha) DO UPDATE SET
+        requests_count = usage_tracking.requests_count + p_requests,
+        tokens_input = usage_tracking.tokens_input + p_tokens_in,
+        tokens_output = usage_tracking.tokens_output + p_tokens_out,
+        chat_requests = usage_tracking.chat_requests + CASE WHEN p_tipo = 'chat' THEN p_requests ELSE 0 END,
+        rag_queries = usage_tracking.rag_queries + CASE WHEN p_tipo = 'rag' THEN p_requests ELSE 0 END,
+        document_uploads = usage_tracking.document_uploads + CASE WHEN p_tipo = 'upload' THEN p_requests ELSE 0 END,
+        updated_at = NOW();
+    
+    -- Retornar éxito con límites restantes
+    RETURN QUERY SELECT true, 
+        v_limite_requests - v_uso_requests - p_requests,
+        v_limite_tokens - v_uso_tokens - p_tokens_in - p_tokens_out,
+        'OK'::TEXT;
+END;
+$$ LANGUAGE plpgsql;
+
+PASO 2: Servicio de Rate Limiting
+Creá este archivo:
+backend/services/rate_limiter_service.py:
+python"""
+Servicio de Rate Limiting y Usage Tracking.
+Protege la API de uso excesivo y trackea consumo para facturación.
+"""
+
+import asyncpg
+from typing import Optional, Dict, Any, Tuple
+from datetime import datetime, date
+from dataclasses import dataclass
+from enum import Enum
+
+
+class UsageType(str, Enum):
+    CHAT = "chat"
+    RAG = "rag"
+    UPLOAD = "upload"
+    EMBEDDING = "embedding"
+
+
+@dataclass
+class UsageCheckResult:
+    allowed: bool
+    requests_remaining: int
+    tokens_remaining: int
+    message: str
+    plan: str = "free"
+    
+    def to_headers(self) -> Dict[str, str]:
+        """Headers para incluir en la respuesta HTTP."""
+        return {
+            "X-RateLimit-Remaining-Requests": str(self.requests_remaining),
+            "X-RateLimit-Remaining-Tokens": str(self.tokens_remaining),
+            "X-RateLimit-Plan": self.plan,
+        }
+
+
+class RateLimiterService:
+    """Rate limiting y tracking de uso."""
+    
+    # Precios por 1M tokens (en centavos USD)
+    PRECIO_INPUT_PER_1M = 300   # $3.00 por 1M tokens input
+    PRECIO_OUTPUT_PER_1M = 1500 # $15.00 por 1M tokens output
+    
+    def __init__(self, db_pool: asyncpg.Pool):
+        self.db = db_pool
+    
+    async def check_and_increment(
+        self,
+        empresa_id: str,
+        tokens_in: int = 0,
+        tokens_out: int = 0,
+        usage_type: UsageType = UsageType.CHAT
+    ) -> UsageCheckResult:
+        """
+        Verifica límites e incrementa uso en una sola operación.
+        Usa la función de PostgreSQL para atomicidad.
+        """
+        
+        row = await self.db.fetchrow("""
+            SELECT * FROM increment_usage($1, 1, $2, $3, $4)
+        """, empresa_id, tokens_in, tokens_out, usage_type.value)
+        
+        # Obtener plan actual
+        plan = await self.db.fetchval("""
+            SELECT plan_id FROM empresas WHERE id = $1
+        """, empresa_id)
+        
+        return UsageCheckResult(
+            allowed=row["allowed"],
+            requests_remaining=row["requests_remaining"] or 0,
+            tokens_remaining=row["tokens_remaining"] or 0,
+            message=row["message"],
+            plan=plan or "free"
+        )
+    
+    async def check_limits_only(
+        self,
+        empresa_id: str,
+        estimated_tokens: int = 0
+    ) -> UsageCheckResult:
+        """
+        Solo verifica límites sin incrementar (para pre-check).
+        """
+        
+        row = await self.db.fetchrow("""
+            SELECT 
+                e.plan_id,
+                e.uso_suspendido,
+                p.requests_per_day,
+                p.tokens_per_day,
+                COALESCE(u.requests_count, 0) as requests_hoy,
+                COALESCE(u.tokens_input + u.tokens_output, 0) as tokens_hoy
+            FROM empresas e
+            JOIN planes p ON p.id = e.plan_id
+            LEFT JOIN usage_tracking u ON u.empresa_id = e.id AND u.fecha = CURRENT_DATE
+            WHERE e.id = $1
+        """, empresa_id)
+        
+        if not row:
+            return UsageCheckResult(
+                allowed=False,
+                requests_remaining=0,
+                tokens_remaining=0,
+                message="Empresa no encontrada"
+            )
+        
+        if row["uso_suspendido"]:
+            return UsageCheckResult(
+                allowed=False,
+                requests_remaining=0,
+                tokens_remaining=0,
+                message="Cuenta suspendida",
+                plan=row["plan_id"]
+            )
+        
+        requests_remaining = row["requests_per_day"] - row["requests_hoy"]
+        tokens_remaining = row["tokens_per_day"] - row["tokens_hoy"]
+        
+        allowed = requests_remaining > 0 and tokens_remaining >= estimated_tokens
+        
+        return UsageCheckResult(
+            allowed=allowed,
+            requests_remaining=max(0, requests_remaining),
+            tokens_remaining=max(0, tokens_remaining),
+            message="OK" if allowed else "Límite alcanzado",
+            plan=row["plan_id"]
+        )
+    
+    async def update_tokens_used(
+        self,
+        empresa_id: str,
+        tokens_in: int,
+        tokens_out: int,
+        usage_type: UsageType = UsageType.CHAT
+    ):
+        """
+        Actualiza tokens usados después de una llamada a la API.
+        Útil cuando no sabemos los tokens exactos hasta después.
+        """
+        
+        # Calcular costo estimado
+        costo_cents = self._calcular_costo(tokens_in, tokens_out)
+        
+        await self.db.execute("""
+            INSERT INTO usage_tracking (empresa_id, fecha, tokens_input, tokens_output, costo_estimado_cents)
+            VALUES ($1, CURRENT_DATE, $2, $3, $4)
+            ON CONFLICT (empresa_id, fecha) DO UPDATE SET
+                tokens_input = usage_tracking.tokens_input + $2,
+                tokens_output = usage_tracking.tokens_output + $3,
+                costo_estimado_cents = usage_tracking.costo_estimado_cents + $4,
+                updated_at = NOW()
+        """, empresa_id, tokens_in, tokens_out, costo_cents)
+    
+    async def log_request(
+        self,
+        empresa_id: str,
+        user_id: Optional[str],
+        endpoint: str,
+        method: str,
+        tokens_in: int = 0,
+        tokens_out: int = 0,
+        latency_ms: int = 0,
+        status_code: int = 200,
+        error_message: Optional[str] = None,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ):
+        """Loguea un request para auditoría."""
+        
+        await self.db.execute("""
+            INSERT INTO request_logs (
+                empresa_id, user_id, endpoint, method,
+                tokens_in, tokens_out, latency_ms,
+                status_code, error_message, ip_address, user_agent
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        """,
+            empresa_id, user_id, endpoint, method,
+            tokens_in, tokens_out, latency_ms,
+            status_code, error_message, ip_address, user_agent
+        )
+    
+    async def get_usage_today(self, empresa_id: str) -> Dict[str, Any]:
+        """Obtiene uso de hoy para mostrar en UI."""
+        
+        row = await self.db.fetchrow("""
+            SELECT * FROM v_usage_dashboard
+            WHERE empresa_id = $1
+        """, empresa_id)
+        
+        if not row:
+            return {
+                "requests_hoy": 0,
+                "tokens_hoy": 0,
+                "limite_requests": 50,
+                "limite_tokens": 100000,
+                "pct_requests": 0,
+                "pct_tokens": 0,
+                "plan": "free"
+            }
+        
+        return {
+            "requests_hoy": row["requests_hoy"],
+            "tokens_hoy": row["tokens_hoy"],
+            "limite_requests": row["limite_requests_dia"],
+            "limite_tokens": row["limite_tokens_dia"],
+            "pct_requests": float(row["pct_requests_usado"]),
+            "pct_tokens": float(row["pct_tokens_usado"]),
+            "plan": row["plan_nombre"],
+            "suspendido": row["uso_suspendido"]
+        }
+    
+    async def get_usage_monthly(
+        self,
+        empresa_id: str,
+        mes: Optional[date] = None
+    ) -> Dict[str, Any]:
+        """Obtiene uso mensual."""
+        
+        if not mes:
+            mes = date.today().replace(day=1)
+        
+        row = await self.db.fetchrow("""
+            SELECT * FROM v_usage_monthly
+            WHERE empresa_id = $1 AND mes = $2
+        """, empresa_id, mes)
+        
+        if not row:
+            return {
+                "mes": mes.isoformat(),
+                "total_requests": 0,
+                "total_tokens": 0,
+                "costo_estimado_usd": 0
+            }
+        
+        return {
+            "mes": row["mes"].isoformat(),
+            "total_requests": row["total_requests"],
+            "total_tokens": row["total_tokens"],
+            "total_chats": row["total_chats"],
+            "total_rag": row["total_rag"],
+            "total_uploads": row["total_uploads"],
+            "dias_activos": row["dias_activos"],
+            "costo_estimado_usd": row["costo_total_cents"] / 100
+        }
+    
+    async def get_usage_history(
+        self,
+        empresa_id: str,
+        days: int = 30
+    ) -> list:
+        """Obtiene historial de uso para gráficas."""
+        
+        rows = await self.db.fetch("""
+            SELECT 
+                fecha,
+                requests_count,
+                tokens_input + tokens_output as tokens_total,
+                chat_requests,
+                rag_queries,
+                costo_estimado_cents
+            FROM usage_tracking
+            WHERE empresa_id = $1
+            AND fecha >= CURRENT_DATE - $2
+            ORDER BY fecha ASC
+        """, empresa_id, days)
+        
+        return [
+            {
+                "fecha": row["fecha"].isoformat(),
+                "requests": row["requests_count"],
+                "tokens": row["tokens_total"],
+                "chats": row["chat_requests"],
+                "rag": row["rag_queries"],
+                "costo_usd": row["costo_estimado_cents"] / 100
+            }
+            for row in rows
+        ]
+    
+    async def suspend_empresa(
+        self,
+        empresa_id: str,
+        motivo: str
+    ):
+        """Suspende una empresa por exceso de uso u otro motivo."""
+        
+        await self.db.execute("""
+            UPDATE empresas
+            SET uso_suspendido = true,
+                suspension_motivo = $2
+            WHERE id = $1
+        """, empresa_id, motivo)
+    
+    async def reactivate_empresa(self, empresa_id: str):
+        """Reactiva una empresa suspendida."""
+        
+        await self.db.execute("""
+            UPDATE empresas
+            SET uso_suspendido = false,
+                suspension_motivo = NULL
+            WHERE id = $1
+        """, empresa_id)
+    
+    async def upgrade_plan(
+        self,
+        empresa_id: str,
+        new_plan_id: str,
+        expira_at: Optional[datetime] = None
+    ):
+        """Upgrade del plan de una empresa."""
+        
+        await self.db.execute("""
+            UPDATE empresas
+            SET plan_id = $2,
+                plan_expira_at = $3,
+                uso_suspendido = false,
+                suspension_motivo = NULL
+            WHERE id = $1
+        """, empresa_id, new_plan_id, expira_at)
+    
+    def _calcular_costo(self, tokens_in: int, tokens_out: int) -> int:
+        """Calcula costo en centavos USD."""
+        costo_input = (tokens_in / 1_000_000) * self.PRECIO_INPUT_PER_1M
+        costo_output = (tokens_out / 1_000_000) * self.PRECIO_OUTPUT_PER_1M
+        return int((costo_input + costo_output) * 100)
+
+PASO 3: Middleware de Rate Limiting
+backend/middleware/rate_limit_middleware.py:
+python"""
+Middleware de Rate Limiting para FastAPI.
+"""
+
+from fastapi import Request, HTTPException
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+import time
+from typing import Callable
+
+from services.rate_limiter_service import RateLimiterService
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Middleware que verifica rate limits antes de cada request."""
+    
+    # Endpoints que requieren rate limiting
+    RATE_LIMITED_PATHS = [
+        "/api/agents/",
+        "/api/knowledge/",
+        "/api/projects/",
+        "/api/deliberation/",
+    ]
+    
+    # Endpoints excluidos
+    EXCLUDED_PATHS = [
+        "/api/auth/",
+        "/api/health",
+        "/api/usage/",  # No limitar consultas de uso
+        "/docs",
+        "/openapi.json",
+    ]
+    
+    def __init__(self, app, db_pool):
+        super().__init__(app)
+        self.db_pool = db_pool
+    
+    async def dispatch(self, request: Request, call_next: Callable):
+        path = request.url.path
+        
+        # Verificar si está excluido
+        for excluded in self.EXCLUDED_PATHS:
+            if path.startswith(excluded):
+                return await call_next(request)
+        
+        # Verificar si requiere rate limiting
+        requires_limit = any(path.startswith(p) for p in self.RATE_LIMITED_PATHS)
+        
+        if not requires_limit:
+            return await call_next(request)
+        
+        # Obtener empresa_id del request
+        empresa_id = self._get_empresa_id(request)
+        
+        if not empresa_id:
+            return await call_next(request)
+        
+        # Verificar límites
+        rate_limiter = RateLimiterService(self.db_pool)
+        check = await rate_limiter.check_limits_only(empresa_id)
+        
+        if not check.allowed:
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "detail": check.message,
+                    "error": "rate_limit_exceeded",
+                    "plan": check.plan,
+                    "upgrade_url": "/planes"
+                },
+                headers=check.to_headers()
+            )
+        
+        # Medir tiempo de respuesta
+        start_time = time.time()
+        
+        # Procesar request
+        response = await call_next(request)
+        
+        # Agregar headers de rate limit a la respuesta
+        for key, value in check.to_headers().items():
+            response.headers[key] = value
+        
+        # Loggear request (async, no bloquea)
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        # No esperamos el log para no afectar latencia
+        # En producción, usar background task o queue
+        
+        return response
+    
+    def _get_empresa_id(self, request: Request) -> str:
+        """Extrae empresa_id del request."""
+        # Intentar de varios lugares
+        
+        # 1. Del state (puesto por auth middleware)
+        if hasattr(request.state, "empresa_id"):
+            return request.state.empresa_id
+        
+        # 2. Del header
+        empresa_id = request.headers.get("X-Empresa-ID")
+        if empresa_id:
+            return empresa_id
+        
+        # 3. Del token JWT (si está decodificado)
+        if hasattr(request.state, "user"):
+            return getattr(request.state.user, "empresa_id", None)
+        
+        return None
+
+PASO 4: Rutas de Usage
+backend/routes/usage.py:
+python"""
+Rutas para consultar uso y límites.
+"""
+
+from fastapi import APIRouter, Depends, Query
+from datetime import date
+from typing import Optional
+
+from middleware.tenant_context import get_current_user, TenantContext
+from services.rate_limiter_service import RateLimiterService
+from dependencies import get_db_pool
+
+router = APIRouter(prefix="/api/usage", tags=["Usage"])
+
+
+@router.get("/today")
+async def get_usage_today(
+    tenant: TenantContext = Depends(get_current_user),
+    db=Depends(get_db_pool)
+):
+    """Obtener uso de hoy y límites restantes."""
+    service = RateLimiterService(db)
+    return await service.get_usage_today(tenant.empresa_id)
+
+
+@router.get("/month")
+async def get_usage_month(
+    mes: Optional[date] = None,
+    tenant: TenantContext = Depends(get_current_user),
+    db=Depends(get_db_pool)
+):
+    """Obtener uso mensual."""
+    service = RateLimiterService(db)
+    return await service.get_usage_monthly(tenant.empresa_id, mes)
+
+
+@router.get("/history")
+async def get_usage_history(
+    days: int = Query(30, le=90),
+    tenant: TenantContext = Depends(get_current_user),
+    db=Depends(get_db_pool)
+):
+    """Obtener historial de uso para gráficas."""
+    service = RateLimiterService(db)
+    history = await service.get_usage_history(tenant.empresa_id, days)
+    return {"history": history, "days": days}
+
+
+@router.get("/plans")
+async def get_available_plans(
+    db=Depends(get_db_pool)
+):
+    """Obtener planes disponibles."""
+    rows = await db.fetch("""
+        SELECT id, nombre, requests_per_day, tokens_per_day,
+               max_projects, max_documents, max_users,
+               precio_mensual_cents, features
+        FROM planes
+        WHERE activo = true
+        ORDER BY precio_mensual_cents ASC
+    """)
+    
+    return {
+        "plans": [
+            {
+                "id": row["id"],
+                "nombre": row["nombre"],
+                "requests_dia": row["requests_per_day"],
+                "tokens_dia": row["tokens_per_day"],
+                "max_projects": row["max_projects"],
+                "max_documents": row["max_documents"],
+                "max_users": row["max_users"],
+                "precio_usd": row["precio_mensual_cents"] / 100,
+                "features": row["features"]
+            }
+            for row in rows
+        ]
+    }
+
+PASO 5: Integrar en agent_service
+Actualizá tu agent_service.py para usar el rate limiter:
+python# En backend/services/agent_service.py
+
+from services.rate_limiter_service import RateLimiterService, UsageType
+
+class AgentService:
+    def __init__(self, db_pool):
+        self.db = db_pool
+        self.rate_limiter = RateLimiterService(db_pool)
+        self.client = Anthropic()
+    
+    async def chat(
+        self,
+        empresa_id: str,
+        agent_id: str,
+        message: str,
+        user_id: Optional[str] = None,
+        project_id: Optional[str] = None
+    ) -> dict:
+        """Chat con un agente, con rate limiting."""
+        
+        # 1. Verificar límites ANTES de llamar a Claude
+        check = await self.rate_limiter.check_and_increment(
+            empresa_id=empresa_id,
+            tokens_in=0,  # No sabemos aún
+            tokens_out=0,
+            usage_type=UsageType.CHAT
+        )
+        
+        if not check.allowed:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "rate_limit_exceeded",
+                    "message": check.message,
+                    "plan": check.plan,
+                    "upgrade_url": "/planes"
+                }
+            )
+        
+        # 2. Obtener contexto RAG
+        start_time = time.time()
+        rag_context = await self._get_rag_context(empresa_id, message, agent_id)
+        
+        # 3. Construir prompt
+        system_prompt = self._get_system_prompt(agent_id)
+        if rag_context:
+            system_prompt += f"\n\n## CONTEXTO DEL REPOSITORIO\n{rag_context}"
+        
+        # 4. Llamar a Claude
+        response = await self.client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            system=system_prompt,
+            messages=[{"role": "user", "content": message}]
+        )
+        
+        # 5. Actualizar tokens usados
+        tokens_in = response.usage.input_tokens
+        tokens_out = response.usage.output_tokens
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        await self.rate_limiter.update_tokens_used(
+            empresa_id=empresa_id,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            usage_type=UsageType.CHAT
+        )
+        
+        # 6. Log del request
+        await self.rate_limiter.log_request(
+            empresa_id=empresa_id,
+            user_id=user_id,
+            endpoint=f"/api/agents/{agent_id}/chat",
+            method="POST",
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            latency_ms=latency_ms,
+            status_code=200
+        )
+        
+        return {
+            "message": response.content[0].text,
+            "agent": agent_id,
+            "usage": {
+                "tokens_in": tokens_in,
+                "tokens_out": tokens_out,
+                "latency_ms": latency_ms
+            },
+            "limits": {
+                "requests_remaining": check.requests_remaining - 1,
+                "tokens_remaining": check.tokens_remaining - tokens_in - tokens_out
+            }
+        }
+
+PASO 6: Registrar rutas en server.py
+python# En backend/server.py
+
+from routes.usage import router as usage_router
+
+# Agregar router
+app.include_router(usage_router)
+
+✅ CHECKLIST TOUR #4
+#TareaEstado1Ejecutar SQL de tablas de uso⬜2Crear rate_limiter_service.py⬜3Crear rate_limit_middleware.py⬜4Crear routes/usage.py⬜5Integrar en agent_service.py⬜6Registrar rutas en server.py⬜7Probar endpoint /api/usage/today⬜8Probar límites (hacer muchos requests)⬜
+
+Resultado:
+
+✅ Protección contra uso excesivo
+✅ Tracking de consumo por empresa
+✅ Cálculo de costos estimados
+✅ Headers de rate limit en respuestas
+✅ Planes con límites diferenciados
+✅ Vista de dashboard de uso

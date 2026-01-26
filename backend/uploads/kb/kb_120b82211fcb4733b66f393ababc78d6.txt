@@ -1,0 +1,1 @@
+Este es un documento de prueba para verificar el procesamiento RAG. Contiene información sobre el Código Fiscal de la Federación artículo 69-B sobre EFOS y empresas fantasma.

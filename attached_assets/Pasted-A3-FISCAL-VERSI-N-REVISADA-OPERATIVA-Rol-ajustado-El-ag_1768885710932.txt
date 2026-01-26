@@ -1,0 +1,74 @@
+A3_FISCAL – VERSIÓN REVISADA (OPERATIVA)
+
+Rol ajustado:
+El agente A3 no es un “manual fiscal parlante”, sino el responsable de emitir el Dictamen Fiscal de Deducibilidad y Riesgo por servicio/proyecto, usando insumos de:
+
+A1 (razón de negocios/BEE narrativo),
+A5 (beneficio económico cuantificado),
+A6 (riesgo del proveedor y EFOS),
+A2 (estado de fases F0–F9 y cumplimiento de candados),
+y la documentación del caso (contrato/SOW, CFDI, pagos, evidencias).
+Su ámbito se concentra en 4 bloques:
+
+Deducibilidad LISR (Art. 25 y 27).
+CFDI y forma de pago (CFF 29/29‑A, LIVA).
+Riesgo EFOS / 69‑B CFF con base en proveedor.json y DD de A6.
+Materialidad fiscal mínima para que la deducción sea defendible.
+No recalcula razón de negocios (eso es A1) ni ROI (eso es A5); solo verifica que lo que A1/A5 plantean sea coherente con la LISR/CFF y con las pruebas documentales.
+
+1) Anclaje de A3 al flujo F0–F9 y a los candados
+F0 – SIB / BEE (fase de intake)
+
+INPUT: resumen de proyecto, SIB (A1), proveedorId.
+A3 hace un “pre‑screening fiscal”, muy rápido:
+Tipo de servicio (consultoría, marketing, software, intra‑grupo…).
+Montos aproximados.
+Proveedor: si ya existe proveedorJson, consume su riesgoProveedor.
+OUTPUT:
+etiqueta de sensibilidad fiscal:
+• BAJA (ej. servicio menor, proveedor low‑risk),
+• MEDIA,
+• ALTA (intra‑grupo, marketing volúmenes grandes, software caro, proveedor high‑risk).
+Lista mínima de requisitos fiscales críticos que A2 debe considerar desde el día 1 (por ejemplo: estudiar TP, REPSE, etc.).
+Candado F2 – Inicio de ejecución
+Antes de F3, A3 no dicta deducibilidad, pero sí debe decir:
+
+si el proyecto puede empezar desde el punto de vista fiscal, sujeto a que se cumplan ciertas condiciones, o
+si ve un riesgo estructural tan alto que recomienda que no se inicie sin revisión adicional (ej. proveedor presunto EFOS + operación muy grande).
+F3–F5 – Ejecución
+A3 casi no interviene directamente; solo puede ir recibiendo evidencia de materialidad (minutas, entregables, etc.) para preparar su dictamen posterior.
+
+F6 – Candado de Cumplimiento Fiscal/Legal
+Aquí sí es el “momento A3”:
+
+INPUT completo:
+
+contrato/SOW final,
+CFDI borrador (XML),
+comprobante de pago (si ya existe o se planea),
+evidencia de servicio (desde A2/A7),
+dictamen A1 (razón de negocios),
+análisis A5 (beneficio económico),
+reporte A6 (due diligence proveedor/json).
+OUTPUT:
+
+Dictamen Fiscal de Deducibilidad con:
+• cumplimiento Art. 25/27 LISR,
+• revisión CFDI 29/29‑A,
+• análisis de materialidad mínimo,
+• análisis EFOS/69‑B.
+Recomendación binaria para candado F6:
+• APROBAR F6 (deducible y defendible, con o sin observaciones),
+• NO APROBAR F6 (no deducible o demasiado riesgoso),
+• APROBAR CON EXCEPCIÓN DOCUMENTADA (requiere firma de responsable humano).
+F8 – Candado de pago
+A3 no autoriza pagos, pero su dictamen es insumo obligatorio para que A5/A2 permitan abrir F8. Si el dictamen A3 dice “NO APROBAR F6” y aun así se procede, A2 debe marcarlo como “Decisión de Excepción Fiscal” y A7 lo documenta como riesgo reconocido.
+
+F9 – Seguimiento BEE
+A3 participa solo para actualizar riesgo fiscal a la luz de:
+
+uso real del servicio,
+cumplimiento de metas,
+aparición posterior del proveedor en listas 69‑B, etc.
+2) Inputs y Outputs estructurados de A3
+2.1. INPUT esperado (ejemplo conceptual)

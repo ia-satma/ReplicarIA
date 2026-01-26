@@ -1,0 +1,102 @@
+TAREA: Agregar llamadas de tracking para que el dashboard de métricas muestre datos reales.
+
+PARTE 1: Tracking en Query Router
+
+Modifica backend/services/query_router.py:
+
+Al FINAL de la función route_query(), ANTES del return, agrega:
+
+```python
+# Track usage para métricas
+try:
+    import requests
+    requests.post(
+        "http://localhost:8000/api/metrics/track-usage",
+        json={
+            "type": "query_router",
+            "tier": tier,
+            "cost": estimated_cost
+        },
+        timeout=1
+    )
+except Exception as e:
+    # No fallar si el tracking falla
+    pass
+
+return {
+    "model": model_config["name"],
+    "estimated_cost": round(estimated_cost, 6),
+    "token_count": token_count,
+    "reasoning": reasoning,
+    "tier": tier
+}
+
+PARTE 2: Tracking en Embedding Cache
+
+Modifica backend/services/rag_repository.py:
+
+En la función _embed_batch(), DESPUÉS del log de cache hits (línea ~90), agrega:
+
+# Track cache hits/misses
+try:
+    import requests
+    for i in range(len(texts)):
+        is_hit = cached_results[i] is not None
+        requests.post(
+            "http://localhost:8000/api/metrics/track-usage",
+            json={
+                "type": "embedding_cache",
+                "hit": is_hit
+            },
+            timeout=1
+        )
+except Exception as e:
+    pass
+
+PARTE 3: Tracking en RAG Parallel
+
+Modifica backend/services/deliberation_orchestrator.py:
+
+En la función preload_rag_contexts_parallel(), AL FINAL (después del return dict(results)), agrega:
+
+# Track preload
+try:
+    import requests
+    requests.post(
+        "http://localhost:8000/api/metrics/track-usage",
+        json={"type": "rag_parallel"},
+        timeout=1
+    )
+except Exception as e:
+    pass
+
+return dict(results)
+
+IMPORTANTE:
+
+Las llamadas de tracking NO deben bloquear la ejecución
+Usa timeout=1 para evitar delays
+Los try/except aseguran que si el tracking falla, el sistema sigue funcionando
+ALTERNATIVA MÁS EFICIENTE (Opcional):
+
+Si prefieres NO hacer HTTP requests internos, puedes importar directamente la función:
+
+# En query_router.py
+from routes.metrics import get_usage_stats
+
+# Después de calcular routing
+stats = get_usage_stats()
+stats["query_router"]["total_queries"] += 1
+stats["query_router"][f"{tier}_tier"]["count"] += 1
+stats["query_router"][f"{tier}_tier"]["total_cost"] += estimated_cost
+
+¿Qué enfoque prefieres?
+
+HTTP requests (más desacoplado, más lento)
+Import directo (más rápido, más acoplado)
+Implementa el enfoque que prefieras y luego corre OTRO proyecto de prueba para ver las métricas poblarse.
+
+
+---
+
+**Ejecuta PROMPT 17** con el enfoque que prefieras (yo recomiendo **import directo** para mejor performance).

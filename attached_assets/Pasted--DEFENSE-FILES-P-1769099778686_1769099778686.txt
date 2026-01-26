@@ -1,0 +1,751 @@
+═══════════════════════════════════════════════════════════════════════════════
+📁 DEFENSE FILES - PARTE 2: SERVICIO CORE
+═══════════════════════════════════════════════════════════════════════════════
+
+Este servicio maneja TODA la lógica de documentación de evidencia.
+
+═══════════════════════════════════════════════════════════════════════════════
+SERVICIO PRINCIPAL DE DEFENSE FILES
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/services/defense_files/defense_file_service.py
+
+```python
+"""
+═══════════════════════════════════════════════════════════════════════════════
+DEFENSE FILE SERVICE
+Servicio principal para gestión de expedientes de defensa fiscal
+═══════════════════════════════════════════════════════════════════════════════
+"""
+
+import os
+import json
+import hashlib
+from datetime import datetime
+from typing import Optional, Dict, List, Any
+from dataclasses import dataclass, asdict
+import uuid
+
+from extensions import db
+from sqlalchemy import text
+
+
+@dataclass
+class EventoDefenseFile:
+    """Representa un evento en el Defense File"""
+    tipo: str
+    agente_id: str
+    titulo: str
+    descripcion: str
+    datos: Dict[str, Any]
+    usuario_email: str = None
+    archivos: List[str] = None
+    tags: List[str] = None
+    
+    def __post_init__(self):
+        if self.archivos is None:
+            self.archivos = []
+        if self.tags is None:
+            self.tags = []
+
+
+class DefenseFileService:
+    """
+    Servicio principal para gestionar Defense Files.
+    
+    Uso:
+        df_service = DefenseFileService()
+        
+        # Crear nuevo defense file
+        df_id = df_service.crear_defense_file(
+            cliente_id=1,
+            nombre="Auditoría Q1 2025",
+            ejercicio=2025
+        )
+        
+        # Registrar evento
+        df_service.registrar_evento(
+            defense_file_id=df_id,
+            evento=EventoDefenseFile(
+                tipo='conversacion_ia',
+                agente_id='A1',
+                titulo='Análisis de CFDI',
+                descripcion='Usuario consultó sobre deducibilidad',
+                datos={'mensaje': '...', 'respuesta': '...'}
+            )
+        )
+    """
+    
+    def __init__(self):
+        self.pcloud_enabled = bool(os.environ.get('PCLOUD_ACCESS_TOKEN'))
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # GESTIÓN DE DEFENSE FILES
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def crear_defense_file(self,
+                           cliente_id: int,
+                           nombre: str,
+                           ejercicio: int = None,
+                           tipo_proyecto: str = 'general',
+                           descripcion: str = None,
+                           proyecto_id: int = None,
+                           responsable_id: int = None) -> int:
+        """
+        Crea un nuevo Defense File para un cliente.
+        
+        Returns:
+            int: ID del defense file creado
+        """
+        
+        # Obtener datos del cliente
+        cliente = db.session.execute(text("""
+            SELECT id, nombre, razon_social, rfc FROM clientes WHERE id = :id
+        """), {'id': cliente_id}).fetchone()
+        
+        if not cliente:
+            raise ValueError(f"Cliente {cliente_id} no encontrado")
+        
+        # Generar código único
+        año = ejercicio or datetime.now().year
+        codigo = self._generar_codigo(año)
+        
+        # Crear registro
+        result = db.session.execute(text("""
+            INSERT INTO defense_files (
+                codigo, nombre, descripcion, cliente_id, rfc, razon_social,
+                proyecto_id, tipo_proyecto, ejercicio, responsable_id,
+                estado, porcentaje_completado, created_at
+            ) VALUES (
+                :codigo, :nombre, :descripcion, :cliente_id, :rfc, :razon_social,
+                :proyecto_id, :tipo_proyecto, :ejercicio, :responsable_id,
+                'en_proceso', 0, NOW()
+            ) RETURNING id
+        """), {
+            'codigo': codigo,
+            'nombre': nombre,
+            'descripcion': descripcion,
+            'cliente_id': cliente_id,
+            'rfc': cliente.rfc,
+            'razon_social': cliente.razon_social,
+            'proyecto_id': proyecto_id,
+            'tipo_proyecto': tipo_proyecto,
+            'ejercicio': año,
+            'responsable_id': responsable_id
+        })
+        
+        db.session.commit()
+        defense_file_id = result.fetchone()[0]
+        
+        # Registrar evento de creación
+        self.registrar_evento(
+            defense_file_id=defense_file_id,
+            evento=EventoDefenseFile(
+                tipo='defense_file_creado',
+                agente_id='SYS',
+                titulo=f'Defense File {codigo} creado',
+                descripcion=f'Se creó expediente para {cliente.razon_social}',
+                datos={
+                    'cliente_id': cliente_id,
+                    'rfc': cliente.rfc,
+                    'ejercicio': año,
+                    'tipo_proyecto': tipo_proyecto
+                }
+            )
+        )
+        
+        # Crear estructura en pCloud si está habilitado
+        if self.pcloud_enabled:
+            self._crear_estructura_pcloud(defense_file_id, codigo, cliente.rfc)
+        
+        print(f"✅ Defense File {codigo} creado (ID: {defense_file_id})")
+        
+        return defense_file_id
+    
+    def obtener_defense_file(self, defense_file_id: int) -> Optional[Dict]:
+        """Obtiene un Defense File con su resumen"""
+        
+        result = db.session.execute(text("""
+            SELECT * FROM v_defense_file_resumen WHERE id = :id
+        """), {'id': defense_file_id}).fetchone()
+        
+        if not result:
+            return None
+        
+        return dict(result._mapping)
+    
+    def obtener_defense_file_por_codigo(self, codigo: str) -> Optional[Dict]:
+        """Obtiene Defense File por su código"""
+        
+        result = db.session.execute(text("""
+            SELECT id FROM defense_files WHERE codigo = :codigo
+        """), {'codigo': codigo}).fetchone()
+        
+        if not result:
+            return None
+        
+        return self.obtener_defense_file(result.id)
+    
+    def listar_defense_files(self, 
+                              cliente_id: int = None,
+                              estado: str = None,
+                              ejercicio: int = None,
+                              limite: int = 50) -> List[Dict]:
+        """Lista Defense Files con filtros opcionales"""
+        
+        query = "SELECT * FROM v_defense_file_resumen WHERE 1=1"
+        params = {'limite': limite}
+        
+        if cliente_id:
+            query += " AND cliente_id = :cliente_id"
+            params['cliente_id'] = cliente_id
+        
+        if estado:
+            query += " AND estado = :estado"
+            params['estado'] = estado
+        
+        if ejercicio:
+            query += " AND ejercicio = :ejercicio"
+            params['ejercicio'] = ejercicio
+        
+        query += " ORDER BY created_at DESC LIMIT :limite"
+        
+        result = db.session.execute(text(query), params)
+        
+        return [dict(row._mapping) for row in result]
+    
+    def actualizar_estado(self, defense_file_id: int, estado: str, 
+                          porcentaje: int = None):
+        """Actualiza el estado de un Defense File"""
+        
+        updates = ["estado = :estado", "updated_at = NOW()"]
+        params = {'id': defense_file_id, 'estado': estado}
+        
+        if porcentaje is not None:
+            updates.append("porcentaje_completado = :porcentaje")
+            params['porcentaje'] = porcentaje
+        
+        if estado == 'cerrado':
+            updates.append("cerrado_at = NOW()")
+            # Calcular hash de integridad
+            hash_integridad = self._calcular_hash_integridad(defense_file_id)
+            updates.append("hash_integridad = :hash")
+            params['hash'] = hash_integridad
+        
+        db.session.execute(text(f"""
+            UPDATE defense_files SET {', '.join(updates)} WHERE id = :id
+        """), params)
+        db.session.commit()
+        
+        # Registrar evento
+        self.registrar_evento(
+            defense_file_id=defense_file_id,
+            evento=EventoDefenseFile(
+                tipo='defense_file_actualizado',
+                agente_id='SYS',
+                titulo=f'Estado actualizado a {estado}',
+                descripcion=f'Porcentaje: {porcentaje}%' if porcentaje else '',
+                datos={'estado': estado, 'porcentaje': porcentaje}
+            )
+        )
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # REGISTRO DE EVENTOS
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def registrar_evento(self, 
+                         defense_file_id: int,
+                         evento: EventoDefenseFile,
+                         duracion_ms: int = None) -> int:
+        """
+        Registra un evento en el Defense File.
+        
+        Este es el método principal que todos los agentes deben llamar
+        para documentar sus acciones.
+        
+        Returns:
+            int: ID del evento creado
+        """
+        
+        # Generar ID único para el evento
+        evento_id = self._generar_evento_id()
+        
+        # Calcular hash del evento para integridad
+        hash_evento = self._calcular_hash_evento(evento)
+        
+        # Obtener nombre del agente
+        agente_nombre = self._obtener_nombre_agente(evento.agente_id)
+        
+        # Extraer entidades mencionadas (RFCs, artículos, etc.)
+        entidades = self._extraer_entidades(evento.datos)
+        
+        result = db.session.execute(text("""
+            INSERT INTO defense_file_eventos (
+                defense_file_id, evento_id, tipo, categoria,
+                agente_id, agente_nombre, usuario_email,
+                titulo, descripcion, datos,
+                archivos, tags, entidades_mencionadas,
+                duracion_ms, hash_evento, timestamp
+            ) VALUES (
+                :df_id, :evento_id, :tipo, :categoria,
+                :agente_id, :agente_nombre, :usuario_email,
+                :titulo, :descripcion, :datos,
+                :archivos, :tags, :entidades,
+                :duracion_ms, :hash, NOW()
+            ) RETURNING id
+        """), {
+            'df_id': defense_file_id,
+            'evento_id': evento_id,
+            'tipo': evento.tipo,
+            'categoria': self._obtener_categoria_evento(evento.tipo),
+            'agente_id': evento.agente_id,
+            'agente_nombre': agente_nombre,
+            'usuario_email': evento.usuario_email,
+            'titulo': evento.titulo,
+            'descripcion': evento.descripcion,
+            'datos': json.dumps(evento.datos, default=str, ensure_ascii=False),
+            'archivos': json.dumps(evento.archivos),
+            'tags': evento.tags,
+            'entidades': json.dumps(entidades),
+            'duracion_ms': duracion_ms,
+            'hash': hash_evento
+        })
+        
+        db.session.commit()
+        
+        evento_db_id = result.fetchone()[0]
+        
+        # Actualizar porcentaje del defense file
+        self._actualizar_porcentaje(defense_file_id)
+        
+        print(f"  📝 Evento {evento_id}: {evento.titulo[:50]}")
+        
+        return evento_db_id
+    
+    def obtener_timeline(self, defense_file_id: int, 
+                         limite: int = 100,
+                         tipo: str = None,
+                         agente_id: str = None) -> List[Dict]:
+        """Obtiene el timeline de eventos de un Defense File"""
+        
+        query = """
+            SELECT * FROM defense_file_eventos 
+            WHERE defense_file_id = :df_id
+        """
+        params = {'df_id': defense_file_id, 'limite': limite}
+        
+        if tipo:
+            query += " AND tipo = :tipo"
+            params['tipo'] = tipo
+        
+        if agente_id:
+            query += " AND agente_id = :agente_id"
+            params['agente_id'] = agente_id
+        
+        query += " ORDER BY timestamp DESC LIMIT :limite"
+        
+        result = db.session.execute(text(query), params)
+        
+        eventos = []
+        for row in result:
+            evento = dict(row._mapping)
+            # Parsear JSON
+            if evento.get('datos'):
+                evento['datos'] = json.loads(evento['datos']) if isinstance(evento['datos'], str) else evento['datos']
+            if evento.get('archivos'):
+                evento['archivos'] = json.loads(evento['archivos']) if isinstance(evento['archivos'], str) else evento['archivos']
+            eventos.append(evento)
+        
+        return eventos
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # DOCUMENTOS
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def registrar_documento(self,
+                            defense_file_id: int,
+                            tipo: str,
+                            nombre: str,
+                            contenido_texto: str = None,
+                            metadata: Dict = None,
+                            evento_id: int = None,
+                            **kwargs) -> int:
+        """Registra un documento en el Defense File"""
+        
+        # Calcular hash del archivo si hay contenido
+        hash_archivo = None
+        if contenido_texto:
+            hash_archivo = hashlib.sha256(contenido_texto.encode()).hexdigest()
+        
+        result = db.session.execute(text("""
+            INSERT INTO defense_file_documentos (
+                defense_file_id, tipo, subtipo, nombre, extension,
+                contenido_texto, metadata, hash_archivo,
+                uuid_cfdi, rfc_emisor, rfc_receptor, fecha_emision, total,
+                evento_id, created_at
+            ) VALUES (
+                :df_id, :tipo, :subtipo, :nombre, :extension,
+                :contenido, :metadata, :hash,
+                :uuid_cfdi, :rfc_emisor, :rfc_receptor, :fecha_emision, :total,
+                :evento_id, NOW()
+            ) RETURNING id
+        """), {
+            'df_id': defense_file_id,
+            'tipo': tipo,
+            'subtipo': kwargs.get('subtipo'),
+            'nombre': nombre,
+            'extension': os.path.splitext(nombre)[1] if '.' in nombre else None,
+            'contenido': contenido_texto,
+            'metadata': json.dumps(metadata) if metadata else None,
+            'hash': hash_archivo,
+            'uuid_cfdi': kwargs.get('uuid_cfdi'),
+            'rfc_emisor': kwargs.get('rfc_emisor'),
+            'rfc_receptor': kwargs.get('rfc_receptor'),
+            'fecha_emision': kwargs.get('fecha_emision'),
+            'total': kwargs.get('total'),
+            'evento_id': evento_id
+        })
+        
+        db.session.commit()
+        return result.fetchone()[0]
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # TERCEROS (PROVEEDORES/CLIENTES)
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def registrar_tercero(self,
+                          defense_file_id: int,
+                          tipo: str,  # 'proveedor' o 'cliente'
+                          rfc: str,
+                          razon_social: str = None,
+                          verificacion_69b: Dict = None,
+                          verificacion_efos: Dict = None) -> int:
+        """Registra un tercero (proveedor/cliente) verificado"""
+        
+        # Verificar si ya existe
+        existente = db.session.execute(text("""
+            SELECT id FROM defense_file_terceros 
+            WHERE defense_file_id = :df_id AND rfc = :rfc AND tipo = :tipo
+        """), {'df_id': defense_file_id, 'rfc': rfc, 'tipo': tipo}).fetchone()
+        
+        if existente:
+            # Actualizar
+            return self._actualizar_tercero(existente.id, verificacion_69b, verificacion_efos)
+        
+        # Determinar alertas
+        tiene_alertas = False
+        alertas = []
+        
+        if verificacion_69b and verificacion_69b.get('en_lista'):
+            tiene_alertas = True
+            alertas.append({
+                'tipo': 'lista_69b',
+                'mensaje': f"RFC en Lista 69-B ({verificacion_69b.get('estatus', 'desconocido')})",
+                'fecha': datetime.now().isoformat()
+            })
+        
+        if verificacion_efos and verificacion_efos.get('es_efos'):
+            tiene_alertas = True
+            alertas.append({
+                'tipo': 'efos',
+                'mensaje': "Detectado como EFOS",
+                'fecha': datetime.now().isoformat()
+            })
+        
+        result = db.session.execute(text("""
+            INSERT INTO defense_file_terceros (
+                defense_file_id, tipo, rfc, razon_social,
+                en_lista_69b, fecha_verificacion_69b, estatus_69b,
+                es_efos, fecha_verificacion_efos,
+                tiene_alertas, alertas, created_at
+            ) VALUES (
+                :df_id, :tipo, :rfc, :razon_social,
+                :en_69b, :fecha_69b, :estatus_69b,
+                :es_efos, :fecha_efos,
+                :tiene_alertas, :alertas, NOW()
+            ) RETURNING id
+        """), {
+            'df_id': defense_file_id,
+            'tipo': tipo,
+            'rfc': rfc,
+            'razon_social': razon_social,
+            'en_69b': verificacion_69b.get('en_lista', False) if verificacion_69b else False,
+            'fecha_69b': datetime.now() if verificacion_69b else None,
+            'estatus_69b': verificacion_69b.get('estatus') if verificacion_69b else None,
+            'es_efos': verificacion_efos.get('es_efos', False) if verificacion_efos else False,
+            'fecha_efos': datetime.now() if verificacion_efos else None,
+            'tiene_alertas': tiene_alertas,
+            'alertas': json.dumps(alertas)
+        })
+        
+        db.session.commit()
+        return result.fetchone()[0]
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # FUNDAMENTOS LEGALES
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def registrar_fundamento(self,
+                             defense_file_id: int,
+                             tipo: str,  # 'ley', 'jurisprudencia', 'criterio'
+                             ordenamiento: str = None,
+                             articulo: str = None,
+                             titulo: str = None,
+                             texto_relevante: str = None,
+                             contexto_uso: str = None,
+                             evento_id: int = None,
+                             **kwargs) -> int:
+        """Registra un fundamento legal utilizado"""
+        
+        result = db.session.execute(text("""
+            INSERT INTO defense_file_fundamentos (
+                defense_file_id, tipo, ordenamiento, articulo, fraccion, parrafo,
+                numero_tesis, epoca, instancia,
+                titulo, texto_relevante, contexto_uso,
+                evento_id, documento_origen_id, created_at
+            ) VALUES (
+                :df_id, :tipo, :ordenamiento, :articulo, :fraccion, :parrafo,
+                :numero_tesis, :epoca, :instancia,
+                :titulo, :texto, :contexto,
+                :evento_id, :doc_origen, NOW()
+            ) RETURNING id
+        """), {
+            'df_id': defense_file_id,
+            'tipo': tipo,
+            'ordenamiento': ordenamiento,
+            'articulo': articulo,
+            'fraccion': kwargs.get('fraccion'),
+            'parrafo': kwargs.get('parrafo'),
+            'numero_tesis': kwargs.get('numero_tesis'),
+            'epoca': kwargs.get('epoca'),
+            'instancia': kwargs.get('instancia'),
+            'titulo': titulo,
+            'texto': texto_relevante,
+            'contexto': contexto_uso,
+            'evento_id': evento_id,
+            'doc_origen': kwargs.get('documento_origen_id')
+        })
+        
+        db.session.commit()
+        return result.fetchone()[0]
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # CÁLCULOS
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def registrar_calculo(self,
+                          defense_file_id: int,
+                          tipo: str,  # 'isr', 'iva', 'retenciones'
+                          concepto: str,
+                          periodo: str,
+                          datos_entrada: Dict,
+                          datos_salida: Dict,
+                          metodologia: str = None,
+                          evento_id: int = None) -> int:
+        """Registra un cálculo fiscal realizado"""
+        
+        result = db.session.execute(text("""
+            INSERT INTO defense_file_calculos (
+                defense_file_id, tipo, concepto, periodo,
+                base_gravable, tasa, impuesto_calculado, impuesto_pagado, diferencia,
+                metodologia, datos_entrada, datos_salida,
+                calculado_por, evento_id, created_at
+            ) VALUES (
+                :df_id, :tipo, :concepto, :periodo,
+                :base, :tasa, :calculado, :pagado, :diferencia,
+                :metodologia, :entrada, :salida,
+                'A4_Calcular.IA', :evento_id, NOW()
+            ) RETURNING id
+        """), {
+            'df_id': defense_file_id,
+            'tipo': tipo,
+            'concepto': concepto,
+            'periodo': periodo,
+            'base': datos_salida.get('base_gravable'),
+            'tasa': datos_salida.get('tasa'),
+            'calculado': datos_salida.get('impuesto_calculado'),
+            'pagado': datos_salida.get('impuesto_pagado'),
+            'diferencia': datos_salida.get('diferencia'),
+            'metodologia': metodologia,
+            'entrada': json.dumps(datos_entrada, default=str),
+            'salida': json.dumps(datos_salida, default=str),
+            'evento_id': evento_id
+        })
+        
+        db.session.commit()
+        return result.fetchone()[0]
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # UTILIDADES PRIVADAS
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def _generar_codigo(self, año: int) -> str:
+        """Genera código único para Defense File"""
+        # Obtener último número del año
+        result = db.session.execute(text("""
+            SELECT MAX(CAST(SPLIT_PART(codigo, '-', 3) AS INTEGER))
+            FROM defense_files 
+            WHERE codigo LIKE :pattern
+        """), {'pattern': f'DF-{año}-%'}).fetchone()
+        
+        ultimo = result[0] or 0
+        return f"DF-{año}-{str(ultimo + 1).zfill(4)}"
+    
+    def _generar_evento_id(self) -> str:
+        """Genera ID único para evento"""
+        return str(uuid.uuid4())[:12]
+    
+    def _calcular_hash_evento(self, evento: EventoDefenseFile) -> str:
+        """Calcula hash SHA256 del evento"""
+        contenido = json.dumps({
+            'tipo': evento.tipo,
+            'agente_id': evento.agente_id,
+            'titulo': evento.titulo,
+            'datos': evento.datos,
+            'timestamp': datetime.now().isoformat()
+        }, sort_keys=True, default=str)
+        
+        return hashlib.sha256(contenido.encode()).hexdigest()
+    
+    def _calcular_hash_integridad(self, defense_file_id: int) -> str:
+        """Calcula hash de integridad de todo el Defense File"""
+        # Obtener todos los hashes de eventos
+        result = db.session.execute(text("""
+            SELECT hash_evento FROM defense_file_eventos 
+            WHERE defense_file_id = :id ORDER BY timestamp
+        """), {'id': defense_file_id})
+        
+        hashes = [row.hash_evento for row in result if row.hash_evento]
+        contenido = '|'.join(hashes)
+        
+        return hashlib.sha256(contenido.encode()).hexdigest()
+    
+    def _obtener_nombre_agente(self, agente_id: str) -> str:
+        """Obtiene nombre del agente"""
+        AGENTES = {
+            'A1': 'Facturar.IA',
+            'A2': 'Bibliotecar.IA',
+            'A3': 'Revisar.IA',
+            'A4': 'Calcular.IA',
+            'A5': 'Investigar.IA',
+            'A6': 'Reportar.IA',
+            'A7': 'Auditar.IA',
+            'SYS': 'Sistema',
+            'USR': 'Usuario',
+        }
+        return AGENTES.get(agente_id, agente_id)
+    
+    def _obtener_categoria_evento(self, tipo: str) -> str:
+        """Obtiene categoría del tipo de evento"""
+        CATEGORIAS = {
+            'conversacion_ia': 'agente',
+            'consulta_rag': 'agente',
+            'analisis_ia': 'agente',
+            'documento_cargado': 'documento',
+            'cfdi_analizado': 'documento',
+            'verificacion_69b': 'verificacion',
+            'verificacion_efos': 'verificacion',
+            'email_enviado': 'comunicacion',
+            'defense_file_creado': 'sistema',
+        }
+        return CATEGORIAS.get(tipo, 'general')
+    
+    def _extraer_entidades(self, datos: Dict) -> Dict:
+        """Extrae entidades mencionadas (RFCs, artículos, etc.)"""
+        import re
+        
+        entidades = {
+            'rfcs': [],
+            'articulos': [],
+            'uuids': []
+        }
+        
+        texto = json.dumps(datos, default=str)
+        
+        # Buscar RFCs
+        rfcs = re.findall(r'[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}', texto)
+        entidades['rfcs'] = list(set(rfcs))
+        
+        # Buscar artículos
+        articulos = re.findall(r'[Aa]rt[íi]culo\s+(\d+[\w\-]*)', texto)
+        entidades['articulos'] = list(set(articulos))
+        
+        # Buscar UUIDs de CFDI
+        uuids = re.findall(r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}', texto.lower())
+        entidades['uuids'] = list(set(uuids))
+        
+        return entidades
+    
+    def _actualizar_porcentaje(self, defense_file_id: int):
+        """Actualiza el porcentaje de completado basado en eventos"""
+        # Contar tipos de eventos únicos
+        result = db.session.execute(text("""
+            SELECT COUNT(DISTINCT tipo) as tipos,
+                   COUNT(*) as total_eventos
+            FROM defense_file_eventos 
+            WHERE defense_file_id = :id
+        """), {'id': defense_file_id}).fetchone()
+        
+        # Criterios de completado (simplificado)
+        # Más tipos de eventos = más completo
+        tipos_esperados = 10
+        porcentaje = min(100, int((result.tipos / tipos_esperados) * 100))
+        
+        db.session.execute(text("""
+            UPDATE defense_files 
+            SET porcentaje_completado = :porcentaje, updated_at = NOW()
+            WHERE id = :id
+        """), {'id': defense_file_id, 'porcentaje': porcentaje})
+        db.session.commit()
+    
+    def _crear_estructura_pcloud(self, defense_file_id: int, codigo: str, rfc: str):
+        """Crea estructura de carpetas en pCloud"""
+        try:
+            from services.pcloud.pcloud_service import pcloud
+            
+            año = datetime.now().year
+            base_path = f"/Revisar.IA/Defense_Files/{rfc}/{año}/{codigo}"
+            
+            carpetas = [
+                f"{base_path}/00_Indice",
+                f"{base_path}/01_Datos_Contribuyente",
+                f"{base_path}/02_Proveedores_Clientes",
+                f"{base_path}/03_Analisis_Agentes/A1_Facturar.IA",
+                f"{base_path}/03_Analisis_Agentes/A2_Bibliotecar.IA",
+                f"{base_path}/03_Analisis_Agentes/A3_Revisar.IA",
+                f"{base_path}/04_Marco_Legal_Aplicado",
+                f"{base_path}/05_Comunicaciones",
+                f"{base_path}/06_Documentos_Generados",
+                f"{base_path}/07_Evidencia_Soporte",
+                f"{base_path}/08_Defense_File_Final",
+            ]
+            
+            for carpeta in carpetas:
+                pcloud.crear_carpeta(carpeta)
+            
+            # Actualizar ruta en BD
+            db.session.execute(text("""
+                UPDATE defense_files SET pcloud_path = :path WHERE id = :id
+            """), {'id': defense_file_id, 'path': base_path})
+            db.session.commit()
+            
+            print(f"  📁 Estructura pCloud creada: {base_path}")
+            
+        except Exception as e:
+            print(f"  ⚠️ Error creando estructura pCloud: {e}")
+
+
+# Instancia global
+defense_file_service = DefenseFileService()
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST PARTE 2
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Crear backend/services/defense_files/__init__.py (vacío)
+□ Crear backend/services/defense_files/defense_file_service.py
+□ Verificar que las tablas de Parte 1 existen
+□ Probar crear un Defense File de prueba
+
+SIGUIENTE: Parte 3 - Integración con Agentes

@@ -1,0 +1,430 @@
+MODO AGENTE AUTÓNOMO - FIX SISTEMA CARGA DE CLIENTES
+
+NO PREGUNTAR. DIAGNOSTICAR Y ARREGLAR.
+
+<TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+PROBLEMA: Botón "Confirmar y Crear Cliente" no funciona
+═══════════════════════════════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 1: DIAGNÓSTICO RÁPIDO
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+# 1. Buscar endpoint de clientes
+grep -r "clientes\|clients\|crear.*cliente\|create.*client" server/routes/ --include="*.ts" --include="*.js" | head -20
+
+# 2. Ver si existe tabla clientes
+psql $DATABASE_URL -c "\dt" 2>/dev/null | grep -i client
+
+# 3. Buscar el componente frontend que hace la llamada
+grep -r "Confirmar y Crear\|crear.*cliente" frontend/src/ --include="*.tsx" --include="*.ts" -A5 | head -30
+
+# 4. Ver logs de errores recientes
+tail -100 /home/runner/.npm/_logs/*.log 2>/dev/null | grep -i error | tail -20
+```
+
+□ Diagnóstico ejecutado
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 2: CREAR TABLA CLIENTES SI NO EXISTE
+═══════════════════════════════════════════════════════════════════════════════
+
+```sql
+-- Ejecutar en base de datos
+CREATE TABLE IF NOT EXISTS clientes (
+  id SERIAL PRIMARY KEY,
+  nombre VARCHAR(255) NOT NULL,
+  rfc VARCHAR(13),
+  razon_social VARCHAR(255),
+  direccion TEXT,
+  email VARCHAR(255),
+  telefono VARCHAR(20),
+  giro VARCHAR(100),
+  sitio_web VARCHAR(255),
+  empresa_id INTEGER REFERENCES empresas(id),
+  activo BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX IF NOT EXISTS idx_clientes_rfc ON clientes(rfc);
+CREATE INDEX IF NOT EXISTS idx_clientes_empresa ON clientes(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_clientes_email ON clientes(email);
+```
+
+□ Tabla clientes creada/verificada
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 3: CREAR/VERIFICAR ENDPOINT DE CLIENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear o modificar: server/routes/clientes.ts
+
+```typescript
+import { Router } from 'express';
+import { db } from '../db';
+
+const router = Router();
+
+// Crear cliente
+router.post('/', async (req, res) => {
+  try {
+    const { 
+      nombre, 
+      rfc, 
+      razon_social, 
+      direccion, 
+      email, 
+      telefono, 
+      giro, 
+      sitio_web,
+      empresa_id 
+    } = req.body;
+
+    // Validación básica
+    if (!nombre) {
+      return res.status(400).json({ error: 'Nombre es requerido' });
+    }
+
+    // Verificar RFC duplicado si se proporciona
+    if (rfc) {
+      const existente = await db.query(
+        'SELECT id FROM clientes WHERE rfc = $1',
+        [rfc.toUpperCase()]
+      );
+      if (existente.rows.length > 0) {
+        return res.status(409).json({ error: 'Ya existe un cliente con ese RFC' });
+      }
+    }
+
+    // Insertar cliente
+    const result = await db.query(`
+      INSERT INTO clientes (nombre, rfc, razon_social, direccion, email, telefono, giro, sitio_web, empresa_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `, [
+      nombre,
+      rfc?.toUpperCase() || null,
+      razon_social || nombre,
+      direccion || null,
+      email?.toLowerCase() || null,
+      telefono || null,
+      giro || null,
+      sitio_web || null,
+      empresa_id || null
+    ]);
+
+    console.log('✅ Cliente creado:', result.rows[0].id, nombre);
+
+    res.status(201).json({
+      success: true,
+      message: 'Cliente creado exitosamente',
+      cliente: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('❌ Error creando cliente:', error);
+    res.status(500).json({ error: 'Error al crear cliente' });
+  }
+});
+
+// Listar clientes
+router.get('/', async (req, res) => {
+  try {
+    const { empresa_id, search, page = 1, limit = 20 } = req.query;
+    
+    let where = 'WHERE activo = TRUE';
+    const params: any[] = [];
+    
+    if (empresa_id) {
+      params.push(empresa_id);
+      where += ` AND empresa_id = $${params.length}`;
+    }
+    
+    if (search) {
+      params.push(`%${search}%`);
+      where += ` AND (nombre ILIKE $${params.length} OR rfc ILIKE $${params.length} OR razon_social ILIKE $${params.length})`;
+    }
+    
+    const offset = (Number(page) - 1) * Number(limit);
+    params.push(limit, offset);
+    
+    const result = await db.query(`
+      SELECT * FROM clientes 
+      ${where}
+      ORDER BY created_at DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
+    `, params);
+    
+    const countResult = await db.query(`SELECT COUNT(*) FROM clientes ${where}`, params.slice(0, -2));
+    
+    res.json({
+      clientes: result.rows,
+      total: parseInt(countResult.rows[0].count),
+      page: Number(page),
+      limit: Number(limit)
+    });
+
+  } catch (error) {
+    console.error('Error listando clientes:', error);
+    res.status(500).json({ error: 'Error al obtener clientes' });
+  }
+});
+
+// Obtener cliente por ID
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await db.query(
+      'SELECT * FROM clientes WHERE id = $1 AND activo = TRUE',
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+    
+    res.json({ cliente: result.rows[0] });
+
+  } catch (error) {
+    console.error('Error obteniendo cliente:', error);
+    res.status(500).json({ error: 'Error al obtener cliente' });
+  }
+});
+
+// Actualizar cliente
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nombre, rfc, razon_social, direccion, email, telefono, giro, sitio_web } = req.body;
+    
+    const result = await db.query(`
+      UPDATE clientes SET
+        nombre = COALESCE($1, nombre),
+        rfc = COALESCE($2, rfc),
+        razon_social = COALESCE($3, razon_social),
+        direccion = COALESCE($4, direccion),
+        email = COALESCE($5, email),
+        telefono = COALESCE($6, telefono),
+        giro = COALESCE($7, giro),
+        sitio_web = COALESCE($8, sitio_web),
+        updated_at = NOW()
+      WHERE id = $9 AND activo = TRUE
+      RETURNING *
+    `, [nombre, rfc?.toUpperCase(), razon_social, direccion, email?.toLowerCase(), telefono, giro, sitio_web, id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Cliente actualizado',
+      cliente: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Error actualizando cliente:', error);
+    res.status(500).json({ error: 'Error al actualizar cliente' });
+  }
+});
+
+// Eliminar cliente (soft delete)
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await db.query(
+      'UPDATE clientes SET activo = FALSE, updated_at = NOW() WHERE id = $1',
+      [id]
+    );
+    
+    res.json({ success: true, message: 'Cliente eliminado' });
+
+  } catch (error) {
+    console.error('Error eliminando cliente:', error);
+    res.status(500).json({ error: 'Error al eliminar cliente' });
+  }
+});
+
+// Buscar por RFC (para autocompletado/validación)
+router.get('/buscar/rfc/:rfc', async (req, res) => {
+  try {
+    const { rfc } = req.params;
+    
+    const result = await db.query(
+      'SELECT * FROM clientes WHERE rfc = $1 AND activo = TRUE',
+      [rfc.toUpperCase()]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ encontrado: false });
+    }
+    
+    res.json({ 
+      encontrado: true, 
+      cliente: result.rows[0] 
+    });
+
+  } catch (error) {
+    console.error('Error buscando RFC:', error);
+    res.status(500).json({ error: 'Error al buscar RFC' });
+  }
+});
+
+export default router;
+```
+
+□ Archivo clientes.ts creado/actualizado
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 4: REGISTRAR RUTA EN APP PRINCIPAL
+═══════════════════════════════════════════════════════════════════════════════
+
+En server/index.ts o app.ts, agregar:
+
+```typescript
+import clientesRoutes from './routes/clientes';
+
+// Después de otras rutas
+app.use('/api/clientes', clientesRoutes);
+```
+
+□ Ruta /api/clientes registrada
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 5: VERIFICAR FRONTEND LLAMA AL ENDPOINT CORRECTO
+═══════════════════════════════════════════════════════════════════════════════
+
+Buscar el componente que tiene el botón "Confirmar y Crear Cliente":
+
+```bash
+grep -r "Confirmar y Crear" frontend/src/ --include="*.tsx" -l
+```
+
+El handler del botón debe verse así:
+
+```typescript
+const handleCrearCliente = async () => {
+  try {
+    setLoading(true);
+    
+    const response = await fetch('/api/clientes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre: formData.nombre,
+        rfc: formData.rfc,
+        razon_social: formData.razonSocial,
+        direccion: formData.direccion,
+        email: formData.email,
+        telefono: formData.telefono,
+        giro: formData.giro,
+        sitio_web: formData.sitioWeb
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Error al crear cliente');
+    }
+
+    // Éxito
+    toast.success('Cliente creado exitosamente');
+    onClienteCreado?.(data.cliente);
+    onClose?.();
+
+  } catch (error) {
+    console.error('Error:', error);
+    toast.error(error.message || 'Error al crear cliente');
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+Verificar que:
+- URL es '/api/clientes' (relativa, no absoluta)
+- Method es 'POST'
+- Headers incluye 'Content-Type: application/json'
+- Body tiene los campos correctos
+
+□ Frontend verificado
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 6: TEST DEL ENDPOINT
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+# Probar crear cliente
+curl -X POST http://localhost:5000/api/clientes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nombre": "GRUPO FORTEZZA S.A. DE C.V.",
+    "rfc": "GFO123456ABC",
+    "razon_social": "GRUPO FORTEZZA S.A. DE C.V.",
+    "email": "fortezza@revisar-ia.com",
+    "sitio_web": "http://fortezza.mx"
+  }'
+
+# Debe retornar:
+# { "success": true, "message": "Cliente creado exitosamente", "cliente": {...} }
+
+# Listar clientes
+curl http://localhost:5000/api/clientes
+```
+
+□ Endpoint probado y funciona
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 7: AGREGAR A SEED DE PRODUCCIÓN (OPCIONAL)
+═══════════════════════════════════════════════════════════════════════════════
+
+En server/scripts/forceSeed.ts, agregar después de usuarios:
+
+```typescript
+// Crear tabla clientes
+await client.query(`
+  CREATE TABLE IF NOT EXISTS clientes (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL,
+    rfc VARCHAR(13),
+    razon_social VARCHAR(255),
+    direccion TEXT,
+    email VARCHAR(255),
+    telefono VARCHAR(20),
+    giro VARCHAR(100),
+    sitio_web VARCHAR(255),
+    empresa_id INTEGER,
+    activo BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )
+`);
+console.log('✅ Tabla clientes verificada');
+```
+
+□ Seed actualizado
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Tabla clientes existe en BD
+□ Endpoint POST /api/clientes funciona
+□ Endpoint GET /api/clientes funciona
+□ Frontend llama al endpoint correcto
+□ Botón "Confirmar y Crear Cliente" crea el cliente
+□ Deploy ejecutado con cambios
+
+</TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+EJECUTAR TODO SIN PREGUNTAR
+═══════════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,252 @@
+1) Rol ajustado de A7_DEFENSA
+Rol central:
+A7 es el agente que transforma:
+•	dictámenes de A1, A3, A4, A5, A6,
+•	el historial de fases/candados de A2,
+•	y la documentación del proyecto,
+en un Defense File estructurado y, cuando aplica, en borradores de respuesta a requerimientos del SAT o insumos para acuerdos conclusivos.
+A7 no:
+•	inventa hechos ni genera documentos sin base en expedientes,
+•	reinterpreta la ley (eso ya viene de A3),
+•	decide la estrategia procesal (eso lo hace el abogado humano); pero sí construye el “esqueleto ideal” de expediente y argumentario para que el abogado trabaje más rápido.
+________________________________________
+2) Anclaje de A7 al flujo F0–F9
+F0–F5 – Construcción incremental de expediente
+•	A7 puede ir “observando” cómo se va armando el caso (A2 registra fases; A1, A3, A4, A5, A6 van generando dictámenes), pero su rol fuerte empieza cuando:
+F6 – VBC Fiscal/Legal y cierre técnico del servicio
+•	A7 recibe:
+o	dictamen A1 (razón de negocios),
+o	dictamen A3 (deducibilidad y riesgo fiscal),
+o	dictamen A4 (contrato),
+o	dictamen A5 (BEE financiero),
+o	reporte A6 (due diligence proveedor),
+o	logs de fases y candados (A2),
+o	documentación de ejecución (minutas, entregables, CFDI, pagos, etc.).
+•	Con esto puede generar una versión preliminar del Defense File.
+F7 – Auditoría interna / QA
+•	A7 participa junto con el rol de auditoría interna:
+o	identifica huecos en el expediente,
+o	propone acciones para cerrarlos antes de declarar el proyecto “cerrado”.
+F8 – Pago
+•	A7 no autoriza pago, pero verifica que el Defense File esté en un nivel mínimo aceptable antes de F8:
+o	si el pago se libera con expediente débil, A7 etiqueta esa situación para que conste en el histórico (y en el expediente).
+F9 – Seguimiento BEE
+•	A7 actualiza el Defense File con los resultados reales del servicio (de A1 y A5):
+o	incorpora informes post implementación,
+o	evidencia de uso,
+o	comparaciones BEE esperado vs logrado.
+•	Esto fortalece mucho la defensa futura.
+Además, A7 tiene un modo adicional:
+•	Modo Contencioso / Requerimiento SAT: cuando existe ya un oficio, revisa el Defense File existente y genera respuestas estructuradas.
+ 
+3) Inputs estructurados que A7 debe consumir
+Idealmente, A7 recibe un objeto de alto nivel, p.ej.:
+{
+  "proyecto": {
+    "proyectoId": "PROJ-123",
+    "empresa": { "razonSocial": "...", "rfc": "..." },
+    "tipologiaServicio": "MARKETING_DIGITAL",
+    "monto": 1200000,
+    "fechasClave": {
+      "inicio": "2026-03-01",
+      "fin": "2026-06-30"
+    }
+  },
+  "fases": { ... },            // estado F0–F9 y candados (de A2)
+  "dictamenEstrategico": { ... }, // A1
+  "dictamenFiscal": { ... },      // A3
+  "dictamenLegal": { ... },       // A4
+  "analisisFinanciero": { ... },  // A5
+  "ddProveedor": { ... },         // A6
+  "documentos": {
+    "contrato": "DOC-CON-001",
+    "sow": "DOC-SOW-001",
+    "actas": ["DOC-ACTA-ACEPT-001"],
+    "entregablesClave": ["DOC-INF-001", "DOC-MODELO-001"],
+    "cfdi": ["DOC-CFDI-001"],
+    "pagos": ["DOC-PAGO-001"],
+    "minutas": ["DOC-MINUTA-001", "DOC-MINUTA-002"],
+    "otros": ["DOC-..."]
+  }
+}
+Con esto puede construir la narrativa y el índice del Defense File de forma sistemática.
+ 
+4) Output estructurado de A7 (Defense File “JSON”)
+Antes de PDF/DOCX, A7 debería producir una representación estructurada:
+{
+  "defenseFile": {
+    "proyectoId": "PROJ-123",
+    "version": "1.0",
+    "fechaGeneracion": "2026-04-15",
+    "resumenEjecutivo": { ... },
+    "antecedentesContexto": { ... },
+    "razonNegocios": { ... },          // basado en A1
+    "beneficioEconomico": { ... },     // basado en A5
+    "evidenciaMaterialidad": { ... },  // lista de hechos/evidencias
+    "analisisFiscal": { ... },         // basado en A3
+    "analisisLegal": { ... },          // basado en A4
+    "dueDiligenceProveedor": { ... },  // basado en A6
+    "cronologiaEventos": [ ... ],
+    "matrizRiesgos": [ ... ],
+    "argumentacionDefensa": { ... },
+    "conclusiones": { ... },
+    "anexos": {
+      "contrato": ["DOC-CON-001"],
+      "sow": ["DOC-SOW-001"],
+      "cfdi": ["DOC-CFDI-001"],
+      "pagos": ["DOC-PAGO-001"],
+      "minutas": ["DOC-MINUTA-001", "DOC-MINUTA-002"],
+      "entregables": ["DOC-INF-001", "DOC-MODELO-001"],
+      "ddProveedor": ["DOC-DDPROV-001"],
+      "otros": []
+    }
+  }
+}
+Este JSON es lo que luego transformas a PDF/Word.
+ 
+5) Estructura refinada del Defense File (contenido)
+La estructura que ya tienes es buena; la ajusto para que encaje con tus agentes:
+1. Carátula y datos generales
+•	Empresa, RFC, proyecto, proveedor, monto, periodos, tipología.
+•	Responsable interno del proyecto.
+2. Índice
+•	Enumerar secciones y anexos.
+3. Resumen ejecutivo
+•	1–2 páginas máximo:
+o	Qué servicio se contrató.
+o	Por qué (razón de negocios).
+o	Cuánto costó y qué se obtuvo.
+o	Conclusión: ¿es defendible la deducción? Nivel de riesgo.
+4. Antecedentes y contexto
+•	breve descripción del negocio,
+•	contexto de mercado/regulatorio al momento de contratar,
+•	motivación general del proyecto.
+5. Razón de negocios (A1)
+•	Resumen del dictamen de A1 (no todo el dictamen; lo sustancial).
+•	Art. 5 A CFF en contexto (sin recitar la ley entera).
+•	Conexión con estrategia y OKRs.
+•	Supuestos clave de negocio.
+6. Beneficio económico (A5)
+•	Resumen de ROI/NPV/Payback (base y escenarios).
+•	Conexión con ingresos, ahorros o riesgos mitigados.
+•	Comentario de si los beneficios esperados justifican el gasto.
+7. Evidencia de materialidad
+Aquí A7 arma la Matriz de Materialidad:
+•	Hecho jurídico o económico
+•	Evidencia asociada (docId, tipo, fecha)
+•	Comentario (qué prueba y qué no)
+Ejemplo:
+Hecho	Evidencia	Comentario
+Se celebró contrato de servicios	CONTRATO DOC-CON-001	Objeto y alcance del servicio definidos para Q3 2026
+Se definieron entregables	SOW DOC-SOW-001	Lista de campañas, piezas, reportes esperados
+Se ejecutaron reuniones de trabajo	MINUTA 001, MINUTA 002	Muestran planeación y cambios de estrategia
+Se entregó informe final	INF 001	Resultados de la campaña, métricas
+Se emitió CFDI	CFDI 001	Concepto y montos congruentes
+Se pagó la factura	PAGO 001	Transferencia bancaria conforme a contrato
+8. Análisis fiscal (A3)
+•	Resumen del dictamen de A3:
+o	cumplimiento de Art. 25/27 LISR,
+o	CFDI y forma de pago,
+o	riesgo EFOS/69 B,
+o	conclusión sobre deducibilidad y nivel de defensa.
+9. Análisis legal (A4)
+•	Resumen del dictamen A4:
+o	validez formal,
+o	objeto/entregables,
+o	cláusulas de materialidad/cooperación,
+o	PI/confidencialidad,
+o	riesgos contractuales.
+10. Due diligence de proveedor (A6)
+•	Resumen del DD:
+o	nivel de riesgo del proveedor,
+o	verificación de existencia y capacidad,
+o	situación en listas SAT,
+o	condiciones aceptadas (si las hubo).
+Esto es clave para probar buena fe si el proveedor luego resulta EFOS.
+11. Cronología de eventos
+•	Línea de tiempo compacta:
+o	F0: fecha de solicitud y SIB.
+o	F1/F2: alta de proveedor, firma de contrato.
+o	F3–F5: ejecución y entregas.
+o	F6: emisión de dictámenes y VBC.
+o	F8: pago.
+o	F9: seguimiento BEE.
+12. Matriz de riesgos
+•	Riesgos fiscales, legales, de negocio, con probabilidad e impacto.
+•	Acciones de mitigación.
+13. Argumentación de defensa
+•	Estructura básica:
+1.	Hechos (qué pasó).
+2.	Pruebas (dónde está documentado).
+3.	Norma (artículos aplicables).
+4.	Conclusión (por qué es deducible y real).
+•	Preparar bullets para responder a objeciones típicas:
+o	“No es estrictamente indispensable”: remitir a A1+A5.
+o	“No hay materialidad”: remitir a matriz de materialidad.
+o	“Proveedor sin capacidad”: remitir a A6.
+14. Conclusiones y recomendaciones
+•	Conclusión de defensa (Fuerte / Moderada / Débil).
+•	Recomendación:
+o	sostener la deducción,
+o	autocorregir,
+o	reforzar documentación para futuro.
+15. Anexos documentales
+•	Indice de anexos con referencias a docIds y descripción.
+ 
+6) Modo “Respuesta a oficio SAT”
+Además del Defense File “en frío”, A7 debe tener un modo para cuando ya existe un requerimiento.
+INPUT adicional:
+{
+  "oficioSat": {
+    "numeroOficio": "500-XX-2026-12345",
+    "fecha": "2026-09-10",
+    "puntosCuestionados": [
+      "Se solicita acreditar materialidad del servicio de consultoría...",
+      "Se solicita acreditar razón de negocios...",
+      "Se solicita acreditar que el proveedor cuenta con capacidad..."
+    ]
+  },
+  "defenseFile": { ... }
+}
+Salida: estructura de respuesta:
+•	Para cada punto cuestionado:
+o	Hecho alegado por SAT.
+o	Hecho de la empresa.
+o	Prueba(s) (referencia a anexos).
+o	Norma aplicable (citas clave de A3/A4).
+o	Conclusión.
+Ejemplo textual:
+
+### Punto 1 – Materialidad del servicio de consultoría
+
+**Lo que solicita el SAT:**  
+“Acredite que el servicio de consultoría X se prestó efectivamente…”
+
+**Nuestra posición:**  
+El servicio de consultoría se prestó en el periodo [fechas] y consistió en [resumen de A1/A4].
+
+**Pruebas ofrecidas:**  
+1. Contrato de prestación de servicios (Anexo A‑1, DOC-CON-001).  
+2. SOW con descripción de entregables (Anexo A‑2, DOC-SOW-001).  
+3. Minutas de trabajo (Anexos B‑1 a B‑3, DOC-MINUTA-001 a 003).  
+4. Informe final del proyecto (Anexo C‑1, DOC-INF-001).  
+5. Evidencia de implementación (Anexos C‑2, C‑3).  
+6. CFDI emitido (Anexo D‑1, DOC-CFDI-001) y comprobante de pago (Anexo D‑2, DOC-PAGO-001).
+
+**Norma aplicable:**  
+Art. 27 LISR fracc. I y III; Art. 69‑B CFF (materialidad); Art. 5‑A CFF (razón de negocios) – ver análisis detallado en secciones 5, 6 y 8 del Defense File.
+
+**Conclusión:**  
+Del conjunto de pruebas se desprende que el servicio se prestó efectivamente, que tuvo un propósito de negocio identificado y que se pagó de manera congruente con el contrato, por lo que se acredita la materialidad solicitada.
+A7 no sustituye al abogado litigante, pero le entrega la materia prima muy ordenada.
+ 
+7) Integración clara de A7 con A1–A6 y A2
+•	Con A1, A3, A4, A5, A6:
+o	A7 no reinterpreta sus dictámenes; los resume y conecta.
+o	Si hay contradicciones (por ejemplo, A1 dice una cosa y A3 otra), A7 las marca como riesgo a corregir.
+•	Con A2:
+o	A7 se alimenta de los estados de fases y de las Decisiones de Excepción que A2 registró (saltos de F2, F6, F8).
+Esto permite que, en una auditoría, puedas mostrar incluso las decisiones que se tomaron a sabiendas del riesgo, lo cual puede ser importante para valorar la posición interna.
+ 
+Si te parece coherente este ajuste de A7_DEFENSA, el siguiente paso natural sería revisar Knowledge Base para asegurarnos de que soporta lo que los agentes realmente necesitan (NORMA vs INTERPRETACIÓN, vínculos a CFF/LISR/NOM 151, etc.), pero ya tendrías el núcleo multi agente (A1–A7) alineado y listo para implementar en la plataforma.
+

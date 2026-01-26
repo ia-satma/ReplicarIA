@@ -1,0 +1,658 @@
+{
+  "dashboard": {
+    "metadata": {
+      "nombre": "Dashboard Operativo Durezza",
+      "version": "1.0",
+      "descripcion": "Panel de control para seguimiento de diagnósticos de proveedores",
+      "ultima_actualizacion": "2025-01-20T14:30:00Z"
+    },
+    
+    "kpis": {
+      "diagnosticos_activos": {
+        "valor": 6,
+        "label": "Diagnósticos Activos",
+        "descripcion": "Proveedores con diagnóstico no culminado",
+        "icono": "clipboard-list",
+        "color": "#7C3AED"
+      },
+      "ajustes_solicitados": {
+        "valor": 54,
+        "label": "Ajustes Solicitados",
+        "descripcion": "Total de observaciones realizadas",
+        "icono": "alert-circle",
+        "color": "#F59E0B"
+      },
+      "ajustes_resueltos": {
+        "valor": 24,
+        "label": "Ajustes Resueltos",
+        "descripcion": "Observaciones atendidas",
+        "porcentaje": 44.4,
+        "icono": "check-circle",
+        "color": "#10B981"
+      },
+      "versiones_totales": {
+        "valor": 17,
+        "label": "Versiones Generadas",
+        "descripcion": "Iteraciones de Defense Files",
+        "icono": "file-text",
+        "color": "#3B82F6"
+      },
+      "monto_en_revision": {
+        "valor": 15200000,
+        "label": "Monto en Revisión",
+        "descripcion": "MXN en deducciones bajo análisis",
+        "formato": "currency",
+        "icono": "dollar-sign",
+        "color": "#5B21B6"
+      }
+    },
+    
+    "distribucion_riesgo": {
+      "critico": {
+        "cantidad": 1,
+        "label": "Crítico",
+        "color": "#EF4444",
+        "bg_color": "#FEE2E2",
+        "descripcion": "Requiere atención inmediata",
+        "icono": "alert-triangle"
+      },
+      "alto": {
+        "cantidad": 1,
+        "label": "Alto",
+        "color": "#F59E0B",
+        "bg_color": "#FEF3C7",
+        "descripcion": "Revisar esta semana",
+        "icono": "alert-circle"
+      },
+      "medio": {
+        "cantidad": 2,
+        "label": "Medio",
+        "color": "#3B82F6",
+        "bg_color": "#DBEAFE",
+        "descripcion": "Seguimiento normal",
+        "icono": "info"
+      },
+      "bajo": {
+        "cantidad": 2,
+        "label": "Bajo",
+        "color": "#10B981",
+        "bg_color": "#D1FAE5",
+        "descripcion": "En buen camino",
+        "icono": "check"
+      }
+    },
+    
+    "proveedores": [
+      {
+        "id": "PROV-001",
+        "nombre": "TechSoft Solutions SA de CV",
+        "rfc": "TSO150312AB1",
+        "proyecto": {
+          "id": "PROJ-2024-001",
+          "nombre": "Licencias ERP 2024",
+          "tipo": "software",
+          "monto": 2500000
+        },
+        "diagnostico": {
+          "estado": "en_proceso",
+          "fase_actual": {
+            "codigo": "A3",
+            "nombre": "Análisis Fiscal",
+            "orden": 3
+          },
+          "progreso": 65,
+          "fecha_inicio": "2024-11-15",
+          "ajustes": {
+            "solicitados": 8,
+            "resueltos": 5,
+            "pendientes": 3,
+            "detalle": [
+              {
+                "id": "ADJ-001-01",
+                "descripcion": "Falta contrato de licenciamiento original",
+                "fecha_solicitud": "2024-12-01",
+                "estado": "resuelto",
+                "fecha_resolucion": "2024-12-15"
+              },
+              {
+                "id": "ADJ-001-02",
+                "descripcion": "Complementar análisis de razón de negocios",
+                "fecha_solicitud": "2024-12-10",
+                "estado": "resuelto",
+                "fecha_resolucion": "2024-12-20"
+              },
+              {
+                "id": "ADJ-001-03",
+                "descripcion": "Incluir benchmarking de precios",
+                "fecha_solicitud": "2024-12-15",
+                "estado": "pendiente",
+                "fecha_resolucion": null
+              }
+            ]
+          },
+          "versiones": {
+            "cantidad": 3,
+            "historial": [
+              {
+                "version": "1.0",
+                "fecha": "2024-11-20",
+                "tipo": "inicial",
+                "notas": "Primera versión del Defense File"
+              },
+              {
+                "version": "1.1",
+                "fecha": "2024-12-05",
+                "tipo": "revision",
+                "notas": "Incorpora ajustes de documentación"
+              },
+              {
+                "version": "1.2",
+                "fecha": "2025-01-10",
+                "tipo": "revision",
+                "notas": "Actualiza análisis fiscal"
+              }
+            ]
+          },
+          "ultima_actualizacion": "2025-01-18T10:30:00Z",
+          "dias_sin_actividad": 2
+        },
+        "riesgo": {
+          "nivel": "medio",
+          "score": 45,
+          "factores": [
+            "Ajustes pendientes menores",
+            "Progreso adecuado"
+          ]
+        },
+        "responsable": {
+          "id": "USR-001",
+          "nombre": "María García",
+          "email": "maria.garcia@empresa.com"
+        },
+        "pcloud": {
+          "folder_id": "12345",
+          "path": "/Durezza/Empresas/EMPRESA-001/Proveedores/TSO150312AB1/",
+          "defense_file_url": "https://my.pcloud.com/publink/show?code=XYZ001"
+        }
+      },
+      {
+        "id": "PROV-002",
+        "nombre": "Cloud Services MX",
+        "rfc": "CSM180924XY2",
+        "proyecto": {
+          "id": "PROJ-2024-002",
+          "nombre": "Infraestructura Cloud Q4",
+          "tipo": "servicios_tecnologia",
+          "monto": 4200000
+        },
+        "diagnostico": {
+          "estado": "en_proceso",
+          "fase_actual": {
+            "codigo": "A6",
+            "nombre": "Revisión Documental",
+            "orden": 2
+          },
+          "progreso": 35,
+          "fecha_inicio": "2024-12-01",
+          "ajustes": {
+            "solicitados": 12,
+            "resueltos": 3,
+            "pendientes": 9,
+            "detalle": [
+              {
+                "id": "ADJ-002-01",
+                "descripcion": "Verificar estatus en lista 69-B",
+                "fecha_solicitud": "2024-12-10",
+                "estado": "resuelto",
+                "fecha_resolucion": "2024-12-12"
+              },
+              {
+                "id": "ADJ-002-02",
+                "descripcion": "Solicitar evidencia de entregables",
+                "fecha_solicitud": "2024-12-15",
+                "estado": "pendiente",
+                "fecha_resolucion": null
+              },
+              {
+                "id": "ADJ-002-03",
+                "descripcion": "Documentar materialidad del servicio",
+                "fecha_solicitud": "2024-12-20",
+                "estado": "pendiente",
+                "fecha_resolucion": null
+              }
+            ]
+          },
+          "versiones": {
+            "cantidad": 2,
+            "historial": [
+              {
+                "version": "1.0",
+                "fecha": "2024-12-10",
+                "tipo": "inicial",
+                "notas": "Primera versión"
+              },
+              {
+                "version": "1.1",
+                "fecha": "2025-01-05",
+                "tipo": "revision",
+                "notas": "Ajustes menores"
+              }
+            ]
+          },
+          "ultima_actualizacion": "2025-01-13T16:45:00Z",
+          "dias_sin_actividad": 7
+        },
+        "riesgo": {
+          "nivel": "alto",
+          "score": 72,
+          "factores": [
+            "Muchos ajustes pendientes",
+            "7 días sin actividad",
+            "Monto significativo"
+          ]
+        },
+        "responsable": {
+          "id": "USR-002",
+          "nombre": "Carlos López",
+          "email": "carlos.lopez@empresa.com"
+        },
+        "pcloud": {
+          "folder_id": "12346",
+          "path": "/Durezza/Empresas/EMPRESA-001/Proveedores/CSM180924XY2/",
+          "defense_file_url": "https://my.pcloud.com/publink/show?code=XYZ002"
+        }
+      },
+      {
+        "id": "PROV-003",
+        "nombre": "Digital Marketing Pro",
+        "rfc": "DMP200115ZZ3",
+        "proyecto": {
+          "id": "PROJ-2024-003",
+          "nombre": "Campaña Digital 2024",
+          "tipo": "marketing",
+          "monto": 850000
+        },
+        "diagnostico": {
+          "estado": "en_proceso",
+          "fase_actual": {
+            "codigo": "A7",
+            "nombre": "Validación Final",
+            "orden": 7
+          },
+          "progreso": 90,
+          "fecha_inicio": "2024-10-01",
+          "ajustes": {
+            "solicitados": 4,
+            "resueltos": 4,
+            "pendientes": 0,
+            "detalle": []
+          },
+          "versiones": {
+            "cantidad": 5,
+            "historial": [
+              {
+                "version": "1.0",
+                "fecha": "2024-10-15",
+                "tipo": "inicial",
+                "notas": "Primera versión"
+              },
+              {
+                "version": "2.0",
+                "fecha": "2025-01-15",
+                "tipo": "final",
+                "notas": "Versión para aprobación final"
+              }
+            ]
+          },
+          "ultima_actualizacion": "2025-01-19T09:00:00Z",
+          "dias_sin_actividad": 1
+        },
+        "riesgo": {
+          "nivel": "bajo",
+          "score": 15,
+          "factores": [
+            "Todos los ajustes resueltos",
+            "Progreso avanzado"
+          ]
+        },
+        "responsable": {
+          "id": "USR-001",
+          "nombre": "María García",
+          "email": "maria.garcia@empresa.com"
+        },
+        "pcloud": {
+          "folder_id": "12347",
+          "path": "/Durezza/Empresas/EMPRESA-001/Proveedores/DMP200115ZZ3/",
+          "defense_file_url": "https://my.pcloud.com/publink/show?code=XYZ003"
+        }
+      },
+      {
+        "id": "PROV-004",
+        "nombre": "Consultoría Estratégica SA",
+        "rfc": "CES190507AA4",
+        "proyecto": {
+          "id": "PROJ-2024-004",
+          "nombre": "Asesoría Fiscal Especial",
+          "tipo": "consultoria",
+          "monto": 1800000
+        },
+        "diagnostico": {
+          "estado": "en_proceso",
+          "fase_actual": {
+            "codigo": "A6",
+            "nombre": "Análisis Proveedor",
+            "orden": 1
+          },
+          "progreso": 20,
+          "fecha_inicio": "2024-12-15",
+          "ajustes": {
+            "solicitados": 15,
+            "resueltos": 2,
+            "pendientes": 13,
+            "detalle": [
+              {
+                "id": "ADJ-004-01",
+                "descripcion": "Proveedor no responde solicitud de información",
+                "fecha_solicitud": "2024-12-20",
+                "estado": "pendiente",
+                "fecha_resolucion": null,
+                "prioridad": "critica"
+              },
+              {
+                "id": "ADJ-004-02",
+                "descripcion": "Validar opinión de cumplimiento 32-D",
+                "fecha_solicitud": "2024-12-22",
+                "estado": "pendiente",
+                "fecha_resolucion": null,
+                "prioridad": "alta"
+              }
+            ]
+          },
+          "versiones": {
+            "cantidad": 1,
+            "historial": [
+              {
+                "version": "0.1",
+                "fecha": "2024-12-20",
+                "tipo": "borrador",
+                "notas": "Versión preliminar incompleta"
+              }
+            ]
+          },
+          "ultima_actualizacion": "2025-01-06T11:20:00Z",
+          "dias_sin_actividad": 14
+        },
+        "riesgo": {
+          "nivel": "critico",
+          "score": 92,
+          "factores": [
+            "14 días sin actividad",
+            "13 ajustes pendientes",
+            "Proveedor no responde",
+            "Progreso muy bajo"
+          ]
+        },
+        "responsable": {
+          "id": "USR-003",
+          "nombre": "Ana Martínez",
+          "email": "ana.martinez@empresa.com"
+        },
+        "pcloud": {
+          "folder_id": "12348",
+          "path": "/Durezza/Empresas/EMPRESA-001/Proveedores/CES190507AA4/",
+          "defense_file_url": null
+        },
+        "alertas": [
+          {
+            "tipo": "inactividad",
+            "mensaje": "14 días sin actualización",
+            "fecha": "2025-01-20T00:00:00Z",
+            "prioridad": "critica"
+          },
+          {
+            "tipo": "ajustes_pendientes",
+            "mensaje": "13 ajustes sin resolver",
+            "fecha": "2025-01-20T00:00:00Z",
+            "prioridad": "critica"
+          }
+        ]
+      },
+      {
+        "id": "PROV-005",
+        "nombre": "Software Factory MX",
+        "rfc": "SFM170823BB5",
+        "proyecto": {
+          "id": "PROJ-2024-005",
+          "nombre": "Desarrollo App Móvil",
+          "tipo": "desarrollo_software",
+          "monto": 3100000
+        },
+        "diagnostico": {
+          "estado": "en_proceso",
+          "fase_actual": {
+            "codigo": "A7",
+            "nombre": "Generación Defense File",
+            "orden": 6
+          },
+          "progreso": 85,
+          "fecha_inicio": "2024-09-15",
+          "ajustes": {
+            "solicitados": 6,
+            "resueltos": 6,
+            "pendientes": 0,
+            "detalle": []
+          },
+          "versiones": {
+            "cantidad": 4,
+            "historial": [
+              {
+                "version": "1.0",
+                "fecha": "2024-10-01",
+                "tipo": "inicial",
+                "notas": "Primera versión"
+              },
+              {
+                "version": "2.0",
+                "fecha": "2025-01-18",
+                "tipo": "revision",
+                "notas": "Versión con todos los ajustes incorporados"
+              }
+            ]
+          },
+          "ultima_actualizacion": "2025-01-20T08:15:00Z",
+          "dias_sin_actividad": 0
+        },
+        "riesgo": {
+          "nivel": "bajo",
+          "score": 12,
+          "factores": [
+            "Sin ajustes pendientes",
+            "Actividad hoy",
+            "Progreso avanzado"
+          ]
+        },
+        "responsable": {
+          "id": "USR-002",
+          "nombre": "Carlos López",
+          "email": "carlos.lopez@empresa.com"
+        },
+        "pcloud": {
+          "folder_id": "12349",
+          "path": "/Durezza/Empresas/EMPRESA-001/Proveedores/SFM170823BB5/",
+          "defense_file_url": "https://my.pcloud.com/publink/show?code=XYZ005"
+        }
+      },
+      {
+        "id": "PROV-006",
+        "nombre": "Data Analytics Corp",
+        "rfc": "DAC210302CC6",
+        "proyecto": {
+          "id": "PROJ-2024-006",
+          "nombre": "BI Dashboard Enterprise",
+          "tipo": "business_intelligence",
+          "monto": 2750000
+        },
+        "diagnostico": {
+          "estado": "en_proceso",
+          "fase_actual": {
+            "codigo": "A3",
+            "nombre": "Análisis Fiscal",
+            "orden": 3
+          },
+          "progreso": 50,
+          "fecha_inicio": "2024-11-01",
+          "ajustes": {
+            "solicitados": 9,
+            "resueltos": 4,
+            "pendientes": 5,
+            "detalle": [
+              {
+                "id": "ADJ-006-01",
+                "descripcion": "Completar análisis de sustancia económica",
+                "fecha_solicitud": "2025-01-10",
+                "estado": "pendiente",
+                "fecha_resolucion": null
+              }
+            ]
+          },
+          "versiones": {
+            "cantidad": 2,
+            "historial": [
+              {
+                "version": "1.0",
+                "fecha": "2024-11-15",
+                "tipo": "inicial",
+                "notas": "Primera versión"
+              },
+              {
+                "version": "1.1",
+                "fecha": "2025-01-10",
+                "tipo": "revision",
+                "notas": "Incorpora análisis preliminar"
+              }
+            ]
+          },
+          "ultima_actualizacion": "2025-01-15T14:00:00Z",
+          "dias_sin_actividad": 5
+        },
+        "riesgo": {
+          "nivel": "medio",
+          "score": 55,
+          "factores": [
+            "5 ajustes pendientes",
+            "5 días sin actividad"
+          ]
+        },
+        "responsable": {
+          "id": "USR-001",
+          "nombre": "María García",
+          "email": "maria.garcia@empresa.com"
+        },
+        "pcloud": {
+          "folder_id": "12350",
+          "path": "/Durezza/Empresas/EMPRESA-001/Proveedores/DAC210302CC6/",
+          "defense_file_url": "https://my.pcloud.com/publink/show?code=XYZ006"
+        }
+      }
+    ],
+    
+    "fases_diagnostico": [
+      {
+        "codigo": "A6",
+        "nombre": "Análisis Proveedor",
+        "orden": 1,
+        "descripcion": "Verificación de estatus fiscal del proveedor"
+      },
+      {
+        "codigo": "A6",
+        "nombre": "Revisión Documental",
+        "orden": 2,
+        "descripcion": "Recopilación y validación de documentos"
+      },
+      {
+        "codigo": "A3",
+        "nombre": "Análisis Fiscal",
+        "orden": 3,
+        "descripcion": "Evaluación de deducibilidad y cumplimiento"
+      },
+      {
+        "codigo": "A5",
+        "nombre": "Análisis Financiero",
+        "orden": 4,
+        "descripcion": "Validación de razonabilidad de montos"
+      },
+      {
+        "codigo": "A1",
+        "nombre": "Estrategia",
+        "orden": 5,
+        "descripcion": "Definición de argumentación"
+      },
+      {
+        "codigo": "A7",
+        "nombre": "Generación Defense File",
+        "orden": 6,
+        "descripcion": "Compilación del expediente de defensa"
+      },
+      {
+        "codigo": "A7",
+        "nombre": "Validación Final",
+        "orden": 7,
+        "descripcion": "Revisión final y aprobación"
+      },
+      {
+        "codigo": "COMPLETADO",
+        "nombre": "Diagnóstico Completado",
+        "orden": 8,
+        "descripcion": "Proceso finalizado"
+      }
+    ],
+    
+    "alertas_sistema": [
+      {
+        "id": "ALERT-001",
+        "tipo": "inactividad_critica",
+        "proveedor_id": "PROV-004",
+        "mensaje": "Consultoría Estratégica SA lleva 14 días sin actividad",
+        "prioridad": "critica",
+        "fecha": "2025-01-20T00:00:00Z",
+        "accion_recomendada": "Contactar al proveedor inmediatamente"
+      },
+      {
+        "id": "ALERT-002",
+        "tipo": "ajustes_excesivos",
+        "proveedor_id": "PROV-004",
+        "mensaje": "13 ajustes pendientes sin resolver",
+        "prioridad": "critica",
+        "fecha": "2025-01-20T00:00:00Z",
+        "accion_recomendada": "Escalar a supervisor"
+      },
+      {
+        "id": "ALERT-003",
+        "tipo": "inactividad_alta",
+        "proveedor_id": "PROV-002",
+        "mensaje": "Cloud Services MX lleva 7 días sin actividad",
+        "prioridad": "alta",
+        "fecha": "2025-01-20T00:00:00Z",
+        "accion_recomendada": "Dar seguimiento esta semana"
+      }
+    ],
+    
+    "filtros_disponibles": {
+      "estado": ["en_proceso", "completado", "pausado", "cancelado"],
+      "riesgo": ["critico", "alto", "medio", "bajo"],
+      "fase": ["analisis_proveedor", "revision_documental", "analisis_fiscal", "analisis_financiero", "estrategia", "defense_file", "validacion_final"],
+      "responsable": ["USR-001", "USR-002", "USR-003"],
+      "dias_sin_actividad": [0, 3, 7, 14, 30],
+      "con_ajustes_pendientes": true
+    },
+    
+    "configuracion_alertas": {
+      "dias_inactividad_warning": 7,
+      "dias_inactividad_critico": 14,
+      "ajustes_pendientes_warning": 5,
+      "ajustes_pendientes_critico": 10,
+      "notificar_por_email": true,
+      "notificar_en_dashboard": true
+    }
+  }
+}

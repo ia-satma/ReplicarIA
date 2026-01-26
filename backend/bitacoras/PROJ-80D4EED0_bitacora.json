@@ -1,0 +1,28 @@
+{
+  "project_id": "PROJ-80D4EED0",
+  "entries": [
+    {
+      "timestamp": "2026-01-23T17:28:42.188659+00:00",
+      "action": "email_sent",
+      "from_agent": "A1_SPONSOR",
+      "to_agent": "A3_FISCAL",
+      "email_subject": "[SATMA] Deliberación PROJ-80D4EED0: Estudio Prospectivo Macroeconómico y Regulatorio 2025",
+      "attachment_name": "IDPROJ-80D_A1_SPONSOR_Reporte_estrategia_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZQozK5Z2xflHUzWX7XOm2cFwwtDPVw2FSn7",
+      "recorded_at": "2026-01-23T17:28:42.188758+00:00",
+      "sequence_number": 1
+    },
+    {
+      "timestamp": "2026-01-23T17:29:30.120251+00:00",
+      "action": "email_sent",
+      "from_agent": "A3_FISCAL",
+      "to_agent": "A5_FINANZAS",
+      "email_subject": "[SATMA] Deliberación PROJ-80D4EED0: Estudio Prospectivo Macroeconómico y Regulatorio 2025",
+      "attachment_name": "IDPROJ-80D_A3_FISCAL_Reporte_fiscal_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZBozK5Zj04YsSvvnRyuB4oQlPYVO0d2a7FV",
+      "recorded_at": "2026-01-23T17:29:30.120327+00:00",
+      "sequence_number": 2
+    }
+  ],
+  "last_updated": "2026-01-23T17:29:30.120346+00:00"
+}

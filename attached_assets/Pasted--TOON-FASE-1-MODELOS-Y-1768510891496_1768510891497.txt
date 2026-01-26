@@ -1,0 +1,642 @@
+=============================================================================
+TOON FASE 1: MODELOS Y ESQUEMAS DE BASE DE DATOS
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta todas las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. SOLO EJECUTA.
+
+CONTEXTO: Estás construyendo una plataforma de auditoría fiscal de intangibles
+que evalúa proyectos de servicios (consultoría, software, marketing, intra-grupo)
+bajo cuatro pilares: razón de negocios, beneficio económico, materialidad y
+trazabilidad. El sistema tiene múltiples agentes que deliberan y un flujo de
+fases F0-F9 con candados de control.
+
+=============================================================================
+PASO 1: CREAR MODELO DE PROYECTO (Project)
+=============================================================================
+
+Crea el modelo/tabla "Project" con los siguientes campos:
+
+id: string UUID, clave primaria
+nombre: string, requerido, máximo 200 caracteres
+descripcion: text, requerido
+monto: decimal, requerido, mínimo 0
+moneda: string, default 'MXN'
+
+tipologia: enum con valores:
+  - 'CONSULTORIA_ESTRATEGICA'
+  - 'CONSULTORIA_MACRO_MERCADO'
+  - 'SOFTWARE_SAAS_DESARROLLO'
+  - 'MARKETING_BRANDING'
+  - 'INTRAGRUPO_MANAGEMENT_FEE'
+  - 'SERVICIOS_ESG_CUMPLIMIENTO'
+  - 'REESTRUCTURAS'
+  - 'OTROS'
+
+sponsor_interno: string, requerido
+area_solicitante: string
+proveedor_id: string, clave foránea a Supplier
+
+fase_actual: enum con valores 'F0','F1','F2','F3','F4','F5','F6','F7','F8','F9'
+  default 'F0'
+
+estado_global: enum con valores:
+  - 'PENDIENTE'
+  - 'APROBADO_ESTRATEGICO'
+  - 'APROBADO_CONDICIONAL'
+  - 'APROBADO_OPERATIVO'
+  - 'RECHAZADO'
+  - 'SOLICITAR_AJUSTES'
+  - 'CANCELADO'
+  default 'PENDIENTE'
+
+risk_score_total: integer, default 0, mínimo 0, máximo 100
+risk_score_razon_negocios: integer, default 0, mínimo 0, máximo 25
+risk_score_beneficio_economico: integer, default 0, mínimo 0, máximo 25
+risk_score_materialidad: integer, default 0, mínimo 0, máximo 25
+risk_score_trazabilidad: integer, default 0, mínimo 0, máximo 25
+
+bee_objetivo: text (Beneficio Económico Esperado - objetivo)
+bee_roi_esperado: decimal (ROI esperado, ej: 2.5 para 2.5x)
+bee_horizonte_meses: integer (horizonte temporal en meses)
+bee_indicadores_exito: json (array de strings con KPIs)
+
+vinculo_plan_estrategico: text (cómo se relaciona con plan estratégico)
+justificacion_necesidad: text
+
+requiere_revision_humana: boolean, default false
+revision_humana_obtenida: boolean, default false
+revisor_humano_nombre: string
+fecha_revision_humana: timestamp
+
+defense_file_id: string, clave foránea a DefenseFile
+
+created_at: timestamp, default now
+updated_at: timestamp, auto-update
+created_by: string
+updated_by: string
+
+Índices:
+- estado_global
+- fase_actual
+- tipologia
+- proveedor_id
+- created_at
+
+=============================================================================
+PASO 2: CREAR MODELO DE PROVEEDOR (Supplier)
+=============================================================================
+
+Crea el modelo/tabla "Supplier" con los siguientes campos:
+
+id: string UUID, clave primaria
+nombre_razon_social: string, requerido, máximo 300 caracteres
+nombre_comercial: string
+rfc: string, requerido, máximo 13 caracteres, único
+
+tipo_relacion: enum con valores:
+  - 'TERCERO_INDEPENDIENTE'
+  - 'PARTE_RELACIONADA_NACIONAL'
+  - 'PARTE_RELACIONADA_EXTRANJERA'
+  - 'INTRAGRUPO'
+  default 'TERCERO_INDEPENDIENTE'
+
+pais: string, default 'México'
+jurisdiccion: string
+direccion: text
+contacto_nombre: string
+contacto_email: string
+contacto_telefono: string
+
+historial_riesgo_score: integer, default 0, mínimo 0, máximo 100
+proyectos_previos_count: integer, default 0
+monto_acumulado_periodo: decimal, default 0
+ultimo_proyecto_fecha: timestamp
+
+alerta_efos: boolean, default false
+alerta_efos_fecha: timestamp
+alerta_efos_detalle: text
+
+alerta_lista_negra: boolean, default false
+alerta_tp_pendiente: boolean, default false
+notas_fiscales: text
+
+activo: boolean, default true
+created_at: timestamp, default now
+updated_at: timestamp, auto-update
+
+Índices:
+- rfc (único)
+- tipo_relacion
+- alerta_efos
+- activo
+
+=============================================================================
+PASO 3: CREAR MODELO DE FASE DE PROYECTO (ProjectPhase)
+=============================================================================
+
+Crea el modelo/tabla "ProjectPhase" con los siguientes campos:
+
+id: string UUID, clave primaria
+proyecto_id: string, clave foránea a Project, requerido
+
+fase: enum con valores 'F0','F1','F2','F3','F4','F5','F6','F7','F8','F9'
+  requerido
+
+estado: enum con valores:
+  - 'NO_INICIADA'
+  - 'EN_PROGRESO'
+  - 'COMPLETADA'
+  - 'BLOQUEADA'
+  - 'OMITIDA'
+  default 'NO_INICIADA'
+
+checklist_total_items: integer, default 0
+checklist_items_cumplidos: integer, default 0
+checklist_porcentaje: decimal, computed (items_cumplidos/total_items * 100)
+
+documentos_requeridos: json (array de objetos con nombre y obligatorio)
+documentos_entregados: json (array de objetos con nombre, fecha, ruta)
+
+decisiones_agentes: json (objeto con decisión por cada agente)
+condiciones_pendientes: json (array de strings)
+bloqueos_activos: json (array de strings)
+
+fecha_inicio: timestamp
+fecha_completado: timestamp
+dias_en_fase: integer, computed
+
+revisor_humano_requerido: boolean, default false
+revisor_humano_nombre: string
+revisor_humano_aprobacion: boolean
+fecha_aprobacion_humana: timestamp
+
+notas: text
+created_at: timestamp, default now
+updated_at: timestamp, auto-update
+
+Índices:
+- proyecto_id
+- fase
+- estado
+- (proyecto_id, fase) único
+
+=============================================================================
+PASO 4: CREAR MODELO DE DELIBERACIÓN DE AGENTE (AgentDeliberation)
+=============================================================================
+
+Crea el modelo/tabla "AgentDeliberation" con los siguientes campos:
+
+id: string UUID, clave primaria
+proyecto_id: string, clave foránea a Project, requerido
+fase: string, requerido
+
+agente: enum con valores:
+  - 'A1_SPONSOR'
+  - 'A2_PMO'
+  - 'A3_FISCAL'
+  - 'A4_LEGAL'
+  - 'A5_FINANZAS'
+  - 'A6_PROVEEDOR'
+  - 'A7_DEFENSA'
+  - 'SUB_TIPIFICACION'
+  - 'SUB_MATERIALIDAD'
+  - 'SUB_RIESGOS_ESPECIALES'
+  requerido
+
+version: integer, default 1 (para tracking de versiones de respuesta)
+
+decision: enum con valores:
+  - 'APROBAR'
+  - 'APROBAR_CONDICIONES'
+  - 'SOLICITAR_AJUSTES'
+  - 'RECHAZAR'
+  - 'PENDIENTE'
+  default 'PENDIENTE'
+
+analisis_completo: text, requerido
+  (el análisis narrativo completo, SIN LÍMITE DE CARACTERES)
+
+analisis_estructurado: json, requerido con estructura:
+  {
+    "conclusion_por_pilar": {
+      "razon_negocios": {
+        "status": "CONFORME|CONDICIONADO|NO_CONFORME",
+        "detalle": "string",
+        "riesgo_puntos": number (0-25)
+      },
+      "beneficio_economico": {
+        "status": "CONFORME|CONDICIONADO|NO_CONFORME",
+        "detalle": "string",
+        "riesgo_puntos": number (0-25)
+      },
+      "materialidad": {
+        "status": "CONFORME|EN_RIESGO|FALLA_CRITICA",
+        "detalle": "string",
+        "riesgo_puntos": number (0-25)
+      },
+      "trazabilidad": {
+        "status": "CONFORME|EN_RIESGO|FALLA_CRITICA",
+        "detalle": "string",
+        "riesgo_puntos": number (0-25)
+      }
+    },
+    "checklist_evidencia": [
+      {
+        "item": "string",
+        "obligatorio": boolean,
+        "estado": "PENDIENTE|ENTREGADO|INCONSISTENTE",
+        "fase_requerida": "string"
+      }
+    ],
+    "condiciones_avance_fase": ["string"],
+    "riesgos_subsistentes": ["string"]
+  }
+
+risk_score_calculado: integer (suma de los 4 pilares)
+
+requiere_validacion_humana: boolean, default false
+justificacion_validacion_humana: text
+validacion_humana_obtenida: boolean, default false
+validador_humano_nombre: string
+fecha_validacion_humana: timestamp
+
+prompt_utilizado: text (para auditoría del sistema)
+modelo_ia_utilizado: string
+tokens_input: integer
+tokens_output: integer
+tiempo_respuesta_ms: integer
+
+created_at: timestamp, default now
+updated_at: timestamp, auto-update
+
+Índices:
+- proyecto_id
+- agente
+- fase
+- decision
+- (proyecto_id, agente, fase, version) único
+
+=============================================================================
+PASO 5: CREAR MODELO DE DEFENSE FILE
+=============================================================================
+
+Crea el modelo/tabla "DefenseFile" con los siguientes campos:
+
+id: string UUID, clave primaria
+proyecto_id: string, clave foránea a Project, requerido, único
+
+documentos: json (array de objetos):
+  [
+    {
+      "id": "uuid",
+      "tipo": "SIB_BEE|SOW|CONTRATO|ANEXO_TECNICO|INFORME|MODELO_PARAMETRICO|
+               DASHBOARD|MANUAL|MINUTA|CRONOGRAMA|CFDI|COMPROBANTE_PAGO|
+               VBC_FISCAL|VBC_LEGAL|AUDITORIA_INTERNA|OTRO",
+      "nombre": "string",
+      "descripcion": "string",
+      "version": "string",
+      "fecha_documento": "timestamp",
+      "fecha_carga": "timestamp",
+      "ruta_archivo": "string",
+      "hash_integridad": "string (SHA-256)",
+      "tamano_bytes": number,
+      "fase_generado": "F0-F9",
+      "cargado_por": "string"
+    }
+  ]
+
+matriz_materialidad: json (array de objetos):
+  [
+    {
+      "hecho_relevante": "string",
+      "evidencia_vinculada": ["id_documento1", "id_documento2"],
+      "fase": "string",
+      "responsable": "PROVEEDOR|INTERNO|LEGAL|FISCAL",
+      "estado": "FALTA|OK|INCONSISTENTE",
+      "notas": "string"
+    }
+  ]
+
+matriz_materialidad_completitud: decimal (0-100)
+matriz_materialidad_items_ok: integer
+matriz_materialidad_items_total: integer
+
+resumen_aprobacion_global: json:
+  {
+    "estado_final": "string",
+    "fecha_aprobacion": "timestamp",
+    "decisiones_por_agente": {
+      "A1": { "decision": "string", "fecha": "timestamp" },
+      "A3": { "decision": "string", "fecha": "timestamp" },
+      "A4": { "decision": "string", "fecha": "timestamp" },
+      "A5": { "decision": "string", "fecha": "timestamp" }
+    },
+    "risk_score_final": number,
+    "condiciones_cumplidas": ["string"],
+    "observaciones": "string"
+  }
+
+indice_defendibilidad: integer (0-100)
+fortalezas_probatorias: json (array de strings)
+debilidades_identificadas: json (array de strings)
+recomendaciones_refuerzo: json (array de strings)
+
+vbc_fiscal_emitido: boolean, default false
+vbc_fiscal_fecha: timestamp
+vbc_fiscal_emitido_por: string
+
+vbc_legal_emitido: boolean, default false
+vbc_legal_fecha: timestamp
+vbc_legal_emitido_por: string
+
+auditoria_interna_completada: boolean, default false
+auditoria_interna_fecha: timestamp
+auditoria_interna_resultado: text
+
+created_at: timestamp, default now
+updated_at: timestamp, auto-update
+
+Índices:
+- proyecto_id (único)
+- vbc_fiscal_emitido
+- vbc_legal_emitido
+- indice_defendibilidad
+
+=============================================================================
+PASO 6: CREAR MODELO DE CHECKLIST POR TIPOLOGÍA (ChecklistTemplate)
+=============================================================================
+
+Crea el modelo/tabla "ChecklistTemplate" con los siguientes campos:
+
+id: string UUID, clave primaria
+
+tipologia: enum (mismos valores que Project.tipologia), requerido
+fase: enum 'F0'-'F9', requerido
+
+items: json (array de objetos):
+  [
+    {
+      "orden": number,
+      "descripcion": "string",
+      "obligatorio": boolean,
+      "tipo_documento_esperado": "string",
+      "responsable": "PROVEEDOR|INTERNO|LEGAL|FISCAL|FINANZAS",
+      "criterio_aceptacion": "string",
+      "ayuda_contextual": "string"
+    }
+  ]
+
+total_items: integer
+items_obligatorios: integer
+
+activo: boolean, default true
+created_at: timestamp, default now
+updated_at: timestamp, auto-update
+
+Índices:
+- (tipologia, fase) único
+- activo
+
+=============================================================================
+PASO 7: CREAR MODELO DE CONFIGURACIÓN DE AGENTE (AgentConfig)
+=============================================================================
+
+Crea el modelo/tabla "AgentConfig" con los siguientes campos:
+
+id: string UUID, clave primaria
+
+agente: enum (mismos valores que AgentDeliberation.agente), requerido, único
+
+nombre_display: string, requerido
+descripcion_rol: text, requerido
+
+contexto_requerido: json (array de strings con los campos que necesita):
+  ["proyecto.id", "proyecto.nombre", "proveedor.rfc", etc.]
+
+normativa_relevante: json (array de strings):
+  ["CFF_5A", "CFF_69B", "LISR_27", "NOM_151", "RMF", etc.]
+
+output_schema: json (estructura esperada de la respuesta)
+
+plantilla_respuesta: text (template markdown para formatear la respuesta)
+
+fases_donde_participa: json (array de strings):
+  ["F0", "F1", "F2", etc.]
+
+puede_bloquear_avance: boolean, default false
+puede_aprobar_final: boolean, default false
+requiere_validacion_humana_default: boolean, default false
+
+modelo_ia_preferido: string, default 'gpt-4'
+temperatura: decimal, default 0.3
+max_tokens: integer, default 4000
+
+activo: boolean, default true
+created_at: timestamp, default now
+updated_at: timestamp, auto-update
+
+Índices:
+- agente (único)
+- activo
+
+=============================================================================
+PASO 8: CREAR MODELO DE DOCUMENTO (Document)
+=============================================================================
+
+Crea el modelo/tabla "Document" con los siguientes campos:
+
+id: string UUID, clave primaria
+proyecto_id: string, clave foránea a Project, requerido
+defense_file_id: string, clave foránea a DefenseFile
+
+tipo: enum con valores:
+  - 'SIB_BEE'
+  - 'SOW'
+  - 'CONTRATO'
+  - 'ANEXO_TECNICO'
+  - 'INFORME'
+  - 'MODELO_PARAMETRICO'
+  - 'DASHBOARD'
+  - 'MANUAL'
+  - 'MINUTA'
+  - 'CRONOGRAMA'
+  - 'CFDI'
+  - 'COMPROBANTE_PAGO'
+  - 'VBC_FISCAL'
+  - 'VBC_LEGAL'
+  - 'AUDITORIA_INTERNA'
+  - 'EVIDENCIA_EJECUCION'
+  - 'OTRO'
+  requerido
+
+nombre: string, requerido, máximo 500 caracteres
+descripcion: text
+version: string, default '1.0'
+fecha_documento: timestamp
+fase_asociada: enum 'F0'-'F9'
+
+ruta_archivo: string, requerido
+nombre_archivo_original: string
+extension: string
+mime_type: string
+tamano_bytes: integer
+
+hash_sha256: string (para verificar integridad)
+hash_calculado_fecha: timestamp
+
+cargado_por: string
+validado_por: string
+fecha_validacion: timestamp
+es_version_final: boolean, default false
+
+metadata: json (información adicional específica por tipo)
+
+activo: boolean, default true
+created_at: timestamp, default now
+updated_at: timestamp, auto-update
+
+Índices:
+- proyecto_id
+- defense_file_id
+- tipo
+- fase_asociada
+- (proyecto_id, tipo, version)
+
+=============================================================================
+PASO 9: CREAR MODELO DE HISTORIAL/LOG (AuditLog)
+=============================================================================
+
+Crea el modelo/tabla "AuditLog" con los siguientes campos:
+
+id: string UUID, clave primaria
+proyecto_id: string, clave foránea a Project (puede ser null)
+
+accion: enum con valores:
+  - 'PROYECTO_CREADO'
+  - 'PROYECTO_ACTUALIZADO'
+  - 'FASE_INICIADA'
+  - 'FASE_COMPLETADA'
+  - 'FASE_BLOQUEADA'
+  - 'AGENTE_DELIBERACION'
+  - 'DOCUMENTO_CARGADO'
+  - 'DOCUMENTO_VALIDADO'
+  - 'VBC_EMITIDO'
+  - 'REVISION_HUMANA_SOLICITADA'
+  - 'REVISION_HUMANA_COMPLETADA'
+  - 'RISK_SCORE_CALCULADO'
+  - 'ESTADO_CAMBIADO'
+  - 'ERROR_SISTEMA'
+  requerido
+
+entidad_tipo: string (nombre del modelo afectado)
+entidad_id: string (id del registro afectado)
+
+descripcion: text, requerido
+datos_antes: json
+datos_despues: json
+diff: json
+
+usuario: string
+ip_address: string
+user_agent: string
+
+created_at: timestamp, default now
+
+Índices:
+- proyecto_id
+- accion
+- entidad_tipo
+- created_at
+- usuario
+
+=============================================================================
+PASO 10: CREAR RELACIONES Y CONSTRAINTS
+=============================================================================
+
+Establece las siguientes relaciones:
+
+1. Project -> Supplier (N:1)
+   - proyecto.proveedor_id referencia supplier.id
+   - ON DELETE RESTRICT
+
+2. Project -> DefenseFile (1:1)
+   - proyecto.defense_file_id referencia defense_file.id
+   - defense_file.proyecto_id referencia proyecto.id
+   - ON DELETE CASCADE
+
+3. Project -> ProjectPhase (1:N)
+   - project_phase.proyecto_id referencia proyecto.id
+   - ON DELETE CASCADE
+
+4. Project -> AgentDeliberation (1:N)
+   - agent_deliberation.proyecto_id referencia proyecto.id
+   - ON DELETE CASCADE
+
+5. Project -> Document (1:N)
+   - document.proyecto_id referencia proyecto.id
+   - ON DELETE CASCADE
+
+6. DefenseFile -> Document (1:N)
+   - document.defense_file_id referencia defense_file.id
+   - ON DELETE SET NULL
+
+=============================================================================
+PASO 11: CREAR SEEDS/DATOS INICIALES PARA ChecklistTemplate
+=============================================================================
+
+Inserta registros iniciales en ChecklistTemplate para la tipología
+'CONSULTORIA_MACRO_MERCADO' (el tipo más común según el diagnóstico).
+Solo crea los de las fases F0, F1, F2, F5, F6, F8 por ahora:
+
+Para F0:
+- SIB con objetivo económico específico (obligatorio)
+- BEE con ROI estimado y horizonte temporal (obligatorio)
+- Vinculación con Plan Estratégico documentada (obligatorio)
+- Evaluación inicial de riesgo fiscal (obligatorio)
+
+Para F1:
+- SOW con objeto y alcance específico (obligatorio)
+- Lista de entregables nominales (obligatorio)
+- Esquema de honorarios/hitos (obligatorio)
+- Criterios de aceptación preliminares (obligatorio)
+
+Para F2:
+- Confirmación de presupuesto (obligatorio)
+- Revisión humana si umbral aplica (condicional)
+
+Para F5:
+- Informe final integrado (obligatorio)
+- Modelo paramétrico/cuantitativo (obligatorio)
+- Manual metodológico (obligatorio)
+- Acta de aceptación técnica (obligatorio)
+
+Para F6:
+- Matriz de materialidad completa (obligatorio)
+- Contrato/anexo final firmado (obligatorio)
+- VBC Fiscal emitido (obligatorio)
+- VBC Legal emitido (obligatorio)
+
+Para F8:
+- CFDI con descripción específica (obligatorio)
+- Comprobante de pago (obligatorio)
+- Conciliación contable (obligatorio)
+- 3-way match validado (obligatorio)
+
+=============================================================================
+PASO 12: VERIFICACIÓN
+=============================================================================
+
+Al terminar, ejecuta queries de verificación:
+
+1. Listar todas las tablas creadas
+2. Verificar que cada tabla tenga sus índices
+3. Verificar que las relaciones/foreign keys estén correctas
+4. Confirmar que los seeds de ChecklistTemplate se insertaron
+5. Crear un proyecto de prueba para validar que todo funciona
+
+Si algún paso falla, corregirlo antes de continuar.
+
+=============================================================================
+FIN FASE 1
+=============================================================================

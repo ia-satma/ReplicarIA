@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-01-24T19:03:40.306753",
+  "checks": {
+    "database": true,
+    "orchestrator": true,
+    "claude": false,
+    "e2e": true
+  },
+  "metrics": {
+    "table_deliberations": 0,
+    "table_knowledge_chunks": 0,
+    "table_projects": 0,
+    "table_empresas": 0,
+    "agents": 10,
+    "e2e_latency_ms": 1510.0121659997967
+  },
+  "errors": [
+    "Claude: \"Could not resolve authentication method. Expected either api_key or auth_token to be set. Or for one of the `X-Api-Key` or `Authorization` headers to be explicitly omitted\""
+  ],
+  "percentages": {
+    "implementation": 100.0,
+    "functionality": 66.66666666666666,
+    "frontend": 66.66666666666666
+  }
+}

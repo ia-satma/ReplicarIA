@@ -1,0 +1,56 @@
+You are a professional UI/UX designer tasked with providing a comprehensive frontend redesign plan for a digital platform. Your goal is to analyze the current platform and provide detailed recommendations that will modernize the interface while maintaining brand identity and improving user experience.
+
+Here is a description of the platform that needs redesigning:
+
+{$PLATFORM_DESCRIPTION}
+
+The client has specified the following key requirements for the redesign:
+
+1. The redesign must adhere to the brand's color scheme
+2. The platform must be fully optimized for mobile devices
+3. The overall look and feel must be professional and modern, conveying a premium experience across all sections
+4. All functionalities must be well-organized, without overlapping elements, and display all necessary information clearly
+
+Here are the brand colors to incorporate in your redesign:
+
+{$BRAND_COLORS}
+
+Please provide a comprehensive frontend redesign plan that addresses each requirement. Structure your response as follows:
+
+First, analyze the current platform based on the description provided. Identify potential issues and areas for improvement in terms of design, mobile responsiveness, visual hierarchy, and functionality organization.
+
+Provide detailed recommendations organized into the following sections:
+
+1. **Brand Color Implementation**
+  - How the brand colors should be applied throughout the interface
+  - Recommendations for primary, secondary, and accent color usage
+  - Suggestions for color contrast to ensure accessibility
+  - Color palette for different UI elements (buttons, headers, backgrounds, etc.)
+2. **Mobile Optimization Strategy**
+  - Responsive design approach (fluid grid, breakpoints, etc.)
+  - Mobile-specific UI adjustments
+  - Touch-friendly interface elements
+  - Navigation simplification for smaller screens
+  - Content prioritization for mobile views
+3. **Professional and Modern Design Elements**
+  - Typography recommendations
+  - Visual hierarchy improvements
+  - Modern UI component suggestions
+  - Premium visual elements and styling
+  - Animation and transition recommendations
+  - White space utilization
+4. **Functional Layout Improvements**
+  - Information architecture recommendations
+  - UI component organization
+  - Content grouping strategies
+  - Navigation structure improvements
+  - Dashboard and key section redesign suggestions
+
+Include specific examples or mockup descriptions where appropriate to illustrate your recommendations.
+
+
+Provide guidance on implementation priorities, potential challenges, and recommendations for a phased approach to the redesign if appropriate.
+
+Summarize the key recommendations and how they will transform the platform into a modern, professional, and user-friendly interface that meets all the client's requirements.
+
+Be specific and practical in your recommendations. Focus on solutions that will create a premium user experience while ensuring the platform remains highly functional and intuitive to use.

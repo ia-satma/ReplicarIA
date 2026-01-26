@@ -1,0 +1,486 @@
+Entendido perfectamente. El usuario necesita un ZIP con todos sus archivos reales (PDFs, Word, imágenes, videos) NO un JSON técnico. Dame el TOON:
+
+```
+TOON: CORREGIR DESCARGA DE EXPEDIENTE - ZIP CON ARCHIVOS REALES
+
+EL PROBLEMA:
+Usuario hace clic en "Descargar Expediente" → Recibe JSON de 76 bytes
+Usuario NECESITA → ZIP con PDFs, Word, imágenes, videos, todo el Defense File
+
+================================================================================
+PASO 1: INSTALAR DEPENDENCIA PARA CREAR ZIP
+================================================================================
+
+```bash
+npm install archiver
+npm install -D @types/archiver
+```
+
+================================================================================
+PASO 2: CREAR/REEMPLAZAR ENDPOINT DE DESCARGA
+================================================================================
+
+BUSCAR el archivo que maneja la descarga (puede ser expediente.ts, download.ts, defenseFile.ts)
+
+REEMPLAZAR TODO EL ENDPOINT CON ESTO:
+
+```typescript
+// server/routes/expediente.ts (o donde esté)
+
+import { Router } from 'express';
+import archiver from 'archiver';
+import path from 'path';
+import fs from 'fs';
+import { db } from '../db';
+
+const router = Router();
+
+// GET /api/expediente/:proyectoId/download
+router.get('/:proyectoId/download', async (req, res) => {
+  try {
+    const { proyectoId } = req.params;
+    
+    console.log(`📦 Generando expediente para proyecto: ${proyectoId}`);
+
+    // 1. Obtener datos del proyecto
+    const proyecto = await db.query(
+      'SELECT * FROM proyectos WHERE id = $1',
+      [proyectoId]
+    );
+    
+    if (proyecto.rows.length === 0) {
+      return res.status(404).json({ error: 'Proyecto no encontrado' });
+    }
+    
+    const proy = proyecto.rows[0];
+
+    // 2. Obtener proveedor
+    const proveedor = await db.query(
+      'SELECT * FROM proveedores WHERE id = $1',
+      [proy.proveedor_id]
+    );
+    const prov = proveedor.rows[0] || { nombre: 'Proveedor', rfc: 'RFC' };
+
+    // 3. Obtener empresa
+    const empresa = await db.query(
+      'SELECT * FROM empresas WHERE id = $1',
+      [proy.empresa_id]
+    );
+    const emp = empresa.rows[0] || { nombre: 'Empresa', rfc: 'RFC' };
+
+    // 4. Obtener TODOS los documentos del proyecto
+    const documentos = await db.query(
+      'SELECT * FROM documentos WHERE proyecto_id = $1 OR proveedor_id = $2',
+      [proyectoId, proy.proveedor_id]
+    );
+
+    // 5. Obtener análisis de agentes
+    const analisis = await db.query(
+      'SELECT * FROM analisis WHERE proyecto_id = $1',
+      [proyectoId]
+    );
+
+    // === CREAR ZIP ===
+    
+    const nombreZip = `DefenseFile_${prov.rfc}_${new Date().toISOString().split('T')[0]}.zip`;
+    
+    // Headers para descarga de archivo
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreZip}"`);
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+
+    // Crear archiver
+    const archive = archiver('zip', {
+      zlib: { level: 5 } // Nivel de compresión
+    });
+
+    // Manejar errores
+    archive.on('error', (err) => {
+      console.error('❌ Error creando ZIP:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Error generando expediente' });
+      }
+    });
+
+    archive.on('warning', (err) => {
+      console.warn('⚠️ Warning en ZIP:', err);
+    });
+
+    // Pipe al response
+    archive.pipe(res);
+
+    // === AGREGAR ARCHIVOS AL ZIP ===
+
+    let archivosAgregados = 0;
+
+    // 1. ÍNDICE DEL EXPEDIENTE (TXT)
+    const indice = `
+════════════════════════════════════════════════════════════════════════════════
+                         EXPEDIENTE DE DEFENSA FISCAL
+                              REVISAR.IA
+════════════════════════════════════════════════════════════════════════════════
+
+Fecha de generación: ${new Date().toLocaleDateString('es-MX', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })}
+
+────────────────────────────────────────────────────────────────────────────────
+                              DATOS DE LA EMPRESA
+────────────────────────────────────────────────────────────────────────────────
+Razón Social: ${emp.nombre || 'N/A'}
+RFC: ${emp.rfc || 'N/A'}
+Email: ${emp.email || 'N/A'}
+
+────────────────────────────────────────────────────────────────────────────────
+                             DATOS DEL PROVEEDOR
+────────────────────────────────────────────────────────────────────────────────
+Razón Social: ${prov.nombre || 'N/A'}
+RFC: ${prov.rfc || 'N/A'}
+Tipo de Servicio: ${prov.tipo_servicio || proy.tipo_intangible || 'N/A'}
+Monto: $${(proy.monto || 0).toLocaleString('es-MX')} MXN
+
+────────────────────────────────────────────────────────────────────────────────
+                              DATOS DEL PROYECTO
+────────────────────────────────────────────────────────────────────────────────
+Nombre: ${proy.nombre || 'N/A'}
+Descripción: ${proy.descripcion || 'N/A'}
+Estado: ${proy.estado || 'N/A'}
+Progreso: ${proy.progreso || 0}%
+Versión: ${proy.version || '1.0'}
+
+────────────────────────────────────────────────────────────────────────────────
+                          CONTENIDO DEL EXPEDIENTE
+────────────────────────────────────────────────────────────────────────────────
+
+📁 00_INDICE.txt                    ← Este archivo
+📁 01_Defense_File/                 ← Documento principal de defensa
+📁 02_Contratos/                    ← Contratos y convenios
+📁 03_Facturas_CFDI/                ← Comprobantes fiscales
+📁 04_Evidencias/                   ← Fotos, videos, entregables
+📁 05_Analisis_Agentes/             ← Reportes de análisis IA
+📁 06_Documentos_Soporte/           ← Otros documentos
+
+────────────────────────────────────────────────────────────────────────────────
+                              DOCUMENTOS INCLUIDOS
+────────────────────────────────────────────────────────────────────────────────
+${documentos.rows.map((d: any, i: number) => `${i + 1}. ${d.nombre_original} (${d.tipo || 'documento'})`).join('\n') || 'Sin documentos adicionales'}
+
+════════════════════════════════════════════════════════════════════════════════
+                    Generado automáticamente por Revisar.IA
+                     Sistema de Auditoría Fiscal Inteligente
+════════════════════════════════════════════════════════════════════════════════
+`;
+
+    archive.append(indice, { name: '00_INDICE.txt' });
+    archivosAgregados++;
+    console.log('✅ Agregado: 00_INDICE.txt');
+
+    // 2. DEFENSE FILE PDF (si existe)
+    if (proy.defense_file_path && fs.existsSync(proy.defense_file_path)) {
+      archive.file(proy.defense_file_path, { 
+        name: `01_Defense_File/DefenseFile_${prov.rfc}.pdf` 
+      });
+      archivosAgregados++;
+      console.log('✅ Agregado: Defense File PDF');
+    }
+
+    // 3. DOCUMENTOS DEL PROYECTO
+    for (const doc of documentos.rows) {
+      // Determinar carpeta según tipo
+      let carpeta = '06_Documentos_Soporte';
+      const tipoLower = (doc.tipo || '').toLowerCase();
+      const nombreLower = (doc.nombre_original || '').toLowerCase();
+      
+      if (tipoLower.includes('contrato') || nombreLower.includes('contrato')) {
+        carpeta = '02_Contratos';
+      } else if (tipoLower.includes('factura') || tipoLower.includes('cfdi') || nombreLower.includes('factura')) {
+        carpeta = '03_Facturas_CFDI';
+      } else if (tipoLower.includes('imagen') || tipoLower.includes('video') || tipoLower.includes('evidencia') ||
+                 nombreLower.endsWith('.jpg') || nombreLower.endsWith('.png') || nombreLower.endsWith('.mp4')) {
+        carpeta = '04_Evidencias';
+      }
+
+      // Verificar si el archivo existe localmente
+      if (doc.ruta_local && fs.existsSync(doc.ruta_local)) {
+        archive.file(doc.ruta_local, { 
+          name: `${carpeta}/${doc.nombre_original}` 
+        });
+        archivosAgregados++;
+        console.log(`✅ Agregado: ${carpeta}/${doc.nombre_original}`);
+      } 
+      // Si está en otra ruta
+      else if (doc.archivo_path && fs.existsSync(doc.archivo_path)) {
+        archive.file(doc.archivo_path, { 
+          name: `${carpeta}/${doc.nombre_original}` 
+        });
+        archivosAgregados++;
+        console.log(`✅ Agregado: ${carpeta}/${doc.nombre_original}`);
+      }
+      // Si tenemos el contenido en base64 o buffer
+      else if (doc.contenido) {
+        const buffer = Buffer.isBuffer(doc.contenido) 
+          ? doc.contenido 
+          : Buffer.from(doc.contenido, 'base64');
+        archive.append(buffer, { 
+          name: `${carpeta}/${doc.nombre_original}` 
+        });
+        archivosAgregados++;
+        console.log(`✅ Agregado (buffer): ${carpeta}/${doc.nombre_original}`);
+      }
+    }
+
+    // 4. ANÁLISIS DE AGENTES (como PDFs o TXT legibles)
+    for (const a of analisis.rows) {
+      const resultado = typeof a.resultado === 'string' 
+        ? JSON.parse(a.resultado) 
+        : a.resultado;
+      
+      // Crear un resumen legible del análisis
+      const resumenAnalisis = `
+════════════════════════════════════════════════════════════════════════════════
+                    REPORTE DE ANÁLISIS - AGENTE ${a.agente}
+════════════════════════════════════════════════════════════════════════════════
+
+Fecha de análisis: ${new Date(a.timestamp || a.created_at).toLocaleDateString('es-MX')}
+Agente: ${a.agente}
+
+────────────────────────────────────────────────────────────────────────────────
+                              RESULTADOS
+────────────────────────────────────────────────────────────────────────────────
+
+${formatearResultadoAgente(a.agente, resultado)}
+
+════════════════════════════════════════════════════════════════════════════════
+`;
+
+      archive.append(resumenAnalisis, { 
+        name: `05_Analisis_Agentes/Analisis_${a.agente}.txt` 
+      });
+      archivosAgregados++;
+      console.log(`✅ Agregado: Analisis_${a.agente}.txt`);
+    }
+
+    // 5. Si hay carpeta de uploads del proyecto, agregar todo
+    const uploadsPath = path.join('/tmp/uploads', proyectoId);
+    if (fs.existsSync(uploadsPath)) {
+      archive.directory(uploadsPath, '04_Evidencias');
+      console.log('✅ Agregada carpeta de uploads');
+    }
+
+    // Finalizar y enviar
+    console.log(`📦 Total archivos en ZIP: ${archivosAgregados}`);
+    await archive.finalize();
+
+  } catch (error: any) {
+    console.error('❌ Error generando expediente:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+});
+
+// Función para formatear resultados de agentes de forma legible
+function formatearResultadoAgente(agente: string, resultado: any): string {
+  if (!resultado) return 'Sin resultados disponibles';
+
+  try {
+    switch (agente) {
+      case 'A6':
+        return `
+VERIFICACIÓN DE PROVEEDOR
+─────────────────────────
+• Lista 69-B (EFOS): ${resultado.enLista69B ? '⚠️ SÍ APARECE' : '✅ NO APARECE'}
+• Opinión 32-D: ${resultado.opinion32DValida ? '✅ POSITIVA' : '⚠️ NEGATIVA/PENDIENTE'}
+• Estatus Fiscal: ${resultado.estatusFiscal || 'N/A'}
+• Nivel de Riesgo: ${resultado.nivelRiesgo || 'N/A'}
+
+Observaciones:
+${resultado.observaciones?.join('\n') || 'Ninguna'}
+`;
+
+      case 'A3':
+        return `
+ANÁLISIS FISCAL
+───────────────
+• Deducible: ${resultado.esDeducible ? '✅ SÍ' : '❌ NO'}
+• Fundamento Legal: ${resultado.fundamentoLegal || 'N/A'}
+• Requisitos Cumplidos: ${resultado.requisitosCumplidos || 'N/A'}
+
+Riesgos Identificados:
+${resultado.riesgosIdentificados?.map((r: string) => `• ${r}`).join('\n') || 'Ninguno'}
+
+Recomendaciones:
+${resultado.recomendaciones?.map((r: string) => `• ${r}`).join('\n') || 'Ninguna'}
+`;
+
+      case 'A5':
+        return `
+ANÁLISIS FINANCIERO
+───────────────────
+• Monto Razonable: ${resultado.montoRazonable ? '✅ SÍ' : '⚠️ REVISAR'}
+• Rango de Mercado: $${resultado.rangoBenchmark?.min?.toLocaleString()} - $${resultado.rangoBenchmark?.max?.toLocaleString()}
+• Desviación: ${resultado.desviacionPorcentaje || 0}%
+
+Conclusión:
+${resultado.conclusion || 'N/A'}
+`;
+
+      case 'A1':
+        return `
+ESTRATEGIA DE DEFENSA
+─────────────────────
+• Score Razón de Negocios: ${resultado.razonNegociosScore || 0}/100
+• Estrategia Principal: ${resultado.estrategiaPrincipal || 'N/A'}
+
+Argumentos de Defensa:
+${resultado.argumentos?.map((a: string, i: number) => `${i + 1}. ${a}`).join('\n') || 'Ninguno'}
+`;
+
+      default:
+        return JSON.stringify(resultado, null, 2);
+    }
+  } catch (e) {
+    return JSON.stringify(resultado, null, 2);
+  }
+}
+
+export default router;
+```
+
+================================================================================
+PASO 3: VERIFICAR QUE LA RUTA ESTÉ REGISTRADA
+================================================================================
+
+En server/index.ts:
+
+```typescript
+import expedienteRoutes from './routes/expediente';
+
+// IMPORTANTE: Esta ruta debe estar DESPUÉS del middleware de autenticación
+app.use('/api/expediente', expedienteRoutes);
+```
+
+================================================================================
+PASO 4: ACTUALIZAR EL BOTÓN EN EL FRONTEND
+================================================================================
+
+BUSCAR el componente con el botón "Descargar Expediente" y REEMPLAZAR:
+
+```tsx
+const handleDescargarExpediente = async () => {
+  try {
+    setDescargando(true);
+    
+    // IMPORTANTE: Usar window.open o crear link para descarga directa
+    const url = `/api/expediente/${proyectoId}/download`;
+    
+    // Opción 1: Abrir en nueva pestaña (el navegador descargará automáticamente)
+    window.open(url, '_blank');
+    
+    // Opción 2: Fetch y crear blob (más control)
+    /*
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Error descargando');
+    }
+    
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = `DefenseFile_${proveedorRfc}_${new Date().toISOString().split('T')[0]}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(downloadUrl);
+    */
+    
+  } catch (error: any) {
+    console.error('Error:', error);
+    alert('Error al descargar expediente: ' + error.message);
+  } finally {
+    setDescargando(false);
+  }
+};
+
+// El botón
+<button
+  onClick={handleDescargarExpediente}
+  disabled={descargando}
+  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-xl hover:shadow-lg transition"
+>
+  {descargando ? (
+    <>
+      <Loader2 className="w-5 h-5 animate-spin" />
+      Generando...
+    </>
+  ) : (
+    <>
+      <Download className="w-5 h-5" />
+      Descargar Expediente
+    </>
+  )}
+</button>
+```
+
+================================================================================
+PASO 5: VERIFICAR RUTAS DE ARCHIVOS EN LA BASE DE DATOS
+================================================================================
+
+Ejecutar esta query para ver dónde están guardados los archivos:
+
+```sql
+SELECT 
+  id,
+  nombre_original,
+  tipo,
+  ruta_local,
+  archivo_path,
+  pcloud_link
+FROM documentos 
+WHERE proyecto_id = 'TU_PROYECTO_ID'
+ORDER BY fecha_subida DESC;
+```
+
+Si las rutas están vacías o incorrectas, ese es el problema.
+
+================================================================================
+RESULTADO ESPERADO
+================================================================================
+
+Cuando el usuario haga clic en "Descargar Expediente", recibirá:
+
+DefenseFile_RFC123456789_2025-01-20.zip
+├── 00_INDICE.txt
+├── 01_Defense_File/
+│   └── DefenseFile_RFC123456789.pdf
+├── 02_Contratos/
+│   ├── Contrato_Servicios.pdf
+│   └── Anexo_Tecnico.docx
+├── 03_Facturas_CFDI/
+│   ├── Factura_A001.pdf
+│   └── Factura_A002.xml
+├── 04_Evidencias/
+│   ├── Foto_Entrega_01.jpg
+│   ├── Video_Instalacion.mp4
+│   └── Reporte_Final.pdf
+├── 05_Analisis_Agentes/
+│   ├── Analisis_A1.txt
+│   ├── Analisis_A3.txt
+│   ├── Analisis_A5.txt
+│   └── Analisis_A6.txt
+└── 06_Documentos_Soporte/
+    └── Otros_Documentos.pdf
+
+================================================================================
+EJECUTAR AHORA. NO PREGUNTAR.
+================================================================================
+```

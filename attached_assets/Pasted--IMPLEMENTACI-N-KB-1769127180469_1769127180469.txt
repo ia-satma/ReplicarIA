@@ -1,0 +1,392 @@
+═══════════════════════════════════════════════════════════════════════════════
+📚 IMPLEMENTACIÓN KB LEGAL COMPLETA - CHECKLIST DE CARGA
+═══════════════════════════════════════════════════════════════════════════════
+
+Este documento combina:
+1. Qué leyes descargar y de dónde
+2. Qué artículos específicos indexar
+3. Cómo estructurarlos con tags
+4. Orden de prioridad
+
+═══════════════════════════════════════════════════════════════════════════════
+CAPA 1: NÚCLEO FISCAL FEDERAL (IMPRESCINDIBLE)
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1.1 CÓDIGO FISCAL DE LA FEDERACIÓN (CFF)                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ URL: https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf                   │
+│ Archivo KB: kb_legal/CFF/CODIGO_FISCAL_FEDERACION.md                        │
+│ Prioridad: ⭐⭐⭐ CRÍTICA                                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ARTÍCULOS A INDEXAR:                                                        │
+│                                                                             │
+│ @CFF_5     │ Interpretación de normas fiscales    │ A3, A7        │ Alta   │
+│ @CFF_5A    │ Razón de negocios                    │ A1,A3,A5,A7   │ CRÍTICA│
+│ @CFF_27    │ RFC y avisos                         │ A6            │ Media  │
+│ @CFF_29    │ Obligación expedir CFDI              │ A3            │ CRÍTICA│
+│ @CFF_29A   │ Requisitos de CFDI                   │ A3            │ CRÍTICA│
+│ @CFF_32D   │ Opinión de cumplimiento              │ A6            │ Alta   │
+│ @CFF_69    │ Contribuyentes incumplidos           │ A3, A6        │ Alta   │
+│ @CFF_69B   │ EFOS/EDOS y materialidad             │ A3,A6,A7      │ CRÍTICA│
+│ @CFF_69B_B │ Transmisión indebida de pérdidas     │ A7            │ Media  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1.2 LEY DEL IMPUESTO SOBRE LA RENTA (LISR)                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ URL: https://www.diputados.gob.mx/LeyesBiblio/pdf/LISR.pdf                  │
+│ Archivo KB: kb_legal/LISR/LEY_IMPUESTO_SOBRE_RENTA.md                       │
+│ Prioridad: ⭐⭐⭐ CRÍTICA                                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ARTÍCULOS A INDEXAR:                                                        │
+│                                                                             │
+│ @LISR_25      │ Deducciones autorizadas (completo)  │ A3         │ Alta   │
+│ @LISR_27_I    │ Estrictamente indispensables        │ A1,A3,A5,A7│ CRÍTICA│
+│ @LISR_27_III  │ Amparadas con CFDI                  │ A3         │ CRÍTICA│
+│ @LISR_27_IV   │ Forma de pago (>$2,000 bancarizado) │ A3, A5     │ CRÍTICA│
+│ @LISR_27_V    │ Retenciones                         │ A3         │ Alta   │
+│ @LISR_27_VIII │ Honorarios / arrendamiento          │ A3         │ Alta   │
+│ @LISR_27_XVIII│ Registro en contabilidad            │ A3         │ Alta   │
+│ @LISR_27_XIX  │ Partes relacionadas                 │ A3,A5,A7   │ CRÍTICA│
+│ @LISR_28      │ Gastos NO deducibles (completo)     │ A3         │ Alta   │
+│ @LISR_28_III  │ Obsequios, atenciones               │ A3         │ Media  │
+│ @LISR_28_V    │ Viáticos sin comprobante            │ A3         │ Media  │
+│ @LISR_28_XVII │ Pagos a partes rel. sin actividad   │ A3, A7     │ Alta   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1.3 LEY DEL IMPUESTO AL VALOR AGREGADO (LIVA)                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ URL: https://www.diputados.gob.mx/LeyesBiblio/pdf/LIVA.pdf                  │
+│ Archivo KB: kb_legal/LIVA/LEY_IVA.md                                        │
+│ Prioridad: ⭐⭐⭐ CRÍTICA                                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ARTÍCULOS A INDEXAR:                                                        │
+│                                                                             │
+│ @LIVA_5      │ Requisitos acreditamiento IVA       │ A3, A5      │ CRÍTICA│
+│ @LIVA_5_I    │ IVA efectivamente pagado            │ A3          │ CRÍTICA│
+│ @LIVA_5_II   │ Indispensable para actividad        │ A3          │ Alta   │
+│ @LIVA_5_III  │ Trasladado expresamente             │ A3          │ Alta   │
+│ @LIVA_5_IV   │ Retenciones enteradas               │ A3          │ Alta   │
+│ @LIVA_14     │ Prestación de servicios             │ A3          │ Media  │
+│ @LIVA_15     │ Servicios exentos                   │ A3          │ Media  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1.4 RESOLUCIÓN MISCELÁNEA FISCAL (RMF) + ANEXOS                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ URL: http://omawww.sat.gob.mx/normatividad_RMF_RGCE/                        │
+│ Archivo KB: kb_legal/RMF/RMF_2026.md (ya existe en KB)                      │
+│ Prioridad: ⭐⭐ ALTA                                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ REGLAS A INDEXAR:                                                           │
+│                                                                             │
+│ Reglas de CFDI (emisión, cancelación, plazos, complementos)                 │
+│ Reglas de opinión 32-D (procedimiento, vigencia)                            │
+│ Reglas de retenciones por servicios                                         │
+│ Anexo 20 (CFDI estructura)                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1.5 LEY DE INGRESOS DE LA FEDERACIÓN (LIF)                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ URL: (varía por año) Ya existe en KB para 2026                              │
+│ Archivo KB: LEY_DE_INGRESOS_DE_LA_FEDERACION_PARA_EL_EJERCICIO_FISCAL_...   │
+│ Prioridad: ⭐⭐ ALTA                                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ARTÍCULOS A INDEXAR:                                                        │
+│                                                                             │
+│ @LIF_RECARGOS │ Tasas de recargos                  │ A3, A7      │ Alta   │
+│ @LIF_ACTUALI  │ Actualización                      │ A3, A7      │ Alta   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+CAPA 2: NORMATIVA DE SOPORTE (MUY RECOMENDADA)
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2.1 NOM-151-SCFI-2016 (Conservación de mensajes de datos)                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ URL: Descargar desde DOF (Diario Oficial de la Federación)                  │
+│ Archivo KB: kb_legal/OTRAS/NOM_151_SCFI_2016.md                             │
+│ Prioridad: ⭐⭐ ALTA                                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Uso en plataforma:                                                          │
+│ • A2/A7: Trazabilidad, fecha cierta, integridad de evidencia digital        │
+│ • A4: Cláusulas contractuales de conservación electrónica                   │
+│ • Defense File: Validar que logs y hashes cumplen estándares                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ SECCIONES A INDEXAR:                                                        │
+│                                                                             │
+│ @NOM151_MSG   │ Definición de mensaje de datos     │ A2, A7      │ Alta   │
+│ @NOM151_CONS  │ Constancia de conservación         │ A2, A7      │ Alta   │
+│ @NOM151_PROB  │ Requisitos valor probatorio        │ A7          │ Alta   │
+│ @NOM151_INTEG │ Integridad (hash, timestamp)       │ A2          │ Alta   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2.2 LEY FEDERAL DE PROCEDIMIENTO CONTENCIOSO ADMINISTRATIVO (LFPCA)         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ URL: https://www.diputados.gob.mx/LeyesBiblio/pdf/LFPCA.pdf                 │
+│ Archivo KB: Ya existe como .md en KB                                        │
+│ Prioridad: ⭐⭐ ALTA (para A7)                                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ARTÍCULOS A INDEXAR:                                                        │
+│                                                                             │
+│ @LFPCA_DEMANDA│ Requisitos de demanda de nulidad   │ A7          │ Alta   │
+│ @LFPCA_PLAZOS │ Plazos procesales                  │ A7          │ Alta   │
+│ @LFPCA_PRUEBAS│ Medios de prueba admisibles        │ A7          │ Alta   │
+│ @LFPCA_VALOR  │ Valoración de pruebas              │ A7          │ Alta   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2.3 LEY ORGÁNICA DEL TFJA (LOTFJA)                                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ URL: https://www.diputados.gob.mx/LeyesBiblio/pdf/LOTFJA.pdf                │
+│ Archivo KB: Ya existe como .md en KB                                        │
+│ Prioridad: ⭐ MEDIA                                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ @LOTFJA_COMP  │ Competencia del Tribunal           │ A7          │ Media  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2.4 LEY FEDERAL DE DERECHOS DEL CONTRIBUYENTE (LFDC)                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ URL: https://www.diputados.gob.mx/LeyesBiblio/pdf/LFDC.pdf                  │
+│ Archivo KB: kb_legal/OTRAS/LFDC.md                                          │
+│ Prioridad: ⭐⭐ ALTA                                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ @LFDC_INFO    │ Derecho a información              │ A7          │ Alta   │
+│ @LFDC_AUDIEN  │ Derecho de audiencia               │ A7          │ Alta   │
+│ @LFDC_MOTIVA  │ Derecho a resolución motivada      │ A7          │ Alta   │
+│ @LFDC_BUENAFE │ Presunción de buena fe             │ A7          │ Alta   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+CAPA 3: COMPLEMENTOS SEGÚN RIESGOS
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 3.1 LFPIORPI (Prevención de lavado de dinero)                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ URL: https://www.diputados.gob.mx/LeyesBiblio/pdf/LFPIORPI.pdf              │
+│ Archivo KB: Ya existe como .md en KB                                        │
+│ Prioridad: ⭐ MEDIA (según tipo de cliente)                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ @LFPIORPI_VULN│ Actividades vulnerables            │ A6, A7      │ Media  │
+│ @LFPIORPI_AVS │ Obligación de avisos               │ A6          │ Media  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 3.2 LEY DEL SAT                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ URL: https://www.diputados.gob.mx/LeyesBiblio/pdf/93_041218.pdf             │
+│ Prioridad: ⭐ BAJA                                                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ @LSAT_FAC     │ Facultades del SAT                 │ A7          │ Baja   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+CAPA 4: JURISPRUDENCIA Y TESIS
+═══════════════════════════════════════════════════════════════════════════════
+
+Fuente: Semanario Judicial de la Federación (https://sjf.scjn.gob.mx)
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 4.1 TESIS IA - SCJN (OBLIGATORIA)                                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Registro: 2031639                                                           │
+│ Tesis: II.2o.C. J/1 K (12a.)                                                │
+│ Archivo KB: kb_legal/TESIS/TESIS_SCJN_IA_HERRAMIENTA_AUXILIAR.md           │
+│ Prioridad: ⭐⭐⭐ CRÍTICA                                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Uso: Legitimar uso de IA como auxiliar técnico en todo el sistema          │
+│ @TESIS_IA_SCJN                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 4.2 TESIS RAZÓN DE NEGOCIOS (2-3 tesis)                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Archivo KB: kb_legal/TESIS/TESIS_RAZON_NEGOCIOS_5A_CFF.md                   │
+│ Prioridad: ⭐⭐⭐ CRÍTICA                                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Buscar en Semanario:                                                        │
+│ • "razón de negocios" + "5-A" + "CFF"                                       │
+│ • "beneficio económico razonablemente esperado"                             │
+│ • "recaracterización fiscal"                                                │
+│                                                                             │
+│ @TESIS_RN_001, @TESIS_RN_002, @TESIS_RN_003                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 4.3 TESIS MATERIALIDAD / EFOS (2-3 tesis)                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Archivo KB: kb_legal/TESIS/TESIS_MATERIALIDAD_69B_CFF.md                    │
+│ Prioridad: ⭐⭐⭐ CRÍTICA                                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Buscar en Semanario:                                                        │
+│ • "69-B" + "materialidad"                                                   │
+│ • "operaciones inexistentes" + "carga de la prueba"                         │
+│ • "presunción de inexistencia" + "desvirtuación"                            │
+│                                                                             │
+│ @TESIS_MAT_001, @TESIS_MAT_002, @TESIS_MAT_003                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 4.4 TESIS ESTRICTA INDISPENSABILIDAD (2-3 tesis)                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Archivo KB: kb_legal/TESIS/TESIS_ESTRICTA_INDISPENSABILIDAD_LISR27.md      │
+│ Prioridad: ⭐⭐ ALTA                                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Buscar en Semanario:                                                        │
+│ • "estrictamente indispensable" + "deducción"                               │
+│ • "artículo 27" + "fracción I" + "LISR"                                     │
+│ • "relación con la actividad"                                               │
+│                                                                             │
+│ @TESIS_IND_001, @TESIS_IND_002                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST DE IMPLEMENTACIÓN POR FASES
+═══════════════════════════════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 1: ESTA SEMANA (Mínimo para funcionar)
+═══════════════════════════════════════════════════════════════════════════════
+
+□ 1. Crear tabla kb_articulos_legales (SQL del TOON anterior)
+
+□ 2. Descargar PDFs:
+   □ CFF: https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf
+   □ LISR: https://www.diputados.gob.mx/LeyesBiblio/pdf/LISR.pdf
+   □ LIVA: https://www.diputados.gob.mx/LeyesBiblio/pdf/LIVA.pdf
+
+□ 3. Crear documentos KB con artículos críticos:
+   □ CFF_ART_5A_RAZON_NEGOCIOS.md
+   □ CFF_ART_69B_EFOS_MATERIALIDAD.md
+   □ CFF_ART_29_29A_CFDI.md
+   □ LISR_ART_27_REQUISITOS_DEDUCCIONES.md (todas las fracciones)
+   □ LIVA_ART_5_ACREDITAMIENTO_IVA.md
+
+□ 4. Insertar tags en BD (10 tags críticos)
+
+□ 5. Descargar tesis IA SCJN (Registro 2031639)
+   □ Crear TESIS_SCJN_IA_HERRAMIENTA_AUXILIAR.md
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 2: SIGUIENTE SEMANA
+═══════════════════════════════════════════════════════════════════════════════
+
+□ 1. Documentos adicionales CFF:
+   □ CFF_ART_5_INTERPRETACION.md
+   □ CFF_ART_32D_OPINION_CUMPLIMIENTO.md
+   □ CFF_ART_69_INCUMPLIDOS.md
+
+□ 2. Descargar y crear:
+   □ NOM-151-SCFI-2016 (desde DOF)
+   □ LFPCA puntos clave para defensa
+
+□ 3. Buscar y documentar tesis:
+   □ 2-3 tesis razón de negocios
+   □ 2-3 tesis materialidad/69-B
+   □ 2-3 tesis estricta indispensabilidad
+
+□ 4. Integrar tags en prompts de agentes:
+   □ A3 (Revisar.IA) - checklist de deducibilidad
+   □ A7 (Auditar.IA) - fundamentos para Defense File
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 3: DESPUÉS
+═══════════════════════════════════════════════════════════════════════════════
+
+□ LISR Art. 28 (gastos no deducibles) - fracciones relevantes
+□ LFDC (derechos del contribuyente)
+□ LFPIORPI (actividades vulnerables)
+□ RMF reglas específicas de CFDI
+□ Reglamentos (CFF, LISR, LIVA)
+
+═══════════════════════════════════════════════════════════════════════════════
+MAPEO: QUÉ AGENTE USA QUÉ ARTÍCULOS
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────┬────────────────────────────────────────────────────────────────────┐
+│ AGENTE  │ ARTÍCULOS QUE DEBE CONOCER                                         │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│ A1      │ @CFF_5A, @LISR_27_I, @LISR_27_XIX                                  │
+│ Facturar│ (Razón de negocios, indispensabilidad, partes relacionadas)        │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│ A2      │ @NOM151_*, @TESIS_IA_SCJN                                          │
+│ Bibliot.│ (Trazabilidad, valor probatorio, legitimidad IA)                   │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│ A3      │ @CFF_5, @CFF_5A, @CFF_29A, @CFF_69B                                │
+│ Revisar │ @LISR_27_I, @LISR_27_III, @LISR_27_IV, @LISR_27_XIX               │
+│         │ @LISR_28, @LIVA_5                                                  │
+│         │ (TODOS los de deducciones - es el agente central)                  │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│ A4      │ @NOM151_*, @CFF_5A                                                 │
+│ Calcular│ (Contratos, conservación, razón de negocios)                       │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│ A5      │ @CFF_5A, @LISR_27_I, @LISR_27_IV, @LISR_27_XIX, @LIVA_5           │
+│ Investig│ (Análisis económico, flujos, partes relacionadas)                  │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│ A6      │ @CFF_32D, @CFF_69, @CFF_69B, @LFPIORPI_VULN                       │
+│ Trafico │ (Verificación proveedores, listas, actividades vulnerables)        │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│ A7      │ TODOS + @LFPCA_*, @LFDC_*, @LOTFJA_*, @TESIS_*                    │
+│ Auditar │ (Defense File necesita conocer todo el marco legal)                │
+└─────────┴────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+INSTRUCCIÓN PARA REPLIT
+═══════════════════════════════════════════════════════════════════════════════
+
+```
+IMPLEMENTA LA KB LEGAL siguiendo el TOON_KB_LEGAL_IMPLEMENTACION.txt
+
+FASE 1 - ESTA SEMANA:
+
+1. Ejecuta el SQL para crear la tabla kb_articulos_legales
+
+2. Descarga estos 3 PDFs y súbelos a la KB:
+   - CFF: https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf
+   - LISR: https://www.diputados.gob.mx/LeyesBiblio/pdf/LISR.pdf
+   - LIVA: https://www.diputados.gob.mx/LeyesBiblio/pdf/LIVA.pdf
+
+3. Crea los archivos markdown con el formato [NORMA] + [INTERPRETACIÓN]:
+   - CFF_ART_5A_RAZON_NEGOCIOS.md
+   - CFF_ART_69B_EFOS_MATERIALIDAD.md
+   - LISR_ART_27_REQUISITOS_DEDUCCIONES.md
+   - LIVA_ART_5_ACREDITAMIENTO_IVA.md
+
+4. Inserta los 10 tags críticos en la tabla kb_articulos_legales
+
+5. Modifica el prompt de A3 para usar los tags (@LISR_27_I, @CFF_69B, etc.)
+
+MUÉSTRAME:
+- Que la tabla existe y tiene los tags
+- Que los documentos están en la KB
+- Que A3 puede citar los fundamentos correctamente
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+RESUMEN: 10 TAGS CRÍTICOS PARA COMENZAR
+═══════════════════════════════════════════════════════════════════════════════
+
+| # | Tag           | Artículo          | Para qué                        |
+|---|---------------|-------------------|----------------------------------|
+| 1 | @CFF_5A       | CFF Art. 5-A      | Razón de negocios               |
+| 2 | @CFF_69B      | CFF Art. 69-B     | EFOS/Materialidad               |
+| 3 | @CFF_29A      | CFF Art. 29-A     | Requisitos CFDI                 |
+| 4 | @CFF_32D      | CFF Art. 32-D     | Opinión cumplimiento            |
+| 5 | @LISR_27_I    | LISR Art. 27-I    | Estrictamente indispensable     |
+| 6 | @LISR_27_III  | LISR Art. 27-III  | Amparado con CFDI               |
+| 7 | @LISR_27_IV   | LISR Art. 27-IV   | Forma de pago (bancarizado)     |
+| 8 | @LISR_27_XIX  | LISR Art. 27-XIX  | Partes relacionadas             |
+| 9 | @LISR_28      | LISR Art. 28      | No deducibles                   |
+|10 | @LIVA_5       | LIVA Art. 5       | Acreditamiento IVA              |
+
+Con estos 10 tags, los agentes pueden fundamentar el 90% de los análisis
+de deducibilidad de servicios profesionales.
+
+═══════════════════════════════════════════════════════════════════════════════

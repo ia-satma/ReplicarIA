@@ -1,0 +1,818 @@
+Veo 3 problemas. Te doy los TOONs para cada uno:
+
+```
+TOON: CORREGIR 3 ERRORES CRÍTICOS EN REVISAR.IA
+
+================================================================================
+PROBLEMA 1: ERROR "Body is disturbed or locked" EN TEMPLATES RAG
+================================================================================
+
+CAUSA: El body del request se está leyendo múltiples veces antes de llegar al handler.
+
+BUSCAR en server/index.ts o app.ts y CORREGIR:
+
+```typescript
+// ❌ INCORRECTO - Múltiples parsers o middleware que leen el body
+app.use(express.json());
+app.use(bodyParser.json()); // QUITAR ESTO - DUPLICADO
+app.use(express.urlencoded({ extended: true }));
+
+// ❌ INCORRECTO - Middleware que consume el stream
+app.use(async (req, res, next) => {
+  const body = await req.json(); // ESTO ROMPE TODO
+  next();
+});
+```
+
+SOLUCIÓN:
+
+```typescript
+// ✅ CORRECTO - Solo UN parser de JSON
+import express from 'express';
+
+const app = express();
+
+// SOLO ESTOS, sin duplicar
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// NO usar bodyParser - express.json() ya lo incluye
+// NO leer req.body antes del handler
+```
+
+TAMBIÉN BUSCAR en las rutas de RAG/templates:
+
+```typescript
+// ❌ INCORRECTO
+router.post('/templates', async (req, res) => {
+  const data = await req.json(); // ERROR - ya está parseado
+});
+
+// ✅ CORRECTO
+router.post('/templates', async (req, res) => {
+  const data = req.body; // Ya está parseado por express.json()
+  
+  if (!data || Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'Body vacío' });
+  }
+  
+  // continuar...
+});
+```
+
+SI USA FETCH INTERNO, verificar que no lea el body dos veces:
+
+```typescript
+// ❌ INCORRECTO
+const response = await fetch(url, { method: 'POST', body: req.body });
+
+// ✅ CORRECTO  
+const response = await fetch(url, { 
+  method: 'POST', 
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(req.body) 
+});
+```
+
+================================================================================
+PROBLEMA 2: DESCARGA JSON EN LUGAR DE CARPETA CON DEFENSE FILE
+================================================================================
+
+CAUSA: El endpoint de descarga retorna JSON en lugar de generar un ZIP con los archivos.
+
+BUSCAR el endpoint de descarga (probablemente /api/expediente/download o similar)
+
+REEMPLAZAR CON:
+
+```typescript
+// server/routes/expediente.ts
+
+import archiver from 'archiver';
+import path from 'path';
+import fs from 'fs';
+
+// GET /api/expediente/:proyectoId/download
+router.get('/:proyectoId/download', async (req, res) => {
+  try {
+    const { proyectoId } = req.params;
+    
+    // Obtener datos del proyecto
+    const proyecto = await db.proyectos.findById(proyectoId);
+    if (!proyecto) {
+      return res.status(404).json({ error: 'Proyecto no encontrado' });
+    }
+
+    // Obtener proveedor y empresa
+    const proveedor = await db.proveedores.findById(proyecto.proveedorId);
+    const empresa = await db.empresas.findById(proyecto.empresaId);
+
+    // Obtener documentos del proyecto
+    const documentos = await db.documentos.findByProyecto(proyectoId);
+    const analisis = await db.analisis.findByProyecto(proyectoId);
+
+    // Crear nombre del archivo ZIP
+    const zipFileName = `DefenseFile_${proveedor?.rfc || 'PROV'}_${Date.now()}.zip`;
+
+    // Configurar headers para descarga
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}"`);
+
+    // Crear archivo ZIP
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    
+    // Manejar errores
+    archive.on('error', (err) => {
+      console.error('Error creando ZIP:', err);
+      res.status(500).json({ error: 'Error generando expediente' });
+    });
+
+    // Pipe al response
+    archive.pipe(res);
+
+    // === AGREGAR ARCHIVOS AL ZIP ===
+
+    // 1. Crear archivo de resumen (índice)
+    const resumen = generarResumenExpediente(proyecto, proveedor, empresa, analisis);
+    archive.append(resumen, { name: '00_INDICE_EXPEDIENTE.txt' });
+
+    // 2. Agregar Defense File PDF si existe
+    if (proyecto.defenseFilePath && fs.existsSync(proyecto.defenseFilePath)) {
+      archive.file(proyecto.defenseFilePath, { name: `01_DefenseFile_${proveedor?.rfc}.pdf` });
+    }
+
+    // 3. Crear carpeta con análisis de agentes
+    for (const a of analisis) {
+      const contenido = JSON.stringify(a.resultado, null, 2);
+      archive.append(contenido, { name: `02_Analisis/${a.agente}_analisis.json` });
+    }
+
+    // 4. Agregar documentos subidos
+    for (let i = 0; i < documentos.length; i++) {
+      const doc = documentos[i];
+      if (doc.rutaLocal && fs.existsSync(doc.rutaLocal)) {
+        archive.file(doc.rutaLocal, { name: `03_Documentos/${doc.nombreOriginal}` });
+      }
+    }
+
+    // 5. Crear archivo con datos del proveedor
+    const datosProveedor = JSON.stringify({
+      nombre: proveedor?.nombre,
+      rfc: proveedor?.rfc,
+      tipoServicio: proveedor?.tipoServicio,
+      monto: proyecto.monto,
+      fechaContrato: proveedor?.fechaContrato,
+      verificaciones: {
+        lista69B: proyecto.verificacion69B,
+        opinion32D: proyecto.opinion32D
+      }
+    }, null, 2);
+    archive.append(datosProveedor, { name: '04_Datos/proveedor.json' });
+
+    // 6. Crear archivo con datos de la empresa
+    const datosEmpresa = JSON.stringify({
+      nombre: empresa?.nombre,
+      rfc: empresa?.rfc,
+      email: empresa?.email
+    }, null, 2);
+    archive.append(datosEmpresa, { name: '04_Datos/empresa.json' });
+
+    // Finalizar ZIP
+    await archive.finalize();
+
+  } catch (error: any) {
+    console.error('Error descargando expediente:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+});
+
+// Función auxiliar para generar resumen
+function generarResumenExpediente(proyecto: any, proveedor: any, empresa: any, analisis: any[]): string {
+  const fecha = new Date().toLocaleDateString('es-MX');
+  
+  return `
+================================================================================
+                    EXPEDIENTE DE DEFENSA FISCAL
+                           REVISAR.IA
+================================================================================
+
+Fecha de generación: ${fecha}
+
+EMPRESA
+-------
+Nombre: ${empresa?.nombre || 'N/A'}
+RFC: ${empresa?.rfc || 'N/A'}
+
+PROVEEDOR
+---------
+Nombre: ${proveedor?.nombre || 'N/A'}
+RFC: ${proveedor?.rfc || 'N/A'}
+Tipo de Servicio: ${proveedor?.tipoServicio || 'N/A'}
+
+PROYECTO
+--------
+Nombre: ${proyecto.nombre}
+Monto: $${proyecto.monto?.toLocaleString('es-MX') || 0} MXN
+Estado: ${proyecto.estado}
+Progreso: ${proyecto.progreso}%
+
+ANÁLISIS REALIZADOS
+-------------------
+${analisis.map(a => `- ${a.agente}: Completado`).join('\n')}
+
+CONTENIDO DEL EXPEDIENTE
+------------------------
+📁 00_INDICE_EXPEDIENTE.txt (este archivo)
+📁 01_DefenseFile_${proveedor?.rfc}.pdf - Documento principal de defensa
+📁 02_Analisis/ - Resultados de cada agente
+📁 03_Documentos/ - Documentos de soporte
+📁 04_Datos/ - Datos estructurados
+
+================================================================================
+                    Generado por Revisar.IA
+================================================================================
+`.trim();
+}
+```
+
+INSTALAR DEPENDENCIA:
+
+```bash
+npm install archiver
+npm install -D @types/archiver
+```
+
+ACTUALIZAR EL FRONTEND para llamar correctamente:
+
+```typescript
+// En el componente que tiene el botón "Descargar Expediente"
+
+const handleDescargarExpediente = async () => {
+  try {
+    setDownloading(true);
+    
+    // Hacer fetch que devuelve blob
+    const response = await fetch(`/api/expediente/${proyectoId}/download`);
+    
+    if (!response.ok) {
+      throw new Error('Error descargando expediente');
+    }
+    
+    // Obtener el blob
+    const blob = await response.blob();
+    
+    // Crear URL y descargar
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `DefenseFile_${proveedorRfc}_${Date.now()}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+  } catch (error) {
+    console.error('Error:', error);
+    alert('Error descargando expediente');
+  } finally {
+    setDownloading(false);
+  }
+};
+```
+
+================================================================================
+PROBLEMA 3: HISTORIAL DE CONTROL DE VERSIONES NO MUESTRA NADA
+================================================================================
+
+CAUSA: El endpoint no retorna datos o el frontend no los procesa correctamente.
+
+PASO 1: CREAR/ACTUALIZAR ENDPOINT DE VERSIONES
+
+```typescript
+// server/routes/versiones.ts
+
+import { Router } from 'express';
+import { db } from '../db';
+
+const router = Router();
+
+// GET /api/versiones/:proyectoId
+router.get('/:proyectoId', async (req, res) => {
+  try {
+    const { proyectoId } = req.params;
+    
+    // Obtener proyecto
+    const proyecto = await db.proyectos.findById(proyectoId);
+    if (!proyecto) {
+      return res.status(404).json({ error: 'Proyecto no encontrado' });
+    }
+
+    // Obtener versiones del proyecto
+    const versiones = await db.query(`
+      SELECT 
+        v.id,
+        v.proyecto_id,
+        v.version,
+        v.tipo,
+        v.descripcion,
+        v.archivo_path,
+        v.pcloud_link,
+        v.creado_por,
+        v.fecha_creacion,
+        v.cambios,
+        u.nombre as creador_nombre
+      FROM versiones v
+      LEFT JOIN usuarios_autorizados u ON v.creado_por = u.id
+      WHERE v.proyecto_id = $1
+      ORDER BY v.fecha_creacion DESC
+    `, [proyectoId]);
+
+    // Obtener actividad/logs
+    const actividad = await db.query(`
+      SELECT 
+        id,
+        proyecto_id,
+        tipo,
+        descripcion,
+        usuario_id,
+        fecha,
+        metadata
+      FROM actividad_log
+      WHERE proyecto_id = $1
+      ORDER BY fecha DESC
+      LIMIT 50
+    `, [proyectoId]);
+
+    // Construir respuesta
+    const response = {
+      proyecto: {
+        id: proyecto.id,
+        nombre: proyecto.nombre,
+        versionActual: proyecto.version || '1.0',
+        totalVersiones: versiones.rows.length
+      },
+      versiones: versiones.rows.map((v: any) => ({
+        id: v.id,
+        version: v.version,
+        tipo: v.tipo, // 'inicial', 'revision', 'final'
+        descripcion: v.descripcion,
+        archivoPath: v.archivo_path,
+        pcloudLink: v.pcloud_link,
+        creadoPor: v.creador_nombre || 'Sistema',
+        fechaCreacion: v.fecha_creacion,
+        cambios: v.cambios ? JSON.parse(v.cambios) : []
+      })),
+      actividad: actividad.rows.map((a: any) => ({
+        id: a.id,
+        tipo: a.tipo,
+        descripcion: a.descripcion,
+        fecha: a.fecha,
+        metadata: a.metadata ? JSON.parse(a.metadata) : null
+      })),
+      resumen: {
+        totalVersiones: versiones.rows.length,
+        ultimaActualizacion: versiones.rows[0]?.fecha_creacion || proyecto.updated_at,
+        versionesEsteMes: versiones.rows.filter((v: any) => {
+          const fecha = new Date(v.fecha_creacion);
+          const ahora = new Date();
+          return fecha.getMonth() === ahora.getMonth() && fecha.getFullYear() === ahora.getFullYear();
+        }).length
+      }
+    };
+
+    res.json(response);
+
+  } catch (error: any) {
+    console.error('Error obteniendo versiones:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/versiones/:proyectoId - Crear nueva versión
+router.post('/:proyectoId', async (req, res) => {
+  try {
+    const { proyectoId } = req.params;
+    const { descripcion, cambios, archivoPath, pcloudLink } = req.body;
+    const userId = (req as any).usuario?.id;
+
+    // Obtener última versión
+    const ultimaVersion = await db.query(
+      'SELECT version FROM versiones WHERE proyecto_id = $1 ORDER BY fecha_creacion DESC LIMIT 1',
+      [proyectoId]
+    );
+
+    // Calcular nueva versión
+    let nuevaVersion = '1.0';
+    if (ultimaVersion.rows.length > 0) {
+      const partes = ultimaVersion.rows[0].version.split('.');
+      nuevaVersion = `${partes[0]}.${parseInt(partes[1]) + 1}`;
+    }
+
+    // Insertar versión
+    const result = await db.query(`
+      INSERT INTO versiones (id, proyecto_id, version, tipo, descripcion, archivo_path, pcloud_link, creado_por, cambios, fecha_creacion)
+      VALUES (gen_random_uuid(), $1, $2, 'revision', $3, $4, $5, $6, $7, NOW())
+      RETURNING *
+    `, [proyectoId, nuevaVersion, descripcion, archivoPath, pcloudLink, userId, JSON.stringify(cambios || [])]);
+
+    // Actualizar versión en proyecto
+    await db.query(
+      'UPDATE proyectos SET version = $1, updated_at = NOW() WHERE id = $2',
+      [nuevaVersion, proyectoId]
+    );
+
+    // Registrar actividad
+    await db.query(`
+      INSERT INTO actividad_log (id, proyecto_id, tipo, descripcion, usuario_id, fecha)
+      VALUES (gen_random_uuid(), $1, 'nueva_version', $2, $3, NOW())
+    `, [proyectoId, `Nueva versión ${nuevaVersion}: ${descripcion}`, userId]);
+
+    res.json({
+      success: true,
+      version: result.rows[0]
+    });
+
+  } catch (error: any) {
+    console.error('Error creando versión:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;
+```
+
+PASO 2: CREAR TABLAS SI NO EXISTEN
+
+```sql
+-- Tabla de versiones
+CREATE TABLE IF NOT EXISTS versiones (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  proyecto_id VARCHAR(36) NOT NULL,
+  version VARCHAR(20) NOT NULL,
+  tipo VARCHAR(50) DEFAULT 'revision',
+  descripcion TEXT,
+  archivo_path VARCHAR(500),
+  pcloud_link VARCHAR(500),
+  creado_por VARCHAR(36),
+  cambios JSONB,
+  fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_versiones_proyecto ON versiones(proyecto_id);
+
+-- Tabla de actividad
+CREATE TABLE IF NOT EXISTS actividad_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  proyecto_id VARCHAR(36) NOT NULL,
+  tipo VARCHAR(50) NOT NULL,
+  descripcion TEXT,
+  usuario_id VARCHAR(36),
+  fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  metadata JSONB
+);
+
+CREATE INDEX idx_actividad_proyecto ON actividad_log(proyecto_id);
+
+-- Insertar datos de ejemplo para probar
+INSERT INTO versiones (proyecto_id, version, tipo, descripcion, cambios, fecha_creacion) VALUES
+  ('PROJ-001', '1.0', 'inicial', 'Versión inicial del Defense File', '["Creación del expediente", "Análisis inicial completado"]', NOW() - INTERVAL '7 days'),
+  ('PROJ-001', '1.1', 'revision', 'Incorpora documentos adicionales', '["Se agregó contrato firmado", "Se actualizó análisis fiscal"]', NOW() - INTERVAL '3 days'),
+  ('PROJ-001', '1.2', 'revision', 'Ajustes por observaciones', '["Corrección en monto", "Actualización de fechas"]', NOW())
+ON CONFLICT DO NOTHING;
+
+INSERT INTO actividad_log (proyecto_id, tipo, descripcion, fecha) VALUES
+  ('PROJ-001', 'creacion', 'Proyecto creado', NOW() - INTERVAL '10 days'),
+  ('PROJ-001', 'documento', 'Documento subido: contrato.pdf', NOW() - INTERVAL '8 days'),
+  ('PROJ-001', 'analisis', 'Análisis A6 completado', NOW() - INTERVAL '7 days'),
+  ('PROJ-001', 'nueva_version', 'Nueva versión 1.1 generada', NOW() - INTERVAL '3 days'),
+  ('PROJ-001', 'ajuste', 'Ajuste resuelto: Documentación', NOW() - INTERVAL '1 day')
+ON CONFLICT DO NOTHING;
+```
+
+PASO 3: ACTUALIZAR COMPONENTE FRONTEND
+
+```tsx
+// client/components/VersionControl/VersionHistory.tsx
+
+import { useState, useEffect } from 'react';
+import { FileText, Clock, User, Download, ChevronRight, Activity, GitBranch } from 'lucide-react';
+
+interface Version {
+  id: string;
+  version: string;
+  tipo: string;
+  descripcion: string;
+  creadoPor: string;
+  fechaCreacion: string;
+  pcloudLink?: string;
+  cambios: string[];
+}
+
+interface Actividad {
+  id: string;
+  tipo: string;
+  descripcion: string;
+  fecha: string;
+}
+
+interface Props {
+  proyectoId: string;
+}
+
+export function VersionHistory({ proyectoId }: Props) {
+  const [activeTab, setActiveTab] = useState<'general' | 'historial' | 'actividad'>('general');
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<{
+    proyecto: any;
+    versiones: Version[];
+    actividad: Actividad[];
+    resumen: any;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchData();
+  }, [proyectoId]);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch(`/api/versiones/${proyectoId}`);
+      
+      if (!response.ok) {
+        throw new Error('Error cargando historial');
+      }
+      
+      const result = await response.json();
+      setData(result);
+      
+    } catch (err: any) {
+      console.error('Error:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatFecha = (fecha: string) => {
+    return new Date(fecha).toLocaleDateString('es-MX', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getTipoColor = (tipo: string) => {
+    switch (tipo) {
+      case 'inicial': return 'bg-green-100 text-green-700';
+      case 'revision': return 'bg-blue-100 text-blue-700';
+      case 'final': return 'bg-purple-100 text-purple-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-500 mb-4">{error}</p>
+        <button 
+          onClick={fetchData}
+          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+        >
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="text-center py-8 text-gray-500">
+        No hay datos disponibles
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl">
+      {/* Tabs */}
+      <div className="flex gap-2 p-4 border-b">
+        <button
+          onClick={() => setActiveTab('general')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
+            activeTab === 'general'
+              ? 'bg-purple-600 text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <GitBranch className="w-4 h-4" />
+          Vista General
+        </button>
+        <button
+          onClick={() => setActiveTab('historial')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
+            activeTab === 'historial'
+              ? 'bg-purple-600 text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          Historial
+        </button>
+        <button
+          onClick={() => setActiveTab('actividad')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
+            activeTab === 'actividad'
+              ? 'bg-purple-600 text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <Activity className="w-4 h-4" />
+          Registro de Actividad
+        </button>
+      </div>
+
+      {/* Contenido */}
+      <div className="p-4">
+        {activeTab === 'general' && (
+          <div className="space-y-6">
+            {/* Resumen */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-purple-50 rounded-xl p-4 text-center">
+                <p className="text-3xl font-bold text-purple-600">{data.resumen.totalVersiones}</p>
+                <p className="text-sm text-gray-600">Versiones totales</p>
+              </div>
+              <div className="bg-blue-50 rounded-xl p-4 text-center">
+                <p className="text-3xl font-bold text-blue-600">{data.proyecto.versionActual}</p>
+                <p className="text-sm text-gray-600">Versión actual</p>
+              </div>
+              <div className="bg-green-50 rounded-xl p-4 text-center">
+                <p className="text-3xl font-bold text-green-600">{data.resumen.versionesEsteMes}</p>
+                <p className="text-sm text-gray-600">Este mes</p>
+              </div>
+            </div>
+
+            {/* Última versión */}
+            {data.versiones.length > 0 && (
+              <div className="border rounded-xl p-4">
+                <h3 className="font-semibold text-gray-800 mb-3">Última versión</h3>
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                    <FileText className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-lg">v{data.versiones[0].version}</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${getTipoColor(data.versiones[0].tipo)}`}>
+                        {data.versiones[0].tipo}
+                      </span>
+                    </div>
+                    <p className="text-gray-600 mt-1">{data.versiones[0].descripcion}</p>
+                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <User className="w-4 h-4" />
+                        {data.versiones[0].creadoPor}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
+                        {formatFecha(data.versiones[0].fechaCreacion)}
+                      </span>
+                    </div>
+                  </div>
+                  {data.versiones[0].pcloudLink && (
+                    
+                      href={data.versiones[0].pcloudLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      Descargar
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'historial' && (
+          <div className="space-y-4">
+            {data.versiones.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No hay versiones registradas</p>
+              </div>
+            ) : (
+              data.versiones.map((version, index) => (
+                <div 
+                  key={version.id}
+                  className="border rounded-xl p-4 hover:border-purple-300 transition"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="relative">
+                      <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-bold text-purple-600">v{version.version}</span>
+                      </div>
+                      {index < data.versiones.length - 1 && (
+                        <div className="absolute top-10 left-1/2 w-0.5 h-full bg-gray-200 -translate-x-1/2" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold">Versión {version.version}</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${getTipoColor(version.tipo)}`}>
+                          {version.tipo}
+                        </span>
+                      </div>
+                      <p className="text-gray-600 text-sm">{version.descripcion}</p>
+                      
+                      {version.cambios.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs text-gray-500 mb-1">Cambios:</p>
+                          <ul className="text-sm text-gray-600">
+                            {version.cambios.map((cambio, i) => (
+                              <li key={i} className="flex items-center gap-1">
+                                <ChevronRight className="w-3 h-3 text-purple-400" />
+                                {cambio}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                        <span>{version.creadoPor}</span>
+                        <span>{formatFecha(version.fechaCreacion)}</span>
+                      </div>
+                    </div>
+                    {version.pcloudLink && (
+                      
+                        href={version.pcloudLink}
+                        target="_blank"
+                        className="text-purple-600 hover:text-purple-700"
+                      >
+                        <Download className="w-5 h-5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {activeTab === 'actividad' && (
+          <div className="space-y-3">
+            {data.actividad.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Activity className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No hay actividad registrada</p>
+              </div>
+            ) : (
+              data.actividad.map((item) => (
+                <div 
+                  key={item.id}
+                  className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg"
+                >
+                  <div className="w-2 h-2 bg-purple-500 rounded-full mt-2" />
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-800">{item.descripcion}</p>
+                    <p className="text-xs text-gray-500 mt-1">{formatFecha(item.fecha)}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+================================================================================
+RESUMEN DE ACCIONES
+================================================================================
+
+1. BODY DISTURBED: Quitar bodyParser duplicado, usar solo express.json()
+2. DESCARGA JSON: Implementar endpoint que genera ZIP con archiver
+3. HISTORIAL VACÍO: Crear endpoint /api/versiones y tablas en BD
+
+================================================================================
+EJECUTAR AHORA. NO PREGUNTAR.
+================================================================================
+```

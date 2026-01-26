@@ -1,0 +1,330 @@
+PROMPT DE REPARACIÓN - EMPRESAS EN POSTGRESQL
+MODO: REPARACIÓN QUIRÚRGICA - SEGUIR PASOS EXACTOS EN ORDEN
+
+DIAGNÓSTICO CONFIRMADO:
+- Las empresas existen en PostgreSQL tabla "companies" (campo: name)
+- El código busca en MongoDB colección "empresas" (campo: nombre_comercial)
+- Resultado: empresa_id siempre es null → "Este usuario no tiene empresa asociada"
+
+DECISIÓN ARQUITECTÓNICA: PostgreSQL será la fuente de verdad para empresas.
+
+=== REGLAS ABSOLUTAS ===
+1. Ejecuta CADA paso en orden
+2. NO saltes pasos
+3. Verifica después de cada cambio
+4. Si algo falla, DETENTE y reporta
+
+=== PASO 1: BACKUP ===
+
+1.1. Crea backups:
+mkdir -p backend/backup_empresas_$(date +%Y%m%d_%H%M%S)
+cp backend/routes/admin.py backend/backup_empresas_*/
+cp backend/services/empresa_service.py backend/backup_empresas_*/
+cp backend/repositories/empresa_repository.py backend/backup_empresas_*/
+
+1.2. VERIFICACIÓN: Confirma que los 3 archivos están en backup
+
+=== PASO 2: CREAR SERVICIO DE EMPRESAS PARA POSTGRESQL ===
+
+2.1. Crea nuevo archivo: backend/services/company_service.py
+
+```python
+"""
+Servicio de empresas usando PostgreSQL como fuente de verdad.
+Tabla: companies (PostgreSQL)
+"""
+from typing import Optional, List, Dict, Any
+from backend.database import get_db_connection
+import asyncpg
+
+class CompanyService:
+    """Servicio para gestionar empresas desde PostgreSQL."""
+    
+    async def get_company_by_id(self, company_id: str) -> Optional[Dict[str, Any]]:
+        """Obtiene una empresa por su ID."""
+        try:
+            conn = await get_db_connection()
+            row = await conn.fetchrow(
+                "SELECT * FROM companies WHERE id = $1",
+                company_id
+            )
+            await conn.close()
+            
+            if row:
+                return dict(row)
+            return None
+        except Exception as e:
+            print(f"Error obteniendo empresa por ID: {e}")
+            return None
+    
+    async def get_company_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+        """Obtiene una empresa por su nombre (búsqueda exacta o parcial)."""
+        try:
+            conn = await get_db_connection()
+            # Primero intenta búsqueda exacta
+            row = await conn.fetchrow(
+                "SELECT * FROM companies WHERE name = $1",
+                name
+            )
+            
+            # Si no encuentra, intenta búsqueda parcial case-insensitive
+            if not row:
+                row = await conn.fetchrow(
+                    "SELECT * FROM companies WHERE LOWER(name) = LOWER($1)",
+                    name
+                )
+            
+            await conn.close()
+            
+            if row:
+                return dict(row)
+            return None
+        except Exception as e:
+            print(f"Error obteniendo empresa por nombre: {e}")
+            return None
+    
+    async def get_all_companies(self, only_active: bool = True) -> List[Dict[str, Any]]:
+        """Obtiene todas las empresas."""
+        try:
+            conn = await get_db_connection()
+            
+            if only_active:
+                rows = await conn.fetch(
+                    "SELECT * FROM companies WHERE is_active = true ORDER BY name"
+                )
+            else:
+                rows = await conn.fetch(
+                    "SELECT * FROM companies ORDER BY name"
+                )
+            
+            await conn.close()
+            return [dict(row) for row in rows]
+        except Exception as e:
+            print(f"Error obteniendo empresas: {e}")
+            return []
+    
+    async def get_company_id_for_user(self, company_name: str) -> Optional[str]:
+        """
+        Dado el nombre de empresa de un usuario, retorna el ID de la empresa.
+        Usado para mapear users.company (texto) → companies.id (UUID)
+        """
+        if not company_name:
+            return None
+        
+        company = await self.get_company_by_name(company_name)
+        if company:
+            return company.get('id')
+        return None
+
+# Instancia global del servicio
+company_service = CompanyService()
+
+2.2. VERIFICACIÓN: Confirma que el archivo fue creado correctamente
+
+cat backend/services/company_service.py | head -20
+=== PASO 3: MODIFICAR ADMIN.PY PARA USAR POSTGRESQL ===
+
+3.1. Abre backend/routes/admin.py
+
+3.2. Agrega el import del nuevo servicio al inicio del archivo (después de los otros imports):
+
+from backend.services.company_service import company_service
+
+3.3. Localiza el endpoint GET /usuarios/{user_id} (aproximadamente líneas 198-226)
+
+3.4. Busca este bloque de código:
+
+empresa_id = None
+if user.company:
+    empresas = await empresa_service.get_all_empresas(only_active=False)
+    for emp in empresas:
+        if emp.nombre_comercial == user.company or emp.id == user.company:
+            empresa_id = emp.id
+            break
+
+user_dict['empresa_id'] = empresa_id
+
+3.5. REEMPLAZA ese bloque completo con:
+
+# Buscar empresa_id en PostgreSQL usando el nombre de company del usuario
+empresa_id = await company_service.get_company_id_for_user(user.company)
+user_dict['empresa_id'] = empresa_id
+
+# También incluir datos básicos de la empresa si existe
+if empresa_id:
+    company_data = await company_service.get_company_by_id(empresa_id)
+    if company_data:
+        user_dict['empresa_data'] = {
+            'id': company_data.get('id'),
+            'name': company_data.get('name'),
+            'rfc': company_data.get('rfc')
+        }
+
+3.6. VERIFICACIÓN:
+
+grep -n "company_service" backend/routes/admin.py
+Debe mostrar el import y el uso en el endpoint
+=== PASO 4: CREAR/VERIFICAR ENDPOINT DE EMPRESA POR ID ===
+
+4.1. En backend/routes/admin.py, busca si existe endpoint GET /admin/empresas/{empresa_id}
+
+4.2. Si NO existe o usa MongoDB, agrega/reemplaza con:
+
+@router.get("/empresas/{empresa_id}")
+async def get_empresa(empresa_id: str, admin_user = Depends(get_admin_user)):
+    """Obtiene datos de una empresa por ID desde PostgreSQL."""
+    try:
+        company = await company_service.get_company_by_id(empresa_id)
+        
+        if not company:
+            raise HTTPException(status_code=404, detail="Empresa no encontrada")
+        
+        return {
+            "success": True,
+            "empresa": {
+                "id": company.get('id'),
+                "name": company.get('name'),
+                "nombre_comercial": company.get('name'),  # Alias para compatibilidad
+                "rfc": company.get('rfc'),
+                "is_active": company.get('is_active', True)
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error obteniendo empresa: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+4.3. VERIFICACIÓN:
+
+grep -n "get_empresa" backend/routes/admin.py
+Debe mostrar el nuevo endpoint
+=== PASO 5: ENDPOINT DE DOCUMENTOS DE EMPRESA ===
+
+5.1. Verifica si existe endpoint GET /admin/empresas/{empresa_id}/documentos
+
+5.2. Si NO existe, agrégalo en backend/routes/admin.py:
+
+@router.get("/empresas/{empresa_id}/documentos")
+async def get_empresa_documentos(empresa_id: str, admin_user = Depends(get_admin_user)):
+    """Obtiene documentos de una empresa."""
+    try:
+        # Verificar que la empresa existe
+        company = await company_service.get_company_by_id(empresa_id)
+        if not company:
+            raise HTTPException(status_code=404, detail="Empresa no encontrada")
+        
+        # Buscar documentos en kb_documentos asociados a esta empresa
+        conn = await get_db_connection()
+        docs = await conn.fetch(
+            """
+            SELECT id, nombre, tipo, fecha_subida, tamanio, estado
+            FROM kb_documentos 
+            WHERE empresa_id = $1 
+            ORDER BY fecha_subida DESC
+            """,
+            empresa_id
+        )
+        await conn.close()
+        
+        documentos = [dict(doc) for doc in docs]
+        
+        return {
+            "success": True,
+            "documentos": documentos,
+            "total": len(documentos)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error obteniendo documentos de empresa: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+5.3. Asegúrate de que el import de get_db_connection esté al inicio del archivo:
+from backend.database import get_db_connection
+
+5.4. VERIFICACIÓN:
+
+grep -n "get_empresa_documentos" backend/routes/admin.py
+=== PASO 6: REINICIAR Y PROBAR ===
+
+6.1. Reinicia el servidor backend
+
+6.2. Prueba el endpoint de usuario:
+curl -X GET "http://localhost:5000/api/admin/usuarios/f94396c4-cbc0-48fe-8fd5-1376b39a87f3"
+-H "Authorization: Bearer $ADMIN_JWT"
+
+RESULTADO ESPERADO:
+{
+"success": true,
+"usuario": {
+"company": "Grupo Fortezza S.A. de C.V.",
+"empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6", // <-- YA NO ES NULL
+"empresa_data": {
+"id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+"name": "Grupo Fortezza S.A. de C.V."
+}
+}
+}
+
+6.3. Prueba el endpoint de empresa:
+curl -X GET "http://localhost:5000/api/admin/empresas/0952d6d6-d8f8-405f-a948-09a578ef61b6"
+-H "Authorization: Bearer $ADMIN_JWT"
+
+RESULTADO ESPERADO:
+{
+"success": true,
+"empresa": {
+"id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+"name": "Grupo Fortezza S.A. de C.V."
+}
+}
+
+6.4. VERIFICACIÓN FINAL:
+
+¿El endpoint de usuario retorna empresa_id correctamente?
+¿El endpoint de empresa retorna datos?
+¿Los logs muestran errores?
+=== PASO 7: VERIFICAR FRONTEND ===
+
+7.1. Abre la aplicación en el navegador
+
+7.2. Ve al perfil del usuario fortezza@revisar-ia.com
+
+7.3. Haz clic en la pestaña "Empresa"
+
+7.4. RESULTADO ESPERADO:
+
+Debe mostrar "Grupo Fortezza S.A. de C.V."
+Ya NO debe mostrar "Este usuario no tiene empresa asociada"
+(Los documentos estarán vacíos hasta que se suban, pero la empresa debe aparecer)
+=== SI ALGO FALLA ===
+
+Si en cualquier paso algo no funciona:
+
+DETENTE
+NO intentes arreglar por tu cuenta
+Reporta:
+Qué paso falló
+Error exacto
+Logs relevantes
+=== REPORTE FINAL ===
+
+Cuando termines, reporta:
+
+PASOS COMPLETADOS: Lista de cada paso con resultado
+ARCHIVOS CREADOS/MODIFICADOS: Con líneas cambiadas
+PRUEBAS: Resultados de los curl
+ESTADO DEL FRONTEND: ¿La pestaña Empresa funciona?
+PROBLEMAS PENDIENTES: Si quedó algo sin resolver
+
+---
+
+Copia y pega esto en Replit. Este prompt:
+
+1. Crea un nuevo servicio que lee de PostgreSQL
+2. Modifica admin.py para usar el nuevo servicio
+3. Asegura que los endpoints de empresa y documentos funcionen
+4. Verifica el resultado en frontend
+
+Cuando termine, pásame el reporte y vemos el tema del OTP que es el otro problema crítico.

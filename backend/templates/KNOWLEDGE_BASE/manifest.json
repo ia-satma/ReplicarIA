@@ -1,0 +1,46 @@
+{
+  "agent_id": "KNOWLEDGE_BASE",
+  "version": "1.0.0",
+  "generated_at": "{{FECHA_ACTUAL}}",
+  "templates": [
+    {
+      "filename": "cff_completo.docx",
+      "title": "CÓDIGO FISCAL DE LA FEDERACIÓN - EXTRACTOS RELEVANTES",
+      "section_count": 4,
+      "placeholders": []
+    },
+    {
+      "filename": "lisr_completo.docx",
+      "title": "LEY DEL IMPUESTO SOBRE LA RENTA - EXTRACTOS RELEVANTES",
+      "section_count": 3,
+      "placeholders": []
+    },
+    {
+      "filename": "tipologias_servicio.docx",
+      "title": "TIPOLOGÍAS DE SERVICIOS INTANGIBLES",
+      "section_count": 5,
+      "placeholders": []
+    },
+    {
+      "filename": "umbrales_riesgo.docx",
+      "title": "MATRIZ DE UMBRALES DE RIESGO FISCAL",
+      "section_count": 3,
+      "placeholders": [
+        "MONTO_CREDITO",
+        "NIVEL_RIESGO_FINAL",
+        "PROYECTO_NOMBRE",
+        "NIVEL_BASE",
+        "FACTORES_AGRAVANTES"
+      ]
+    },
+    {
+      "filename": "politica_anti_efos.docx",
+      "title": "POLÍTICA ANTI-EFOS DE LA EMPRESA",
+      "section_count": 6,
+      "placeholders": [
+        "EMPRESA_NOMBRE",
+        "FECHA_ACTUAL"
+      ]
+    }
+  ]
+}

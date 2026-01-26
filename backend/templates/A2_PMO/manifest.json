@@ -1,0 +1,56 @@
+{
+  "agent_id": "A2_PMO",
+  "version": "1.0.0",
+  "generated_at": "{{FECHA_ACTUAL}}",
+  "templates": [
+    {
+      "filename": "poe_fases_f0_f9.docx",
+      "title": "PROCEDIMIENTO OPERATIVO ESTÁNDAR - FASES F0-F9",
+      "section_count": 7,
+      "placeholders": [
+        "FOLIO_PROYECTO",
+        "EMPRESA_NOMBRE",
+        "PROYECTO_NOMBRE"
+      ]
+    },
+    {
+      "filename": "consolidacion_po.docx",
+      "title": "ORDEN DE COMPRA - CONSOLIDACIÓN PMO",
+      "section_count": 7,
+      "placeholders": [
+        "EMPRESA_RFC",
+        "PROVEEDOR_CUENTA",
+        "MONTO_CREDITO",
+        "EMPRESA_NOMBRE",
+        "ENTREGABLE_3",
+        "ENTREGABLE_2",
+        "MONTO_TOTAL_IVA",
+        "DESCRIPCION_SERVICIO",
+        "PROVEEDOR_RFC",
+        "MONTO_IVA",
+        "FOLIO_PROYECTO",
+        "PROVEEDOR_DOMICILIO",
+        "ENTREGABLE_1",
+        "FECHA_ACTUAL",
+        "PROVEEDOR_NOMBRE"
+      ]
+    },
+    {
+      "filename": "coordinacion_multiagente.docx",
+      "title": "PROTOCOLO DE COORDINACIÓN MULTIAGENTE",
+      "section_count": 4,
+      "placeholders": []
+    },
+    {
+      "filename": "checklist_tipologia.docx",
+      "title": "CHECKLIST DE TIPOLOGÍA DE SERVICIOS",
+      "section_count": 4,
+      "placeholders": [
+        "DESCRIPCION_SERVICIO",
+        "OTRO_TIPO_SERVICIO",
+        "PROYECTO_NOMBRE",
+        "PROVEEDOR_NOMBRE"
+      ]
+    }
+  ]
+}

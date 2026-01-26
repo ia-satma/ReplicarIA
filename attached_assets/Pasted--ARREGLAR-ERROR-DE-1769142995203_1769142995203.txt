@@ -1,0 +1,177 @@
+═══════════════════════════════════════════════════════════════════════════════
+🚨 ARREGLAR ERROR DE DEPLOYMENT EN REPLIT
+═══════════════════════════════════════════════════════════════════════════════
+
+ERROR:
+──────
+The run command 'uvicorn server:app' cannot find a 'server' module or 'server.py' file
+
+CAUSA:
+──────
+El archivo server.py está en backend/ pero el comando lo busca en la raíz.
+
+═══════════════════════════════════════════════════════════════════════════════
+SOLUCIÓN 1: MODIFICAR EL ARCHIVO .replit
+═══════════════════════════════════════════════════════════════════════════════
+
+Busca el archivo `.replit` en la raíz del proyecto y modifícalo:
+
+```toml
+# .replit
+
+run = "cd backend && uvicorn server:app --host 0.0.0.0 --port 5000"
+
+# O si usas el formato nuevo:
+[deployment]
+run = ["sh", "-c", "cd backend && uvicorn server:app --host 0.0.0.0 --port 5000"]
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+SOLUCIÓN 2: SI NO EXISTE .replit, CREARLO
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear archivo `.replit` en la raíz:
+
+```toml
+run = "cd backend && uvicorn server:app --host 0.0.0.0 --port 5000 --reload"
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+run = ["sh", "-c", "cd backend && uvicorn server:app --host 0.0.0.0 --port 5000"]
+deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+SOLUCIÓN 3: SI EL FRONTEND TAMBIÉN NECESITA SERVIRSE
+═══════════════════════════════════════════════════════════════════════════════
+
+Si tu backend ya sirve el frontend (archivos estáticos), solo necesitas el comando 
+del backend. Pero si necesitas servir ambos por separado:
+
+Opción A: El backend sirve el frontend (RECOMENDADO)
+────────────────────────────────────────────────────
+
+En tu server.py, agrega al final:
+
+```python
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
+
+# Servir archivos estáticos del frontend build
+frontend_build = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build')
+if os.path.exists(frontend_build):
+    app.mount("/static", StaticFiles(directory=os.path.join(frontend_build, 'static')), name="static")
+    
+    @app.get("/{full_path:path}")
+    async def serve_react(full_path: str):
+        # Si es una ruta de API, no interceptar
+        if full_path.startswith("api/"):
+            return  # Deja que FastAPI maneje las rutas API
+        
+        # Servir index.html para rutas del frontend (SPA)
+        index_path = os.path.join(frontend_build, 'index.html')
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+```
+
+Opción B: Script de inicio que corre ambos
+──────────────────────────────────────────
+
+Crear archivo `start.sh` en la raíz:
+
+```bash
+#!/bin/bash
+
+# Construir frontend si no existe build
+if [ ! -d "frontend/build" ]; then
+    cd frontend && npm run build && cd ..
+fi
+
+# Iniciar backend (que también sirve el frontend)
+cd backend && uvicorn server:app --host 0.0.0.0 --port 5000
+```
+
+Y en `.replit`:
+```toml
+run = "bash start.sh"
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+SOLUCIÓN 4: VERIFICAR QUE server.py EXISTE Y TIENE app
+═══════════════════════════════════════════════════════════════════════════════
+
+Ejecuta estos comandos para verificar:
+
+```bash
+# Ver si existe server.py
+ls -la backend/server.py
+
+# O buscar dónde está
+find . -name "server.py" -o -name "main.py" -o -name "app.py" | head -10
+
+# Verificar que tiene la variable 'app'
+grep -n "app = " backend/server.py
+grep -n "app=FastAPI" backend/server.py
+```
+
+Si el archivo se llama diferente (main.py, app.py), ajusta el comando:
+
+```toml
+# Si es main.py
+run = "cd backend && uvicorn main:app --host 0.0.0.0 --port 5000"
+
+# Si es app.py
+run = "cd backend && uvicorn app:app --host 0.0.0.0 --port 5000"
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+DIAGNÓSTICO RÁPIDO - COPIA Y PEGA EN SHELL
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+echo "=== Buscando archivos Python principales ==="
+find . -maxdepth 3 -name "*.py" | xargs grep -l "FastAPI\|app = " 2>/dev/null | head -10
+
+echo ""
+echo "=== Contenido de .replit ==="
+cat .replit 2>/dev/null || echo "No existe .replit"
+
+echo ""
+echo "=== Estructura del proyecto ==="
+ls -la
+ls -la backend/ 2>/dev/null || echo "No existe carpeta backend/"
+
+echo ""
+echo "=== Verificar si server.py tiene app ==="
+head -50 backend/server.py 2>/dev/null | grep -E "app|FastAPI"
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+RESUMEN: COMANDO CORRECTO PROBABLE
+═══════════════════════════════════════════════════════════════════════════════
+
+Si tu estructura es:
+```
+proyecto/
+├── backend/
+│   └── server.py  ← Aquí está app = FastAPI()
+├── frontend/
+│   └── build/
+└── .replit
+```
+
+Tu comando debe ser:
+```
+cd backend && uvicorn server:app --host 0.0.0.0 --port 5000
+```
+
+Modifica el archivo `.replit` con este comando y vuelve a deployar.
+
+═══════════════════════════════════════════════════════════════════════════════

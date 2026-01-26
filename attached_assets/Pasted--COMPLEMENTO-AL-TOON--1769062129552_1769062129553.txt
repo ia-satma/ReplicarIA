@@ -1,0 +1,731 @@
+═══════════════════════════════════════════════════════════════════════════════
+COMPLEMENTO AL TOON ESTADO DEL ACERVO - VERSIONES + REINGESTIÓN + FECHAS
+═══════════════════════════════════════════════════════════════════════════════
+
+AGREGAR ESTAS FUNCIONALIDADES AL TOON ANTERIOR:
+
+1. ⟳ Botón REINGESTAR para documentos subidos pero no procesados
+2. 📅 Fecha de carga visible
+3. 🔢 Versión del documento
+4. ⚠️ Indicador de "pendiente de procesar"
+5. 🔄 Botón para actualizar vista
+
+═══════════════════════════════════════════════════════════════════════════════
+DISEÑO ACTUALIZADO
+═══════════════════════════════════════════════════════════════════════════════
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  📚 Estado del Acervo                     [🔄 Actualizar]    [67% completo] │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ⚖️ A1 - Razón de Negocios                                    ████████░░ 80%│
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │ ✅ **Código Fiscal de la Federación**                                   ││
+│  │    v2.0 • 376 chunks • Subido: 22-Ene-2025 • Última reforma: Nov 2025   ││
+│  │    [👁️ Ver] [📊 Stats]                                                  ││
+│  │                                                                          ││
+│  │ ⚠️ Jurisprudencias Razón de Negocios                                    ││
+│  │    v1.0 • PENDIENTE PROCESAR • Subido: 21-Ene-2025                      ││
+│  │    [⟳ Reingestar] [🗑️ Eliminar]                                         ││
+│  │                                                                          ││
+│  │ 🔴 Criterios SAT sobre simulación                    [CRÍTICO FALTANTE] ││
+│  │    💡 Obtener del Anexo 7 de la RMF                                     ││
+│  │    [📤 Subir] [⬇️ Descargar de SAT]                                     ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 1: ACTUALIZAR SCHEMA DE BASE DE DATOS
+═══════════════════════════════════════════════════════════════════════════════
+
+```sql
+-- Agregar campos de versión y procesamiento a kb_documentos
+ALTER TABLE kb_documentos ADD COLUMN IF NOT EXISTS version VARCHAR(20) DEFAULT '1.0';
+ALTER TABLE kb_documentos ADD COLUMN IF NOT EXISTS fecha_documento DATE;
+ALTER TABLE kb_documentos ADD COLUMN IF NOT EXISTS ultima_reforma VARCHAR(100);
+ALTER TABLE kb_documentos ADD COLUMN IF NOT EXISTS intentos_proceso INTEGER DEFAULT 0;
+ALTER TABLE kb_documentos ADD COLUMN IF NOT EXISTS ultimo_intento_proceso TIMESTAMP;
+ALTER TABLE kb_documentos ADD COLUMN IF NOT EXISTS notas_version TEXT;
+
+-- Vista para documentos pendientes de procesar
+CREATE OR REPLACE VIEW kb_documentos_pendientes AS
+SELECT 
+  id, nombre, created_at, intentos_proceso, ultimo_intento_proceso, error_procesamiento
+FROM kb_documentos
+WHERE activo = TRUE AND procesado = FALSE
+ORDER BY created_at DESC;
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 2: ENDPOINT PARA REINGESTAR DOCUMENTO
+═══════════════════════════════════════════════════════════════════════════════
+
+Agregar a server/routes/biblioteca.ts:
+
+```typescript
+// ═══════════════════════════════════════════════════════════════════════════
+// REINGESTAR DOCUMENTO (reprocesar uno que falló o está pendiente)
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/documento/:id/reingestar', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { forzar = false } = req.body;
+
+    // Obtener documento
+    const docResult = await db.query('SELECT * FROM kb_documentos WHERE id = $1', [id]);
+    
+    if (docResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Documento no encontrado' });
+    }
+
+    const documento = docResult.rows[0];
+
+    // Verificar si ya está procesado (a menos que se fuerce)
+    if (documento.procesado && !forzar) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Documento ya procesado. Usa forzar=true para reprocesar.' 
+      });
+    }
+
+    // Incrementar intentos
+    await db.query(`
+      UPDATE kb_documentos 
+      SET intentos_proceso = intentos_proceso + 1,
+          ultimo_intento_proceso = NOW(),
+          procesado = FALSE,
+          error_procesamiento = NULL
+      WHERE id = $1
+    `, [id]);
+
+    // Eliminar chunks anteriores si existen
+    await db.query('DELETE FROM kb_chunks WHERE documento_id = $1', [id]);
+
+    // Reprocesar
+    const { procesadorDocumentos } = await import('../services/biblioteca/procesadorDocumentos');
+    
+    // Usar contenido existente
+    const resultado = await procesadorDocumentos.procesarDocumentoExistente(id);
+
+    if (!resultado.success) {
+      await db.query(`
+        UPDATE kb_documentos 
+        SET error_procesamiento = $1
+        WHERE id = $2
+      `, [resultado.error, id]);
+
+      return res.status(500).json({
+        success: false,
+        error: resultado.error,
+        intentos: documento.intentos_proceso + 1
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Documento reingestado exitosamente',
+      chunks: resultado.chunks,
+      intentos: documento.intentos_proceso + 1
+    });
+
+  } catch (error: any) {
+    console.error('Error reingestando documento:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OBTENER DOCUMENTOS PENDIENTES DE PROCESAR
+// ═══════════════════════════════════════════════════════════════════════════
+router.get('/pendientes', async (req: Request, res: Response) => {
+  try {
+    const result = await db.query(`
+      SELECT 
+        id, nombre, nombre_original, categoria, ley_codigo,
+        created_at, intentos_proceso, ultimo_intento_proceso,
+        error_procesamiento, total_caracteres
+      FROM kb_documentos
+      WHERE activo = TRUE AND procesado = FALSE
+      ORDER BY created_at DESC
+    `);
+
+    res.json({
+      success: true,
+      total: result.rows.length,
+      documentos: result.rows
+    });
+
+  } catch (error: any) {
+    console.error('Error obteniendo pendientes:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REINGESTAR TODOS LOS PENDIENTES
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/reingestar-todos', async (req: Request, res: Response) => {
+  try {
+    const pendientes = await db.query(`
+      SELECT id FROM kb_documentos
+      WHERE activo = TRUE AND procesado = FALSE
+    `);
+
+    const resultados = {
+      total: pendientes.rows.length,
+      exitosos: 0,
+      fallidos: 0,
+      errores: [] as string[]
+    };
+
+    const { procesadorDocumentos } = await import('../services/biblioteca/procesadorDocumentos');
+
+    for (const doc of pendientes.rows) {
+      try {
+        const resultado = await procesadorDocumentos.procesarDocumentoExistente(doc.id);
+        if (resultado.success) {
+          resultados.exitosos++;
+        } else {
+          resultados.fallidos++;
+          resultados.errores.push(`Doc ${doc.id}: ${resultado.error}`);
+        }
+      } catch (err: any) {
+        resultados.fallidos++;
+        resultados.errores.push(`Doc ${doc.id}: ${err.message}`);
+      }
+    }
+
+    res.json({
+      success: true,
+      ...resultados
+    });
+
+  } catch (error: any) {
+    console.error('Error reingestando todos:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACTUALIZAR VERSIÓN DE DOCUMENTO
+// ═══════════════════════════════════════════════════════════════════════════
+router.put('/documento/:id/version', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { version, fecha_documento, ultima_reforma, notas_version } = req.body;
+
+    const result = await db.query(`
+      UPDATE kb_documentos SET
+        version = COALESCE($1, version),
+        fecha_documento = COALESCE($2, fecha_documento),
+        ultima_reforma = COALESCE($3, ultima_reforma),
+        notas_version = COALESCE($4, notas_version),
+        updated_at = NOW()
+      WHERE id = $5
+      RETURNING *
+    `, [version, fecha_documento, ultima_reforma, notas_version, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Documento no encontrado' });
+    }
+
+    res.json({
+      success: true,
+      documento: result.rows[0]
+    });
+
+  } catch (error: any) {
+    console.error('Error actualizando versión:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ESTADÍSTICAS DE UN DOCUMENTO
+// ═══════════════════════════════════════════════════════════════════════════
+router.get('/documento/:id/stats', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Info básica
+    const docResult = await db.query(`
+      SELECT 
+        d.*,
+        (SELECT COUNT(*) FROM kb_chunks WHERE documento_id = d.id) as total_chunks_actual
+      FROM kb_documentos d
+      WHERE d.id = $1
+    `, [id]);
+
+    if (docResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Documento no encontrado' });
+    }
+
+    const documento = docResult.rows[0];
+
+    // Estadísticas de chunks
+    const chunksStats = await db.query(`
+      SELECT 
+        tipo_contenido,
+        COUNT(*) as cantidad,
+        AVG(LENGTH(contenido)) as promedio_caracteres
+      FROM kb_chunks
+      WHERE documento_id = $1
+      GROUP BY tipo_contenido
+    `, [id]);
+
+    // Artículos únicos
+    const articulosStats = await db.query(`
+      SELECT COUNT(DISTINCT articulo) as total_articulos
+      FROM kb_chunks
+      WHERE documento_id = $1 AND articulo IS NOT NULL
+    `, [id]);
+
+    // Asignaciones a agentes
+    const agentesStats = await db.query(`
+      SELECT 
+        ca.agente_id,
+        COUNT(*) as chunks_asignados,
+        AVG(ca.score_relevancia) as relevancia_promedio
+      FROM kb_chunk_agente ca
+      JOIN kb_chunks c ON ca.chunk_id = c.id
+      WHERE c.documento_id = $1
+      GROUP BY ca.agente_id
+      ORDER BY ca.agente_id
+    `, [id]);
+
+    // Uso (veces recuperado en búsquedas)
+    const usoStats = await db.query(`
+      SELECT 
+        SUM(veces_recuperado) as total_recuperaciones,
+        MAX(ultimo_uso) as ultimo_uso
+      FROM kb_chunks
+      WHERE documento_id = $1
+    `, [id]);
+
+    res.json({
+      success: true,
+      documento: {
+        id: documento.id,
+        nombre: documento.nombre,
+        version: documento.version,
+        fecha_documento: documento.fecha_documento,
+        ultima_reforma: documento.ultima_reforma,
+        created_at: documento.created_at,
+        procesado: documento.procesado,
+        intentos_proceso: documento.intentos_proceso
+      },
+      estadisticas: {
+        total_caracteres: documento.total_caracteres,
+        total_chunks: documento.total_chunks_actual,
+        total_articulos: articulosStats.rows[0]?.total_articulos || 0,
+        chunks_por_tipo: chunksStats.rows,
+        agentes_asignados: agentesStats.rows,
+        uso: {
+          total_recuperaciones: parseInt(usoStats.rows[0]?.total_recuperaciones || '0'),
+          ultimo_uso: usoStats.rows[0]?.ultimo_uso
+        }
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error obteniendo stats:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 3: AGREGAR MÉTODO AL PROCESADOR DE DOCUMENTOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Agregar a server/services/biblioteca/procesadorDocumentos.ts:
+
+```typescript
+// ═══════════════════════════════════════════════════════════════════════════
+// PROCESAR DOCUMENTO EXISTENTE (para reingestión)
+// ═══════════════════════════════════════════════════════════════════════════
+async procesarDocumentoExistente(documentoId: number): Promise<{ success: boolean; chunks?: number; error?: string }> {
+  try {
+    // Obtener documento de la BD
+    const docResult = await db.query('SELECT * FROM kb_documentos WHERE id = $1', [documentoId]);
+    
+    if (docResult.rows.length === 0) {
+      return { success: false, error: 'Documento no encontrado' };
+    }
+
+    const documento = docResult.rows[0];
+
+    if (!documento.contenido_completo) {
+      return { success: false, error: 'Documento sin contenido almacenado' };
+    }
+
+    console.log(`🔄 Reingestando documento ${documentoId}: ${documento.nombre}`);
+
+    // Clasificar (puede haber cambiado la lógica)
+    const clasificacion = await this.clasificarDocumento(documento.contenido_completo, documento.nombre);
+
+    // Crear chunks
+    const chunks = await this.crearChunks(documentoId, documento.contenido_completo, clasificacion);
+    console.log(`   ✂️ ${chunks.length} chunks creados`);
+
+    // Generar embeddings
+    await this.generarEmbeddings(chunks);
+    console.log(`   🧮 Embeddings generados`);
+
+    // Asignar a agentes
+    await this.asignarAAgentes(chunks, clasificacion);
+    console.log(`   🤖 Asignado a agentes`);
+
+    // Marcar como procesado
+    await db.query(`
+      UPDATE kb_documentos SET
+        procesado = TRUE,
+        fecha_procesamiento = NOW(),
+        total_chunks = $1,
+        error_procesamiento = NULL,
+        categoria = COALESCE($2, categoria),
+        ley_codigo = COALESCE($3, ley_codigo)
+      WHERE id = $4
+    `, [chunks.length, clasificacion.categoria, clasificacion.ley_codigo, documentoId]);
+
+    // Actualizar métricas
+    await this.actualizarMetricas();
+
+    console.log(`✅ Documento ${documentoId} reingestado exitosamente`);
+
+    return { success: true, chunks: chunks.length };
+
+  } catch (error: any) {
+    console.error(`❌ Error reingestando documento ${documentoId}:`, error);
+    
+    await db.query(`
+      UPDATE kb_documentos SET error_procesamiento = $1 WHERE id = $2
+    `, [error.message, documentoId]);
+
+    return { success: false, error: error.message };
+  }
+}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 4: ACTUALIZAR COMPONENTE FRONTEND
+═══════════════════════════════════════════════════════════════════════════════
+
+Actualizar EstadoAcervo.tsx - Agregar estos elementos:
+
+```typescript
+// Agregar al estado
+const [reingestando, setReingestando] = useState<number | null>(null);
+const [statsDoc, setStatsDoc] = useState<any>(null);
+
+// Función para reingestar
+const handleReingestar = async (documentoId: number) => {
+  if (!confirm('¿Reingestar este documento? Se eliminarán los chunks existentes.')) return;
+  
+  setReingestando(documentoId);
+  try {
+    const response = await fetch(`/api/biblioteca/documento/${documentoId}/reingestar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ forzar: true })
+    });
+    const data = await response.json();
+    
+    if (data.success) {
+      alert(`✅ Reingestado: ${data.chunks} chunks creados`);
+      cargarEstado(); // Recargar
+    } else {
+      alert(`❌ Error: ${data.error}`);
+    }
+  } catch (error: any) {
+    alert(`❌ Error: ${error.message}`);
+  } finally {
+    setReingestando(null);
+  }
+};
+
+// Función para reingestar todos los pendientes
+const handleReingestarTodos = async () => {
+  if (!confirm('¿Reingestar TODOS los documentos pendientes?')) return;
+  
+  setLoading(true);
+  try {
+    const response = await fetch('/api/biblioteca/reingestar-todos', { method: 'POST' });
+    const data = await response.json();
+    
+    alert(`Procesados: ${data.total}\n✅ Exitosos: ${data.exitosos}\n❌ Fallidos: ${data.fallidos}`);
+    cargarEstado();
+  } catch (error: any) {
+    alert(`Error: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
+
+// Función para ver stats
+const handleVerStats = async (documentoId: number) => {
+  try {
+    const response = await fetch(`/api/biblioteca/documento/${documentoId}/stats`);
+    const data = await response.json();
+    setStatsDoc(data);
+  } catch (error) {
+    console.error('Error obteniendo stats:', error);
+  }
+};
+
+// En el header del componente, agregar botón actualizar:
+<div className="flex items-center gap-4">
+  <button
+    onClick={cargarEstado}
+    disabled={loading}
+    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg flex items-center gap-2"
+  >
+    🔄 {loading ? 'Actualizando...' : 'Actualizar'}
+  </button>
+  
+  {estado?.documentosPendientes > 0 && (
+    <button
+      onClick={handleReingestarTodos}
+      className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg flex items-center gap-2"
+    >
+      ⟳ Procesar {estado.documentosPendientes} pendientes
+    </button>
+  )}
+</div>
+
+// Para cada documento CARGADO, mostrar más info:
+{doc.cargado && (
+  <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+    {/* Versión */}
+    <span className="px-2 py-0.5 bg-gray-700 rounded text-gray-300">
+      v{doc.version || '1.0'}
+    </span>
+    
+    {/* Chunks */}
+    <span className="text-cyan-400">
+      {doc.chunks} chunks
+    </span>
+    
+    {/* Fecha de carga */}
+    <span className="text-gray-500">
+      📅 Subido: {new Date(doc.fechaCarga).toLocaleDateString('es-MX', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      })}
+    </span>
+    
+    {/* Última reforma si existe */}
+    {doc.ultimaReforma && (
+      <span className="text-yellow-500">
+        ⚡ Reforma: {doc.ultimaReforma}
+      </span>
+    )}
+  </div>
+)}
+
+// Botones de acción actualizados:
+<div className="flex items-center gap-2 ml-4">
+  {doc.cargado ? (
+    <>
+      <button
+        onClick={() => onViewClick(doc.documentoId)}
+        className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-sm"
+        title="Ver documento"
+      >
+        👁️ Ver
+      </button>
+      <button
+        onClick={() => handleVerStats(doc.documentoId)}
+        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-sm"
+        title="Ver estadísticas"
+      >
+        📊
+      </button>
+      <button
+        onClick={() => handleReingestar(doc.documentoId)}
+        disabled={reingestando === doc.documentoId}
+        className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 text-white rounded text-sm disabled:opacity-50"
+        title="Reingestar documento"
+      >
+        {reingestando === doc.documentoId ? '⏳' : '⟳'}
+      </button>
+    </>
+  ) : doc.pendienteProcesar ? (
+    // Documento subido pero no procesado
+    <>
+      <span className="px-2 py-1 bg-yellow-900 text-yellow-200 rounded text-xs">
+        ⚠️ Pendiente procesar
+      </span>
+      <button
+        onClick={() => handleReingestar(doc.documentoIdPendiente)}
+        disabled={reingestando === doc.documentoIdPendiente}
+        className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-sm"
+      >
+        {reingestando === doc.documentoIdPendiente ? '⏳ Procesando...' : '⟳ Procesar'}
+      </button>
+    </>
+  ) : (
+    // No cargado
+    <>
+      {doc.urlDescarga && (
+        <a
+          href={doc.urlDescarga}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded text-sm"
+        >
+          ⬇️
+        </a>
+      )}
+      <button
+        onClick={() => onUploadClick(doc.id, doc.nombre)}
+        className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-sm"
+      >
+        📤 Subir
+      </button>
+    </>
+  )}
+</div>
+
+// Modal de estadísticas (agregar al final del componente):
+{statsDoc && (
+  <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+    <div className="bg-gray-900 rounded-xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+      <div className="flex justify-between items-start mb-4">
+        <h3 className="text-xl font-bold text-white">📊 Estadísticas del Documento</h3>
+        <button onClick={() => setStatsDoc(null)} className="text-gray-400 hover:text-white">✕</button>
+      </div>
+      
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-gray-800 p-4 rounded">
+            <div className="text-2xl font-bold text-cyan-400">{statsDoc.estadisticas?.total_chunks}</div>
+            <div className="text-sm text-gray-400">Chunks totales</div>
+          </div>
+          <div className="bg-gray-800 p-4 rounded">
+            <div className="text-2xl font-bold text-green-400">{statsDoc.estadisticas?.total_articulos}</div>
+            <div className="text-sm text-gray-400">Artículos</div>
+          </div>
+          <div className="bg-gray-800 p-4 rounded">
+            <div className="text-2xl font-bold text-purple-400">
+              {statsDoc.estadisticas?.uso?.total_recuperaciones || 0}
+            </div>
+            <div className="text-sm text-gray-400">Veces usado en búsquedas</div>
+          </div>
+          <div className="bg-gray-800 p-4 rounded">
+            <div className="text-2xl font-bold text-yellow-400">
+              {(statsDoc.estadisticas?.total_caracteres / 1000).toFixed(0)}k
+            </div>
+            <div className="text-sm text-gray-400">Caracteres</div>
+          </div>
+        </div>
+
+        <div>
+          <h4 className="text-sm font-semibold text-gray-400 mb-2">Agentes Asignados</h4>
+          <div className="flex flex-wrap gap-2">
+            {statsDoc.estadisticas?.agentes_asignados?.map((a: any) => (
+              <span key={a.agente_id} className="px-3 py-1 bg-cyan-900 text-cyan-200 rounded-full text-sm">
+                {a.agente_id}: {a.chunks_asignados} chunks
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <h4 className="text-sm font-semibold text-gray-400 mb-2">Tipos de Contenido</h4>
+          <div className="space-y-1">
+            {statsDoc.estadisticas?.chunks_por_tipo?.map((t: any) => (
+              <div key={t.tipo_contenido} className="flex justify-between text-sm">
+                <span className="text-gray-300">{t.tipo_contenido || 'general'}</span>
+                <span className="text-cyan-400">{t.cantidad}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 5: ACTUALIZAR RESPUESTA DEL ENDPOINT DE ESTADO
+═══════════════════════════════════════════════════════════════════════════════
+
+Modificar el endpoint /api/biblioteca/acervo/estado para incluir:
+
+```typescript
+// Al obtener documentos cargados, incluir más campos:
+const documentosCargados = await db.query(`
+  SELECT 
+    id, nombre, ley_codigo, categoria, total_chunks,
+    created_at, resumen, procesado, version,
+    fecha_documento, ultima_reforma, intentos_proceso,
+    error_procesamiento
+  FROM kb_documentos 
+  WHERE activo = TRUE
+  ORDER BY created_at DESC
+`);
+
+// En documentosEstado, agregar:
+return {
+  ...docReq,
+  cargado: !!documentoCargado && documentoCargado.procesado,
+  pendienteProcesar: !!documentoCargado && !documentoCargado.procesado,
+  documentoId: documentoCargado?.id || null,
+  documentoIdPendiente: documentoCargado && !documentoCargado.procesado ? documentoCargado.id : null,
+  nombreCargado: documentoCargado?.nombre || null,
+  chunks: documentoCargado?.total_chunks || 0,
+  fechaCarga: documentoCargado?.created_at || null,
+  version: documentoCargado?.version || null,
+  ultimaReforma: documentoCargado?.ultima_reforma || null,
+  errorProceso: documentoCargado?.error_procesamiento || null,
+  intentosProceso: documentoCargado?.intentos_proceso || 0
+};
+
+// Al final de la respuesta, agregar:
+res.json({
+  // ... campos existentes ...
+  documentosPendientes: documentosCargados.rows.filter(d => !d.procesado).length,
+  documentosConError: documentosCargados.rows.filter(d => d.error_procesamiento).length
+});
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST ADICIONAL
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Campos version, fecha_documento, ultima_reforma en kb_documentos
+□ Endpoint POST /api/biblioteca/documento/:id/reingestar
+□ Endpoint GET /api/biblioteca/pendientes
+□ Endpoint POST /api/biblioteca/reingestar-todos
+□ Endpoint GET /api/biblioteca/documento/:id/stats
+□ Endpoint PUT /api/biblioteca/documento/:id/version
+□ Método procesarDocumentoExistente en procesadorDocumentos
+□ Botón 🔄 Actualizar en header
+□ Botón ⟳ Reingestar por documento
+□ Botón ⟳ Procesar todos pendientes
+□ Modal de estadísticas 📊
+□ Mostrar versión, fecha, última reforma
+□ Indicador ⚠️ pendiente de procesar
+
+═══════════════════════════════════════════════════════════════════════════════
+RESULTADO FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+Cada documento ahora muestra:
+
+✅ **Código Fiscal de la Federación**
+   v2.0 • 376 chunks • 📅 Subido: 22-Ene-2025 • ⚡ Reforma: Nov 2025
+   [👁️ Ver] [📊 Stats] [⟳ Reingestar]
+
+⚠️ **Jurisprudencias Razón de Negocios** [PENDIENTE PROCESAR]
+   v1.0 • Error: timeout • Intento 2 de 3
+   [⟳ Procesar] [🗑️ Eliminar]
+
+🔴 **Lista 69-B EFOS** [CRÍTICO FALTANTE]
+   💡 Descargar del portal SAT
+   [📤 Subir] [⬇️ Descargar]

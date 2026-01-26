@@ -1,0 +1,1693 @@
+ PROMPT MULTI-TENANT ARCHITECTURE - REVISAR.IA
+CONTEXTO:
+=========
+Revisar.ia es una plataforma multi-agente de auditoría fiscal para servicios intangibles en México.
+Actualmente tiene información hardcodeada de "Grupo Durezza" (empresa constructora).
+NECESITAMOS transformarla en una plataforma MULTI-TENANT que pueda servir a CUALQUIER tipo de negocio
+(constructoras, gimnasios, restaurantes, consultorías, etc.) con su propia configuración.
+
+ARQUITECTURA OBJETIVO:
+=====================
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    CAPA UNIVERSAL (Igual para todos)                │
+├─────────────────────────────────────────────────────────────────────┤
+│  • Marco normativo: CFF 5-A, 69-B, LISR 27, NOM-151               │
+│  • Metodología: 4 pilares fiscales, scoring 0-100, fases F0-F9    │
+│  • Agentes: A1-A8 + subagentes con roles genéricos                │
+│  • Lógica: Candados duros, validaciones Pydantic, Expediente      │
+└─────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                CAPA CONFIGURABLE (Por tenant/empresa)               │
+├─────────────────────────────────────────────────────────────────────┤
+│  • Perfil empresa: Industria, mercados, visión, pilares           │
+│  • OKRs: Objetivos específicos del cliente                        │
+│  • Tipologías: Tipos de servicio QUE ESA empresa contrata         │
+│  • Checklists: Documentos QUE ESA empresa requiere                │
+│  • RAG: Documentos de conocimiento PARA ESA empresa               │
+└─────────────────────────────────────────────────────────────────────┘
+
+TAREAS A IMPLEMENTAR:
+====================
+
+## TAREA 1: Modelo de Datos Empresa/Tenant
+
+Crear/modificar en `backend/models/`:
+
+```python
+# backend/models/empresa.py
+from datetime import datetime
+from typing import Optional, List
+from pydantic import BaseModel, Field
+from enum import Enum
+
+class IndustriaEnum(str, Enum):
+    CONSTRUCCION = "construccion"
+    SERVICIOS_PROFESIONALES = "servicios_profesionales"
+    MANUFACTURA = "manufactura"
+    COMERCIO = "comercio"
+    TECNOLOGIA = "tecnologia"
+    SALUD = "salud"
+    EDUCACION = "educacion"
+    HOTELERIA_RESTAURANTES = "hoteleria_restaurantes"
+    TRANSPORTE_LOGISTICA = "transporte_logistica"
+    INMOBILIARIO = "inmobiliario"
+    OTRO = "otro"
+
+class PilarEstrategico(BaseModel):
+    nombre: str
+    descripcion: str
+    peso: float = 0.25  # Peso para scoring, suma debe ser 1.0
+
+class OKR(BaseModel):
+    objetivo: str
+    key_results: List[str]
+    periodo: str  # "2025-Q1", "2025", etc.
+    responsable: Optional[str] = None
+
+class ConfiguracionTipologia(BaseModel):
+    codigo: str  # "CONSULTORIA_MACRO_ESTRATEGIA", "SERVICIOS_TI", etc.
+    nombre: str
+    descripcion: str
+    habilitada: bool = True
+    checklist_documentos: List[str]  # Documentos requeridos para esta tipología
+    criterios_adicionales: Optional[dict] = None
+
+class Empresa(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    
+    # Información básica
+    nombre_comercial: str
+    razon_social: str
+    rfc: str
+    industria: IndustriaEnum
+    sub_industria: Optional[str] = None
+    
+    # Perfil estratégico
+    vision: Optional[str] = None
+    mision: Optional[str] = None
+    valores: List[str] = []
+    pilares_estrategicos: List[PilarEstrategico] = []
+    
+    # Contexto de negocio
+    mercados_objetivo: List[str] = []
+    competidores_principales: List[str] = []
+    ventajas_competitivas: List[str] = []
+    modelo_negocio: Optional[str] = None
+    
+    # OKRs configurables
+    okrs: List[OKR] = []
+    
+    # Tipologías habilitadas para esta empresa
+    tipologias_configuradas: List[ConfiguracionTipologia] = []
+    
+    # Configuración RAG
+    rag_collection_id: Optional[str] = None  # ID de colección en vector store
+    
+    # Metadata
+    fecha_alta: datetime = Field(default_factory=datetime.utcnow)
+    fecha_actualizacion: datetime = Field(default_factory=datetime.utcnow)
+    activa: bool = True
+    plan: str = "basico"  # "basico", "profesional", "enterprise"
+    
+    # Usuarios administradores de esta empresa
+    admin_user_ids: List[str] = []
+
+class EmpresaCreate(BaseModel):
+    nombre_comercial: str
+    razon_social: str
+    rfc: str
+    industria: IndustriaEnum
+    sub_industria: Optional[str] = None
+
+class EmpresaUpdate(BaseModel):
+    nombre_comercial: Optional[str] = None
+    vision: Optional[str] = None
+    mision: Optional[str] = None
+    valores: Optional[List[str]] = None
+    pilares_estrategicos: Optional[List[PilarEstrategico]] = None
+    mercados_objetivo: Optional[List[str]] = None
+    okrs: Optional[List[OKR]] = None
+    tipologias_configuradas: Optional[List[ConfiguracionTipologia]] = None
+
+TAREA 2: Modificar Proyecto para asociarlo a Empresa
+Actualizar backend/models/proyecto.py:
+
+# Agregar campo empresa_id al modelo Proyecto
+class Proyecto(BaseModel):
+    # ... campos existentes ...
+    empresa_id: str  # NUEVO: Referencia a la empresa/tenant
+    
+    # El resto permanece igual pero ahora hereda contexto de Empresa
+
+TAREA 3: Servicio de Contexto Dinámico por Tenant
+Modificar backend/services/inyeccion_contexto_service.py:
+
+# backend/services/inyeccion_contexto_service.py
+
+from backend.models.empresa import Empresa
+from backend.repositories.empresa_repository import EmpresaRepository
+
+class InyeccionContextoService:
+    def __init__(self):
+        self.empresa_repo = EmpresaRepository()
+    
+    async def construir_contexto_completo_para_agente(
+        self,
+        proyecto_id: str,
+        agente_id: str,
+        fase_actual: str
+    ) -> dict:
+        """
+        Construye contexto DINÁMICO basado en:
+        1. Marco normativo UNIVERSAL (igual para todos)
+        2. Perfil de EMPRESA del proyecto (configurable por tenant)
+        3. Tipología del proyecto
+        4. Fase actual del POE
+        """
+        
+        # 1. Obtener proyecto y su empresa asociada
+        proyecto = await self.proyecto_repo.get_by_id(proyecto_id)
+        empresa = await self.empresa_repo.get_by_id(proyecto.empresa_id)
+        
+        # 2. Contexto normativo UNIVERSAL (nunca cambia)
+        contexto_normativo = self._get_marco_normativo_universal()
+        
+        # 3. Contexto corporativo DINÁMICO (de la empresa del proyecto)
+        contexto_corporativo = self._construir_contexto_corporativo(empresa)
+        
+        # 4. Contexto de tipología (de las tipologías configuradas por la empresa)
+        contexto_tipologia = self._get_contexto_tipologia(
+            empresa.tipologias_configuradas,
+            proyecto.tipologia
+        )
+        
+        # 5. Contexto POE según fase
+        contexto_poe = self._get_contexto_poe(fase_actual)
+        
+        # 6. RAG específico de la empresa (si existe)
+        contexto_rag = await self._cargar_rag_empresa(
+            empresa.rag_collection_id,
+            agente_id
+        )
+        
+        return {
+            "normativo": contexto_normativo,
+            "corporativo": contexto_corporativo,
+            "tipologia": contexto_tipologia,
+            "poe": contexto_poe,
+            "conocimiento_empresa": contexto_rag,
+            "agente_config": self._get_config_agente(agente_id)
+        }
+    
+    def _get_marco_normativo_universal(self) -> dict:
+        """Marco fiscal mexicano - IGUAL PARA TODOS los tenants"""
+        return {
+            "cff_5a": {
+                "articulo": "5-A CFF",
+                "concepto": "Razón de negocios",
+                "requisitos": [
+                    "Propósito económico razonable",
+                    "No simulación de actos jurídicos",
+                    "Beneficio económico cuantificable"
+                ]
+            },
+            "cff_69b": {
+                "articulo": "69-B CFF",
+                "concepto": "Operaciones inexistentes (EFOS/EDOS)",
+                "riesgos": [
+                    "Proveedores en lista negra SAT",
+                    "Facturas sin sustancia económica",
+                    "Falta de materialidad"
+                ]
+            },
+            "lisr_27": {
+                "articulo": "27 LISR",
+                "concepto": "Requisitos de deducciones",
+                "requisitos": [
+                    "Estrictamente indispensables",
+                    "Debidamente registradas en contabilidad",
+                    "Comprobadas con documentación idónea"
+                ]
+            },
+            "nom_151": {
+                "norma": "NOM-151-SCFI",
+                "concepto": "Conservación de mensajes de datos",
+                "requisitos": [
+                    "Integridad garantizada",
+                    "Accesibilidad para consulta posterior",
+                    "Trazabilidad de modificaciones"
+                ]
+            },
+            "cuatro_pilares": {
+                "razon_negocios": "El servicio debe tener propósito económico genuino",
+                "beneficio_economico": "Debe generar valor cuantificable para la empresa",
+                "materialidad": "Debe existir evidencia tangible de la prestación",
+                "trazabilidad": "Debe poder seguirse el rastro documental completo"
+            }
+        }
+    
+    def _construir_contexto_corporativo(self, empresa: Empresa) -> dict:
+        """Construye contexto desde configuración de la EMPRESA (tenant)"""
+        return {
+            "empresa": {
+                "nombre": empresa.nombre_comercial,
+                "industria": empresa.industria.value,
+                "rfc": empresa.rfc
+            },
+            "estrategia": {
+                "vision": empresa.vision,
+                "mision": empresa.mision,
+                "pilares": [p.dict() for p in empresa.pilares_estrategicos],
+                "valores": empresa.valores
+            },
+            "mercado": {
+                "mercados_objetivo": empresa.mercados_objetivo,
+                "competidores": empresa.competidores_principales,
+                "ventajas_competitivas": empresa.ventajas_competitivas,
+                "modelo_negocio": empresa.modelo_negocio
+            },
+            "okrs_vigentes": [okr.dict() for okr in empresa.okrs]
+        }
+
+TAREA 4: API Endpoints para Gestión de Empresas
+Crear backend/api/routes/empresas.py:
+
+# backend/api/routes/empresas.py
+
+from fastapi import APIRouter, HTTPException, Depends
+from typing import List
+from backend.models.empresa import (
+    Empresa, EmpresaCreate, EmpresaUpdate,
+    ConfiguracionTipologia, OKR, PilarEstrategico
+)
+from backend.services.empresa_service import EmpresaService
+from backend.auth.dependencies import get_current_user, require_admin
+
+router = APIRouter(prefix="/api/empresas", tags=["empresas"])
+
+@router.post("/", response_model=Empresa)
+async def crear_empresa(
+    empresa: EmpresaCreate,
+    current_user = Depends(require_admin)
+):
+    """Crear nueva empresa/tenant en la plataforma"""
+    service = EmpresaService()
+    return await service.crear_empresa(empresa, current_user.id)
+
+@router.get("/", response_model=List[Empresa])
+async def listar_empresas(
+    current_user = Depends(require_admin)
+):
+    """Listar todas las empresas (solo super admin)"""
+    service = EmpresaService()
+    return await service.listar_todas()
+
+@router.get("/{empresa_id}", response_model=Empresa)
+async def obtener_empresa(
+    empresa_id: str,
+    current_user = Depends(get_current_user)
+):
+    """Obtener detalle de empresa"""
+    service = EmpresaService()
+    empresa = await service.obtener_por_id(empresa_id)
+    
+    # Verificar que usuario tenga acceso a esta empresa
+    if current_user.id not in empresa.admin_user_ids and not current_user.is_superadmin:
+        raise HTTPException(403, "Sin acceso a esta empresa")
+    
+    return empresa
+
+@router.patch("/{empresa_id}", response_model=Empresa)
+async def actualizar_empresa(
+    empresa_id: str,
+    updates: EmpresaUpdate,
+    current_user = Depends(get_current_user)
+):
+    """Actualizar configuración de empresa"""
+    service = EmpresaService()
+    return await service.actualizar(empresa_id, updates, current_user.id)
+
+# === CONFIGURACIÓN DE PERFIL ESTRATÉGICO ===
+
+@router.put("/{empresa_id}/vision-mision")
+async def configurar_vision_mision(
+    empresa_id: str,
+    vision: str,
+    mision: str,
+    current_user = Depends(get_current_user)
+):
+    """Configurar visión y misión de la empresa"""
+    service = EmpresaService()
+    return await service.actualizar_vision_mision(empresa_id, vision, mision)
+
+@router.put("/{empresa_id}/pilares")
+async def configurar_pilares(
+    empresa_id: str,
+    pilares: List[PilarEstrategico],
+    current_user = Depends(get_current_user)
+):
+    """Configurar pilares estratégicos"""
+    service = EmpresaService()
+    return await service.actualizar_pilares(empresa_id, pilares)
+
+@router.put("/{empresa_id}/okrs")
+async def configurar_okrs(
+    empresa_id: str,
+    okrs: List[OKR],
+    current_user = Depends(get_current_user)
+):
+    """Configurar OKRs de la empresa"""
+    service = EmpresaService()
+    return await service.actualizar_okrs(empresa_id, okrs)
+
+# === CONFIGURACIÓN DE TIPOLOGÍAS ===
+
+@router.get("/{empresa_id}/tipologias")
+async def listar_tipologias_disponibles(
+    empresa_id: str,
+    current_user = Depends(get_current_user)
+):
+    """Listar tipologías disponibles y cuáles están habilitadas"""
+    service = EmpresaService()
+    return await service.get_tipologias_con_estado(empresa_id)
+
+@router.put("/{empresa_id}/tipologias")
+async def configurar_tipologias(
+    empresa_id: str,
+    tipologias: List[ConfiguracionTipologia],
+    current_user = Depends(get_current_user)
+):
+    """Configurar qué tipologías usa esta empresa y sus checklists"""
+    service = EmpresaService()
+    return await service.configurar_tipologias(empresa_id, tipologias)
+
+# === RAG / KNOWLEDGE BASE ===
+
+@router.post("/{empresa_id}/knowledge-base/upload")
+async def subir_documento_conocimiento(
+    empresa_id: str,
+    file: UploadFile,
+    categoria: str,  # "estrategia", "operaciones", "fiscal", etc.
+    current_user = Depends(get_current_user)
+):
+    """Subir documento a la base de conocimiento de la empresa"""
+    service = EmpresaService()
+    return await service.agregar_documento_rag(empresa_id, file, categoria)
+
+@router.get("/{empresa_id}/knowledge-base")
+async def listar_documentos_conocimiento(
+    empresa_id: str,
+    current_user = Depends(get_current_user)
+):
+    """Listar documentos en la base de conocimiento"""
+    service = EmpresaService()
+    return await service.listar_documentos_rag(empresa_id)
+
+@router.delete("/{empresa_id}/knowledge-base/{documento_id}")
+async def eliminar_documento_conocimiento(
+    empresa_id: str,
+    documento_id: str,
+    current_user = Depends(get_current_user)
+):
+    """Eliminar documento de la base de conocimiento"""
+    service = EmpresaService()
+    return await service.eliminar_documento_rag(empresa_id, documento_id)
+
+TAREA 5: Servicio de Empresa
+Crear backend/services/empresa_service.py:
+
+# backend/services/empresa_service.py
+
+from datetime import datetime
+from typing import List, Optional
+from backend.models.empresa import (
+    Empresa, EmpresaCreate, EmpresaUpdate,
+    ConfiguracionTipologia, OKR, PilarEstrategico
+)
+from backend.repositories.empresa_repository import EmpresaRepository
+from backend.services.rag_service import RAGService
+
+# Tipologías base disponibles en la plataforma
+TIPOLOGIAS_BASE = [
+    {
+        "codigo": "CONSULTORIA_MACRO_ESTRATEGIA",
+        "nombre": "Consultoría Macro y Estrategia",
+        "descripcion": "Servicios de planeación estratégica de alto nivel",
+        "checklist_default": [
+            "Contrato de servicios firmado",
+            "Propuesta técnica-económica",
+            "Entregables definidos con cronograma",
+            "Reportes de avance",
+            "Evidencia de sesiones de trabajo",
+            "Documento final de entrega"
+        ]
+    },
+    {
+        "codigo": "SERVICIOS_TI",
+        "nombre": "Servicios de Tecnología",
+        "descripcion": "Desarrollo de software, infraestructura, soporte técnico",
+        "checklist_default": [
+            "Contrato de servicios o SOW",
+            "Especificaciones técnicas",
+            "Código fuente o entregables técnicos",
+            "Documentación de implementación",
+            "Actas de aceptación",
+            "Licencias o accesos entregados"
+        ]
+    },
+    {
+        "codigo": "SERVICIOS_LEGALES",
+        "nombre": "Servicios Legales",
+        "descripcion": "Asesoría jurídica, litigios, contratos",
+        "checklist_default": [
+            "Carta de encomienda",
+            "Poder notarial (si aplica)",
+            "Opiniones legales emitidas",
+            "Contratos revisados/elaborados",
+            "Constancias de actuaciones",
+            "Factura y comprobante de pago"
+        ]
+    },
+    {
+        "codigo": "MARKETING_PUBLICIDAD",
+        "nombre": "Marketing y Publicidad",
+        "descripcion": "Campañas, branding, medios digitales",
+        "checklist_default": [
+            "Brief de campaña",
+            "Propuesta creativa aprobada",
+            "Materiales producidos",
+            "Reportes de resultados/métricas",
+            "Evidencia de publicación/pauta",
+            "Factura desglosada por concepto"
+        ]
+    },
+    {
+        "codigo": "CAPACITACION_ENTRENAMIENTO",
+        "nombre": "Capacitación y Entrenamiento",
+        "descripcion": "Cursos, talleres, certificaciones",
+        "checklist_default": [
+            "Programa del curso",
+            "Lista de asistencia firmada",
+            "Material didáctico entregado",
+            "Evaluaciones aplicadas",
+            "Constancias de participación",
+            "Evidencia fotográfica/video"
+        ]
+    },
+    {
+        "codigo": "SERVICIOS_FINANCIEROS",
+        "nombre": "Servicios Financieros",
+        "descripcion": "Auditoría, contabilidad, valuaciones",
+        "checklist_default": [
+            "Carta compromiso",
+            "Papeles de trabajo",
+            "Informes emitidos",
+            "Cédulas de auditoría",
+            "Dictamen o reporte final",
+            "Factura con desglose de honorarios"
+        ]
+    },
+    {
+        "codigo": "OUTSOURCING_ADMINISTRATIVO",
+        "nombre": "Outsourcing Administrativo",
+        "descripcion": "Nómina, RRHH, back-office",
+        "checklist_default": [
+            "Contrato de servicios",
+            "SLA definido",
+            "Reportes mensuales de servicio",
+            "Evidencia de procesos ejecutados",
+            "Métricas de cumplimiento",
+            "Factura con periodo de servicio"
+        ]
+    },
+    {
+        "codigo": "ARRENDAMIENTO_INTANGIBLES",
+        "nombre": "Arrendamiento de Intangibles",
+        "descripcion": "Licencias, franquicias, regalías",
+        "checklist_default": [
+            "Contrato de licencia/franquicia",
+            "Registro de propiedad intelectual",
+            "Comprobante de uso efectivo",
+            "Cálculo de regalías",
+            "Declaraciones de retención (si aplica)",
+            "Factura con concepto específico"
+        ]
+    }
+]
+
+class EmpresaService:
+    def __init__(self):
+        self.repo = EmpresaRepository()
+        self.rag_service = RAGService()
+    
+    async def crear_empresa(self, data: EmpresaCreate, admin_user_id: str) -> Empresa:
+        """Crear nueva empresa con configuración inicial"""
+        empresa = Empresa(
+            nombre_comercial=data.nombre_comercial,
+            razon_social=data.razon_social,
+            rfc=data.rfc,
+            industria=data.industria,
+            sub_industria=data.sub_industria,
+            admin_user_ids=[admin_user_id],
+            # Inicializar con tipologías base disponibles (todas deshabilitadas)
+            tipologias_configuradas=[]
+        )
+        
+        # Crear colección RAG para esta empresa
+        empresa.rag_collection_id = await self.rag_service.crear_coleccion(
+            f"empresa_{empresa.id}"
+        )
+        
+        return await self.repo.create(empresa)
+    
+    async def get_tipologias_con_estado(self, empresa_id: str) -> List[dict]:
+        """Retorna todas las tipologías base con estado de habilitación para esta empresa"""
+        empresa = await self.repo.get_by_id(empresa_id)
+        codigos_habilitados = {t.codigo for t in empresa.tipologias_configuradas if t.habilitada}
+        
+        resultado = []
+        for tipologia_base in TIPOLOGIAS_BASE:
+            config_empresa = next(
+                (t for t in empresa.tipologias_configuradas if t.codigo == tipologia_base["codigo"]),
+                None
+            )
+            
+            resultado.append({
+                **tipologia_base,
+                "habilitada": tipologia_base["codigo"] in codigos_habilitados,
+                "checklist_personalizado": config_empresa.checklist_documentos if config_empresa else tipologia_base["checklist_default"],
+                "criterios_adicionales": config_empresa.criterios_adicionales if config_empresa else None
+            })
+        
+        return resultado
+    
+    async def configurar_tipologias(
+        self,
+        empresa_id: str,
+        tipologias: List[ConfiguracionTipologia]
+    ) -> Empresa:
+        """Configurar qué tipologías usa esta empresa"""
+        empresa = await self.repo.get_by_id(empresa_id)
+        empresa.tipologias_configuradas = tipologias
+        empresa.fecha_actualizacion = datetime.utcnow()
+        return await self.repo.update(empresa)
+    
+    async def agregar_documento_rag(
+        self,
+        empresa_id: str,
+        file,
+        categoria: str
+    ) -> dict:
+        """Agregar documento a la base de conocimiento de la empresa"""
+        empresa = await self.repo.get_by_id(empresa_id)
+        
+        return await self.rag_service.ingestar_documento(
+            collection_id=empresa.rag_collection_id,
+            file=file,
+            metadata={
+                "empresa_id": empresa_id,
+                "categoria": categoria,
+                "fecha_ingesta": datetime.utcnow().isoformat()
+            }
+        )
+
+TAREA 6: Repositorio de Empresa (MongoDB)
+Crear backend/repositories/empresa_repository.py:
+
+# backend/repositories/empresa_repository.py
+
+from motor.motor_asyncio import AsyncIOMotorClient
+from backend.models.empresa import Empresa
+from backend.config.database import get_database
+
+class EmpresaRepository:
+    def __init__(self):
+        self.db = get_database()
+        self.collection = self.db.empresas
+    
+    async def create(self, empresa: Empresa) -> Empresa:
+        await self.collection.insert_one(empresa.dict())
+        return empresa
+    
+    async def get_by_id(self, empresa_id: str) -> Empresa:
+        doc = await self.collection.find_one({"id": empresa_id})
+        if not doc:
+            raise ValueError(f"Empresa {empresa_id} no encontrada")
+        return Empresa(**doc)
+    
+    async def get_by_rfc(self, rfc: str) -> Empresa:
+        doc = await self.collection.find_one({"rfc": rfc})
+        if doc:
+            return Empresa(**doc)
+        return None
+    
+    async def update(self, empresa: Empresa) -> Empresa:
+        await self.collection.update_one(
+            {"id": empresa.id},
+            {"$set": empresa.dict()}
+        )
+        return empresa
+    
+    async def list_all(self, skip: int = 0, limit: int = 100) -> list:
+        cursor = self.collection.find({}).skip(skip).limit(limit)
+        return [Empresa(**doc) async for doc in cursor]
+    
+    async def list_by_user(self, user_id: str) -> list:
+        cursor = self.collection.find({"admin_user_ids": user_id})
+        return [Empresa(**doc) async for doc in cursor]
+
+TAREA 7: Componentes Frontend - Panel de Administración de Empresa
+Crear frontend/src/components/empresa/:
+
+// frontend/src/components/empresa/ConfiguracionEmpresa.jsx
+
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { empresaService } from '../../services/empresaService';
+
+export const ConfiguracionEmpresa = () => {
+  const { empresaId } = useParams();
+  const [empresa, setEmpresa] = useState(null);
+  const [activeTab, setActiveTab] = useState('perfil');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    cargarEmpresa();
+  }, [empresaId]);
+
+  const cargarEmpresa = async () => {
+    setLoading(true);
+    const data = await empresaService.obtener(empresaId);
+    setEmpresa(data);
+    setLoading(false);
+  };
+
+  if (loading) return <div className="loading">Cargando...</div>;
+
+  return (
+    <div className="config-empresa-container">
+      <header className="config-header">
+        <h1>{empresa.nombre_comercial}</h1>
+        <span className="badge">{empresa.industria}</span>
+      </header>
+
+      <nav className="config-tabs">
+        <button 
+          className={activeTab === 'perfil' ? 'active' : ''}
+          onClick={() => setActiveTab('perfil')}
+        >
+          📋 Perfil
+        </button>
+        <button 
+          className={activeTab === 'estrategia' ? 'active' : ''}
+          onClick={() => setActiveTab('estrategia')}
+        >
+          🎯 Estrategia
+        </button>
+        <button 
+          className={activeTab === 'okrs' ? 'active' : ''}
+          onClick={() => setActiveTab('okrs')}
+        >
+          📊 OKRs
+        </button>
+        <button 
+          className={activeTab === 'tipologias' ? 'active' : ''}
+          onClick={() => setActiveTab('tipologias')}
+        >
+          📁 Tipologías
+        </button>
+        <button 
+          className={activeTab === 'conocimiento' ? 'active' : ''}
+          onClick={() => setActiveTab('conocimiento')}
+        >
+          🧠 Base de Conocimiento
+        </button>
+      </nav>
+
+      <main className="config-content">
+        {activeTab === 'perfil' && <PerfilEmpresa empresa={empresa} onUpdate={cargarEmpresa} />}
+        {activeTab === 'estrategia' && <EstrategiaEmpresa empresa={empresa} onUpdate={cargarEmpresa} />}
+        {activeTab === 'okrs' && <OKRsEmpresa empresa={empresa} onUpdate={cargarEmpresa} />}
+        {activeTab === 'tipologias' && <TipologiasEmpresa empresa={empresa} onUpdate={cargarEmpresa} />}
+        {activeTab === 'conocimiento' && <BaseConocimiento empresa={empresa} onUpdate={cargarEmpresa} />}
+      </main>
+    </div>
+  );
+};
+
+// Sub-componente: Perfil básico
+const PerfilEmpresa = ({ empresa, onUpdate }) => {
+  const [formData, setFormData] = useState({
+    nombre_comercial: empresa.nombre_comercial,
+    razon_social: empresa.razon_social,
+    rfc: empresa.rfc,
+    industria: empresa.industria,
+    sub_industria: empresa.sub_industria || ''
+  });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await empresaService.actualizar(empresa.id, formData);
+    onUpdate();
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="perfil-form">
+      <h2>Información General</h2>
+      
+      <div className="form-group">
+        <label>Nombre Comercial</label>
+        <input 
+          type="text" 
+          value={formData.nombre_comercial}
+          onChange={e => setFormData({...formData, nombre_comercial: e.target.value})}
+        />
+      </div>
+
+      <div className="form-group">
+        <label>Razón Social</label>
+        <input 
+          type="text" 
+          value={formData.razon_social}
+          onChange={e => setFormData({...formData, razon_social: e.target.value})}
+        />
+      </div>
+
+      <div className="form-group">
+        <label>RFC</label>
+        <input 
+          type="text" 
+          value={formData.rfc}
+          disabled
+        />
+        <small>El RFC no puede modificarse</small>
+      </div>
+
+      <div className="form-group">
+        <label>Industria</label>
+        <select 
+          value={formData.industria}
+          onChange={e => setFormData({...formData, industria: e.target.value})}
+        >
+          <option value="construccion">Construcción</option>
+          <option value="servicios_profesionales">Servicios Profesionales</option>
+          <option value="manufactura">Manufactura</option>
+          <option value="comercio">Comercio</option>
+          <option value="tecnologia">Tecnología</option>
+          <option value="salud">Salud</option>
+          <option value="educacion">Educación</option>
+          <option value="hoteleria_restaurantes">Hotelería y Restaurantes</option>
+          <option value="transporte_logistica">Transporte y Logística</option>
+          <option value="inmobiliario">Inmobiliario</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+
+      <button type="submit" className="btn-primary">Guardar Cambios</button>
+    </form>
+  );
+};
+
+// Sub-componente: Estrategia (Visión, Misión, Pilares)
+const EstrategiaEmpresa = ({ empresa, onUpdate }) => {
+  const [formData, setFormData] = useState({
+    vision: empresa.vision || '',
+    mision: empresa.mision || '',
+    pilares_estrategicos: empresa.pilares_estrategicos || []
+  });
+
+  const agregarPilar = () => {
+    setFormData({
+      ...formData,
+      pilares_estrategicos: [
+        ...formData.pilares_estrategicos,
+        { nombre: '', descripcion: '', peso: 0.25 }
+      ]
+    });
+  };
+
+  const eliminarPilar = (index) => {
+    const nuevos = formData.pilares_estrategicos.filter((_, i) => i !== index);
+    setFormData({ ...formData, pilares_estrategicos: nuevos });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await empresaService.actualizarEstrategia(empresa.id, formData);
+    onUpdate();
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="estrategia-form">
+      <h2>Estrategia Corporativa</h2>
+      
+      <div className="form-group">
+        <label>Visión</label>
+        <textarea 
+          value={formData.vision}
+          onChange={e => setFormData({...formData, vision: e.target.value})}
+          placeholder="¿Cómo visualiza su empresa en 5-10 años?"
+          rows={3}
+        />
+      </div>
+
+      <div className="form-group">
+        <label>Misión</label>
+        <textarea 
+          value={formData.mision}
+          onChange={e => setFormData({...formData, mision: e.target.value})}
+          placeholder="¿Cuál es el propósito fundamental de su empresa?"
+          rows={3}
+        />
+      </div>
+
+      <div className="pilares-section">
+        <h3>Pilares Estratégicos</h3>
+        <p className="help-text">
+          Los pilares estratégicos son las áreas clave de enfoque para alcanzar su visión.
+          Estos se usarán para evaluar la alineación de los servicios que contrate.
+        </p>
+        
+        {formData.pilares_estrategicos.map((pilar, index) => (
+          <div key={index} className="pilar-card">
+            <div className="pilar-header">
+              <input
+                type="text"
+                value={pilar.nombre}
+                onChange={e => {
+                  const nuevos = [...formData.pilares_estrategicos];
+                  nuevos[index].nombre = e.target.value;
+                  setFormData({...formData, pilares_estrategicos: nuevos});
+                }}
+                placeholder="Nombre del pilar (ej: Innovación Tecnológica)"
+              />
+              <button type="button" onClick={() => eliminarPilar(index)} className="btn-delete">
+                ✕
+              </button>
+            </div>
+            <textarea
+              value={pilar.descripcion}
+              onChange={e => {
+                const nuevos = [...formData.pilares_estrategicos];
+                nuevos[index].descripcion = e.target.value;
+                setFormData({...formData, pilares_estrategicos: nuevos});
+              }}
+              placeholder="Descripción del pilar y por qué es importante"
+              rows={2}
+            />
+          </div>
+        ))}
+        
+        <button type="button" onClick={agregarPilar} className="btn-secondary">
+          + Agregar Pilar
+        </button>
+      </div>
+
+      <button type="submit" className="btn-primary">Guardar Estrategia</button>
+    </form>
+  );
+};
+
+// Sub-componente: OKRs
+const OKRsEmpresa = ({ empresa, onUpdate }) => {
+  const [okrs, setOkrs] = useState(empresa.okrs || []);
+
+  const agregarOKR = () => {
+    setOkrs([
+      ...okrs,
+      { objetivo: '', key_results: [''], periodo: '2025', responsable: '' }
+    ]);
+  };
+
+  const agregarKeyResult = (okrIndex) => {
+    const nuevos = [...okrs];
+    nuevos[okrIndex].key_results.push('');
+    setOkrs(nuevos);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await empresaService.actualizarOKRs(empresa.id, okrs);
+    onUpdate();
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="okrs-form">
+      <h2>Objetivos y Resultados Clave (OKRs)</h2>
+      <p className="help-text">
+        Los OKRs definen qué quiere lograr su empresa y cómo medirá el éxito.
+        Los agentes usarán estos OKRs para evaluar si los servicios contratados 
+        contribuyen a sus objetivos.
+      </p>
+      
+      {okrs.map((okr, okrIndex) => (
+        <div key={okrIndex} className="okr-card">
+          <div className="okr-header">
+            <select
+              value={okr.periodo}
+              onChange={e => {
+                const nuevos = [...okrs];
+                nuevos[okrIndex].periodo = e.target.value;
+                setOkrs(nuevos);
+              }}
+            >
+              <option value="2025-Q1">2025 Q1</option>
+              <option value="2025-Q2">2025 Q2</option>
+              <option value="2025">2025 Anual</option>
+              <option value="2026">2026</option>
+            </select>
+            <button 
+              type="button" 
+              onClick={() => setOkrs(okrs.filter((_, i) => i !== okrIndex))}
+              className="btn-delete"
+            >
+              Eliminar OKR
+            </button>
+          </div>
+          
+          <div className="form-group">
+            <label>Objetivo</label>
+            <input
+              type="text"
+              value={okr.objetivo}
+              onChange={e => {
+                const nuevos = [...okrs];
+                nuevos[okrIndex].objetivo = e.target.value;
+                setOkrs(nuevos);
+              }}
+              placeholder="ej: Expandir presencia en mercado del sureste"
+            />
+          </div>
+
+          <div className="key-results">
+            <label>Key Results</label>
+            {okr.key_results.map((kr, krIndex) => (
+              <div key={krIndex} className="kr-row">
+                <span className="kr-number">KR{krIndex + 1}</span>
+                <input
+                  type="text"
+                  value={kr}
+                  onChange={e => {
+                    const nuevos = [...okrs];
+                    nuevos[okrIndex].key_results[krIndex] = e.target.value;
+                    setOkrs(nuevos);
+                  }}
+                  placeholder="ej: Aumentar ventas en Quintana Roo 25%"
+                />
+              </div>
+            ))}
+            <button 
+              type="button" 
+              onClick={() => agregarKeyResult(okrIndex)}
+              className="btn-link"
+            >
+              + Agregar Key Result
+            </button>
+          </div>
+        </div>
+      ))}
+      
+      <button type="button" onClick={agregarOKR} className="btn-secondary">
+        + Agregar OKR
+      </button>
+      
+      <button type="submit" className="btn-primary">Guardar OKRs</button>
+    </form>
+  );
+};
+
+// Sub-componente: Tipologías
+const TipologiasEmpresa = ({ empresa, onUpdate }) => {
+  const [tipologias, setTipologias] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    cargarTipologias();
+  }, [empresa.id]);
+
+  const cargarTipologias = async () => {
+    const data = await empresaService.getTipologias(empresa.id);
+    setTipologias(data);
+    setLoading(false);
+  };
+
+  const toggleTipologia = async (codigo) => {
+    const tipologia = tipologias.find(t => t.codigo === codigo);
+    const nuevaConfig = {
+      codigo,
+      nombre: tipologia.nombre,
+      descripcion: tipologia.descripcion,
+      habilitada: !tipologia.habilitada,
+      checklist_documentos: tipologia.checklist_personalizado || tipologia.checklist_default
+    };
+    
+    await empresaService.toggleTipologia(empresa.id, nuevaConfig);
+    cargarTipologias();
+  };
+
+  if (loading) return <div>Cargando tipologías...</div>;
+
+  return (
+    <div className="tipologias-config">
+      <h2>Tipologías de Servicios</h2>
+      <p className="help-text">
+        Seleccione los tipos de servicios intangibles que su empresa contrata regularmente.
+        Solo las tipologías habilitadas estarán disponibles al crear nuevos proyectos de auditoría.
+      </p>
+      
+      <div className="tipologias-grid">
+        {tipologias.map(tipologia => (
+          <div 
+            key={tipologia.codigo} 
+            className={`tipologia-card ${tipologia.habilitada ? 'enabled' : 'disabled'}`}
+          >
+            <div className="tipologia-header">
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={tipologia.habilitada}
+                  onChange={() => toggleTipologia(tipologia.codigo)}
+                />
+                <span className="slider"></span>
+              </label>
+              <h3>{tipologia.nombre}</h3>
+            </div>
+            <p>{tipologia.descripcion}</p>
+            
+            {tipologia.habilitada && (
+              <div className="checklist-preview">
+                <h4>Checklist de documentos:</h4>
+                <ul>
+                  {tipologia.checklist_personalizado.slice(0, 3).map((doc, i) => (
+                    <li key={i}>{doc}</li>
+                  ))}
+                  {tipologia.checklist_personalizado.length > 3 && (
+                    <li className="more">+{tipologia.checklist_personalizado.length - 3} más...</li>
+                  )}
+                </ul>
+                <button className="btn-link">Personalizar checklist →</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// Sub-componente: Base de Conocimiento (RAG)
+const BaseConocimiento = ({ empresa, onUpdate }) => {
+  const [documentos, setDocumentos] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [categoria, setCategoria] = useState('estrategia');
+
+  useEffect(() => {
+    cargarDocumentos();
+  }, [empresa.id]);
+
+  const cargarDocumentos = async () => {
+    const data = await empresaService.getDocumentosRAG(empresa.id);
+    setDocumentos(data);
+  };
+
+  const handleUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setUploading(true);
+    await empresaService.subirDocumentoRAG(empresa.id, file, categoria);
+    await cargarDocumentos();
+    setUploading(false);
+  };
+
+  const categorias = [
+    { value: 'estrategia', label: '🎯 Estrategia', descripcion: 'Visión, pilares, planes estratégicos' },
+    { value: 'operaciones', label: '⚙️ Operaciones', descripcion: 'Procesos, manuales, procedimientos' },
+    { value: 'fiscal', label: '📋 Fiscal', descripcion: 'Políticas fiscales, criterios internos' },
+    { value: 'legal', label: '⚖️ Legal', descripcion: 'Contratos tipo, políticas legales' },
+    { value: 'rrhh', label: '👥 RRHH', descripcion: 'Políticas de personal, organigrama' },
+    { value: 'industria', label: '🏭 Industria', descripcion: 'Contexto del sector, competencia' }
+  ];
+
+  return (
+    <div className="knowledge-base">
+      <h2>Base de Conocimiento</h2>
+      <p className="help-text">
+        Suba documentos que ayuden a los agentes a entender mejor su empresa.
+        Estos documentos se usarán como contexto al analizar sus proyectos de auditoría.
+      </p>
+      
+      <div className="upload-section">
+        <h3>Subir Documento</h3>
+        
+        <div className="categoria-selector">
+          {categorias.map(cat => (
+            <button
+              key={cat.value}
+              className={`categoria-btn ${categoria === cat.value ? 'active' : ''}`}
+              onClick={() => setCategoria(cat.value)}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+        
+        <div className="upload-area">
+          <input
+            type="file"
+            id="doc-upload"
+            accept=".pdf,.doc,.docx,.txt,.md"
+            onChange={handleUpload}
+            disabled={uploading}
+          />
+          <label htmlFor="doc-upload" className="upload-label">
+            {uploading ? 'Subiendo...' : '📄 Seleccionar archivo'}
+          </label>
+          <small>Formatos: PDF, Word, TXT, Markdown. Máx 10MB</small>
+        </div>
+      </div>
+
+      <div className="documentos-list">
+        <h3>Documentos Cargados</h3>
+        
+        {categorias.map(cat => {
+          const docsCategoria = documentos.filter(d => d.categoria === cat.value);
+          if (docsCategoria.length === 0) return null;
+          
+          return (
+            <div key={cat.value} className="categoria-section">
+              <h4>{cat.label}</h4>
+              {docsCategoria.map(doc => (
+                <div key={doc.id} className="documento-item">
+                  <span className="doc-icon">📄</span>
+                  <div className="doc-info">
+                    <span className="doc-name">{doc.nombre}</span>
+                    <span className="doc-meta">
+                      {doc.tamano} • Subido {doc.fecha_subida}
+                    </span>
+                  </div>
+                  <button 
+                    className="btn-delete"
+                    onClick={() => eliminarDocumento(doc.id)}
+                  >
+                    🗑️
+                  </button>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+        
+        {documentos.length === 0 && (
+          <div className="empty-state">
+            <p>No hay documentos cargados aún.</p>
+            <p>Suba documentos para que los agentes puedan entender mejor su empresa.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ConfiguracionEmpresa;
+
+TAREA 8: Flujo de Onboarding para Nuevas Empresas
+Crear frontend/src/components/empresa/OnboardingEmpresa.jsx:
+
+// frontend/src/components/empresa/OnboardingEmpresa.jsx
+
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { empresaService } from '../../services/empresaService';
+
+const STEPS = [
+  { id: 'basico', title: 'Información Básica', icon: '📋' },
+  { id: 'estrategia', title: 'Estrategia', icon: '🎯' },
+  { id: 'tipologias', title: 'Tipos de Servicios', icon: '📁' },
+  { id: 'confirmacion', title: 'Confirmación', icon: '✅' }
+];
+
+export const OnboardingEmpresa = () => {
+  const navigate = useNavigate();
+  const [currentStep, setCurrentStep] = useState(0);
+  const [empresaData, setEmpresaData] = useState({
+    nombre_comercial: '',
+    razon_social: '',
+    rfc: '',
+    industria: '',
+    vision: '',
+    mision: '',
+    pilares_estrategicos: [],
+    tipologias_seleccionadas: []
+  });
+
+  const handleNext = () => {
+    if (currentStep < STEPS.length - 1) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleSubmit = async () => {
+    const empresa = await empresaService.crear(empresaData);
+    navigate(`/empresa/${empresa.id}/configuracion`);
+  };
+
+  return (
+    <div className="onboarding-container">
+      <div className="onboarding-sidebar">
+        <h2>Configurar Nueva Empresa</h2>
+        <div className="steps-indicator">
+          {STEPS.map((step, index) => (
+            <div 
+              key={step.id}
+              className={`step ${index === currentStep ? 'active' : ''} ${index < currentStep ? 'completed' : ''}`}
+            >
+              <span className="step-icon">{step.icon}</span>
+              <span className="step-title">{step.title}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="onboarding-content">
+        {currentStep === 0 && (
+          <StepBasico data={empresaData} onChange={setEmpresaData} />
+        )}
+        {currentStep === 1 && (
+          <StepEstrategia data={empresaData} onChange={setEmpresaData} />
+        )}
+        {currentStep === 2 && (
+          <StepTipologias data={empresaData} onChange={setEmpresaData} />
+        )}
+        {currentStep === 3 && (
+          <StepConfirmacion data={empresaData} />
+        )}
+
+        <div className="onboarding-actions">
+          {currentStep > 0 && (
+            <button onClick={handleBack} className="btn-secondary">
+              ← Atrás
+            </button>
+          )}
+          {currentStep < STEPS.length - 1 ? (
+            <button onClick={handleNext} className="btn-primary">
+              Siguiente →
+            </button>
+          ) : (
+            <button onClick={handleSubmit} className="btn-primary">
+              Crear Empresa ✓
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Step 1: Información Básica
+const StepBasico = ({ data, onChange }) => (
+  <div className="step-content">
+    <h2>Información de la Empresa</h2>
+    <p>Ingrese los datos básicos de la empresa que usará revisar.ia</p>
+    
+    <div className="form-group">
+      <label>Nombre Comercial *</label>
+      <input
+        type="text"
+        value={data.nombre_comercial}
+        onChange={e => onChange({...data, nombre_comercial: e.target.value})}
+        placeholder="ej: Fitness Plus"
+      />
+    </div>
+
+    <div className="form-group">
+      <label>Razón Social *</label>
+      <input
+        type="text"
+        value={data.razon_social}
+        onChange={e => onChange({...data, razon_social: e.target.value})}
+        placeholder="ej: Gimnasios Fitness Plus S.A. de C.V."
+      />
+    </div>
+
+    <div className="form-group">
+      <label>RFC *</label>
+      <input
+        type="text"
+        value={data.rfc}
+        onChange={e => onChange({...data, rfc: e.target.value.toUpperCase()})}
+        placeholder="ej: GFP201015XYZ"
+        maxLength={13}
+      />
+    </div>
+
+    <div className="form-group">
+      <label>Industria *</label>
+      <select
+        value={data.industria}
+        onChange={e => onChange({...data, industria: e.target.value})}
+      >
+        <option value="">Seleccione...</option>
+        <option value="construccion">🏗️ Construcción</option>
+        <option value="servicios_profesionales">💼 Servicios Profesionales</option>
+        <option value="manufactura">🏭 Manufactura</option>
+        <option value="comercio">🛒 Comercio</option>
+        <option value="tecnologia">💻 Tecnología</option>
+        <option value="salud">🏥 Salud</option>
+        <option value="educacion">📚 Educación</option>
+        <option value="hoteleria_restaurantes">🏨 Hotelería y Restaurantes</option>
+        <option value="transporte_logistica">🚚 Transporte y Logística</option>
+        <option value="inmobiliario">🏢 Inmobiliario</option>
+        <option value="otro">📦 Otro</option>
+      </select>
+    </div>
+  </div>
+);
+
+// Step 2: Estrategia
+const StepEstrategia = ({ data, onChange }) => (
+  <div className="step-content">
+    <h2>Estrategia Corporativa</h2>
+    <p>Esta información ayuda a los agentes a evaluar si los servicios que contrata están alineados con sus objetivos</p>
+    
+    <div className="form-group">
+      <label>Visión</label>
+      <textarea
+        value={data.vision}
+        onChange={e => onChange({...data, vision: e.target.value})}
+        placeholder="¿Cómo visualiza su empresa en 5-10 años?"
+        rows={3}
+      />
+      <small>Opcional pero recomendado para mejor análisis</small>
+    </div>
+
+    <div className="form-group">
+      <label>Misión</label>
+      <textarea
+        value={data.mision}
+        onChange={e => onChange({...data, mision: e.target.value})}
+        placeholder="¿Cuál es el propósito fundamental de su empresa?"
+        rows={3}
+      />
+    </div>
+
+    <div className="pilares-quick">
+      <label>Pilares Estratégicos (máximo 4)</label>
+      <p className="help-text">
+        Estos son los ejes principales de su estrategia. Puede agregarlos ahora o después.
+      </p>
+      {/* Selector rápido de pilares comunes */}
+      <div className="pilares-sugeridos">
+        {['Crecimiento', 'Innovación', 'Eficiencia Operativa', 'Sustentabilidad', 
+          'Expansión Geográfica', 'Desarrollo de Talento', 'Transformación Digital'].map(pilar => (
+          <button
+            key={pilar}
+            type="button"
+            className={`pilar-chip ${data.pilares_estrategicos.some(p => p.nombre === pilar) ? 'selected' : ''}`}
+            onClick={() => {
+              const existe = data.pilares_estrategicos.some(p => p.nombre === pilar);
+              if (existe) {
+                onChange({
+                  ...data,
+                  pilares_estrategicos: data.pilares_estrategicos.filter(p => p.nombre !== pilar)
+                });
+              } else if (data.pilares_estrategicos.length < 4) {
+                onChange({
+                  ...data,
+                  pilares_estrategicos: [...data.pilares_estrategicos, { nombre: pilar, descripcion: '', peso: 0.25 }]
+                });
+              }
+            }}
+          >
+            {pilar}
+          </button>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+// Step 3: Tipologías
+const StepTipologias = ({ data, onChange }) => {
+  const tipologiasDisponibles = [
+    { codigo: 'CONSULTORIA_MACRO_ESTRATEGIA', nombre: 'Consultoría y Estrategia', icon: '🎯' },
+    { codigo: 'SERVICIOS_TI', nombre: 'Servicios de TI', icon: '💻' },
+    { codigo: 'SERVICIOS_LEGALES', nombre: 'Servicios Legales', icon: '⚖️' },
+    { codigo: 'MARKETING_PUBLICIDAD', nombre: 'Marketing y Publicidad', icon: '📢' },
+    { codigo: 'CAPACITACION_ENTRENAMIENTO', nombre: 'Capacitación', icon: '📚' },
+    { codigo: 'SERVICIOS_FINANCIEROS', nombre: 'Servicios Financieros', icon: '💰' },
+    { codigo: 'OUTSOURCING_ADMINISTRATIVO', nombre: 'Outsourcing Administrativo', icon: '📋' },
+    { codigo: 'ARRENDAMIENTO_INTANGIBLES', nombre: 'Licencias y Regalías', icon: '📄' }
+  ];
+
+  const toggleTipologia = (codigo) => {
+    const existe = data.tipologias_seleccionadas.includes(codigo);
+    if (existe) {
+      onChange({
+        ...data,
+        tipologias_seleccionadas: data.tipologias_seleccionadas.filter(c => c !== codigo)
+      });
+    } else {
+      onChange({
+        ...data,
+        tipologias_seleccionadas: [...data.tipologias_seleccionadas, codigo]
+      });
+    }
+  };
+
+  return (
+    <div className="step-content">
+      <h2>Tipos de Servicios</h2>
+      <p>Seleccione los tipos de servicios intangibles que su empresa contrata regularmente</p>
+      
+      <div className="tipologias-grid-onboarding">
+        {tipologiasDisponibles.map(tip => (
+          <div
+            key={tip.codigo}
+            className={`tipologia-option ${data.tipologias_seleccionadas.includes(tip.codigo) ? 'selected' : ''}`}
+            onClick={() => toggleTipologia(tip.codigo)}
+          >
+            <span className="tip-icon">{tip.icon}</span>
+            <span className="tip-nombre">{tip.nombre}</span>
+            {data.tipologias_seleccionadas.includes(tip.codigo) && (
+              <span className="check">✓</span>
+            )}
+          </div>
+        ))}
+      </div>
+      
+      <p className="help-text">
+        Puede modificar esto después. Solo podrá crear proyectos de auditoría 
+        para las tipologías que habilite aquí.
+      </p>
+    </div>
+  );
+};
+
+// Step 4: Confirmación
+const StepConfirmacion = ({ data }) => (
+  <div className="step-content">
+    <h2>Confirmar Configuración</h2>
+    
+    <div className="confirmation-summary">
+      <div className="summary-section">
+        <h3>📋 Información Básica</h3>
+        <p><strong>Nombre:</strong> {data.nombre_comercial}</p>
+        <p><strong>RFC:</strong> {data.rfc}</p>
+        <p><strong>Industria:</strong> {data.industria}</p>
+      </div>
+      
+      <div className="summary-section">
+        <h3>🎯 Estrategia</h3>
+        {data.vision && <p><strong>Visión:</strong> {data.vision}</p>}
+        {data.pilares_estrategicos.length > 0 && (
+          <p><strong>Pilares:</strong> {data.pilares_estrategicos.map(p => p.nombre).join(', ')}</p>
+        )}
+      </div>
+      
+      <div className="summary-section">
+        <h3>📁 Tipologías Habilitadas</h3>
+        <p>{data.tipologias_seleccionadas.length} tipos de servicio seleccionados</p>
+      </div>
+    </div>
+    
+    <div className="next-steps">
+      <h3>Próximos Pasos</h3>
+      <ol>
+        <li>Después de crear la empresa, podrá completar su configuración</li>
+        <li>Suba documentos a la Base de Conocimiento para mejor análisis</li>
+        <li>Configure OKRs específicos para evaluar alineación estratégica</li>
+        <li>Personalice los checklists de documentos por tipología</li>
+      </ol>
+    </div>
+  </div>
+);
+
+export default OnboardingEmpresa;
+
+TAREA 9: Actualizar Rutas y Navegación
+Modificar frontend/src/App.jsx para incluir rutas de empresa:
+
+// Agregar estas rutas
+<Route path="/empresas" element={<ListaEmpresas />} />
+<Route path="/empresas/nueva" element={<OnboardingEmpresa />} />
+<Route path="/empresa/:empresaId/configuracion" element={<ConfiguracionEmpresa />} />
+
+TAREA 10: Tests
+Crear tests para la arquitectura multi-tenant:
+
+# backend/tests/test_multi_tenant.py
+
+import pytest
+from backend.models.empresa import Empresa, IndustriaEnum, ConfiguracionTipologia
+from backend.services.empresa_service import EmpresaService
+from backend.services.inyeccion_contexto_service import InyeccionContextoService
+
+class TestMultiTenant:
+    
+    @pytest.fixture
+    def empresa_gimnasio(self):
+        return Empresa(
+            nombre_comercial="Fitness Plus",
+            razon_social="Gimnasios Fitness Plus S.A. de C.V.",
+            rfc="GFP201015XYZ",
+            industria=IndustriaEnum.SALUD,
+            vision="Ser la cadena de gimnasios líder en el sureste",
+            pilares_estrategicos=[
+                {"nombre": "Expansión", "descripcion": "Abrir 10 sucursales", "peso": 0.3},
+                {"nombre": "Experiencia", "descripcion": "Mejor servicio al cliente", "peso": 0.3}
+            ],
+            tipologias_configuradas=[
+                ConfiguracionTipologia(
+                    codigo="MARKETING_PUBLICIDAD",
+                    nombre="Marketing y Publicidad",
+                    descripcion="Campañas",
+                    habilitada=True,
+                    checklist_documentos=["Contrato", "Brief", "Materiales", "Métricas"]
+                )
+            ]
+        )
+    
+    @pytest.fixture
+    def empresa_constructora(self):
+        return Empresa(
+            nombre_comercial="Grupo Durezza",
+            razon_social="Grupo Durezza S.A. de C.V.",
+            rfc="GDU180515ABC",
+            industria=IndustriaEnum.CONSTRUCCION,
+            vision="Líder en construcción sustentable",
+            tipologias_configuradas=[
+                ConfiguracionTipologia(
+                    codigo="CONSULTORIA_MACRO_ESTRATEGIA",
+                    nombre="Consultoría Macro",
+                    descripcion="Planeación estratégica",
+                    habilitada=True,
+                    checklist_documentos=["Contrato", "Propuesta", "Entregables"]
+                )
+            ]
+        )
+    
+    def test_contexto_es_diferente_por_empresa(
+        self, 
+        empresa_gimnasio, 
+        empresa_constructora
+    ):
+        """El contexto inyectado debe ser diferente para cada empresa"""
+        service = InyeccionContextoService()
+        
+        # Simular proyectos de cada empresa
+        contexto_gym = service._construir_contexto_corporativo(empresa_gimnasio)
+        contexto_const = service._construir_contexto_corporativo(empresa_constructora)
+        
+        assert contexto_gym["empresa"]["nombre"] == "Fitness Plus"
+        assert contexto_const["empresa"]["nombre"] == "Grupo Durezza"
+        assert contexto_gym["empresa"]["industria"] == "salud"
+        assert contexto_const["empresa"]["industria"] == "construccion"
+    
+    def test_marco_normativo_es_universal(self):
+        """El marco normativo fiscal debe ser igual para todas las empresas"""
+        service = InyeccionContextoService()
+        
+        normativo = service._get_marco_normativo_universal()
+        
+        # Verificar que contiene los artículos clave
+        assert "cff_5a" in normativo
+        assert "cff_69b" in normativo
+        assert "lisr_27" in normativo
+        assert "cuatro_pilares" in normativo
+        
+        # El marco normativo NUNCA debe tener datos de empresa específica
+        assert "empresa" not in str(normativo)
+        assert "Durezza" not in str(normativo)
+        assert "Fitness" not in str(normativo)
+    
+    def test_tipologias_filtradas_por_empresa(self, empresa_gimnasio):
+        """Solo las tipologías habilitadas deben estar disponibles"""
+        
+        habilitadas = [t.codigo for t in empresa_gimnasio.tipologias_configuradas if t.habilitada]
+        
+        assert "MARKETING_PUBLICIDAD" in habilitadas
+        assert "CONSULTORIA_MACRO_ESTRATEGIA" not in habilitadas
+    
+    def test_checklist_personalizado_por_empresa(
+        self, 
+        empresa_gimnasio, 
+        empresa_constructora
+    ):
+        """Cada empresa puede tener checklists personalizados"""
+        
+        # Gimnasio tiene checklist para marketing
+        tip_marketing = next(
+            t for t in empresa_gimnasio.tipologias_configuradas 
+            if t.codigo == "MARKETING_PUBLICIDAD"
+        )
+        assert "Métricas" in tip_marketing.checklist_documentos
+        
+        # Constructora tiene checklist para consultoría
+        tip_consultoria = next(
+            t for t in empresa_constructora.tipologias_configuradas 
+            if t.codigo == "CONSULTORIA_MACRO_ESTRATEGIA"
+        )
+        assert "Entregables" in tip_consultoria.checklist_documentos
+    
+    def test_crear_empresa_genera_coleccion_rag(self):
+        """Al crear empresa debe generarse su colección RAG"""
+        # Este test requiere mock del RAG service
+        pass
+    
+    def test_proyecto_hereda_contexto_de_empresa(self):
+        """Un proyecto debe usar el contexto de su empresa asociada"""
+        # Este test verifica la integración proyecto -> empresa
+        pass
+
+VALIDACIÓN FINAL:
+Después de implementar, verificar:
+
+ Modelo Empresa con todos los campos configurables
+ API CRUD completa para empresas
+ Contexto dinámico que lee de Empresa en lugar de hardcoded
+ Panel de configuración con 5 tabs funcionales
+ Onboarding wizard de 4 pasos
+ RAG por tenant (colección separada por empresa)
+ Tipologías configurables por empresa
+ Tests pasando para arquitectura multi-tenant
+ Proyecto asociado a empresa_id
+ Marco normativo UNIVERSAL separado del contexto corporativo CONFIGURABLE
+RESULTADO ESPERADO:
+Una plataforma donde:
+
+Super admin puede crear nuevas empresas (tenants)
+Cada empresa configura su visión, pilares, OKRs
+Cada empresa habilita las tipologías que usa
+Cada empresa sube sus documentos de conocimiento
+Los proyectos de cada empresa usan SU contexto
+El marco normativo fiscal es UNIVERSAL para todos

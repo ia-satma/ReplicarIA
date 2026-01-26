@@ -1,0 +1,668 @@
+═══════════════════════════════════════════════════════════════════════════════
+📚 ESTRUCTURA DE KB LEGAL - ARTÍCULOS CLAVE PARA AGENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+OBJETIVO: Indexar SOLO los artículos y fracciones clave, estructurados para
+que los agentes puedan citarlos correctamente en sus análisis y Defense Files.
+
+FORMATO ESTÁNDAR:
+─────────────────
+Cada artículo tendrá dos bloques:
+• [NORMA] - Texto literal de la ley
+• [INTERPRETACIÓN REVISAR-IA] - Cómo lo usa cada agente
+
+SISTEMA DE TAGS:
+────────────────
+@CFF_5A      → Art. 5-A del CFF
+@LISR_27_I   → Art. 27 fracción I de LISR
+@LIVA_5      → Art. 5 de LIVA
+
+═══════════════════════════════════════════════════════════════════════════════
+PARTE 1: ESTRUCTURA DE ARCHIVOS EN KB
+═══════════════════════════════════════════════════════════════════════════════
+
+```
+kb_legal/
+│
+├── CFF/
+│   ├── CFF_ART_5_INTERPRETACION.md
+│   ├── CFF_ART_5A_RAZON_NEGOCIOS.md      ← CRÍTICO
+│   ├── CFF_ART_29_29A_CFDI.md            ← CRÍTICO
+│   ├── CFF_ART_32D_OPINION_CUMPLIMIENTO.md
+│   ├── CFF_ART_69_CONTRIBUYENTES_INCUMPLIDOS.md
+│   └── CFF_ART_69B_EFOS_MATERIALIDAD.md  ← CRÍTICO
+│
+├── LISR/
+│   ├── LISR_ART_25_DEDUCCIONES_AUTORIZADAS.md
+│   ├── LISR_ART_27_REQUISITOS_DEDUCCIONES.md  ← CRÍTICO (todas las fracciones)
+│   └── LISR_ART_28_GASTOS_NO_DEDUCIBLES.md
+│
+├── LIVA/
+│   └── LIVA_ART_5_ACREDITAMIENTO_IVA.md  ← CRÍTICO
+│
+├── RMF/
+│   └── RMF_CFDI_RETENCIONES.md
+│
+├── OTRAS_LEYES/
+│   ├── NOM_151_VALOR_PROBATORIO.md
+│   ├── LFPCA_DEFENSA_CONTENCIOSA.md
+│   ├── LFDC_DERECHOS_CONTRIBUYENTE.md
+│   └── LFPIORPI_ACTIVIDADES_VULNERABLES.md
+│
+└── TESIS_CRITERIOS/
+    ├── TESIS_SCJN_IA_HERRAMIENTA_AUXILIAR.md
+    ├── TESIS_RAZON_NEGOCIOS_5A_CFF.md
+    ├── TESIS_MATERIALIDAD_69B_CFF.md
+    └── TESIS_ESTRICTA_INDISPENSABILIDAD_LISR27.md
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PARTE 2: FORMATO DE CADA DOCUMENTO
+═══════════════════════════════════════════════════════════════════════════════
+
+Ejemplo: CFF_ART_5A_RAZON_NEGOCIOS.md
+
+```markdown
+---
+id: CFF_5A
+ley: Código Fiscal de la Federación
+articulo: 5-A
+titulo: Razón de negocios
+vigencia: 2020-01-01
+tags: [razon_negocios, simulacion, recaracterizacion, A1, A3, A7]
+prioridad: critica
+---
+
+# @CFF_5A - Razón de Negocios
+
+## [NORMA]
+
+**Artículo 5o.-A.** Los actos jurídicos que carezcan de una razón de negocios 
+y que generen un beneficio fiscal directo o indirecto, tendrán los efectos 
+fiscales que correspondan a los que se habrían realizado para la obtención 
+del beneficio económico razonablemente esperado por el contribuyente.
+
+En el ejercicio de sus facultades de comprobación, la autoridad fiscal podrá 
+presumir que los actos jurídicos carecen de una razón de negocios con base en 
+los hechos y circunstancias del contribuyente conocidos al amparo de dichas 
+facultades, así como de la valoración de los elementos, la información y 
+documentación obtenidos durante las mismas.
+
+Se considera que existe una razón de negocios cuando el beneficio económico 
+razonablemente esperado, sea mayor al beneficio fiscal.
+
+[...]
+
+**Fuente:** https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf
+**Última reforma:** [fecha]
+
+---
+
+## [INTERPRETACIÓN REVISAR-IA]
+
+### Uso por Agentes:
+
+| Agente | Cómo lo usa |
+|--------|-------------|
+| **A1 (Facturar.IA)** | Evalúa si la operación tiene razón de negocios válida |
+| **A3 (Revisar.IA)** | Analiza riesgo de recaracterización por falta de RN |
+| **A5 (Investigar.IA)** | Documenta beneficio económico vs beneficio fiscal |
+| **A7 (Auditar.IA)** | Construye defensa demostrando RN en el Defense File |
+
+### Elementos a documentar para cumplir:
+
+1. **Beneficio económico esperado**
+   - ¿Qué ganancia real obtiene el contribuyente?
+   - ¿Es mayor al beneficio fiscal?
+
+2. **Sustancia sobre forma**
+   - ¿La operación tiene realidad económica?
+   - ¿Hay flujo real de servicios/bienes?
+
+3. **Evidencia requerida**
+   - Contratos con detalle de servicios
+   - Entregables documentados
+   - Pagos trazables (transferencia bancaria)
+   - Correspondencia comercial
+
+### Riesgos si no se cumple:
+
+- Recaracterización de la operación
+- Rechazo de deducciones
+- Posible simulación (Art. 2180-2184 CC)
+
+### Tesis relacionadas:
+
+- Ver @TESIS_RN_001, @TESIS_RN_002
+
+### Ejemplo de aplicación:
+
+> **Caso:** Empresa A paga "servicios de consultoría" a Empresa B (parte relacionada)
+> por $10 millones sin entregables claros.
+>
+> **Análisis A3:** ⚠️ RIESGO ALTO - Sin evidencia de beneficio económico 
+> razonablemente esperado. Posible falta de razón de negocios.
+>
+> **Recomendación:** Documentar entregables específicos, horas trabajadas,
+> expertise aportado, y comparar con precios de mercado.
+
+---
+
+## Referencias cruzadas
+
+- @CFF_5 (Interpretación estricta)
+- @LISR_27_XIX (Partes relacionadas)
+- @TESIS_RN_001 (Razón de negocios SCJN)
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PARTE 3: DOCUMENTOS CRÍTICOS A CREAR (PRIORIDAD 1)
+═══════════════════════════════════════════════════════════════════════════════
+
+### 3.1 CFF_ART_69B_EFOS_MATERIALIDAD.md
+
+```markdown
+---
+id: CFF_69B
+ley: Código Fiscal de la Federación
+articulo: 69-B
+titulo: Operaciones inexistentes (EFOS/EDOS)
+tags: [efos, edos, materialidad, 69b, lista_negra, A3, A6, A7]
+prioridad: critica
+---
+
+# @CFF_69B - Operaciones Inexistentes (EFOS/EDOS)
+
+## [NORMA]
+
+**Artículo 69-B.** Cuando la autoridad fiscal detecte que un contribuyente ha 
+estado emitiendo comprobantes sin contar con los activos, personal, infraestructura 
+o capacidad material, directa o indirectamente, para prestar los servicios o 
+producir, comercializar o entregar los bienes que amparan tales comprobantes, 
+o bien, que dichos contribuyentes se encuentren no localizados, se presumirá 
+la inexistencia de las operaciones amparadas en tales comprobantes.
+
+[Procedimiento de presuntos y definitivos...]
+
+**Los contribuyentes que hayan dado cualquier efecto fiscal a los comprobantes 
+fiscales expedidos por un contribuyente incluido en el listado a que se refiere 
+el cuarto párrafo de este artículo, contarán con treinta días siguientes al de 
+la citada publicación para acreditar ante la propia autoridad, que efectivamente 
+adquirieron los bienes o recibieron los servicios que amparan los citados 
+comprobantes fiscales, o bien procederán en el mismo plazo a corregir su 
+situación fiscal...**
+
+---
+
+## [INTERPRETACIÓN REVISAR-IA]
+
+### Procedimiento 69-B:
+
+```
+1. SAT detecta indicios de EFOS
+         ↓
+2. Publica en DOF como "PRESUNTO" (1er listado)
+         ↓
+3. Contribuyente tiene 15 días para aportar pruebas
+         ↓
+4. Si no desvirtúa → Publica como "DEFINITIVO" (2do listado)
+         ↓
+5. Clientes del EFOS tienen 30 días para:
+   a) Acreditar materialidad, O
+   b) Autocorregirse
+```
+
+### Uso por Agentes:
+
+| Agente | Acción |
+|--------|--------|
+| **A3** | Verifica si proveedor está en lista 69-B (presunto/definitivo) |
+| **A6** | Consulta automática de Lista 69-B para cada proveedor |
+| **A7** | Prepara Defense File con evidencia de materialidad |
+
+### Evidencia de materialidad requerida:
+
+1. **Capacidad del proveedor**
+   - ¿Tiene empleados?
+   - ¿Tiene infraestructura?
+   - ¿Tiene domicilio localizable?
+
+2. **Realidad de la operación**
+   - Contrato firmado
+   - Entregables recibidos
+   - Evidencia fotográfica (si aplica)
+   - Comunicaciones (emails, WhatsApp)
+
+3. **Flujo financiero**
+   - Pago por transferencia bancaria
+   - Estado de cuenta mostrando el pago
+   - Conciliación bancaria
+
+4. **Razonabilidad**
+   - Precio de mercado
+   - Relación comercial previa
+   - Necesidad del servicio/bien
+
+### Niveles de riesgo para A3:
+
+| Status proveedor | Riesgo | Acción |
+|------------------|--------|--------|
+| No publicado | ✅ Bajo | Documentar materialidad preventivamente |
+| Presunto | ⚠️ Alto | Preparar defensa, juntar evidencia YA |
+| Definitivo | 🔴 Crítico | 30 días para acreditar o autocorregir |
+| Desvirtuado | ✅ OK | Conservar constancia de desvirtuación |
+| Sentencia favorable | ✅ OK | Conservar sentencia |
+
+### Consecuencias si no se acredita:
+
+- Rechazo de deducción
+- Rechazo de acreditamiento de IVA
+- Posible responsabilidad solidaria
+- Multas 55% al 75% de contribuciones omitidas
+```
+
+---
+
+### 3.2 LISR_ART_27_REQUISITOS_DEDUCCIONES.md
+
+```markdown
+---
+id: LISR_27
+ley: Ley del Impuesto sobre la Renta
+articulo: 27
+titulo: Requisitos de las deducciones
+tags: [deducciones, requisitos, A1, A3, A5, A7]
+prioridad: critica
+---
+
+# @LISR_27 - Requisitos de las Deducciones
+
+## [NORMA]
+
+**Artículo 27.** Las deducciones autorizadas en este Título deberán reunir 
+los siguientes requisitos:
+
+---
+
+### Fracción I - Estrictamente indispensables @LISR_27_I
+
+> **I.** Ser estrictamente indispensables para los fines de la actividad del 
+> contribuyente, salvo que se trate de donativos no onerosos ni remunerativos...
+
+**[INTERPRETACIÓN]**
+
+| Agente | Uso |
+|--------|-----|
+| A1 | Evalúa si el gasto es necesario para el giro del negocio |
+| A3 | Verifica relación gasto-actividad en cada CFDI |
+| A7 | Justifica indispensabilidad en Defense File |
+
+**Checklist de indispensabilidad:**
+- [ ] ¿El gasto está relacionado con la actividad económica?
+- [ ] ¿Sin este gasto, podría operar el negocio?
+- [ ] ¿Es proporcional al tamaño/volumen de operaciones?
+- [ ] ¿Hay evidencia de que se utilizó para generar ingresos?
+
+---
+
+### Fracción III - Amparadas con CFDI @LISR_27_III
+
+> **III.** Estar amparadas con un comprobante fiscal y que los pagos cuyo 
+> monto exceda de $2,000.00 se efectúen mediante transferencia electrónica...
+
+**[INTERPRETACIÓN]**
+
+**Requisitos del CFDI:**
+- UUID válido y vigente
+- RFC emisor correcto
+- RFC receptor correcto
+- Uso de CFDI apropiado
+- Método de pago correcto (PUE/PPD)
+- Forma de pago correcta
+
+**Validaciones automáticas de A3:**
+```
+✓ CFDI existe en SAT
+✓ Status: Vigente (no cancelado)
+✓ RFC emisor activo
+✓ Datos fiscales correctos
+```
+
+---
+
+### Fracción IV - Forma de pago @LISR_27_IV
+
+> **IV.** Estar debidamente registradas en contabilidad y que sean restadas 
+> una sola vez...
+> 
+> Tratándose de pagos cuyo monto exceda de $2,000.00, éstos deberán efectuarse 
+> mediante cheque nominativo, tarjeta de crédito, de débito, de servicios, 
+> o monedero electrónico, o transferencia electrónica de fondos...
+
+**[INTERPRETACIÓN]**
+
+| Monto | Forma de pago requerida |
+|-------|-------------------------|
+| ≤ $2,000 | Cualquiera (incluso efectivo) |
+| > $2,000 | Bancarizado obligatorio |
+
+**Verificación de A3:**
+- Forma de pago en CFDI vs monto
+- Si > $2,000 y forma_pago = "01" (efectivo) → ⚠️ NO DEDUCIBLE
+
+---
+
+### Fracción XVIII - Registro en contabilidad @LISR_27_XVIII
+
+> **XVIII.** Que al realizar las operaciones correspondientes o a más tardar 
+> el último día del ejercicio se reúnan los requisitos que para cada deducción 
+> en particular establece esta Ley...
+
+**[INTERPRETACIÓN]**
+
+**Evidencia requerida:**
+- Póliza contable con referencia al CFDI
+- Cuenta contable apropiada
+- Fecha de registro dentro del ejercicio
+
+---
+
+### Fracción XIX - Partes relacionadas @LISR_27_XIX
+
+> **XIX.** Que tratándose de pagos efectuados a personas morales que se 
+> consideren partes relacionadas, el precio o monto de la contraprestación 
+> sea igual al que hubieran pactado partes independientes en operaciones 
+> comparables...
+
+**[INTERPRETACIÓN]**
+
+**CRÍTICO para servicios intra-grupo (management fees):**
+
+| Verificación | Agente |
+|--------------|--------|
+| ¿Es parte relacionada? | A3, A6 |
+| ¿Precio es de mercado? | A5 |
+| ¿Hay estudio de precios de transferencia? | A3 |
+| ¿Se documenta la metodología? | A7 |
+
+**Riesgo si no se cumple:**
+- Rechazo total de la deducción
+- Ajuste a valores de mercado
+- Posible recaracterización (@CFF_5A)
+
+---
+
+## Resumen: Checklist A3 para cada CFDI
+
+```
+□ @LISR_27_I   ¿Es estrictamente indispensable?
+□ @LISR_27_III ¿Tiene CFDI válido y vigente?
+□ @LISR_27_IV  ¿Forma de pago correcta (>$2,000 bancarizado)?
+□ @LISR_27_XVIII ¿Registrado en contabilidad?
+□ @LISR_27_XIX ¿Si es parte relacionada, precio de mercado?
+□ @CFF_69B     ¿Proveedor NO está en lista 69-B?
+□ @CFF_5A      ¿Tiene razón de negocios?
+```
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PARTE 4: TABLA DE METADATOS PARA BD
+═══════════════════════════════════════════════════════════════════════════════
+
+```sql
+-- Tabla para indexar artículos legales
+CREATE TABLE IF NOT EXISTS kb_articulos_legales (
+    id SERIAL PRIMARY KEY,
+    
+    -- Identificación
+    tag VARCHAR(50) UNIQUE NOT NULL,  -- @CFF_5A, @LISR_27_I
+    ley VARCHAR(100) NOT NULL,
+    articulo VARCHAR(20) NOT NULL,
+    fraccion VARCHAR(20),
+    titulo VARCHAR(255),
+    
+    -- Contenido
+    texto_norma TEXT NOT NULL,
+    interpretacion TEXT,
+    
+    -- Clasificación
+    prioridad VARCHAR(20),  -- critica, alta, media, baja
+    categoria VARCHAR(50),  -- deducciones, cfdi, efos, defensa
+    
+    -- Uso por agentes
+    agentes_usan TEXT[],  -- {A1, A3, A7}
+    
+    -- Documento KB relacionado
+    kb_documento_id INTEGER REFERENCES kb_documentos(id),
+    
+    -- Fuente
+    url_fuente TEXT,
+    ultima_reforma DATE,
+    
+    -- Metadata
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Índices
+CREATE INDEX idx_articulos_tag ON kb_articulos_legales(tag);
+CREATE INDEX idx_articulos_ley ON kb_articulos_legales(ley);
+CREATE INDEX idx_articulos_categoria ON kb_articulos_legales(categoria);
+
+-- Insertar artículos críticos
+INSERT INTO kb_articulos_legales (tag, ley, articulo, fraccion, titulo, prioridad, categoria, agentes_usan) VALUES
+-- CFF
+('@CFF_5', 'CFF', '5', NULL, 'Interpretación de normas fiscales', 'alta', 'interpretacion', '{A3,A7}'),
+('@CFF_5A', 'CFF', '5-A', NULL, 'Razón de negocios', 'critica', 'razon_negocios', '{A1,A3,A5,A7}'),
+('@CFF_29', 'CFF', '29', NULL, 'Obligación de expedir CFDI', 'critica', 'cfdi', '{A3}'),
+('@CFF_29A', 'CFF', '29-A', NULL, 'Requisitos de CFDI', 'critica', 'cfdi', '{A3}'),
+('@CFF_32D', 'CFF', '32-D', NULL, 'Opinión de cumplimiento', 'alta', 'verificacion', '{A6}'),
+('@CFF_69', 'CFF', '69', NULL, 'Contribuyentes incumplidos', 'alta', 'verificacion', '{A3,A6}'),
+('@CFF_69B', 'CFF', '69-B', NULL, 'EFOS/EDOS Materialidad', 'critica', 'efos', '{A3,A6,A7}'),
+
+-- LISR
+('@LISR_25', 'LISR', '25', NULL, 'Deducciones autorizadas', 'alta', 'deducciones', '{A3}'),
+('@LISR_27_I', 'LISR', '27', 'I', 'Estrictamente indispensables', 'critica', 'deducciones', '{A1,A3,A5,A7}'),
+('@LISR_27_III', 'LISR', '27', 'III', 'Amparadas con CFDI', 'critica', 'deducciones', '{A3}'),
+('@LISR_27_IV', 'LISR', '27', 'IV', 'Forma de pago', 'critica', 'deducciones', '{A3,A5}'),
+('@LISR_27_XVIII', 'LISR', '27', 'XVIII', 'Registro en contabilidad', 'alta', 'deducciones', '{A3}'),
+('@LISR_27_XIX', 'LISR', '27', 'XIX', 'Partes relacionadas', 'critica', 'deducciones', '{A3,A5,A7}'),
+('@LISR_28', 'LISR', '28', NULL, 'Gastos no deducibles', 'alta', 'deducciones', '{A3}'),
+
+-- LIVA
+('@LIVA_5', 'LIVA', '5', NULL, 'Acreditamiento del IVA', 'critica', 'iva', '{A3,A5}'),
+
+-- Otras
+('@NOM_151', 'NOM-151-SCFI-2016', NULL, NULL, 'Valor probatorio digital', 'alta', 'probatorio', '{A2,A7}'),
+('@LFPCA', 'LFPCA', NULL, NULL, 'Procedimiento contencioso', 'alta', 'defensa', '{A7}'),
+('@LFDC', 'LFDC', NULL, NULL, 'Derechos del contribuyente', 'media', 'defensa', '{A7}')
+
+ON CONFLICT (tag) DO NOTHING;
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PARTE 5: CÓMO LOS AGENTES USAN LOS TAGS
+═══════════════════════════════════════════════════════════════════════════════
+
+### En el prompt de cada agente:
+
+```python
+SYSTEM_PROMPT_A3 = """
+Eres Revisar.IA (A3), agente de análisis de deducciones.
+
+Cuando analices un CFDI, verifica estos requisitos y CITA el fundamento:
+
+CHECKLIST DE DEDUCIBILIDAD:
+1. @LISR_27_I - ¿Es estrictamente indispensable para el giro?
+2. @LISR_27_III - ¿CFDI válido y vigente en SAT?
+3. @LISR_27_IV - ¿Forma de pago correcta (>$2,000 bancarizado)?
+4. @CFF_69B - ¿Proveedor NO en lista 69-B?
+5. @CFF_5A - ¿Tiene razón de negocios documentada?
+
+Para cada punto, indica:
+- ✅ Cumple [fundamento]
+- ⚠️ Revisar [fundamento + riesgo]
+- ❌ No cumple [fundamento + consecuencia]
+
+SIEMPRE cita el artículo usando el tag (@LISR_27_I, @CFF_69B, etc.)
+"""
+```
+
+### En la respuesta del agente:
+
+```
+ANÁLISIS DE CFDI: 8A3D4F2E-...
+
+1. Estrictamente indispensable (@LISR_27_I)
+   ✅ CUMPLE - El servicio de contabilidad es necesario para 
+   cumplir obligaciones fiscales del contribuyente.
+
+2. CFDI válido (@LISR_27_III)
+   ✅ CUMPLE - UUID validado ante SAT, status: Vigente
+
+3. Forma de pago (@LISR_27_IV)
+   ⚠️ REVISAR - Monto $15,000, forma de pago "01" (efectivo)
+   → Riesgo: NO DEDUCIBLE por exceder $2,000 en efectivo
+
+4. Lista 69-B (@CFF_69B)
+   ✅ CUMPLE - Proveedor no publicado en listas
+
+5. Razón de negocios (@CFF_5A)
+   ⚠️ REVISAR - No se encontró contrato ni entregables
+   → Recomendación: Documentar alcance del servicio
+
+CONCLUSIÓN: PARCIALMENTE DEDUCIBLE
+Fundamentos: @LISR_27_IV viola requisito de bancarización
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PARTE 6: FUNCIÓN PARA BUSCAR ARTÍCULOS
+═══════════════════════════════════════════════════════════════════════════════
+
+```python
+# backend/services/kb/articulos_legales.py
+
+from sqlalchemy import text
+from database import db
+from typing import List, Dict, Optional
+
+
+def buscar_articulo(tag: str) -> Optional[Dict]:
+    """Busca un artículo por su tag (@CFF_5A, @LISR_27_I, etc.)"""
+    
+    result = db.session.execute(text("""
+        SELECT * FROM kb_articulos_legales WHERE tag = :tag
+    """), {'tag': tag}).fetchone()
+    
+    if result:
+        return dict(result._mapping)
+    return None
+
+
+def buscar_articulos_por_categoria(categoria: str) -> List[Dict]:
+    """Busca artículos por categoría (deducciones, efos, etc.)"""
+    
+    result = db.session.execute(text("""
+        SELECT * FROM kb_articulos_legales 
+        WHERE categoria = :cat
+        ORDER BY prioridad DESC, tag
+    """), {'cat': categoria})
+    
+    return [dict(r._mapping) for r in result]
+
+
+def obtener_fundamentos_para_deduccion() -> List[Dict]:
+    """Obtiene todos los fundamentos para análisis de deducciones"""
+    
+    tags_deduccion = [
+        '@LISR_27_I', '@LISR_27_III', '@LISR_27_IV', 
+        '@LISR_27_XVIII', '@LISR_27_XIX',
+        '@CFF_69B', '@CFF_5A'
+    ]
+    
+    result = db.session.execute(text("""
+        SELECT tag, titulo, texto_norma, interpretacion
+        FROM kb_articulos_legales 
+        WHERE tag = ANY(:tags)
+        ORDER BY 
+            CASE tag
+                WHEN '@LISR_27_I' THEN 1
+                WHEN '@LISR_27_III' THEN 2
+                WHEN '@LISR_27_IV' THEN 3
+                WHEN '@CFF_69B' THEN 4
+                WHEN '@CFF_5A' THEN 5
+                ELSE 10
+            END
+    """), {'tags': tags_deduccion})
+    
+    return [dict(r._mapping) for r in result]
+
+
+def generar_contexto_legal_para_agente(agente_id: str) -> str:
+    """Genera el contexto legal relevante para un agente específico"""
+    
+    result = db.session.execute(text("""
+        SELECT tag, titulo, interpretacion
+        FROM kb_articulos_legales 
+        WHERE :agente = ANY(agentes_usan)
+        AND prioridad IN ('critica', 'alta')
+        ORDER BY prioridad DESC
+    """), {'agente': agente_id})
+    
+    articulos = list(result)
+    
+    if not articulos:
+        return ""
+    
+    contexto = "FUNDAMENTOS LEGALES DISPONIBLES:\n\n"
+    for art in articulos:
+        contexto += f"• {art.tag} - {art.titulo}\n"
+    
+    return contexto
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PARTE 7: LISTA PRIORIZADA DE IMPLEMENTACIÓN
+═══════════════════════════════════════════════════════════════════════════════
+
+PRIORIDAD 1 (Esta semana):
+──────────────────────────
+□ Crear tabla kb_articulos_legales
+□ Insertar artículos críticos (CFF 5-A, 69-B, LISR 27)
+□ Crear CFF_ART_69B_EFOS_MATERIALIDAD.md
+□ Crear LISR_ART_27_REQUISITOS_DEDUCCIONES.md
+□ Crear LIVA_ART_5_ACREDITAMIENTO_IVA.md
+
+PRIORIDAD 2 (Siguiente semana):
+───────────────────────────────
+□ Crear CFF_ART_29_29A_CFDI.md
+□ Crear CFF_ART_5A_RAZON_NEGOCIOS.md
+□ Crear tesis (IA, razón de negocios, materialidad)
+□ Integrar tags en prompts de A3
+
+PRIORIDAD 3 (Después):
+──────────────────────
+□ Crear documentos de otras leyes (LFPCA, NOM-151)
+□ Agregar más fracciones de LISR 27/28
+□ Crear RMF_CFDI_RETENCIONES.md
+
+═══════════════════════════════════════════════════════════════════════════════
+RESUMEN: TAGS MÍNIMOS PARA FUNCIONAR
+═══════════════════════════════════════════════════════════════════════════════
+
+TAGS CRÍTICOS (10):
+@CFF_5A      - Razón de negocios
+@CFF_69B     - EFOS/Materialidad  
+@CFF_29A     - Requisitos CFDI
+@CFF_32D     - Opinión cumplimiento
+@LISR_27_I   - Estrictamente indispensable
+@LISR_27_III - Amparado con CFDI
+@LISR_27_IV  - Forma de pago
+@LISR_27_XIX - Partes relacionadas
+@LISR_28     - No deducibles
+@LIVA_5      - Acreditamiento IVA
+
+Con estos 10 tags, los agentes pueden fundamentar el 90% de los análisis
+de deducciones de servicios profesionales.
+
+═══════════════════════════════════════════════════════════════════════════════

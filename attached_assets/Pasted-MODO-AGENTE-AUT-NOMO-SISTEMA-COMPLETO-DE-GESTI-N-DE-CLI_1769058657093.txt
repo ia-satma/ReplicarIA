@@ -1,0 +1,1376 @@
+MODO AGENTE AUTÓNOMO - SISTEMA COMPLETO DE GESTIÓN DE CLIENTES + DOCUMENTOS + CONTEXTO EVOLUTIVO
+
+CREAR SISTEMA DONDE:
+- Clientes se crean vía chat y se aprueban/modifican en admin
+- Documentos subidos quedan versionados y asociados al cliente
+- Agentes conocen la evolución completa del cliente
+- Cada interacción enriquece el conocimiento sobre el cliente
+
+<TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+ARQUITECTURA: CLIENTE 360° CON EVOLUCIÓN TEMPORAL
+═══════════════════════════════════════════════════════════════════════════════
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         MÓDULO ADMIN CLIENTES                                │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
+│  │ Pendientes│  │ Aprobados│  │Documentos│  │ Timeline │  │ Contexto │      │
+│  │ Aprobar  │  │ Activos  │  │Versionados│  │ Cambios  │  │ Agentes  │      │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘      │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                    ┌───────────────┼───────────────┐
+                    ▼               ▼               ▼
+            ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+            │   CLIENTE   │ │ DOCUMENTOS  │ │ HISTORIAL   │
+            │   BASE      │ │ VERSIONADOS │ │ INTERACCIONES│
+            │             │ │             │ │             │
+            │ • Datos     │ │ • v1, v2... │ │ • Chats     │
+            │ • RFC       │ │ • Diffs     │ │ • Agentes   │
+            │ • Estado    │ │ • Fechas    │ │ • Decisiones│
+            └─────────────┘ └─────────────┘ └─────────────┘
+                    │               │               │
+                    └───────────────┼───────────────┘
+                                    ▼
+                    ┌─────────────────────────────────┐
+                    │     CONTEXTO EVOLUTIVO          │
+                    │     PARA AGENTES A1-A7          │
+                    │                                 │
+                    │  "Este cliente ha evolucionado  │
+                    │   de X a Y en los últimos 6     │
+                    │   meses. Documentos recientes   │
+                    │   indican Z..."                 │
+                    └─────────────────────────────────┘
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 1: SCHEMA DE BASE DE DATOS COMPLETO
+═══════════════════════════════════════════════════════════════════════════════
+
+```sql
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TABLA PRINCIPAL DE CLIENTES (con estados de aprobación)
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS clientes (
+  id SERIAL PRIMARY KEY,
+  
+  -- Datos básicos
+  nombre VARCHAR(255) NOT NULL,
+  rfc VARCHAR(13),
+  razon_social VARCHAR(255),
+  direccion TEXT,
+  email VARCHAR(255),
+  telefono VARCHAR(50),
+  giro VARCHAR(100),
+  sitio_web VARCHAR(255),
+  
+  -- Clasificación fiscal
+  regimen_fiscal VARCHAR(100),
+  tipo_persona VARCHAR(20), -- 'fisica' | 'moral'
+  actividad_economica TEXT,
+  
+  -- Estado y aprobación
+  estado VARCHAR(50) DEFAULT 'pendiente', -- 'pendiente' | 'aprobado' | 'rechazado' | 'suspendido'
+  aprobado_por INTEGER REFERENCES usuarios(id),
+  fecha_aprobacion TIMESTAMP,
+  motivo_rechazo TEXT,
+  
+  -- Origen
+  origen VARCHAR(50) DEFAULT 'chat', -- 'chat' | 'manual' | 'importacion' | 'api'
+  chat_origen_id VARCHAR(100), -- ID del chat donde se creó
+  
+  -- Relaciones
+  empresa_id INTEGER REFERENCES empresas(id),
+  usuario_responsable_id INTEGER REFERENCES usuarios(id),
+  
+  -- Metadatos
+  notas_internas TEXT,
+  tags VARCHAR(255)[], -- Array de etiquetas
+  
+  -- Auditoría
+  activo BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  created_by INTEGER REFERENCES usuarios(id),
+  updated_by INTEGER REFERENCES usuarios(id)
+);
+
+-- Índices
+CREATE INDEX IF NOT EXISTS idx_clientes_estado ON clientes(estado);
+CREATE INDEX IF NOT EXISTS idx_clientes_rfc ON clientes(rfc);
+CREATE INDEX IF NOT EXISTS idx_clientes_empresa ON clientes(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_clientes_created ON clientes(created_at DESC);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- HISTORIAL DE CAMBIOS DEL CLIENTE (Timeline)
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS clientes_historial (
+  id SERIAL PRIMARY KEY,
+  cliente_id INTEGER REFERENCES clientes(id) ON DELETE CASCADE,
+  
+  -- Tipo de cambio
+  tipo_cambio VARCHAR(50) NOT NULL, -- 'creacion' | 'modificacion' | 'documento' | 'interaccion' | 'estado'
+  
+  -- Datos del cambio
+  campo_modificado VARCHAR(100),
+  valor_anterior TEXT,
+  valor_nuevo TEXT,
+  
+  -- Snapshot completo (para cambios importantes)
+  snapshot_datos JSONB,
+  
+  -- Contexto
+  descripcion TEXT,
+  origen VARCHAR(50), -- 'admin' | 'chat' | 'agente' | 'sistema'
+  agente_id VARCHAR(10), -- A1, A2, etc. si fue un agente
+  chat_id VARCHAR(100),
+  
+  -- Auditoría
+  created_at TIMESTAMP DEFAULT NOW(),
+  created_by INTEGER REFERENCES usuarios(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_historial_cliente ON clientes_historial(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_historial_fecha ON clientes_historial(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_historial_tipo ON clientes_historial(tipo_cambio);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- DOCUMENTOS DE CLIENTES (con versionado)
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS clientes_documentos (
+  id SERIAL PRIMARY KEY,
+  cliente_id INTEGER REFERENCES clientes(id) ON DELETE CASCADE,
+  
+  -- Identificador único del documento (se mantiene entre versiones)
+  documento_uuid UUID DEFAULT gen_random_uuid(),
+  
+  -- Información del archivo
+  nombre_archivo VARCHAR(255) NOT NULL,
+  nombre_original VARCHAR(255),
+  tipo_mime VARCHAR(100),
+  tamanio_bytes BIGINT,
+  
+  -- Almacenamiento
+  ruta_archivo TEXT NOT NULL,
+  hash_contenido VARCHAR(64), -- SHA-256 para detectar duplicados
+  
+  -- Versionado
+  version INTEGER DEFAULT 1,
+  es_version_actual BOOLEAN DEFAULT TRUE,
+  version_anterior_id INTEGER REFERENCES clientes_documentos(id),
+  
+  -- Clasificación
+  tipo_documento VARCHAR(100), -- 'constancia_fiscal' | 'estado_financiero' | 'contrato' | 'factura' | 'otro'
+  categoria VARCHAR(100),
+  subcategoria VARCHAR(100),
+  
+  -- Metadatos extraídos (por IA)
+  metadata_extraida JSONB,
+  resumen_ia TEXT,
+  entidades_detectadas JSONB, -- RFCs, montos, fechas detectadas
+  
+  -- Vigencia
+  fecha_documento DATE,
+  fecha_vigencia_inicio DATE,
+  fecha_vigencia_fin DATE,
+  
+  -- Procesamiento
+  procesado BOOLEAN DEFAULT FALSE,
+  fecha_procesamiento TIMESTAMP,
+  chunks_generados INTEGER DEFAULT 0,
+  
+  -- Origen
+  origen VARCHAR(50) DEFAULT 'chat', -- 'chat' | 'upload' | 'email' | 'api'
+  chat_id VARCHAR(100),
+  mensaje_id VARCHAR(100),
+  
+  -- Auditoría
+  activo BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  created_by INTEGER REFERENCES usuarios(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_docs_cliente ON clientes_documentos(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_docs_uuid ON clientes_documentos(documento_uuid);
+CREATE INDEX IF NOT EXISTS idx_docs_tipo ON clientes_documentos(tipo_documento);
+CREATE INDEX IF NOT EXISTS idx_docs_version ON clientes_documentos(es_version_actual);
+CREATE INDEX IF NOT EXISTS idx_docs_hash ON clientes_documentos(hash_contenido);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- INTERACCIONES CLIENTE-AGENTE
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS clientes_interacciones (
+  id SERIAL PRIMARY KEY,
+  cliente_id INTEGER REFERENCES clientes(id) ON DELETE CASCADE,
+  
+  -- Agente que interactuó
+  agente_id VARCHAR(10) NOT NULL, -- A1, A2, A3, etc.
+  agente_nombre VARCHAR(100),
+  
+  -- Tipo de interacción
+  tipo VARCHAR(50) NOT NULL, -- 'consulta' | 'analisis' | 'recomendacion' | 'alerta' | 'revision'
+  
+  -- Contenido
+  pregunta_usuario TEXT,
+  respuesta_agente TEXT,
+  
+  -- Contexto usado
+  documentos_consultados INTEGER[], -- IDs de documentos usados
+  chunks_usados INTEGER[], -- IDs de chunks de KB usados
+  
+  -- Resultados
+  hallazgos JSONB, -- Findings del agente
+  recomendaciones JSONB,
+  alertas JSONB,
+  
+  -- Evaluación
+  fue_util BOOLEAN,
+  feedback_usuario TEXT,
+  
+  -- Metadatos
+  chat_id VARCHAR(100),
+  duracion_ms INTEGER,
+  tokens_usados INTEGER,
+  
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_interacciones_cliente ON clientes_interacciones(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_interacciones_agente ON clientes_interacciones(agente_id);
+CREATE INDEX IF NOT EXISTS idx_interacciones_fecha ON clientes_interacciones(created_at DESC);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- CONTEXTO EVOLUTIVO DEL CLIENTE (resumen para agentes)
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS clientes_contexto (
+  id SERIAL PRIMARY KEY,
+  cliente_id INTEGER REFERENCES clientes(id) ON DELETE CASCADE UNIQUE,
+  
+  -- Resumen ejecutivo (generado por IA)
+  resumen_ejecutivo TEXT,
+  
+  -- Perfil fiscal
+  perfil_fiscal JSONB,
+  -- {
+  --   "regimen": "General de Ley",
+  --   "obligaciones": ["ISR", "IVA", "Retenciones"],
+  --   "riesgos_identificados": ["Alto volumen EFOS"],
+  --   "fortalezas": ["Documentación completa"]
+  -- }
+  
+  -- Evolución temporal
+  evolucion_6_meses JSONB,
+  -- {
+  --   "cambios_importantes": [...],
+  --   "tendencia_riesgo": "estable|aumentando|disminuyendo",
+  --   "eventos_clave": [...]
+  -- }
+  
+  -- Documentos clave
+  documentos_mas_recientes JSONB,
+  documentos_por_vencer JSONB,
+  documentos_faltantes VARCHAR(255)[],
+  
+  -- Interacciones
+  resumen_interacciones TEXT,
+  agentes_mas_consultados VARCHAR(10)[],
+  temas_frecuentes VARCHAR(255)[],
+  
+  -- Alertas activas
+  alertas_activas JSONB,
+  
+  -- Metadata
+  ultima_actualizacion TIMESTAMP DEFAULT NOW(),
+  version INTEGER DEFAULT 1
+);
+
+CREATE INDEX IF NOT EXISTS idx_contexto_cliente ON clientes_contexto(cliente_id);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TRIGGER: Actualizar historial automáticamente
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION registrar_cambio_cliente()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' THEN
+    -- Registrar cada campo que cambió
+    IF OLD.nombre IS DISTINCT FROM NEW.nombre THEN
+      INSERT INTO clientes_historial (cliente_id, tipo_cambio, campo_modificado, valor_anterior, valor_nuevo, origen)
+      VALUES (NEW.id, 'modificacion', 'nombre', OLD.nombre, NEW.nombre, 'sistema');
+    END IF;
+    
+    IF OLD.estado IS DISTINCT FROM NEW.estado THEN
+      INSERT INTO clientes_historial (cliente_id, tipo_cambio, campo_modificado, valor_anterior, valor_nuevo, origen)
+      VALUES (NEW.id, 'estado', 'estado', OLD.estado, NEW.estado, 'sistema');
+    END IF;
+    
+    -- Agregar más campos según necesidad...
+    
+    NEW.updated_at = NOW();
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_cambio_cliente ON clientes;
+CREATE TRIGGER trigger_cambio_cliente
+  BEFORE UPDATE ON clientes
+  FOR EACH ROW
+  EXECUTE FUNCTION registrar_cambio_cliente();
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 2: API DE ADMINISTRACIÓN DE CLIENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: server/routes/admin/clientes.ts
+
+```typescript
+import { Router, Request, Response } from 'express';
+import { db } from '../../db';
+import { verificarAdmin } from '../../middleware/auth';
+
+const router = Router();
+
+// Middleware: solo admins
+router.use(verificarAdmin);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LISTAR CLIENTES CON FILTROS
+// ═══════════════════════════════════════════════════════════════════════════
+router.get('/', async (req: Request, res: Response) => {
+  try {
+    const { 
+      estado, 
+      search, 
+      origen,
+      desde,
+      hasta,
+      page = 1, 
+      limit = 20 
+    } = req.query;
+
+    let query = `
+      SELECT 
+        c.*,
+        u.nombre as responsable_nombre,
+        ua.nombre as aprobador_nombre,
+        (SELECT COUNT(*) FROM clientes_documentos WHERE cliente_id = c.id AND es_version_actual = TRUE) as total_documentos,
+        (SELECT COUNT(*) FROM clientes_interacciones WHERE cliente_id = c.id) as total_interacciones,
+        (SELECT MAX(created_at) FROM clientes_interacciones WHERE cliente_id = c.id) as ultima_interaccion
+      FROM clientes c
+      LEFT JOIN usuarios u ON c.usuario_responsable_id = u.id
+      LEFT JOIN usuarios ua ON c.aprobado_por = ua.id
+      WHERE c.activo = TRUE
+    `;
+    
+    const params: any[] = [];
+
+    if (estado) {
+      params.push(estado);
+      query += ` AND c.estado = $${params.length}`;
+    }
+
+    if (search) {
+      params.push(`%${search}%`);
+      query += ` AND (c.nombre ILIKE $${params.length} OR c.rfc ILIKE $${params.length} OR c.razon_social ILIKE $${params.length})`;
+    }
+
+    if (origen) {
+      params.push(origen);
+      query += ` AND c.origen = $${params.length}`;
+    }
+
+    if (desde) {
+      params.push(desde);
+      query += ` AND c.created_at >= $${params.length}`;
+    }
+
+    if (hasta) {
+      params.push(hasta);
+      query += ` AND c.created_at <= $${params.length}`;
+    }
+
+    query += ` ORDER BY c.created_at DESC`;
+    
+    const offset = (Number(page) - 1) * Number(limit);
+    params.push(limit, offset);
+    query += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
+
+    const result = await db.query(query, params);
+
+    // Contar totales por estado
+    const countResult = await db.query(`
+      SELECT 
+        estado,
+        COUNT(*) as total
+      FROM clientes 
+      WHERE activo = TRUE
+      GROUP BY estado
+    `);
+
+    const totales = {
+      pendiente: 0,
+      aprobado: 0,
+      rechazado: 0,
+      suspendido: 0
+    };
+    
+    countResult.rows.forEach((row: any) => {
+      totales[row.estado as keyof typeof totales] = parseInt(row.total);
+    });
+
+    res.json({
+      success: true,
+      clientes: result.rows,
+      totales,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: Object.values(totales).reduce((a, b) => a + b, 0)
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error listando clientes:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OBTENER CLIENTE COMPLETO CON TODA SU INFORMACIÓN
+// ═══════════════════════════════════════════════════════════════════════════
+router.get('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Datos del cliente
+    const clienteResult = await db.query(`
+      SELECT 
+        c.*,
+        u.nombre as responsable_nombre,
+        u.email as responsable_email,
+        ua.nombre as aprobador_nombre
+      FROM clientes c
+      LEFT JOIN usuarios u ON c.usuario_responsable_id = u.id
+      LEFT JOIN usuarios ua ON c.aprobado_por = ua.id
+      WHERE c.id = $1
+    `, [id]);
+
+    if (clienteResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Cliente no encontrado' });
+    }
+
+    const cliente = clienteResult.rows[0];
+
+    // Documentos (versiones actuales)
+    const documentosResult = await db.query(`
+      SELECT 
+        id, documento_uuid, nombre_archivo, tipo_documento, categoria,
+        version, fecha_documento, fecha_vigencia_fin, resumen_ia,
+        created_at, origen
+      FROM clientes_documentos
+      WHERE cliente_id = $1 AND es_version_actual = TRUE AND activo = TRUE
+      ORDER BY created_at DESC
+    `, [id]);
+
+    // Historial de cambios (últimos 50)
+    const historialResult = await db.query(`
+      SELECT 
+        h.*,
+        u.nombre as usuario_nombre
+      FROM clientes_historial h
+      LEFT JOIN usuarios u ON h.created_by = u.id
+      WHERE h.cliente_id = $1
+      ORDER BY h.created_at DESC
+      LIMIT 50
+    `, [id]);
+
+    // Interacciones con agentes (últimas 20)
+    const interaccionesResult = await db.query(`
+      SELECT *
+      FROM clientes_interacciones
+      WHERE cliente_id = $1
+      ORDER BY created_at DESC
+      LIMIT 20
+    `, [id]);
+
+    // Contexto evolutivo
+    const contextoResult = await db.query(`
+      SELECT * FROM clientes_contexto WHERE cliente_id = $1
+    `, [id]);
+
+    res.json({
+      success: true,
+      cliente,
+      documentos: documentosResult.rows,
+      historial: historialResult.rows,
+      interacciones: interaccionesResult.rows,
+      contexto: contextoResult.rows[0] || null
+    });
+
+  } catch (error: any) {
+    console.error('Error obteniendo cliente:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// APROBAR CLIENTE
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/:id/aprobar', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { notas } = req.body;
+    const adminId = (req as any).user?.id;
+
+    const result = await db.query(`
+      UPDATE clientes SET
+        estado = 'aprobado',
+        aprobado_por = $1,
+        fecha_aprobacion = NOW(),
+        notas_internas = COALESCE(notas_internas || E'\\n', '') || $2,
+        updated_by = $1
+      WHERE id = $3
+      RETURNING *
+    `, [adminId, notas ? `[Aprobación] ${notas}` : '', id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Cliente no encontrado' });
+    }
+
+    // Registrar en historial
+    await db.query(`
+      INSERT INTO clientes_historial (cliente_id, tipo_cambio, descripcion, origen, created_by)
+      VALUES ($1, 'estado', 'Cliente aprobado', 'admin', $2)
+    `, [id, adminId]);
+
+    res.json({
+      success: true,
+      message: 'Cliente aprobado exitosamente',
+      cliente: result.rows[0]
+    });
+
+  } catch (error: any) {
+    console.error('Error aprobando cliente:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RECHAZAR CLIENTE
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/:id/rechazar', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { motivo } = req.body;
+    const adminId = (req as any).user?.id;
+
+    if (!motivo) {
+      return res.status(400).json({ success: false, error: 'El motivo de rechazo es requerido' });
+    }
+
+    const result = await db.query(`
+      UPDATE clientes SET
+        estado = 'rechazado',
+        motivo_rechazo = $1,
+        updated_by = $2
+      WHERE id = $3
+      RETURNING *
+    `, [motivo, adminId, id]);
+
+    // Registrar en historial
+    await db.query(`
+      INSERT INTO clientes_historial (cliente_id, tipo_cambio, descripcion, origen, created_by)
+      VALUES ($1, 'estado', $2, 'admin', $3)
+    `, [id, `Cliente rechazado: ${motivo}`, adminId]);
+
+    res.json({
+      success: true,
+      message: 'Cliente rechazado',
+      cliente: result.rows[0]
+    });
+
+  } catch (error: any) {
+    console.error('Error rechazando cliente:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODIFICAR CLIENTE
+// ═══════════════════════════════════════════════════════════════════════════
+router.put('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const adminId = (req as any).user?.id;
+    const {
+      nombre, rfc, razon_social, direccion, email, telefono,
+      giro, sitio_web, regimen_fiscal, tipo_persona, actividad_economica,
+      notas_internas, tags, usuario_responsable_id
+    } = req.body;
+
+    // Obtener datos actuales para el historial
+    const currentResult = await db.query('SELECT * FROM clientes WHERE id = $1', [id]);
+    const current = currentResult.rows[0];
+
+    const result = await db.query(`
+      UPDATE clientes SET
+        nombre = COALESCE($1, nombre),
+        rfc = COALESCE(UPPER($2), rfc),
+        razon_social = COALESCE($3, razon_social),
+        direccion = COALESCE($4, direccion),
+        email = COALESCE(LOWER($5), email),
+        telefono = COALESCE($6, telefono),
+        giro = COALESCE($7, giro),
+        sitio_web = COALESCE($8, sitio_web),
+        regimen_fiscal = COALESCE($9, regimen_fiscal),
+        tipo_persona = COALESCE($10, tipo_persona),
+        actividad_economica = COALESCE($11, actividad_economica),
+        notas_internas = COALESCE($12, notas_internas),
+        tags = COALESCE($13, tags),
+        usuario_responsable_id = COALESCE($14, usuario_responsable_id),
+        updated_by = $15,
+        updated_at = NOW()
+      WHERE id = $16
+      RETURNING *
+    `, [
+      nombre, rfc, razon_social, direccion, email, telefono,
+      giro, sitio_web, regimen_fiscal, tipo_persona, actividad_economica,
+      notas_internas, tags, usuario_responsable_id, adminId, id
+    ]);
+
+    // Registrar snapshot en historial
+    await db.query(`
+      INSERT INTO clientes_historial (cliente_id, tipo_cambio, descripcion, snapshot_datos, origen, created_by)
+      VALUES ($1, 'modificacion', 'Datos del cliente actualizados por admin', $2, 'admin', $3)
+    `, [id, JSON.stringify({ antes: current, despues: result.rows[0] }), adminId]);
+
+    res.json({
+      success: true,
+      message: 'Cliente actualizado',
+      cliente: result.rows[0]
+    });
+
+  } catch (error: any) {
+    console.error('Error actualizando cliente:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OBTENER VERSIONES DE UN DOCUMENTO
+// ═══════════════════════════════════════════════════════════════════════════
+router.get('/:id/documentos/:docUuid/versiones', async (req: Request, res: Response) => {
+  try {
+    const { id, docUuid } = req.params;
+
+    const result = await db.query(`
+      SELECT 
+        id, version, nombre_archivo, tamanio_bytes, 
+        fecha_documento, resumen_ia, created_at,
+        es_version_actual
+      FROM clientes_documentos
+      WHERE cliente_id = $1 AND documento_uuid = $2
+      ORDER BY version DESC
+    `, [id, docUuid]);
+
+    res.json({
+      success: true,
+      versiones: result.rows
+    });
+
+  } catch (error: any) {
+    console.error('Error obteniendo versiones:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+export default router;
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 3: SERVICIO DE CONTEXTO EVOLUTIVO PARA AGENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: server/services/clienteContexto.ts
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+import { db } from '../db';
+
+const anthropic = new Anthropic();
+
+export class ClienteContextoService {
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GENERAR CONTEXTO COMPLETO PARA UN AGENTE
+  // ═══════════════════════════════════════════════════════════════════════════
+  async getContextoParaAgente(clienteId: number, agenteId: string): Promise<string> {
+    
+    // 1. Datos básicos del cliente
+    const clienteResult = await db.query(`
+      SELECT * FROM clientes WHERE id = $1
+    `, [clienteId]);
+    
+    if (clienteResult.rows.length === 0) {
+      return 'Cliente no encontrado';
+    }
+    
+    const cliente = clienteResult.rows[0];
+
+    // 2. Documentos más recientes
+    const docsResult = await db.query(`
+      SELECT nombre_archivo, tipo_documento, fecha_documento, resumen_ia
+      FROM clientes_documentos
+      WHERE cliente_id = $1 AND es_version_actual = TRUE AND activo = TRUE
+      ORDER BY created_at DESC
+      LIMIT 10
+    `, [clienteId]);
+
+    // 3. Últimas interacciones con este agente
+    const interaccionesResult = await db.query(`
+      SELECT pregunta_usuario, respuesta_agente, hallazgos, created_at
+      FROM clientes_interacciones
+      WHERE cliente_id = $1 AND agente_id = $2
+      ORDER BY created_at DESC
+      LIMIT 5
+    `, [clienteId, agenteId]);
+
+    // 4. Historial de cambios recientes
+    const historialResult = await db.query(`
+      SELECT tipo_cambio, descripcion, created_at
+      FROM clientes_historial
+      WHERE cliente_id = $1
+      ORDER BY created_at DESC
+      LIMIT 10
+    `, [clienteId]);
+
+    // 5. Contexto evolutivo si existe
+    const contextoResult = await db.query(`
+      SELECT * FROM clientes_contexto WHERE cliente_id = $1
+    `, [clienteId]);
+
+    // Construir contexto enriquecido
+    let contexto = `
+═══════════════════════════════════════════════════════════════════════════════
+CONTEXTO DEL CLIENTE: ${cliente.nombre}
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 DATOS BÁSICOS:
+- RFC: ${cliente.rfc || 'No registrado'}
+- Razón Social: ${cliente.razon_social || cliente.nombre}
+- Régimen Fiscal: ${cliente.regimen_fiscal || 'No especificado'}
+- Tipo: ${cliente.tipo_persona || 'No especificado'}
+- Giro: ${cliente.giro || 'No especificado'}
+- Estado: ${cliente.estado}
+
+📁 DOCUMENTOS RECIENTES (${docsResult.rows.length}):
+${docsResult.rows.map((d: any) => 
+  `- ${d.tipo_documento || 'Documento'}: ${d.nombre_archivo} (${d.fecha_documento || 'sin fecha'})
+   Resumen: ${d.resumen_ia?.substring(0, 200) || 'Sin procesar'}...`
+).join('\n')}
+
+💬 HISTORIAL DE INTERACCIONES CONTIGO (${interaccionesResult.rows.length}):
+${interaccionesResult.rows.map((i: any) =>
+  `[${new Date(i.created_at).toLocaleDateString()}] 
+   Usuario preguntó: ${i.pregunta_usuario?.substring(0, 100)}...
+   Hallazgos: ${JSON.stringify(i.hallazgos || {})}`
+).join('\n\n')}
+
+📊 CAMBIOS RECIENTES:
+${historialResult.rows.map((h: any) =>
+  `- [${new Date(h.created_at).toLocaleDateString()}] ${h.tipo_cambio}: ${h.descripcion}`
+).join('\n')}
+`;
+
+    // Agregar contexto evolutivo si existe
+    if (contextoResult.rows.length > 0) {
+      const ctx = contextoResult.rows[0];
+      contexto += `
+
+🔄 EVOLUCIÓN DEL CLIENTE:
+${ctx.resumen_ejecutivo || 'Sin resumen'}
+
+Perfil Fiscal: ${JSON.stringify(ctx.perfil_fiscal || {})}
+
+Alertas Activas: ${JSON.stringify(ctx.alertas_activas || [])}
+
+Documentos Faltantes: ${(ctx.documentos_faltantes || []).join(', ') || 'Ninguno identificado'}
+`;
+    }
+
+    return contexto;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ACTUALIZAR CONTEXTO EVOLUTIVO (ejecutar periódicamente)
+  // ═══════════════════════════════════════════════════════════════════════════
+  async actualizarContextoEvolutivo(clienteId: number): Promise<void> {
+    
+    // Recopilar toda la información del cliente
+    const clienteResult = await db.query('SELECT * FROM clientes WHERE id = $1', [clienteId]);
+    const cliente = clienteResult.rows[0];
+    
+    const docsResult = await db.query(`
+      SELECT * FROM clientes_documentos 
+      WHERE cliente_id = $1 AND es_version_actual = TRUE
+    `, [clienteId]);
+    
+    const historialResult = await db.query(`
+      SELECT * FROM clientes_historial 
+      WHERE cliente_id = $1 
+      ORDER BY created_at DESC
+      LIMIT 100
+    `, [clienteId]);
+    
+    const interaccionesResult = await db.query(`
+      SELECT * FROM clientes_interacciones 
+      WHERE cliente_id = $1 
+      ORDER BY created_at DESC
+      LIMIT 50
+    `, [clienteId]);
+
+    // Usar Claude para generar el contexto evolutivo
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      messages: [{
+        role: 'user',
+        content: `Analiza la siguiente información de un cliente y genera un contexto evolutivo estructurado.
+
+DATOS DEL CLIENTE:
+${JSON.stringify(cliente, null, 2)}
+
+DOCUMENTOS (${docsResult.rows.length}):
+${JSON.stringify(docsResult.rows.map((d: any) => ({
+  tipo: d.tipo_documento,
+  nombre: d.nombre_archivo,
+  fecha: d.fecha_documento,
+  resumen: d.resumen_ia
+})), null, 2)}
+
+HISTORIAL DE CAMBIOS:
+${JSON.stringify(historialResult.rows.slice(0, 20), null, 2)}
+
+INTERACCIONES CON AGENTES:
+${JSON.stringify(interaccionesResult.rows.slice(0, 10).map((i: any) => ({
+  agente: i.agente_id,
+  tipo: i.tipo,
+  hallazgos: i.hallazgos,
+  fecha: i.created_at
+})), null, 2)}
+
+Genera un JSON con esta estructura:
+{
+  "resumen_ejecutivo": "Resumen de 2-3 párrafos sobre el cliente",
+  "perfil_fiscal": {
+    "regimen": "...",
+    "obligaciones": ["ISR", "IVA", ...],
+    "riesgos_identificados": ["..."],
+    "fortalezas": ["..."]
+  },
+  "evolucion_6_meses": {
+    "cambios_importantes": ["..."],
+    "tendencia_riesgo": "estable|aumentando|disminuyendo",
+    "eventos_clave": ["..."]
+  },
+  "documentos_faltantes": ["Constancia fiscal actualizada", ...],
+  "alertas_activas": [
+    {"tipo": "warning|critical", "mensaje": "..."}
+  ],
+  "temas_frecuentes": ["deducciones", "EFOS", ...],
+  "agentes_mas_consultados": ["A3", "A6", ...]
+}
+
+Responde SOLO con el JSON, sin explicaciones.`
+      }]
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') return;
+
+    let contextoGenerado;
+    try {
+      contextoGenerado = JSON.parse(content.text);
+    } catch {
+      console.error('Error parseando contexto generado');
+      return;
+    }
+
+    // Guardar o actualizar contexto
+    await db.query(`
+      INSERT INTO clientes_contexto (
+        cliente_id, resumen_ejecutivo, perfil_fiscal, evolucion_6_meses,
+        documentos_faltantes, alertas_activas, temas_frecuentes, 
+        agentes_mas_consultados, ultima_actualizacion, version
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), 1)
+      ON CONFLICT (cliente_id) DO UPDATE SET
+        resumen_ejecutivo = $2,
+        perfil_fiscal = $3,
+        evolucion_6_meses = $4,
+        documentos_faltantes = $5,
+        alertas_activas = $6,
+        temas_frecuentes = $7,
+        agentes_mas_consultados = $8,
+        ultima_actualizacion = NOW(),
+        version = clientes_contexto.version + 1
+    `, [
+      clienteId,
+      contextoGenerado.resumen_ejecutivo,
+      JSON.stringify(contextoGenerado.perfil_fiscal),
+      JSON.stringify(contextoGenerado.evolucion_6_meses),
+      contextoGenerado.documentos_faltantes,
+      JSON.stringify(contextoGenerado.alertas_activas),
+      contextoGenerado.temas_frecuentes,
+      contextoGenerado.agentes_mas_consultados
+    ]);
+
+    console.log(`✅ Contexto evolutivo actualizado para cliente ${clienteId}`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REGISTRAR INTERACCIÓN DE AGENTE
+  // ═══════════════════════════════════════════════════════════════════════════
+  async registrarInteraccion(params: {
+    clienteId: number;
+    agenteId: string;
+    agenteNombre: string;
+    tipo: string;
+    preguntaUsuario: string;
+    respuestaAgente: string;
+    documentosConsultados?: number[];
+    hallazgos?: any;
+    recomendaciones?: any;
+    chatId?: string;
+  }): Promise<void> {
+    
+    await db.query(`
+      INSERT INTO clientes_interacciones (
+        cliente_id, agente_id, agente_nombre, tipo,
+        pregunta_usuario, respuesta_agente, documentos_consultados,
+        hallazgos, recomendaciones, chat_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `, [
+      params.clienteId,
+      params.agenteId,
+      params.agenteNombre,
+      params.tipo,
+      params.preguntaUsuario,
+      params.respuestaAgente,
+      params.documentosConsultados || [],
+      JSON.stringify(params.hallazgos || {}),
+      JSON.stringify(params.recomendaciones || {}),
+      params.chatId
+    ]);
+
+    // Registrar en historial del cliente
+    await db.query(`
+      INSERT INTO clientes_historial (cliente_id, tipo_cambio, descripcion, agente_id, origen)
+      VALUES ($1, 'interaccion', $2, $3, 'agente')
+    `, [
+      params.clienteId,
+      `Consulta con ${params.agenteNombre}: ${params.tipo}`,
+      params.agenteId
+    ]);
+  }
+}
+
+export const clienteContextoService = new ClienteContextoService();
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 4: SERVICIO DE VERSIONADO DE DOCUMENTOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: server/services/documentoVersionado.ts
+
+```typescript
+import * as fs from 'fs';
+import * as path from 'path';
+import * as crypto from 'crypto';
+import { db } from '../db';
+import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic();
+
+export class DocumentoVersionadoService {
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SUBIR DOCUMENTO (detecta si es versión nueva)
+  // ═══════════════════════════════════════════════════════════════════════════
+  async subirDocumento(params: {
+    clienteId: number;
+    archivo: Express.Multer.File;
+    tipoDocumento?: string;
+    categoria?: string;
+    origen?: string;
+    chatId?: string;
+    userId?: number;
+  }): Promise<any> {
+    
+    const { clienteId, archivo, tipoDocumento, categoria, origen, chatId, userId } = params;
+
+    // Calcular hash del contenido
+    const hash = crypto.createHash('sha256').update(archivo.buffer).digest('hex');
+
+    // Verificar si ya existe este documento exacto
+    const duplicadoResult = await db.query(`
+      SELECT id FROM clientes_documentos 
+      WHERE cliente_id = $1 AND hash_contenido = $2 AND activo = TRUE
+    `, [clienteId, hash]);
+
+    if (duplicadoResult.rows.length > 0) {
+      return {
+        success: false,
+        error: 'Este documento exacto ya existe',
+        documentoExistenteId: duplicadoResult.rows[0].id
+      };
+    }
+
+    // Buscar si es una nueva versión de un documento existente (por nombre similar)
+    const nombreBase = path.parse(archivo.originalname).name;
+    const versionAnteriorResult = await db.query(`
+      SELECT id, documento_uuid, version
+      FROM clientes_documentos
+      WHERE cliente_id = $1 
+        AND es_version_actual = TRUE 
+        AND activo = TRUE
+        AND (
+          nombre_archivo ILIKE $2 
+          OR nombre_original ILIKE $2
+        )
+      ORDER BY version DESC
+      LIMIT 1
+    `, [clienteId, `%${nombreBase}%`]);
+
+    let documentoUuid: string;
+    let version: number;
+    let versionAnteriorId: number | null = null;
+
+    if (versionAnteriorResult.rows.length > 0) {
+      // Es una nueva versión
+      const anterior = versionAnteriorResult.rows[0];
+      documentoUuid = anterior.documento_uuid;
+      version = anterior.version + 1;
+      versionAnteriorId = anterior.id;
+
+      // Marcar versión anterior como no actual
+      await db.query(`
+        UPDATE clientes_documentos 
+        SET es_version_actual = FALSE 
+        WHERE id = $1
+      `, [versionAnteriorId]);
+
+      console.log(`📄 Nueva versión (v${version}) de documento ${documentoUuid}`);
+    } else {
+      // Es un documento nuevo
+      documentoUuid = crypto.randomUUID();
+      version = 1;
+      console.log(`📄 Nuevo documento ${documentoUuid}`);
+    }
+
+    // Guardar archivo
+    const uploadsDir = path.join(process.cwd(), 'uploads', 'clientes', String(clienteId));
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    const nombreArchivo = `${documentoUuid}_v${version}_${Date.now()}${path.extname(archivo.originalname)}`;
+    const rutaArchivo = path.join(uploadsDir, nombreArchivo);
+    fs.writeFileSync(rutaArchivo, archivo.buffer);
+
+    // Insertar en BD
+    const result = await db.query(`
+      INSERT INTO clientes_documentos (
+        cliente_id, documento_uuid, nombre_archivo, nombre_original,
+        tipo_mime, tamanio_bytes, ruta_archivo, hash_contenido,
+        version, es_version_actual, version_anterior_id,
+        tipo_documento, categoria, origen, chat_id, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, $10, $11, $12, $13, $14, $15)
+      RETURNING *
+    `, [
+      clienteId, documentoUuid, nombreArchivo, archivo.originalname,
+      archivo.mimetype, archivo.size, rutaArchivo, hash,
+      version, versionAnteriorId,
+      tipoDocumento, categoria, origen || 'upload', chatId, userId
+    ]);
+
+    const documento = result.rows[0];
+
+    // Registrar en historial del cliente
+    await db.query(`
+      INSERT INTO clientes_historial (
+        cliente_id, tipo_cambio, descripcion, origen, created_by
+      ) VALUES ($1, 'documento', $2, $3, $4)
+    `, [
+      clienteId,
+      `Documento ${version > 1 ? 'actualizado' : 'subido'}: ${archivo.originalname} (v${version})`,
+      origen || 'upload',
+      userId
+    ]);
+
+    // Procesar documento con IA (async)
+    this.procesarDocumentoAsync(documento.id);
+
+    return {
+      success: true,
+      documento,
+      esNuevaVersion: version > 1,
+      version
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PROCESAR DOCUMENTO CON IA
+  // ═══════════════════════════════════════════════════════════════════════════
+  private async procesarDocumentoAsync(documentoId: number): Promise<void> {
+    try {
+      const docResult = await db.query(`
+        SELECT * FROM clientes_documentos WHERE id = $1
+      `, [documentoId]);
+
+      const doc = docResult.rows[0];
+      if (!doc) return;
+
+      // Leer contenido del archivo
+      let contenido = '';
+      if (fs.existsSync(doc.ruta_archivo)) {
+        // Para PDFs necesitarías pdf-parse, para otros archivos...
+        if (doc.tipo_mime === 'text/plain' || doc.nombre_archivo.endsWith('.txt')) {
+          contenido = fs.readFileSync(doc.ruta_archivo, 'utf8');
+        }
+        // Agregar más tipos según necesidad
+      }
+
+      if (!contenido) {
+        console.log(`⚠️ No se pudo extraer contenido de ${doc.nombre_archivo}`);
+        return;
+      }
+
+      // Analizar con Claude
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        messages: [{
+          role: 'user',
+          content: `Analiza este documento fiscal/legal mexicano y extrae información estructurada.
+
+NOMBRE: ${doc.nombre_original}
+CONTENIDO:
+${contenido.substring(0, 10000)}
+
+Responde en JSON:
+{
+  "resumen": "Resumen de 2-3 oraciones",
+  "tipo_detectado": "constancia_fiscal|estado_financiero|contrato|factura|otro",
+  "entidades": {
+    "rfcs": ["RFC1", "RFC2"],
+    "montos": [{"cantidad": 1000, "moneda": "MXN", "concepto": "..."}],
+    "fechas": [{"fecha": "2024-01-01", "tipo": "emision|vigencia|vencimiento"}]
+  },
+  "categoria_sugerida": "...",
+  "alertas": ["alerta si hay algo importante"],
+  "vigencia": {
+    "inicio": "2024-01-01",
+    "fin": "2024-12-31"
+  }
+}`
+        }]
+      });
+
+      const content = response.content[0];
+      if (content.type !== 'text') return;
+
+      let analisis;
+      try {
+        analisis = JSON.parse(content.text);
+      } catch {
+        console.error('Error parseando análisis de documento');
+        return;
+      }
+
+      // Actualizar documento con análisis
+      await db.query(`
+        UPDATE clientes_documentos SET
+          resumen_ia = $1,
+          tipo_documento = COALESCE(tipo_documento, $2),
+          categoria = COALESCE(categoria, $3),
+          metadata_extraida = $4,
+          entidades_detectadas = $5,
+          fecha_vigencia_inicio = $6,
+          fecha_vigencia_fin = $7,
+          procesado = TRUE,
+          fecha_procesamiento = NOW()
+        WHERE id = $8
+      `, [
+        analisis.resumen,
+        analisis.tipo_detectado,
+        analisis.categoria_sugerida,
+        JSON.stringify(analisis),
+        JSON.stringify(analisis.entidades),
+        analisis.vigencia?.inicio,
+        analisis.vigencia?.fin,
+        documentoId
+      ]);
+
+      console.log(`✅ Documento ${documentoId} procesado con IA`);
+
+    } catch (error) {
+      console.error(`Error procesando documento ${documentoId}:`, error);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // COMPARAR VERSIONES
+  // ═══════════════════════════════════════════════════════════════════════════
+  async compararVersiones(documentoUuid: string, versionA: number, versionB: number): Promise<any> {
+    const result = await db.query(`
+      SELECT * FROM clientes_documentos
+      WHERE documento_uuid = $1 AND version IN ($2, $3)
+      ORDER BY version
+    `, [documentoUuid, versionA, versionB]);
+
+    if (result.rows.length < 2) {
+      return { error: 'No se encontraron ambas versiones' };
+    }
+
+    const [docA, docB] = result.rows;
+
+    // Usar Claude para comparar
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{
+        role: 'user',
+        content: `Compara estos dos documentos y describe los cambios principales:
+
+VERSIÓN ${versionA}:
+- Archivo: ${docA.nombre_original}
+- Resumen: ${docA.resumen_ia}
+- Metadata: ${JSON.stringify(docA.metadata_extraida)}
+
+VERSIÓN ${versionB}:
+- Archivo: ${docB.nombre_original}
+- Resumen: ${docB.resumen_ia}
+- Metadata: ${JSON.stringify(docB.metadata_extraida)}
+
+Lista los cambios importantes en formato JSON:
+{
+  "cambios": ["cambio 1", "cambio 2"],
+  "impacto": "alto|medio|bajo",
+  "resumen_diferencias": "..."
+}`
+      }]
+    });
+
+    const content = response.content[0];
+    return content.type === 'text' ? JSON.parse(content.text) : {};
+  }
+}
+
+export const documentoVersionadoService = new DocumentoVersionadoService();
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 5: INTEGRACIÓN CON AGENTES A1-A7
+═══════════════════════════════════════════════════════════════════════════════
+
+Modificar cada agente para que use el contexto del cliente:
+
+```typescript
+// En server/services/agentes/agenteA3.ts (ejemplo)
+
+import { clienteContextoService } from '../clienteContexto';
+
+export async function ejecutarAgenteA3(params: {
+  clienteId: number;
+  mensaje: string;
+  chatId: string;
+}) {
+  const { clienteId, mensaje, chatId } = params;
+
+  // 1. OBTENER CONTEXTO EVOLUTIVO DEL CLIENTE
+  const contextoCliente = await clienteContextoService.getContextoParaAgente(clienteId, 'A3');
+
+  // 2. CONSTRUIR PROMPT CON CONTEXTO
+  const systemPrompt = `
+${SKILL_AGENTE_A3}
+
+═══════════════════════════════════════════════════════════════════════════════
+CONTEXTO DEL CLIENTE QUE ESTÁS ATENDIENDO:
+═══════════════════════════════════════════════════════════════════════════════
+${contextoCliente}
+
+IMPORTANTE: 
+- Usa este contexto para dar respuestas personalizadas
+- Considera el historial de interacciones previas
+- Toma en cuenta los documentos que el cliente ha subido
+- Si detectas información nueva o cambios importantes, menciónalos
+`;
+
+  // 3. EJECUTAR AGENTE
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 2000,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: mensaje }]
+  });
+
+  const respuestaAgente = response.content[0].type === 'text' 
+    ? response.content[0].text 
+    : '';
+
+  // 4. REGISTRAR INTERACCIÓN
+  await clienteContextoService.registrarInteraccion({
+    clienteId,
+    agenteId: 'A3',
+    agenteNombre: 'Agente de Deducciones',
+    tipo: 'consulta',
+    preguntaUsuario: mensaje,
+    respuestaAgente,
+    chatId
+  });
+
+  // 5. ACTUALIZAR CONTEXTO EVOLUTIVO (si es necesario)
+  // Esto puede hacerse en background o periódicamente
+  // await clienteContextoService.actualizarContextoEvolutivo(clienteId);
+
+  return respuestaAgente;
+}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 6: REGISTRAR RUTAS
+═══════════════════════════════════════════════════════════════════════════════
+
+En server/index.ts:
+
+```typescript
+import adminClientesRoutes from './routes/admin/clientes';
+
+// Rutas de administración
+app.use('/api/admin/clientes', adminClientesRoutes);
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Tablas creadas (clientes, clientes_historial, clientes_documentos, clientes_interacciones, clientes_contexto)
+□ API admin de clientes implementada
+□ Servicio de contexto evolutivo implementado
+□ Servicio de versionado de documentos implementado
+□ Agentes integrados con contexto del cliente
+□ Rutas registradas
+□ Deploy ejecutado
+
+</TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+ESTO CREA UN SISTEMA DONDE CADA AGENTE CONOCE LA HISTORIA COMPLETA DEL CLIENTE
+═══════════════════════════════════════════════════════════════════════════════

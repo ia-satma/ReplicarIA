@@ -1,0 +1,68 @@
+Prompt para Replit - Encontrar el archivo REAL
+# ARCHIVO EQUIVOCADO - El error PERSISTE exactamente igual
+
+## EVIDENCIA
+
+Screenshot muestra: "⚠ Error creando cliente: Body is disturbed or locked"
+
+El fix en `ChatbotArchivoRefactored.jsx` NO tuvo efecto. Esto significa que la UI está usando OTRO componente o archivo.
+
+## TAREA URGENTE: ENCONTRAR EL ARCHIVO CORRECTO
+
+### Paso 1: Buscar TODOS los archivos que contienen el mensaje de error
+
+```bash
+grep -rn "Body is disturbed" frontend/src/
+grep -rn "Error creando cliente" frontend/src/
+grep -rn "Creando cliente" frontend/src/
+
+Paso 2: Buscar TODOS los componentes de chatbot
+find frontend/src -name "*[Cc]hat*" -type f
+find frontend/src -name "*[Oo]nboarding*" -type f
+ls -la frontend/src/components/
+ls -la frontend/src/components/chatbot/ 2>/dev/null
+
+Paso 3: Buscar qué componente está montado en la página
+Busca en el router o App.jsx qué componente se renderiza para el chatbot:
+
+grep -rn "ChatbotArchivo\|Chatbot\|Onboarding" frontend/src/App.jsx frontend/src/routes/ frontend/src/pages/ 2>/dev/null
+
+Paso 4: Verificar si hay DOS versiones del componente
+ls -la frontend/src/components/ | grep -i chat
+ls -la frontend/src/components/ | grep -i archivo
+
+Probablemente existen:
+
+ChatbotArchivo.jsx (el que se usa)
+ChatbotArchivoRefactored.jsx (el que editaste, pero NO se usa)
+ACCIÓN REQUERIDA
+Muéstrame el resultado de TODOS los comandos anteriores
+Identifica cuál archivo se está usando REALMENTE
+Aplica el mismo fix en ESE archivo
+Verifica que el archivo correcto está importado en el router/App
+PROBABLE SOLUCIÓN
+Si existe ChatbotArchivo.jsx (sin "Refactored"), ese es el que se usa. Edita ESE archivo con el mismo fix:
+
+// Busca la función que hace fetch a crear-entidad o crear cliente
+// Cambia:
+const data = await response.json();
+
+// Por:
+const responseText = await response.text();
+let data;
+try {
+  data = responseText ? JSON.parse(responseText) : {};
+} catch (parseErr) {
+  console.error('JSON parse error:', parseErr, 'Response:', responseText.substring(0, 200));
+  throw new Error(`Respuesta inválida: ${responseText.substring(0, 100)}`);
+}
+
+NO HAGAS ESTO
+NO me digas que ya está arreglado sin encontrar el archivo correcto primero
+NO asumas que ChatbotArchivoRefactored.jsx es el que se usa
+NO ignores los resultados del grep
+ENTREGABLES
+Lista de TODOS los archivos que contienen "Creando cliente" o "crear-entidad"
+Cuál archivo está importado y usado en la aplicación
+El fix aplicado en el archivo CORRECTO
+Confirmación de que el usuario probó y el error CAMBIÓ

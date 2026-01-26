@@ -1,0 +1,140 @@
+# ERROR NO RESUELTO - "Body is disturbed or locked" PERSISTE
+
+## EVIDENCIA
+
+Acabo de probar en la UI real (no con curl) y el error SIGUE APARECIENDO:
+
+
+⚠ Error creando cliente: Body is disturbed or locked
+
+
+Tu fix anterior NO funcionó. El problema NO era solo el manejo de excepciones HTTP.
+
+## EL PROBLEMA REAL
+
+El error "Body is disturbed or locked" en JavaScript/Fetch ocurre cuando:
+
+1. **Se intenta leer el response.body dos veces** - El frontend hace `response.json()` después de que el body ya fue consumido
+2. **O el servidor envía una respuesta malformada** que el frontend no puede parsear
+3. **O hay un error de red/CORS** que corrompe la respuesta
+
+## DIAGNÓSTICO OBLIGATORIO
+
+### Paso 1: Encontrar el código del frontend que hace la petición
+
+Busca en estos archivos el código que llama al endpoint de crear cliente:
+
+
+frontend/src/components/chatbot/
+frontend/src/hooks/useChatAPI.js
+frontend/src/hooks/useOnboardingSteps.js
+frontend/src/services/api.js
+frontend/src/services/onboardingService.js
+
+
+Busca específicamente:
+- Llamadas a `/api/archivo/crear-entidad` o `/api/clientes`
+- Código que hace `fetch()` o `axios.post()`
+- Código que hace `response.json()` o `.then(res => res.json())`
+
+### Paso 2: Mostrarme el código problemático
+
+Cuando encuentres la función que crea clientes, muéstrame:
+1. La función completa que hace el fetch/axios
+2. Cómo maneja la respuesta
+3. Cómo maneja los errores
+
+### Paso 3: Buscar doble consumo del body
+
+El patrón problemático típico es:
+
+```javascript
+// ❌ PROBLEMÁTICO - Lee el body dos veces
+async function crearCliente(data) {
+  const response = await fetch('/api/clientes', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+  
+  // Primera lectura del body
+  const text = await response.text(); // o response.clone() mal usado
+  
+  // Segunda lectura - CAUSA "Body is disturbed or locked"
+  const json = await response.json(); // ❌ ERROR AQUÍ
+  
+  return json;
+}
+
+El fix correcto es:
+
+// ✅ CORRECTO - Lee el body una sola vez
+async function crearCliente(data) {
+  const response = await fetch('/api/clientes', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data)
+  });
+  
+  // Si necesitas verificar el status antes de parsear
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Error ${response.status}: ${errorText}`);
+  }
+  
+  // Una sola lectura del body
+  const json = await response.json();
+  return json;
+}
+
+O si necesitas leer el body múltiples veces:
+
+// ✅ CORRECTO - Usar clone() ANTES de leer
+async function crearCliente(data) {
+  const response = await fetch('/api/clientes', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data)
+  });
+  
+  // Clonar ANTES de cualquier lectura
+  const responseClone = response.clone();
+  
+  if (!response.ok) {
+    const errorText = await responseClone.text();
+    throw new Error(`Error ${response.status}: ${errorText}`);
+  }
+  
+  return await response.json();
+}
+
+TAREA ESPECÍFICA
+ENCUENTRA el archivo y función exacta que crea clientes desde el chatbot
+MUÉSTRAME el código actual completo de esa función
+IDENTIFICA dónde se lee el response body
+CORRIGE el código para que solo lea el body una vez
+PRUEBA que el endpoint devuelve JSON válido con curl:
+curl -X POST http://localhost:8000/api/archivo/crear-entidad \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test" \
+  -d '{"tipo": "cliente", "datos": {"nombre": "Test", "rfc": "TEST010101AAA"}}' \
+  -v
+
+MUÉSTRAME el response completo incluyendo headers
+NO HAGAS ESTO
+NO me digas "los middlewares están limpios" sin verificar el frontend
+NO asumas que está arreglado sin probar en la UI real
+NO ignores que el error sigue apareciendo
+ENTREGABLES
+Ruta exacta del archivo con el código problemático
+Código actual de la función
+Código corregido
+Resultado del curl con -v mostrando headers
+Confirmación de que probaste en la UI y YA NO aparece el error
+
+---
+
+Pega esto a Replit. El problema está en el **frontend**, no en el backend. 

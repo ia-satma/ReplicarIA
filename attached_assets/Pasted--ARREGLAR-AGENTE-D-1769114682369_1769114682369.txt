@@ -1,0 +1,523 @@
+═══════════════════════════════════════════════════════════════════════════════
+🔧 ARREGLAR AGENTE DE ONBOARDING - NO RAZONA + NO RECONOCE ADMIN
+═══════════════════════════════════════════════════════════════════════════════
+
+PROBLEMAS DETECTADOS:
+─────────────────────
+1. Usuario pregunta "¿ya está dada de alta Fortezza?" 
+   → Agente IGNORA la pregunta y sigue con su script
+   → DEBERÍA buscar en BD si existe el cliente
+
+2. Usuario entra como santiago@satma.mx (admin)
+   → Agente NO lo reconoce como administrador
+   → DEBERÍA saber quién es y ajustar su comportamiento
+
+═══════════════════════════════════════════════════════════════════════════════
+PROBLEMA 1: AGENTE CON FLUJO RÍGIDO (NO RAZONA)
+═══════════════════════════════════════════════════════════════════════════════
+
+El agente actual tiene un flujo lineal tipo:
+  Paso 1 → Paso 2 → Paso 3 → ...
+
+Y IGNORA cualquier pregunta que no encaje en ese flujo.
+
+SOLUCIÓN: Agregar "function calling" o lógica de intención para que:
+- Detecte cuando el usuario PREGUNTA algo (no sigue el flujo)
+- Busque en la BD antes de responder
+- Sea conversacional, no un wizard rígido
+
+═══════════════════════════════════════════════════════════════════════════════
+ARREGLO 1: SISTEMA DE INTENCIONES
+═══════════════════════════════════════════════════════════════════════════════
+
+Modificar el prompt del agente de onboarding para que detecte intenciones:
+
+```python
+SYSTEM_PROMPT_ONBOARDING = """
+Eres el Agente de Onboarding de SATMA. Tu trabajo es ayudar a dar de alta 
+clientes y proyectos.
+
+IMPORTANTE - ANTES de seguir cualquier flujo, ANALIZA el mensaje del usuario:
+
+1. SI EL USUARIO PREGUNTA SOBRE UN CLIENTE EXISTENTE:
+   - Palabras clave: "ya está", "existe", "tiene", "registrado", "dado de alta"
+   - ACCIÓN: Usa la función buscar_cliente() para verificar
+   - Ejemplo: "¿ya está dada de alta Fortezza?" → buscar_cliente("Fortezza")
+
+2. SI EL USUARIO QUIERE DAR DE ALTA UN CLIENTE NUEVO:
+   - Palabras clave: "nuevo cliente", "dar de alta", "registrar"
+   - ACCIÓN: Inicia flujo de alta
+
+3. SI EL USUARIO PREGUNTA ALGO GENERAL:
+   - ACCIÓN: Responde la pregunta, no sigas el flujo ciegamente
+
+NUNCA ignores una pregunta del usuario para seguir tu flujo.
+SIEMPRE responde lo que el usuario pregunta PRIMERO.
+
+Información del usuario actual:
+- Email: {usuario_email}
+- Nombre: {usuario_nombre}
+- Es Admin: {es_admin}
+- Cliente asociado: {cliente_nombre} (si aplica)
+"""
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+ARREGLO 2: FUNCIÓN PARA BUSCAR CLIENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+El agente necesita poder buscar en la BD. Agregar herramienta/función:
+
+```python
+# En el archivo del agente de onboarding (buscar nombre real del archivo)
+
+from sqlalchemy import text
+from database import db  # Ajustar según tu proyecto
+
+async def buscar_cliente(termino: str) -> dict:
+    """
+    Busca un cliente por nombre, RFC o nombre comercial.
+    El agente debe llamar esto cuando el usuario pregunta si un cliente existe.
+    """
+    
+    result = db.session.execute(text("""
+        SELECT 
+            id, nombre, rfc, nombre_comercial, email,
+            activo, created_at
+        FROM clientes
+        WHERE 
+            LOWER(nombre) LIKE LOWER(:termino)
+            OR LOWER(nombre_comercial) LIKE LOWER(:termino)
+            OR LOWER(rfc) LIKE LOWER(:termino)
+        LIMIT 5
+    """), {'termino': f'%{termino}%'})
+    
+    clientes = []
+    for row in result:
+        clientes.append({
+            'id': row.id,
+            'nombre': row.nombre,
+            'rfc': row.rfc,
+            'nombre_comercial': row.nombre_comercial,
+            'email': row.email,
+            'activo': row.activo
+        })
+    
+    if clientes:
+        return {
+            'encontrado': True,
+            'clientes': clientes,
+            'mensaje': f"Encontré {len(clientes)} cliente(s) que coinciden con '{termino}'"
+        }
+    else:
+        return {
+            'encontrado': False,
+            'clientes': [],
+            'mensaje': f"No encontré ningún cliente con '{termino}'. ¿Quieres darlo de alta?"
+        }
+
+
+# Si usas function calling de Claude/OpenAI:
+TOOLS_ONBOARDING = [
+    {
+        "name": "buscar_cliente",
+        "description": "Busca si un cliente ya existe en el sistema por nombre, RFC o nombre comercial. Usar cuando el usuario pregunta si un cliente ya está registrado.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "termino": {
+                    "type": "string",
+                    "description": "Nombre, RFC o término a buscar"
+                }
+            },
+            "required": ["termino"]
+        }
+    },
+    {
+        "name": "obtener_info_usuario",
+        "description": "Obtiene información del usuario actual (nombre, email, si es admin, cliente asociado)",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
+    }
+]
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PROBLEMA 2: NO RECONOCE AL ADMINISTRADOR
+═══════════════════════════════════════════════════════════════════════════════
+
+El agente no sabe quién es el usuario que está hablando.
+Necesita recibir el contexto del usuario autenticado.
+
+═══════════════════════════════════════════════════════════════════════════════
+ARREGLO 3: PASAR CONTEXTO DE USUARIO AL AGENTE
+═══════════════════════════════════════════════════════════════════════════════
+
+Buscar el archivo de rutas del onboarding y modificar para pasar el usuario:
+
+```python
+# En el endpoint de chat del onboarding
+
+@router.post("/chat")
+async def chat_onboarding(request: Request, body: ChatRequest):
+    mensaje = body.message
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # OBTENER USUARIO ACTUAL DE LA SESIÓN/TOKEN
+    # ═══════════════════════════════════════════════════════════════════
+    
+    # Opción 1: Si usas JWT/token en header
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    usuario = await obtener_usuario_de_token(token)
+    
+    # Opción 2: Si usas sesión
+    # usuario = await obtener_usuario_de_sesion(request)
+    
+    # Opción 3: Si viene en el body
+    # usuario_id = body.usuario_id
+    # usuario = await obtener_usuario_por_id(usuario_id)
+    
+    if not usuario:
+        # Usuario no autenticado - manejar como guest
+        usuario = {
+            'id': None,
+            'email': 'guest',
+            'nombre': 'Usuario',
+            'is_admin': False,
+            'cliente_id': None,
+            'cliente_nombre': None
+        }
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # CONSTRUIR CONTEXTO PARA EL AGENTE
+    # ═══════════════════════════════════════════════════════════════════
+    
+    contexto_usuario = f"""
+    USUARIO ACTUAL:
+    - Email: {usuario['email']}
+    - Nombre: {usuario['nombre']}
+    - Es Administrador: {'SÍ' if usuario['is_admin'] else 'NO'}
+    - Cliente asociado: {usuario.get('cliente_nombre', 'Ninguno')}
+    
+    {'⚠️ Este usuario es ADMINISTRADOR, tiene acceso completo.' if usuario['is_admin'] else ''}
+    """
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # LLAMAR AL MODELO CON CONTEXTO
+    # ═══════════════════════════════════════════════════════════════════
+    
+    system_prompt = SYSTEM_PROMPT_ONBOARDING.format(
+        usuario_email=usuario['email'],
+        usuario_nombre=usuario['nombre'],
+        es_admin='SÍ' if usuario['is_admin'] else 'NO',
+        cliente_nombre=usuario.get('cliente_nombre', 'Ninguno')
+    )
+    
+    # Agregar contexto al system prompt
+    system_prompt_completo = system_prompt + "\n\n" + contexto_usuario
+    
+    # Llamar a Claude/modelo
+    respuesta = await llamar_modelo(
+        system=system_prompt_completo,
+        messages=[{"role": "user", "content": mensaje}],
+        tools=TOOLS_ONBOARDING  # Para que pueda buscar clientes
+    )
+    
+    return {"response": respuesta}
+
+
+async def obtener_usuario_de_token(token: str) -> dict:
+    """Obtiene usuario desde JWT token"""
+    
+    if not token:
+        return None
+    
+    try:
+        # Decodificar token (ajustar según tu implementación)
+        import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        user_id = payload.get('user_id') or payload.get('sub')
+        
+        if not user_id:
+            return None
+        
+        # Buscar usuario en BD
+        result = db.session.execute(text("""
+            SELECT u.id, u.email, u.nombre, u.is_admin, u.cliente_id,
+                   c.nombre as cliente_nombre
+            FROM users u
+            LEFT JOIN clientes c ON u.cliente_id = c.id
+            WHERE u.id = :id
+        """), {'id': user_id}).fetchone()
+        
+        if result:
+            return {
+                'id': result.id,
+                'email': result.email,
+                'nombre': result.nombre,
+                'is_admin': result.is_admin,
+                'cliente_id': result.cliente_id,
+                'cliente_nombre': result.cliente_nombre
+            }
+        
+    except Exception as e:
+        print(f"Error decodificando token: {e}")
+    
+    return None
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+ARREGLO 4: PROMPT MEJORADO QUE RAZONA
+═══════════════════════════════════════════════════════════════════════════════
+
+```python
+SYSTEM_PROMPT_ONBOARDING_MEJORADO = """
+Eres el Agente de Onboarding de SATMA. Ayudas a dar de alta clientes y proyectos.
+
+═══════════════════════════════════════════════════════════════════════════════
+INFORMACIÓN DEL USUARIO ACTUAL
+═══════════════════════════════════════════════════════════════════════════════
+Email: {usuario_email}
+Nombre: {usuario_nombre}
+Es Administrador: {es_admin}
+Cliente asociado: {cliente_nombre}
+
+═══════════════════════════════════════════════════════════════════════════════
+REGLAS CRÍTICAS - LEE ESTO PRIMERO
+═══════════════════════════════════════════════════════════════════════════════
+
+1. NUNCA ignores una pregunta del usuario para seguir un flujo predefinido.
+
+2. Si el usuario PREGUNTA algo (usa signos de interrogación o palabras como 
+   "ya está", "existe", "tiene", "cuántos", "cuál"):
+   - PRIMERO responde su pregunta
+   - USA las herramientas disponibles para buscar información
+   - DESPUÉS ofrece continuar con lo que necesite
+
+3. Si el usuario menciona un nombre de empresa/cliente:
+   - SIEMPRE usa buscar_cliente() para verificar si ya existe
+   - Informa si encontraste o no el cliente
+   - Si existe, muestra los datos y pregunta si quiere hacer algo con él
+   - Si no existe, ofrece darlo de alta
+
+4. Si el usuario es ADMINISTRADOR (is_admin = SÍ):
+   - Puede ver todos los clientes
+   - Puede crear cualquier cliente
+   - Puede modificar configuraciones
+   - Trátalo con el contexto de que tiene acceso completo
+
+5. Si el usuario NO es admin pero tiene cliente asociado:
+   - Solo puede ver información de su cliente
+   - No puede crear otros clientes
+
+═══════════════════════════════════════════════════════════════════════════════
+HERRAMIENTAS DISPONIBLES
+═══════════════════════════════════════════════════════════════════════════════
+
+- buscar_cliente(termino): Busca clientes por nombre, RFC o nombre comercial
+- obtener_info_usuario(): Obtiene info del usuario actual
+
+USA ESTAS HERRAMIENTAS cuando el usuario pregunte sobre clientes existentes.
+
+═══════════════════════════════════════════════════════════════════════════════
+EJEMPLOS DE CÓMO RESPONDER
+═══════════════════════════════════════════════════════════════════════════════
+
+Usuario: "¿Ya está dada de alta Fortezza?"
+CORRECTO: [Llamar buscar_cliente("Fortezza")] → "Sí, Fortezza ya está registrada 
+          con RFC XXX. ¿Necesitas crear un proyecto para ellos?"
+INCORRECTO: "Entendido. ¿Cuál es el nombre del cliente?" (ignorar la pregunta)
+
+Usuario: "Quiero dar de alta un cliente nuevo"
+CORRECTO: "Perfecto. ¿Cuál es el nombre o razón social del cliente?"
+
+Usuario: "¿Cuántos clientes tenemos?"
+CORRECTO: [Buscar en BD] → "Actualmente hay 4 clientes registrados: ..."
+INCORRECTO: "Entendido. ¿Cuál es el nombre del cliente?" (ignorar)
+
+═══════════════════════════════════════════════════════════════════════════════
+"""
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+ARREGLO 5: IMPLEMENTAR FUNCTION CALLING REAL
+═══════════════════════════════════════════════════════════════════════════════
+
+Si usas Claude, agregar tools al llamado:
+
+```python
+import anthropic
+
+client = anthropic.Anthropic()
+
+async def llamar_modelo_con_tools(system: str, mensaje: str, historial: list = None):
+    """Llama a Claude con function calling para que pueda buscar clientes"""
+    
+    messages = historial or []
+    messages.append({"role": "user", "content": mensaje})
+    
+    # Definir herramientas
+    tools = [
+        {
+            "name": "buscar_cliente",
+            "description": "Busca si un cliente ya existe en el sistema. Usar cuando el usuario pregunta si un cliente está registrado o menciona un nombre de empresa.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "termino": {
+                        "type": "string",
+                        "description": "Nombre, RFC o término a buscar"
+                    }
+                },
+                "required": ["termino"]
+            }
+        },
+        {
+            "name": "listar_clientes",
+            "description": "Lista todos los clientes registrados. Usar cuando el usuario pregunta cuántos clientes hay o quiere ver la lista.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "limite": {
+                        "type": "integer",
+                        "description": "Número máximo de clientes a mostrar",
+                        "default": 10
+                    }
+                }
+            }
+        }
+    ]
+    
+    # Primera llamada
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1024,
+        system=system,
+        tools=tools,
+        messages=messages
+    )
+    
+    # Si el modelo quiere usar una herramienta
+    while response.stop_reason == "tool_use":
+        # Encontrar el tool_use block
+        tool_use = next(block for block in response.content if block.type == "tool_use")
+        tool_name = tool_use.name
+        tool_input = tool_use.input
+        
+        # Ejecutar la herramienta
+        if tool_name == "buscar_cliente":
+            resultado = await buscar_cliente(tool_input["termino"])
+        elif tool_name == "listar_clientes":
+            resultado = await listar_clientes(tool_input.get("limite", 10))
+        else:
+            resultado = {"error": f"Herramienta {tool_name} no implementada"}
+        
+        # Agregar resultado al historial
+        messages.append({"role": "assistant", "content": response.content})
+        messages.append({
+            "role": "user",
+            "content": [{
+                "type": "tool_result",
+                "tool_use_id": tool_use.id,
+                "content": json.dumps(resultado, ensure_ascii=False)
+            }]
+        })
+        
+        # Llamar de nuevo con el resultado
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            system=system,
+            tools=tools,
+            messages=messages
+        )
+    
+    # Extraer texto de la respuesta final
+    texto_respuesta = ""
+    for block in response.content:
+        if hasattr(block, 'text'):
+            texto_respuesta += block.text
+    
+    return texto_respuesta
+
+
+async def listar_clientes(limite: int = 10) -> dict:
+    """Lista clientes registrados"""
+    
+    result = db.session.execute(text("""
+        SELECT id, nombre, rfc, nombre_comercial, activo
+        FROM clientes
+        ORDER BY nombre
+        LIMIT :limite
+    """), {'limite': limite})
+    
+    clientes = [dict(row._mapping) for row in result]
+    
+    return {
+        'total': len(clientes),
+        'clientes': clientes
+    }
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+DIAGNÓSTICO: ENCONTRAR EL ARCHIVO CORRECTO
+═══════════════════════════════════════════════════════════════════════════════
+
+Ejecutar esto para encontrar dónde está el código del agente de onboarding:
+
+```bash
+# Buscar archivos relacionados con onboarding
+find backend -name "*onboarding*" -o -name "*alta*" | head -20
+
+# Buscar dónde está el prompt actual del agente
+grep -r "Onboarding\|dar de alta\|nuevo cliente" backend/routes/ --include="*.py" | head -20
+
+# Buscar dónde se define el system prompt
+grep -r "system.*prompt\|SYSTEM_PROMPT" backend/ --include="*.py" | head -20
+
+# Ver estructura de la carpeta de agentes
+ls -la backend/services/agentes/ 2>/dev/null || ls -la backend/services/agents/ 2>/dev/null
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST DE IMPLEMENTACIÓN
+═══════════════════════════════════════════════════════════════════════════════
+
+□ 1. Encontrar archivo del agente de onboarding
+□ 2. Agregar función buscar_cliente()
+□ 3. Agregar función listar_clientes()
+□ 4. Modificar el system prompt para que razone
+□ 5. Agregar tools/function calling
+□ 6. Pasar contexto del usuario autenticado al agente
+□ 7. Probar:
+     - "¿Ya está dada de alta Fortezza?" → Debe buscar y responder
+     - "¿Cuántos clientes hay?" → Debe listar
+     - "Soy admin" → Debe reconocerte
+
+═══════════════════════════════════════════════════════════════════════════════
+PRUEBA RÁPIDA DESPUÉS DE IMPLEMENTAR
+═══════════════════════════════════════════════════════════════════════════════
+
+Conversación esperada:
+
+Usuario: "¿Ya está dada de alta Fortezza?"
+
+Agente: "Déjame verificar... 
+        ✅ Sí, Fortezza está registrada:
+        - Nombre: Fortezza SA de CV
+        - RFC: FOR123456ABC
+        - Activo: Sí
+        
+        ¿Necesitas crear un proyecto para Fortezza o hacer algo más?"
+
+Usuario: "Sí, crear proyecto"
+
+Agente: "Perfecto. ¿Qué tipo de proyecto necesitas para Fortezza?
+        1. Auditoría fiscal
+        2. Defensa fiscal
+        3. Consultoría
+        ..."
+
+═══════════════════════════════════════════════════════════════════════════════

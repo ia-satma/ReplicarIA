@@ -1,0 +1,79 @@
+🚀 PROMPT 15 (REVISADO): Pre-carga RAG en Paralelo
+TAREA: Implementar SOLO pre-carga de RAG en paralelo (optimización segura que NO altera la cadena deliberativa).
+
+En backend/services/deliberation_orchestrator.py:
+
+PASO 1: Agrega estos imports al inicio del archivo:
+
+```python
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
+PASO 2: Crea esta función NUEVA (agrégala ANTES de la función principal de orquestación):
+
+def preload_rag_contexts_parallel(project_data: Dict) -> Dict[str, str]:
+    """
+    Pre-carga contextos RAG de TODOS los agentes EN PARALELO usando threads
+    Reduce latencia de ~2s×5 agentes = 10s a ~2s total
+    """
+    from services.rag_repository import RAGRepository
+    
+    rag = RAGRepository()
+    agent_names = ["A1_SPONSOR", "A3_FISCAL", "A5_FINANZAS", "LEGAL", "A2_PMO"]
+    
+    def fetch_context(agent_name: str) -> tuple:
+        """Fetch individual de contexto RAG"""
+        try:
+            query = f"{project_data.get('title', '')} {project_data.get('description', '')}"
+            context = rag.query(collection_name=f"{agent_name}_knowledge", query_text=query, top_k=3)
+            logger.info(f"✅ RAG context loaded for {agent_name}")
+            return (agent_name, context)
+        except Exception as e:
+            logger.warning(f"⚠️ No RAG context for {agent_name}: {e}")
+            return (agent_name, "")
+    
+    # Ejecutar queries RAG en paralelo con ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        results = list(executor.map(fetch_context, agent_names))
+    
+    return dict(results)
+
+PASO 3: En la función principal de orquestación, AL INICIO (antes de ejecutar cualquier agente), agrega:
+
+# Pre-carga de contextos RAG en paralelo
+logger.info("🚀 Pre-loading RAG contexts in parallel...")
+start_time = datetime.now()
+rag_contexts = preload_rag_contexts_parallel(project_data)
+elapsed = (datetime.now() - start_time).total_seconds()
+logger.info(f"✅ Loaded {len(rag_contexts)} RAG contexts in {elapsed:.2f}s (paralelo)")
+
+PASO 4: Cuando ejecutes cada agente, PASA el contexto pre-cargado.
+
+BUSCA donde llamas a los agentes (algo como agent.reason_about_project(...)):
+
+ANTES:
+
+a1_result = a1_agent.reason_about_project(project_data, previous_deliberations=[])
+
+DESPUÉS:
+
+a1_result = a1_agent.reason_about_project(
+    project_data, 
+    previous_deliberations=[],
+    rag_context=rag_contexts.get("A1_SPONSOR", "")
+)
+
+Repite para TODOS los agentes (A1, A3, A5, LEGAL, A2_PMO).
+
+IMPORTANTE:
+
+NO cambies el orden de ejecución de los agentes
+NO uses asyncio/await (usamos ThreadPoolExecutor que es más simple)
+Los agentes siguen ejecutándose SECUENCIALMENTE (solo el RAG se pre-carga en paralelo)
+Muéstrame:
+
+¿Se creó la función preload_rag_contexts_parallel?
+¿Se llama al inicio del orquestador?
+¿Todos los agentes reciben rag_context del dict pre-cargado?
+¿Hay errores de sintaxis?
+¿Cuánto tiempo tardó antes vs después? (revisa los logs)

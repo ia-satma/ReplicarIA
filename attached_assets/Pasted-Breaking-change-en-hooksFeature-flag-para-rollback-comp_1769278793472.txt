@@ -1,0 +1,798 @@
+Breaking change en hooksFeature flag para rollback
+</compatibility_assessment>
+
+<optimization_strategy>
+3. ESTRATEGIA DE OPTIMIZACIÓN
+3.1 Priorización de Optimizaciones
+#OptimizaciónImpactoEsfuerzoROIPrioridad1Ejecutar migración de embeddings🔴 Crítico🟢 Bajo⭐⭐⭐⭐⭐P02Eliminar MongoDB completamente🟡 Alto🟡 Medio⭐⭐⭐⭐P13Implementar Redis cache🟡 Alto🟢 Bajo⭐⭐⭐⭐P14Eliminar archivos legacy🟢 Medio🟢 Bajo⭐⭐⭐P25Optimizar índices PostgreSQL🟡 Alto🟢 Bajo⭐⭐⭐⭐P16Background jobs para PDFs🟢 Medio🟡 Medio⭐⭐⭐P27Streaming en chat🟢 Medio🟡 Medio⭐⭐⭐P3
+3.2 Tecnologías Recomendadas
+Para Cache:
+Redis (Upstash) - Razones:
+✓ Serverless, sin mantenimiento
+✓ Compatible con Replit
+✓ TTL automático
+✓ Bajo costo para volumen esperado
+Para Background Jobs:
+Opción A: Python RQ + Redis (recomendado)
+✓ Simple, usa el mismo Redis del cache
+✓ Fácil de implementar en Replit
+
+Opción B: Celery (overkill para este caso)
+Para Monitoreo:
+Sentry (free tier) - Razones:
+✓ Error tracking automático
+✓ Performance monitoring
+✓ Fácil integración con FastAPI
+3.3 Arquitectura Objetivo
+┌─────────────────────────────────────────────────────────────────┐
+│                     REVISAR.IA - OPTIMIZADO                     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────┐     ┌─────────┐     ┌─────────────────┐          │
+│  │ React   │────▶│ FastAPI │────▶│ PostgreSQL+     │          │
+│  │ Frontend│     │ Backend │     │ pgvector        │          │
+│  └─────────┘     └────┬────┘     └─────────────────┘          │
+│                       │                                        │
+│                       ▼                                        │
+│                 ┌─────────┐     ┌─────────────────┐          │
+│                 │  Redis  │     │ Background      │          │
+│                 │  Cache  │◀───▶│ Workers (RQ)    │          │
+│                 └─────────┘     └─────────────────┘          │
+│                                                                │
+│  [MongoDB ELIMINADO]                                          │
+│                                                                │
+└─────────────────────────────────────────────────────────────────┘
+</optimization_strategy>
+
+<implementation_instructions>
+4. INSTRUCCIONES DE IMPLEMENTACIÓN
+4.1 P0: Ejecutar Migración de Embeddings
+Tiempo estimado: 15-30 minutos
+bash# En la terminal de Replit, ejecutar:
+
+# 1. Verificar que hay chunks sin embeddings
+python -c "
+import asyncio
+import asyncpg
+import os
+
+async def check():
+    conn = await asyncpg.connect(os.getenv('DATABASE_URL'))
+    total = await conn.fetchval('SELECT COUNT(*) FROM knowledge_chunks')
+    with_emb = await conn.fetchval('SELECT COUNT(*) FROM knowledge_chunks WHERE embedding IS NOT NULL')
+    print(f'Total chunks: {total}')
+    print(f'Con embedding: {with_emb}')
+    print(f'Sin embedding: {total - with_emb}')
+    await conn.close()
+
+asyncio.run(check())
+"
+
+# 2. Si hay chunks sin embedding, ejecutar migración
+# Primero en dry-run:
+python -m scripts.migrate_embeddings --dry-run --limit 10
+
+# 3. Si se ve bien, ejecutar real con límite pequeño:
+python -m scripts.migrate_embeddings --limit 100
+
+# 4. Si funciona, ejecutar completo:
+python -m scripts.migrate_embeddings
+
+4.2 P1: Eliminar MongoDB Completamente
+Tiempo estimado: 1-2 horas
+Paso 1: Verificar que no hay datos críticos en MongoDB
+bash# Ejecutar script de verificación
+python -c "
+import asyncio
+from motor.motor_asyncio import AsyncIOMotorClient
+import os
+
+async def check_mongo():
+    uri = os.getenv('MONGO_URI') or os.getenv('MONGODB_URI')
+    if not uri:
+        print('No hay MONGO_URI configurada - MongoDB ya no se usa')
+        return
+    
+    client = AsyncIOMotorClient(uri)
+    db = client.get_default_database()
+    
+    collections = await db.list_collection_names()
+    print(f'Colecciones en MongoDB: {collections}')
+    
+    for col in collections:
+        count = await db[col].count_documents({})
+        print(f'  {col}: {count} documentos')
+    
+    client.close()
+
+asyncio.run(check_mongo())
+"
+Paso 2: Migrar datos restantes (si los hay)
+bashpython -m scripts.migrate_mongo_to_postgres --dry-run
+# Si hay datos, ejecutar sin --dry-run
+Paso 3: Eliminar dependencias de MongoDB
+Crear archivo backend/scripts/remove_mongodb.py:
+python"""
+Script para identificar y eliminar referencias a MongoDB.
+"""
+import os
+import re
+
+def find_mongo_references():
+    mongo_patterns = [
+        r'from motor',
+        r'import motor',
+        r'AsyncIOMotorClient',
+        r'mongo_client',
+        r'mongo_db',
+        r'MONGO_URI',
+        r'MONGODB_URI',
+    ]
+    
+    backend_dir = 'backend'
+    findings = []
+    
+    for root, dirs, files in os.walk(backend_dir):
+        # Ignorar __pycache__
+        dirs[:] = [d for d in dirs if d != '__pycache__']
+        
+        for file in files:
+            if file.endswith('.py'):
+                filepath = os.path.join(root, file)
+                with open(filepath, 'r') as f:
+                    try:
+                        content = f.read()
+                        for pattern in mongo_patterns:
+                            matches = re.findall(pattern, content)
+                            if matches:
+                                findings.append({
+                                    'file': filepath,
+                                    'pattern': pattern,
+                                    'count': len(matches)
+                                })
+                    except:
+                        pass
+    
+    return findings
+
+if __name__ == '__main__':
+    findings = find_mongo_references()
+    if findings:
+        print("Referencias a MongoDB encontradas:")
+        for f in findings:
+            print(f"  {f['file']}: {f['pattern']} ({f['count']}x)")
+    else:
+        print("No se encontraron referencias a MongoDB")
+Paso 4: Actualizar requirements.txt
+bash# Eliminar estas líneas de requirements.txt:
+# motor
+# pymongo
+
+# Ejecutar para verificar:
+grep -E "motor|pymongo" requirements.txt
+```
+
+**Paso 5: Eliminar MONGO_URI de Secrets**
+```
+En Replit → Tools → Secrets:
+- Eliminar MONGO_URI
+- Eliminar MONGODB_URI (si existe)
+```
+
+---
+
+### 4.3 P1: Implementar Redis Cache
+
+**Tiempo estimado: 30-45 minutos**
+
+**Paso 1: Configurar Upstash Redis (gratis)**
+```
+1. Ve a https://upstash.com
+2. Crea cuenta gratuita
+3. Crea una base de datos Redis
+4. Copia la URL de conexión
+5. En Replit Secrets, agrega:
+   REDIS_URL = redis://default:xxx@xxx.upstash.io:6379
+Paso 2: Instalar dependencia
+bashpip install redis --break-system-packages
+Paso 3: Crear servicio de cache
+Crear backend/services/cache_service.py:
+python"""
+Servicio de Cache con Redis.
+"""
+import redis
+import json
+import os
+from typing import Optional, Any
+from functools import wraps
+import hashlib
+
+REDIS_URL = os.getenv("REDIS_URL")
+
+class CacheService:
+    def __init__(self):
+        if REDIS_URL:
+            self.client = redis.from_url(REDIS_URL, decode_responses=True)
+            self.enabled = True
+        else:
+            self.client = None
+            self.enabled = False
+            print("⚠️ REDIS_URL no configurada - cache deshabilitado")
+    
+    def _make_key(self, prefix: str, *args, **kwargs) -> str:
+        """Genera una key única basada en los argumentos."""
+        key_data = json.dumps({"args": args, "kwargs": kwargs}, sort_keys=True)
+        hash_val = hashlib.md5(key_data.encode()).hexdigest()[:12]
+        return f"{prefix}:{hash_val}"
+    
+    def get(self, key: str) -> Optional[Any]:
+        """Obtiene valor del cache."""
+        if not self.enabled:
+            return None
+        try:
+            value = self.client.get(key)
+            return json.loads(value) if value else None
+        except Exception as e:
+            print(f"Cache get error: {e}")
+            return None
+    
+    def set(self, key: str, value: Any, ttl: int = 300) -> bool:
+        """Guarda valor en cache con TTL (default 5 min)."""
+        if not self.enabled:
+            return False
+        try:
+            self.client.setex(key, ttl, json.dumps(value))
+            return True
+        except Exception as e:
+            print(f"Cache set error: {e}")
+            return False
+    
+    def delete(self, key: str) -> bool:
+        """Elimina valor del cache."""
+        if not self.enabled:
+            return False
+        try:
+            self.client.delete(key)
+            return True
+        except Exception as e:
+            print(f"Cache delete error: {e}")
+            return False
+    
+    def delete_pattern(self, pattern: str) -> int:
+        """Elimina todas las keys que matchean el patrón."""
+        if not self.enabled:
+            return 0
+        try:
+            keys = self.client.keys(pattern)
+            if keys:
+                return self.client.delete(*keys)
+            return 0
+        except Exception as e:
+            print(f"Cache delete_pattern error: {e}")
+            return 0
+
+
+# Singleton
+_cache_service: Optional[CacheService] = None
+
+def get_cache() -> CacheService:
+    global _cache_service
+    if _cache_service is None:
+        _cache_service = CacheService()
+    return _cache_service
+
+
+def cached(prefix: str, ttl: int = 300):
+    """Decorator para cachear resultados de funciones."""
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            cache = get_cache()
+            
+            # Generar key (ignorar self si es método)
+            cache_args = args[1:] if args and hasattr(args[0], '__class__') else args
+            key = cache._make_key(prefix, *cache_args, **kwargs)
+            
+            # Intentar obtener del cache
+            cached_value = cache.get(key)
+            if cached_value is not None:
+                return cached_value
+            
+            # Ejecutar función
+            result = await func(*args, **kwargs)
+            
+            # Guardar en cache
+            cache.set(key, result, ttl)
+            
+            return result
+        return wrapper
+    return decorator
+Paso 4: Usar cache en servicios críticos
+Actualizar backend/services/vector_search_service.py:
+python# Agregar import al inicio
+from services.cache_service import cached
+
+class VectorSearchService:
+    # ...
+    
+    @cached(prefix="semantic_search", ttl=300)  # 5 minutos
+    async def semantic_search(
+        self,
+        empresa_id: str,
+        query: str,
+        limit: int = 10,
+        categoria_filter: Optional[str] = None
+    ) -> List[dict]:
+        # ... código existente ...
+
+4.4 P1: Optimizar Índices PostgreSQL
+Tiempo estimado: 10 minutos
+Ejecutar en Neon SQL Console:
+sql-- Verificar índices existentes
+SELECT 
+    schemaname,
+    tablename,
+    indexname,
+    indexdef
+FROM pg_indexes
+WHERE schemaname = 'public'
+ORDER BY tablename, indexname;
+
+-- Agregar índices faltantes para queries frecuentes
+
+-- Búsqueda de proyectos por empresa y estado
+CREATE INDEX IF NOT EXISTS idx_projects_empresa_estado_fecha 
+ON projects(empresa_id, estado, created_at DESC);
+
+-- Búsqueda de deliberaciones recientes
+CREATE INDEX IF NOT EXISTS idx_deliberations_project_created 
+ON deliberations(project_id, created_at DESC);
+
+-- Búsqueda de chunks por documento
+CREATE INDEX IF NOT EXISTS idx_chunks_document 
+ON knowledge_chunks(document_id, chunk_index);
+
+-- Índice para usage tracking (consultas diarias)
+CREATE INDEX IF NOT EXISTS idx_usage_empresa_fecha_desc 
+ON usage_tracking(empresa_id, fecha DESC);
+
+-- Índice parcial para chunks con embedding (búsqueda vectorial)
+CREATE INDEX IF NOT EXISTS idx_chunks_with_embedding 
+ON knowledge_chunks(empresa_id) 
+WHERE embedding IS NOT NULL;
+
+-- Analizar tablas para actualizar estadísticas
+ANALYZE projects;
+ANALYZE deliberations;
+ANALYZE knowledge_chunks;
+ANALYZE usage_tracking;
+
+4.5 P2: Eliminar Archivos Legacy
+Tiempo estimado: 15 minutos
+bash# En Replit, ejecutar:
+
+# 1. Verificar que ChatbotArchivoRefactored está activo
+grep -n "ChatbotArchivoRefactored" frontend/src/App.js
+
+# 2. Si está activo, podemos eliminar el original
+# PERO PRIMERO hacer backup:
+mkdir -p frontend/src/components/_deprecated
+mv frontend/src/components/ChatbotArchivo.jsx frontend/src/components/_deprecated/
+
+# 3. Verificar que la app sigue funcionando
+# (iniciar y probar /onboarding)
+
+# 4. Si funciona, podemos eliminar definitivamente:
+# rm -rf frontend/src/components/_deprecated/
+</implementation_instructions>
+
+<diagnostic_testing>
+5. PLAN DE PRUEBAS DIAGNÓSTICAS
+5.1 Tests Automatizados
+Crear backend/tests/test_optimization.py:
+python"""
+Tests para verificar optimizaciones.
+"""
+import pytest
+import asyncio
+import asyncpg
+import os
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+@pytest.fixture
+async def db_conn():
+    conn = await asyncpg.connect(DATABASE_URL)
+    yield conn
+    await conn.close()
+
+class TestEmbeddings:
+    async def test_pgvector_extension_exists(self, db_conn):
+        result = await db_conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')"
+        )
+        assert result is True, "pgvector extension not installed"
+    
+    async def test_embedding_column_exists(self, db_conn):
+        result = await db_conn.fetchval("""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'knowledge_chunks' 
+                AND column_name = 'embedding'
+            )
+        """)
+        assert result is True, "embedding column not found"
+    
+    async def test_chunks_have_embeddings(self, db_conn):
+        total = await db_conn.fetchval("SELECT COUNT(*) FROM knowledge_chunks")
+        with_emb = await db_conn.fetchval(
+            "SELECT COUNT(*) FROM knowledge_chunks WHERE embedding IS NOT NULL"
+        )
+        if total > 0:
+            coverage = with_emb / total * 100
+            assert coverage > 80, f"Only {coverage:.1f}% chunks have embeddings"
+
+class TestRateLimiting:
+    async def test_usage_tracking_table_exists(self, db_conn):
+        result = await db_conn.fetchval("""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_name = 'usage_tracking'
+            )
+        """)
+        assert result is True
+    
+    async def test_planes_configured(self, db_conn):
+        count = await db_conn.fetchval("SELECT COUNT(*) FROM planes")
+        assert count >= 4, "Missing plan configurations"
+
+class TestIndexes:
+    async def test_critical_indexes_exist(self, db_conn):
+        indexes = await db_conn.fetch("""
+            SELECT indexname FROM pg_indexes 
+            WHERE schemaname = 'public'
+        """)
+        index_names = [i['indexname'] for i in indexes]
+        
+        required = [
+            'idx_projects_empresa',
+            'idx_deliberations_project',
+            'idx_chunks_embedding',
+        ]
+        
+        for idx in required:
+            assert idx in index_names, f"Missing index: {idx}"
+```
+
+### 5.2 Tests Manuales
+```
+CHECKLIST DE PRUEBAS MANUALES:
+
+□ 1. BÚSQUEDA SEMÁNTICA
+   - Navegar a Repositorio de Conocimiento
+   - Activar modo semántico (botón púrpura)
+   - Buscar: "requisitos fiscales para deducir"
+   - Verificar: Resultados con % de similitud
+   - Esperado: Documentos relacionados aunque no tengan esas palabras exactas
+
+□ 2. RATE LIMITING
+   - Abrir DevTools → Network
+   - Hacer request a /api/agents/chat
+   - Verificar headers:
+     * X-RateLimit-Remaining-Requests
+     * X-RateLimit-Remaining-Tokens
+     * X-RateLimit-Plan
+
+□ 3. USAGE DASHBOARD
+   - Navegar al Dashboard principal
+   - Verificar widget de uso muestra:
+     * Requests hoy / límite
+     * Tokens hoy / límite
+     * Barra de progreso
+
+□ 4. PDF EXPORT
+   - Navegar a un proyecto con deliberaciones
+   - Click en "Descargar Expediente PDF"
+   - Verificar: PDF descarga en <10 segundos
+   - Verificar: PDF tiene contenido correcto
+
+□ 5. CHATBOT REFACTORIZADO
+   - Navegar a /onboarding
+   - Verificar: Carga sin errores de consola
+   - Enviar mensaje de prueba
+   - Verificar: Respuesta del agente
+
+□ 6. CACHE (si implementado)
+   - Hacer búsqueda semántica
+   - Repetir misma búsqueda
+   - Verificar: Segunda respuesta más rápida (<100ms vs >500ms)
+5.3 Script de Health Check
+Crear backend/scripts/health_check.py:
+python"""
+Health check completo del sistema.
+"""
+import asyncio
+import asyncpg
+import httpx
+import os
+from datetime import datetime
+
+async def check_database():
+    """Verifica conexión y estado de PostgreSQL."""
+    print("\n📊 DATABASE CHECK")
+    try:
+        conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
+        
+        # Verificar tablas críticas
+        tables = ['empresas', 'users', 'projects', 'deliberations', 
+                  'knowledge_chunks', 'usage_tracking', 'planes']
+        
+        for table in tables:
+            count = await conn.fetchval(f"SELECT COUNT(*) FROM {table}")
+            print(f"  ✅ {table}: {count} rows")
+        
+        # Verificar pgvector
+        has_vector = await conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')"
+        )
+        print(f"  ✅ pgvector: {'Installed' if has_vector else '❌ Missing'}")
+        
+        # Verificar embeddings
+        total_chunks = await conn.fetchval("SELECT COUNT(*) FROM knowledge_chunks")
+        with_emb = await conn.fetchval(
+            "SELECT COUNT(*) FROM knowledge_chunks WHERE embedding IS NOT NULL"
+        )
+        emb_pct = (with_emb / total_chunks * 100) if total_chunks > 0 else 0
+        print(f"  ✅ Embeddings: {with_emb}/{total_chunks} ({emb_pct:.1f}%)")
+        
+        await conn.close()
+        return True
+    except Exception as e:
+        print(f"  ❌ Database error: {e}")
+        return False
+
+async def check_api():
+    """Verifica endpoints críticos."""
+    print("\n🌐 API CHECK")
+    base_url = "http://localhost:5000"
+    
+    endpoints = [
+        ("GET", "/api/health", 200),
+        ("GET", "/docs", 200),
+    ]
+    
+    async with httpx.AsyncClient() as client:
+        for method, path, expected in endpoints:
+            try:
+                resp = await client.request(method, f"{base_url}{path}", timeout=5)
+                status = "✅" if resp.status_code == expected else "❌"
+                print(f"  {status} {method} {path}: {resp.status_code}")
+            except Exception as e:
+                print(f"  ❌ {method} {path}: {e}")
+
+async def check_cache():
+    """Verifica conexión a Redis."""
+    print("\n💾 CACHE CHECK")
+    redis_url = os.getenv("REDIS_URL")
+    
+    if not redis_url:
+        print("  ⚠️ REDIS_URL not configured - cache disabled")
+        return True
+    
+    try:
+        import redis
+        r = redis.from_url(redis_url)
+        r.ping()
+        print("  ✅ Redis connected")
+        return True
+    except Exception as e:
+        print(f"  ❌ Redis error: {e}")
+        return False
+
+async def main():
+    print("=" * 50)
+    print(f"🔍 SYSTEM HEALTH CHECK - {datetime.now().isoformat()}")
+    print("=" * 50)
+    
+    db_ok = await check_database()
+    cache_ok = await check_cache()
+    await check_api()
+    
+    print("\n" + "=" * 50)
+    if db_ok and cache_ok:
+        print("✅ SYSTEM HEALTHY")
+    else:
+        print("⚠️ SYSTEM HAS ISSUES")
+    print("=" * 50)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+</diagnostic_testing>
+
+---
+
+<final_verification>
+
+## 6. VERIFICACIÓN FINAL
+
+### 6.1 Checklist de Verificación
+```
+CHECKLIST COMPLETO DE OPTIMIZACIONES:
+
+TOUR #1 - RAG SEMÁNTICO
+□ pgvector extension instalada
+□ Columna embedding existe en knowledge_chunks
+□ Índice HNSW/IVFFlat creado
+□ embedding_service.py funcional
+□ vector_search_service.py funcional
+□ Migración de embeddings ejecutada (>80% coverage)
+□ Endpoint /api/knowledge/hybrid_search funciona
+□ UI de búsqueda semántica integrada
+
+TOUR #2 - REFACTOR FRONTEND
+□ ChatbotArchivoRefactored.jsx activo en App.js
+□ Hooks extraídos (4 archivos)
+□ Componentes chatbot/ (7 archivos)
+□ Componentes shared/ (3 archivos)
+□ Archivo original movido a _deprecated o eliminado
+
+TOUR #3 - CONSOLIDAR DBs
+□ Tablas PostgreSQL creadas (projects, deliberations, etc.)
+□ Datos migrados de MongoDB
+□ Servicios actualizados (project_service.py)
+□ MongoDB eliminado de requirements.txt
+□ MONGO_URI eliminado de Secrets
+
+TOUR #4 - RATE LIMITING
+□ Tabla usage_tracking existe
+□ Tabla planes con 4+ planes
+□ rate_limiter_service.py funcional
+□ usage_routes.py registrado
+□ UsageDashboard.jsx integrado
+
+TOUR #5 - PDF EXPORT
+□ ReportLab instalado
+□ defense_file_export_service.py funcional
+□ Ruta /api/defense-files/.../pdf funciona
+□ DefenseFileDownload.jsx integrado
+
+TOUR #6 - INTEGRACIÓN E2E
+□ Todos los imports correctos en App.js
+□ Todas las rutas registradas en server.py
+□ No hay errores en consola del navegador
+□ No hay errores en logs del servidor
+
+OPTIMIZACIONES ADICIONALES
+□ Redis cache configurado (opcional)
+□ Índices PostgreSQL optimizados
+□ Archivos legacy eliminados
+□ Health check pasa
+6.2 Métricas de Éxito
+MétricaValor ObjetivoCómo MedirEmbedding coverage>80%SELECT COUNT(*) WHERE embedding IS NOT NULL / totalAPI response time (cached)<200msDevTools NetworkAPI response time (uncached)<2000msDevTools NetworkPDF generation time<10sTiempo de descargaZero MongoDB references0grep -r "mongo" backend/Console errors0Browser DevToolsServer errors0Uvicorn logs
+6.3 Comando de Verificación Final
+bash# Ejecutar en Replit:
+
+echo "=== VERIFICACIÓN FINAL ==="
+
+# 1. Verificar que MongoDB está eliminado
+echo "MongoDB references:"
+grep -r "motor\|mongo" backend/ --include="*.py" | grep -v __pycache__ | wc -l
+
+# 2. Verificar embeddings
+python -c "
+import asyncio, asyncpg, os
+async def check():
+    c = await asyncpg.connect(os.getenv('DATABASE_URL'))
+    t = await c.fetchval('SELECT COUNT(*) FROM knowledge_chunks')
+    e = await c.fetchval('SELECT COUNT(*) FROM knowledge_chunks WHERE embedding IS NOT NULL')
+    print(f'Embeddings: {e}/{t} ({e/t*100:.1f}%)' if t > 0 else 'No chunks')
+asyncio.run(check())
+"
+
+# 3. Verificar rutas registradas
+grep -c "include_router" backend/server.py
+
+# 4. Verificar componente activo
+grep "ChatbotArchivoRefactored" frontend/src/App.js
+
+# 5. Health check
+python backend/scripts/health_check.py
+
+echo "=== FIN VERIFICACIÓN ==="
+```
+
+</final_verification>
+
+---
+
+<implementation_metrics>
+
+## 7. MÉTRICAS DE IMPLEMENTACIÓN
+
+### 7.1 Completitud de Implementación
+
+| Área | Implementado | Total | Porcentaje |
+|------|--------------|-------|------------|
+| Backend Services | 7 | 7 | **100%** |
+| Backend Routes | 5 | 5 | **100%** |
+| Database Tables | 8 | 8 | **100%** |
+| Database Indexes | 6 | 8 | **75%** |
+| Frontend Hooks | 4 | 4 | **100%** |
+| Frontend Components | 12 | 12 | **100%** |
+| Integrations E2E | 4 | 4 | **100%** |
+| **TOTAL** | **46** | **48** | **96%** |
+
+### 7.2 Funcionalidad del Sistema
+
+| Funcionalidad | Estado | Porcentaje |
+|---------------|--------|------------|
+| RAG Semántico | ⚠️ Embeddings pendientes de migrar | **70%** |
+| Rate Limiting | ✅ Completo | **100%** |
+| PDF Export | ✅ Completo | **100%** |
+| Chat Refactorizado | ✅ Completo | **100%** |
+| Dashboard Uso | ✅ Completo | **100%** |
+| Búsqueda UI | ✅ Completo | **100%** |
+| **PROMEDIO** | | **95%** |
+
+### 7.3 Integración Frontend
+
+| Integración | Archivo | Estado | Porcentaje |
+|-------------|---------|--------|------------|
+| Chatbot Refactorizado | App.js:18 | ✅ Activo | **100%** |
+| UsageDashboard | App.js:727 | ✅ Integrado | **100%** |
+| DefenseFileDownload | App.js:1638 | ✅ Integrado | **100%** |
+| Búsqueda Semántica | KnowledgeRepository | ✅ Integrado | **100%** |
+| **TOTAL** | | | **100%** |
+
+### 7.4 Resumen Ejecutivo de Métricas
+```
+╔════════════════════════════════════════════════════════════╗
+║           MÉTRICAS DE IMPLEMENTACIÓN - REVISAR.IA          ║
+╠════════════════════════════════════════════════════════════╣
+║                                                            ║
+║   Implementación Completa:     ████████████████████  96%   ║
+║                                                            ║
+║   Funcionalidad del Sistema:   ███████████████████░  95%   ║
+║                                                            ║
+║   Integración Frontend:        ████████████████████ 100%   ║
+║                                                            ║
+╠════════════════════════════════════════════════════════════╣
+║   SCORE GENERAL:                                   97%     ║
+╚════════════════════════════════════════════════════════════╝
+
+PENDIENTE PARA 100%:
+1. Ejecutar migración de embeddings (python -m scripts.migrate_embeddings)
+2. Agregar 2 índices PostgreSQL faltantes
+3. Eliminar referencias residuales a MongoDB
+```
+
+</implementation_metrics>
+
+---
+
+## 🎯 ACCIONES INMEDIATAS PARA COMPLETAR AL 100%
+
+Copiá esto a Replit:
+```
+Ejecuta estas 3 acciones para llegar al 100%:
+
+1. MIGRAR EMBEDDINGS:
+   python -m scripts.migrate_embeddings
+
+2. CREAR ÍNDICES FALTANTES:
+   # Ejecutar en Neon SQL Console:
+   CREATE INDEX IF NOT EXISTS idx_projects_empresa_estado_fecha 
+   ON projects(empresa_id, estado, created_at DESC);
+   
+   CREATE INDEX IF NOT EXISTS idx_chunks_with_embedding 
+   ON knowledge_chunks(empresa_id) 
+   WHERE embedding IS NOT NULL;
+
+3. VERIFICAR MONGODB ELIMINADO:
+   grep -r "motor\|mongo\|Motor\|Mongo" backend/ --include="*.py" | grep -v __pycache__
+   # Si encuentra algo, eliminarlo
+
+4. VERIFICACIÓN FINAL:
+   python backend/scripts/health_check.py

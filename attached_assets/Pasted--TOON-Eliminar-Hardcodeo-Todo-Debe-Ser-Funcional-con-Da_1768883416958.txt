@@ -1,0 +1,1356 @@
+# 🔧 TOON: Eliminar Hardcodeo - Todo Debe Ser Funcional con Datos Reales
+
+## PROBLEMA DETECTADO
+
+La interfaz de Durezza 4.0 muestra datos hardcodeados que no reflejan la realidad:
+- "6 Agentes principales" → Debería mostrar 0 si no hay proyectos
+- "10 Etapas del Proceso" → Debería mostrar el estado real
+- "3 Puntos de Control" → Debería ser dinámico
+- "Score 22/100" → No hay proyecto, no debería mostrar score
+- Timeline con fases completadas → No hay proyecto activo
+
+**REGLA FUNDAMENTAL:** Si no hay datos, NO se inventan. Se muestra un estado vacío apropiado con call-to-action para crear el primer elemento.
+
+---
+
+## ARQUITECTURA DE DATOS REALES
+
+### Principio: Single Source of Truth
+
+```
+Base de Datos (PostgreSQL)
+       ↓
+   API Endpoints
+       ↓
+   React Query / SWR (cache)
+       ↓
+   Componentes UI
+```
+
+**NUNCA** poner datos estáticos en componentes. Todo viene de la API.
+
+---
+
+## PASO 1: Hooks de Datos Centralizados
+
+Crear `client/hooks/useDashboardData.ts`:
+
+```typescript
+import { useQuery } from '@tanstack/react-query';
+
+// ============================================
+// TIPOS
+// ============================================
+
+interface EstadisticasGlobales {
+  proyectos: {
+    total: number;
+    activos: number;
+    completados: number;
+    enRevision: number;
+  };
+  empresas: {
+    total: number;
+  };
+  proveedores: {
+    total: number;
+    activos: number;
+    enRiesgo: number;
+  };
+  agentes: {
+    configurados: number;
+    activos: number;
+  };
+  documentos: {
+    total: number;
+    procesados: number;
+    pendientes: number;
+  };
+}
+
+interface ProyectoActivo {
+  id: string;
+  nombre: string;
+  empresaId: string;
+  empresaNombre: string;
+  faseActual: number;
+  totalFases: number;
+  fasesCompletadas: number[];
+  fasesBloqueadas: number[];
+  scoreRiesgo: {
+    total: number;
+    razonNegocios: number;
+    beneficioEconomico: number;
+    materialidad: number;
+    trazabilidad: number;
+  };
+  puntosControl: {
+    total: number;
+    aprobados: number;
+    pendientes: number;
+    rechazados: number;
+  };
+  fechaCreacion: string;
+  fechaUltimaActividad: string;
+  estatus: 'borrador' | 'en_proceso' | 'revision' | 'completado' | 'archivado';
+}
+
+interface ConfiguracionSistema {
+  agentesDisponibles: Array<{
+    id: string;
+    codigo: string;
+    nombre: string;
+    activo: boolean;
+    documentosAsignados: number;
+  }>;
+  plantillasRag: number;
+  documentosUniversales: number;
+  etapasConfiguradas: number;
+  puntosControlConfigurados: number;
+  pilaresRiesgo: number;
+}
+
+// ============================================
+// HOOKS
+// ============================================
+
+// Hook para estadísticas globales del dashboard
+export function useEstadisticasGlobales() {
+  return useQuery<EstadisticasGlobales>({
+    queryKey: ['estadisticas-globales'],
+    queryFn: async () => {
+      const response = await fetch('/api/dashboard/estadisticas');
+      if (!response.ok) throw new Error('Error cargando estadísticas');
+      return response.json();
+    },
+    staleTime: 30000, // 30 segundos
+    refetchOnWindowFocus: true
+  });
+}
+
+// Hook para proyecto activo (el seleccionado actualmente)
+export function useProyectoActivo(proyectoId: string | null) {
+  return useQuery<ProyectoActivo | null>({
+    queryKey: ['proyecto-activo', proyectoId],
+    queryFn: async () => {
+      if (!proyectoId) return null;
+      const response = await fetch(`/api/proyectos/${proyectoId}`);
+      if (!response.ok) throw new Error('Error cargando proyecto');
+      return response.json();
+    },
+    enabled: !!proyectoId,
+    staleTime: 10000
+  });
+}
+
+// Hook para lista de proyectos
+export function useProyectos(filtros?: { empresaId?: string; estatus?: string }) {
+  return useQuery<ProyectoActivo[]>({
+    queryKey: ['proyectos', filtros],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filtros?.empresaId) params.append('empresaId', filtros.empresaId);
+      if (filtros?.estatus) params.append('estatus', filtros.estatus);
+      
+      const response = await fetch(`/api/proyectos?${params}`);
+      if (!response.ok) throw new Error('Error cargando proyectos');
+      return response.json();
+    },
+    staleTime: 15000
+  });
+}
+
+// Hook para configuración del sistema
+export function useConfiguracionSistema() {
+  return useQuery<ConfiguracionSistema>({
+    queryKey: ['configuracion-sistema'],
+    queryFn: async () => {
+      const response = await fetch('/api/sistema/configuracion');
+      if (!response.ok) throw new Error('Error cargando configuración');
+      return response.json();
+    },
+    staleTime: 60000 // 1 minuto (cambia poco)
+  });
+}
+
+// Hook para el último proyecto del usuario (o ninguno)
+export function useUltimoProyecto() {
+  return useQuery<ProyectoActivo | null>({
+    queryKey: ['ultimo-proyecto'],
+    queryFn: async () => {
+      const response = await fetch('/api/proyectos/ultimo');
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error('Error cargando proyecto');
+      return response.json();
+    },
+    staleTime: 10000
+  });
+}
+```
+
+---
+
+## PASO 2: API Endpoints Reales
+
+Crear/actualizar `server/routes/dashboard.ts`:
+
+```typescript
+import { Router } from 'express';
+import { db } from '../db';
+import { proyectos, empresasClientes, proveedores, agentes, documentos } from '../db/schema';
+import { eq, count, and, sql } from 'drizzle-orm';
+
+const router = Router();
+
+// GET /api/dashboard/estadisticas
+// Retorna estadísticas REALES del sistema
+router.get('/estadisticas', async (req, res) => {
+  try {
+    const usuarioId = req.user?.id; // Del middleware de auth
+    
+    // Contar proyectos reales
+    const [proyectosStats] = await db
+      .select({
+        total: count(),
+        activos: sql<number>`COUNT(CASE WHEN estatus = 'en_proceso' THEN 1 END)`,
+        completados: sql<number>`COUNT(CASE WHEN estatus = 'completado' THEN 1 END)`,
+        enRevision: sql<number>`COUNT(CASE WHEN estatus = 'revision' THEN 1 END)`
+      })
+      .from(proyectos)
+      .where(eq(proyectos.usuarioId, usuarioId));
+
+    // Contar empresas reales
+    const [empresasStats] = await db
+      .select({ total: count() })
+      .from(empresasClientes)
+      .where(eq(empresasClientes.createdBy, usuarioId));
+
+    // Contar proveedores reales
+    const [proveedoresStats] = await db
+      .select({
+        total: count(),
+        activos: sql<number>`COUNT(CASE WHEN estatus = 'activo' THEN 1 END)`,
+        enRiesgo: sql<number>`COUNT(CASE WHEN nivel_riesgo IN ('alto', 'critico') THEN 1 END)`
+      })
+      .from(proveedores);
+
+    // Contar agentes configurados
+    const [agentesStats] = await db
+      .select({
+        configurados: count(),
+        activos: sql<number>`COUNT(CASE WHEN activo = true THEN 1 END)`
+      })
+      .from(agentes);
+
+    // Contar documentos
+    const [documentosStats] = await db
+      .select({
+        total: count(),
+        procesados: sql<number>`COUNT(CASE WHEN ocr_procesado = true THEN 1 END)`,
+        pendientes: sql<number>`COUNT(CASE WHEN ocr_procesado = false OR ocr_procesado IS NULL THEN 1 END)`
+      })
+      .from(documentos);
+
+    return res.json({
+      proyectos: {
+        total: proyectosStats?.total || 0,
+        activos: proyectosStats?.activos || 0,
+        completados: proyectosStats?.completados || 0,
+        enRevision: proyectosStats?.enRevision || 0
+      },
+      empresas: {
+        total: empresasStats?.total || 0
+      },
+      proveedores: {
+        total: proveedoresStats?.total || 0,
+        activos: proveedoresStats?.activos || 0,
+        enRiesgo: proveedoresStats?.enRiesgo || 0
+      },
+      agentes: {
+        configurados: agentesStats?.configurados || 0,
+        activos: agentesStats?.activos || 0
+      },
+      documentos: {
+        total: documentosStats?.total || 0,
+        procesados: documentosStats?.procesados || 0,
+        pendientes: documentosStats?.pendientes || 0
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo estadísticas:', error);
+    return res.status(500).json({ error: 'Error al obtener estadísticas' });
+  }
+});
+
+// GET /api/sistema/configuracion
+// Retorna la configuración REAL del sistema
+router.get('/sistema/configuracion', async (req, res) => {
+  try {
+    // Obtener agentes configurados
+    const agentesConfig = await db
+      .select({
+        id: agentes.id,
+        codigo: agentes.codigo,
+        nombre: agentes.nombre,
+        activo: agentes.activo
+      })
+      .from(agentes);
+
+    // Contar documentos por agente
+    const agentesConDocs = await Promise.all(
+      agentesConfig.map(async (agente) => {
+        const [docsCount] = await db
+          .select({ count: count() })
+          .from(documentos)
+          .where(eq(documentos.agenteId, agente.id));
+        
+        return {
+          ...agente,
+          documentosAsignados: docsCount?.count || 0
+        };
+      })
+    );
+
+    // Contar plantillas RAG (si tienes tabla)
+    // const [plantillasCount] = await db.select({ count: count() }).from(plantillasRag);
+
+    // Contar documentos universales (compartidos entre agentes)
+    const [docsUniversales] = await db
+      .select({ count: count() })
+      .from(documentos)
+      .where(eq(documentos.esUniversal, true));
+
+    return res.json({
+      agentesDisponibles: agentesConDocs,
+      plantillasRag: 0, // plantillasCount?.count || 0,
+      documentosUniversales: docsUniversales?.count || 0,
+      etapasConfiguradas: 10, // Esto puede ser config fija o de BD
+      puntosControlConfigurados: 3,
+      pilaresRiesgo: 4
+    });
+  } catch (error) {
+    console.error('Error obteniendo configuración:', error);
+    return res.status(500).json({ error: 'Error al obtener configuración' });
+  }
+});
+
+// GET /api/proyectos/ultimo
+// Retorna el último proyecto activo o null
+router.get('/proyectos/ultimo', async (req, res) => {
+  try {
+    const usuarioId = req.user?.id;
+
+    const [ultimoProyecto] = await db
+      .select()
+      .from(proyectos)
+      .where(eq(proyectos.usuarioId, usuarioId))
+      .orderBy(sql`${proyectos.updatedAt} DESC`)
+      .limit(1);
+
+    if (!ultimoProyecto) {
+      return res.status(404).json({ mensaje: 'No hay proyectos' });
+    }
+
+    return res.json(ultimoProyecto);
+  } catch (error) {
+    console.error('Error obteniendo último proyecto:', error);
+    return res.status(500).json({ error: 'Error al obtener proyecto' });
+  }
+});
+
+export default router;
+```
+
+---
+
+## PASO 3: Componentes con Estados Vacíos
+
+### 3.1 Dashboard Principal Refactorizado
+
+Crear `client/components/dashboard/DashboardPrincipal.tsx`:
+
+```tsx
+import React from 'react';
+import { useEstadisticasGlobales, useUltimoProyecto, useConfiguracionSistema } from '@/hooks/useDashboardData';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Users, Layers, Lock, Shield, FileText, Building2, 
+  Plus, ArrowRight, Loader2, AlertCircle, Sparkles,
+  FolderOpen, BarChart3
+} from 'lucide-react';
+import { TimelineFases } from './TimelineFases';
+import { AnalisisRiesgoPilares } from './AnalisisRiesgoPilares';
+import { SistemaRAGPanel } from './SistemaRAGPanel';
+
+export function DashboardPrincipal() {
+  const { data: estadisticas, isLoading: loadingStats, error: errorStats } = useEstadisticasGlobales();
+  const { data: proyectoActivo, isLoading: loadingProyecto } = useUltimoProyecto();
+  const { data: configSistema, isLoading: loadingConfig } = useConfiguracionSistema();
+
+  const isLoading = loadingStats || loadingProyecto || loadingConfig;
+
+  // Estado de carga
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-500 mx-auto" />
+          <p className="mt-4 text-gray-500">Cargando dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error
+  if (errorStats) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
+          <p className="mt-4 text-gray-900 font-medium">Error al cargar datos</p>
+          <p className="text-sm text-gray-500">Por favor recarga la página</p>
+        </div>
+      </div>
+    );
+  }
+
+  const hayProyectos = estadisticas && estadisticas.proyectos.total > 0;
+  const hayEmpresas = estadisticas && estadisticas.empresas.total > 0;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-6 text-white">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/10 rounded-lg">
+              <Shield className="h-8 w-8" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">DUREZZA 4.0</h1>
+              <p className="text-blue-100">Tu aliado en la gestión fiscal de servicios intangibles</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {proyectoActivo && (
+              <Button variant="secondary">
+                <FileText className="h-4 w-4 mr-2" />
+                Descargar Expediente
+              </Button>
+            )}
+            <Button variant="outline" className="text-white border-white/30 hover:bg-white/10">
+              <FolderOpen className="h-4 w-4 mr-2" />
+              Control de Versiones
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Tarjetas de Métricas - DATOS REALES */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricaCard
+          titulo="Equipo de Agentes"
+          valor={configSistema?.agentesDisponibles.filter(a => a.activo).length || 0}
+          descripcion={
+            configSistema?.agentesDisponibles.length 
+              ? `${configSistema.agentesDisponibles.length} agentes configurados`
+              : "Sin agentes configurados"
+          }
+          icono={Users}
+          color="blue"
+          vacio={!configSistema?.agentesDisponibles.length}
+        />
+        
+        <MetricaCard
+          titulo="Proyectos Activos"
+          valor={estadisticas?.proyectos.activos || 0}
+          descripcion={
+            estadisticas?.proyectos.total 
+              ? `${estadisticas.proyectos.total} proyectos en total`
+              : "Sin proyectos creados"
+          }
+          icono={Layers}
+          color="purple"
+          vacio={!estadisticas?.proyectos.total}
+        />
+        
+        <MetricaCard
+          titulo="Empresas Registradas"
+          valor={estadisticas?.empresas.total || 0}
+          descripcion={
+            estadisticas?.empresas.total
+              ? "Empresas con perfil activo"
+              : "Sin empresas registradas"
+          }
+          icono={Building2}
+          color="rose"
+          vacio={!estadisticas?.empresas.total}
+        />
+        
+        <MetricaCard
+          titulo="Proveedores"
+          valor={estadisticas?.proveedores.total || 0}
+          descripcion={
+            estadisticas?.proveedores.enRiesgo
+              ? `${estadisticas.proveedores.enRiesgo} en riesgo alto`
+              : estadisticas?.proveedores.total
+                ? "Todos en buen estado"
+                : "Sin proveedores registrados"
+          }
+          icono={Shield}
+          color="green"
+          vacio={!estadisticas?.proveedores.total}
+          alerta={estadisticas?.proveedores.enRiesgo ? true : false}
+        />
+      </div>
+
+      {/* Contenido condicional según si hay proyectos */}
+      {!hayEmpresas ? (
+        // Estado vacío: No hay empresas
+        <EstadoVacioInicial tipo="empresa" />
+      ) : !hayProyectos ? (
+        // Estado vacío: Hay empresas pero no proyectos
+        <EstadoVacioProyectos />
+      ) : (
+        // Hay proyectos: Mostrar dashboard completo
+        <>
+          {/* Sistema RAG Multi-Tenant */}
+          <SistemaRAGPanel 
+            agentes={configSistema?.agentesDisponibles || []}
+            plantillasRag={configSistema?.plantillasRag || 0}
+            docsUniversales={configSistema?.documentosUniversales || 0}
+          />
+
+          {/* Timeline de Fases */}
+          {proyectoActivo ? (
+            <TimelineFases 
+              faseActual={proyectoActivo.faseActual}
+              totalFases={proyectoActivo.totalFases}
+              fasesCompletadas={proyectoActivo.fasesCompletadas}
+              fasesBloqueadas={proyectoActivo.fasesBloqueadas}
+            />
+          ) : (
+            <Card className="border-dashed">
+              <CardContent className="py-8 text-center">
+                <Layers className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">Selecciona un proyecto para ver el timeline de fases</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Análisis de Riesgo */}
+          {proyectoActivo ? (
+            <AnalisisRiesgoPilares 
+              scoreTotal={proyectoActivo.scoreRiesgo.total}
+              pilares={{
+                razonNegocios: proyectoActivo.scoreRiesgo.razonNegocios,
+                beneficioEconomico: proyectoActivo.scoreRiesgo.beneficioEconomico,
+                materialidad: proyectoActivo.scoreRiesgo.materialidad,
+                trazabilidad: proyectoActivo.scoreRiesgo.trazabilidad
+              }}
+            />
+          ) : (
+            <Card className="border-dashed">
+              <CardContent className="py-8 text-center">
+                <BarChart3 className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">Selecciona un proyecto para ver el análisis de riesgo</p>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================================
+// COMPONENTES AUXILIARES
+// ============================================
+
+interface MetricaCardProps {
+  titulo: string;
+  valor: number;
+  descripcion: string;
+  icono: React.ElementType;
+  color: 'blue' | 'purple' | 'rose' | 'green';
+  vacio?: boolean;
+  alerta?: boolean;
+}
+
+function MetricaCard({ 
+  titulo, valor, descripcion, icono: Icono, color, vacio, alerta 
+}: MetricaCardProps) {
+  const colores = {
+    blue: 'bg-blue-100 text-blue-600',
+    purple: 'bg-purple-100 text-purple-600',
+    rose: 'bg-rose-100 text-rose-600',
+    green: 'bg-green-100 text-green-600'
+  };
+
+  return (
+    <Card className={vacio ? 'border-dashed opacity-60' : ''}>
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-sm text-gray-500">{titulo}</p>
+            <p className={`text-3xl font-bold mt-1 ${vacio ? 'text-gray-300' : 'text-gray-900'}`}>
+              {valor}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">{descripcion}</p>
+          </div>
+          <div className={`p-3 rounded-lg ${vacio ? 'bg-gray-100' : colores[color]}`}>
+            <Icono className={`h-6 w-6 ${vacio ? 'text-gray-400' : ''}`} />
+          </div>
+        </div>
+        {alerta && !vacio && (
+          <Badge variant="destructive" className="mt-3">
+            <AlertCircle className="h-3 w-3 mr-1" />
+            Requiere atención
+          </Badge>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function EstadoVacioInicial({ tipo }: { tipo: 'empresa' | 'proyecto' }) {
+  return (
+    <Card className="border-2 border-dashed border-blue-200 bg-blue-50/50">
+      <CardContent className="py-16 text-center">
+        <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Sparkles className="h-10 w-10 text-blue-500" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          ¡Bienvenido a Durezza 4.0!
+        </h2>
+        <p className="text-gray-600 max-w-md mx-auto mb-6">
+          {tipo === 'empresa' 
+            ? 'Para comenzar, registra tu primera empresa. Esto permitirá crear proyectos de auditoría fiscal.'
+            : 'Ya tienes empresas registradas. Crea tu primer proyecto de auditoría para comenzar.'
+          }
+        </p>
+        <div className="flex items-center justify-center gap-4">
+          {tipo === 'empresa' ? (
+            <Button size="lg" asChild>
+              <a href="/empresas/nueva">
+                <Building2 className="h-5 w-5 mr-2" />
+                Registrar Primera Empresa
+              </a>
+            </Button>
+          ) : (
+            <Button size="lg" asChild>
+              <a href="/proyectos/nuevo">
+                <Plus className="h-5 w-5 mr-2" />
+                Crear Primer Proyecto
+              </a>
+            </Button>
+          )}
+        </div>
+        
+        {/* Pasos para comenzar */}
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto">
+          <PasoOnboarding 
+            numero={1}
+            titulo="Registra tu empresa"
+            descripcion="Sube tu Constancia SAT y Acta Constitutiva"
+            completado={tipo === 'proyecto'}
+          />
+          <PasoOnboarding 
+            numero={2}
+            titulo="Crea un proyecto"
+            descripcion="Define el servicio intangible a auditar"
+            completado={false}
+          />
+          <PasoOnboarding 
+            numero={3}
+            titulo="Sube documentos"
+            descripcion="Los agentes analizarán tu expediente"
+            completado={false}
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EstadoVacioProyectos() {
+  return (
+    <Card className="border-2 border-dashed border-indigo-200 bg-indigo-50/50">
+      <CardContent className="py-12 text-center">
+        <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <FolderOpen className="h-8 w-8 text-indigo-500" />
+        </div>
+        <h3 className="text-xl font-bold text-gray-900 mb-2">
+          No hay proyectos activos
+        </h3>
+        <p className="text-gray-600 max-w-md mx-auto mb-6">
+          Crea tu primer proyecto de auditoría fiscal para que los agentes de IA 
+          puedan analizar tus deducciones de servicios intangibles.
+        </p>
+        <Button asChild>
+          <a href="/proyectos/nuevo">
+            <Plus className="h-4 w-4 mr-2" />
+            Crear Nuevo Proyecto
+          </a>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PasoOnboarding({ 
+  numero, 
+  titulo, 
+  descripcion, 
+  completado 
+}: { 
+  numero: number; 
+  titulo: string; 
+  descripcion: string; 
+  completado: boolean;
+}) {
+  return (
+    <div className={`p-4 rounded-lg ${completado ? 'bg-green-50 border border-green-200' : 'bg-white border border-gray-200'}`}>
+      <div className={`
+        w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold mb-3
+        ${completado ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}
+      `}>
+        {completado ? '✓' : numero}
+      </div>
+      <h4 className={`font-medium ${completado ? 'text-green-800' : 'text-gray-900'}`}>
+        {titulo}
+      </h4>
+      <p className="text-sm text-gray-500 mt-1">{descripcion}</p>
+    </div>
+  );
+}
+```
+
+### 3.2 Timeline de Fases (Solo con datos reales)
+
+```tsx
+// client/components/dashboard/TimelineFases.tsx
+
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Check, Lock, Circle } from 'lucide-react';
+
+interface TimelineFasesProps {
+  faseActual: number;
+  totalFases: number;
+  fasesCompletadas: number[];
+  fasesBloqueadas: number[];
+}
+
+export function TimelineFases({
+  faseActual,
+  totalFases,
+  fasesCompletadas,
+  fasesBloqueadas
+}: TimelineFasesProps) {
+  const fases = Array.from({ length: totalFases }, (_, i) => {
+    const numero = i + 1;
+    const completada = fasesCompletadas.includes(numero);
+    const bloqueada = fasesBloqueadas.includes(numero);
+    const actual = numero === faseActual;
+
+    return { numero, completada, bloqueada, actual };
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <div className="h-5 w-1 bg-blue-500 rounded" />
+          Timeline de Fases con Candados
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between overflow-x-auto pb-4">
+          {fases.map((fase, index) => (
+            <React.Fragment key={fase.numero}>
+              {/* Nodo de fase */}
+              <div className="flex flex-col items-center">
+                <div className={`
+                  w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all
+                  ${fase.completada 
+                    ? 'bg-green-500 border-green-500 text-white' 
+                    : fase.actual
+                      ? 'bg-blue-500 border-blue-500 text-white ring-4 ring-blue-200'
+                      : fase.bloqueada
+                        ? 'bg-white border-red-200 text-red-400'
+                        : 'bg-white border-gray-200 text-gray-400'
+                  }
+                `}>
+                  {fase.completada ? (
+                    <Check className="h-6 w-6" />
+                  ) : fase.bloqueada ? (
+                    <Lock className="h-5 w-5" />
+                  ) : (
+                    <span className="font-semibold">F{fase.numero}</span>
+                  )}
+                </div>
+                {fase.actual && (
+                  <span className="text-xs text-blue-600 font-medium mt-1">Actual</span>
+                )}
+              </div>
+
+              {/* Línea conectora */}
+              {index < fases.length - 1 && (
+                <div className={`
+                  flex-1 h-1 mx-2 rounded transition-all
+                  ${fase.completada ? 'bg-green-500' : 'bg-gray-200'}
+                `} />
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Versión vacía para cuando no hay proyecto
+export function TimelineFasesVacio() {
+  return (
+    <Card className="border-dashed">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-lg text-gray-400">
+          <div className="h-5 w-1 bg-gray-300 rounded" />
+          Timeline de Fases con Candados
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-center py-8">
+          <p className="text-gray-400">
+            Selecciona o crea un proyecto para ver el progreso de las fases
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+### 3.3 Análisis de Riesgo (Solo con datos reales)
+
+```tsx
+// client/components/dashboard/AnalisisRiesgoPilares.tsx
+
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Target, TrendingUp, Package, Link } from 'lucide-react';
+
+interface AnalisisRiesgoPilaresProps {
+  scoreTotal: number;
+  pilares: {
+    razonNegocios: number;
+    beneficioEconomico: number;
+    materialidad: number;
+    trazabilidad: number;
+  };
+}
+
+export function AnalisisRiesgoPilares({ scoreTotal, pilares }: AnalisisRiesgoPilaresProps) {
+  const getNivelRiesgo = (score: number) => {
+    if (score <= 25) return { label: 'BAJO', color: 'bg-green-500' };
+    if (score <= 50) return { label: 'MEDIO', color: 'bg-yellow-500' };
+    if (score <= 75) return { label: 'ALTO', color: 'bg-orange-500' };
+    return { label: 'CRÍTICO', color: 'bg-red-500' };
+  };
+
+  const nivelTotal = getNivelRiesgo(scoreTotal);
+
+  const pilaresConfig = [
+    { 
+      key: 'razonNegocios', 
+      nombre: 'Razón de Negocios', 
+      referencia: 'Art. 5-A CFF',
+      valor: pilares.razonNegocios,
+      icono: Target,
+      color: 'bg-cyan-500'
+    },
+    { 
+      key: 'beneficioEconomico', 
+      nombre: 'Beneficio Económico', 
+      referencia: 'ROI documentado',
+      valor: pilares.beneficioEconomico,
+      icono: TrendingUp,
+      color: 'bg-green-500'
+    },
+    { 
+      key: 'materialidad', 
+      nombre: 'Materialidad', 
+      referencia: 'Art. 69-B CFF',
+      valor: pilares.materialidad,
+      icono: Package,
+      color: 'bg-purple-500'
+    },
+    { 
+      key: 'trazabilidad', 
+      nombre: 'Trazabilidad', 
+      referencia: 'NOM-151',
+      valor: pilares.trazabilidad,
+      icono: Link,
+      color: 'bg-orange-500'
+    }
+  ];
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <div className="h-5 w-1 bg-indigo-500 rounded" />
+          <CardTitle className="text-lg">Análisis de Riesgo por Pilar</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {/* Score Total */}
+        <div className="flex flex-col items-center py-6">
+          <div className="relative w-32 h-32">
+            {/* Círculo de fondo */}
+            <svg className="w-full h-full transform -rotate-90">
+              <circle
+                cx="64"
+                cy="64"
+                r="56"
+                stroke="#e5e7eb"
+                strokeWidth="12"
+                fill="none"
+              />
+              <circle
+                cx="64"
+                cy="64"
+                r="56"
+                stroke={scoreTotal <= 25 ? '#22c55e' : scoreTotal <= 50 ? '#eab308' : scoreTotal <= 75 ? '#f97316' : '#ef4444'}
+                strokeWidth="12"
+                fill="none"
+                strokeDasharray={`${(scoreTotal / 100) * 352} 352`}
+                strokeLinecap="round"
+              />
+            </svg>
+            {/* Número central */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-4xl font-bold text-gray-900">{scoreTotal}</span>
+              <span className="text-sm text-gray-500">/100</span>
+            </div>
+          </div>
+          <Badge className={`mt-4 ${nivelTotal.color} text-white`}>
+            {nivelTotal.label}
+          </Badge>
+        </div>
+
+        {/* Pilares */}
+        <div className="space-y-4">
+          {pilaresConfig.map((pilar) => {
+            const Icono = pilar.icono;
+            const nivel = getNivelRiesgo(pilar.valor * 4); // Escalar a 100
+
+            return (
+              <div key={pilar.key} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Icono className="h-4 w-4 text-gray-500" />
+                    <span className="font-medium text-gray-700">{pilar.nombre}</span>
+                    <span className="text-xs text-gray-400">{pilar.referencia}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">{pilar.valor}/25</span>
+                    <Badge variant="outline" className={`text-xs ${
+                      nivel.label === 'BAJO' ? 'text-green-600 border-green-200' :
+                      nivel.label === 'MEDIO' ? 'text-yellow-600 border-yellow-200' :
+                      nivel.label === 'ALTO' ? 'text-orange-600 border-orange-200' :
+                      'text-red-600 border-red-200'
+                    }`}>
+                      {nivel.label.charAt(0).toUpperCase() + nivel.label.slice(1).toLowerCase()}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full ${pilar.color} transition-all duration-500`}
+                    style={{ width: `${(pilar.valor / 25) * 100}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Versión vacía
+export function AnalisisRiesgoPilaresVacio() {
+  return (
+    <Card className="border-dashed">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg text-gray-400">Análisis de Riesgo por Pilar</CardTitle>
+      </CardHeader>
+      <CardContent className="py-12 text-center">
+        <div className="w-24 h-24 mx-auto mb-4 rounded-full border-8 border-gray-200 flex items-center justify-center">
+          <span className="text-2xl font-bold text-gray-300">--</span>
+        </div>
+        <p className="text-gray-400">
+          No hay proyecto seleccionado para analizar
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+### 3.4 Panel RAG (Con datos reales o vacío)
+
+```tsx
+// client/components/dashboard/SistemaRAGPanel.tsx
+
+import React from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Bot, FileText, Database, Settings } from 'lucide-react';
+
+interface Agente {
+  id: string;
+  codigo: string;
+  nombre: string;
+  activo: boolean;
+  documentosAsignados: number;
+}
+
+interface SistemaRAGPanelProps {
+  agentes: Agente[];
+  plantillasRag: number;
+  docsUniversales: number;
+}
+
+export function SistemaRAGPanel({ agentes, plantillasRag, docsUniversales }: SistemaRAGPanelProps) {
+  const agentesActivos = agentes.filter(a => a.activo);
+  const totalDocumentos = agentes.reduce((sum, a) => sum + a.documentosAsignados, 0) + docsUniversales;
+
+  // Si no hay agentes configurados, mostrar estado vacío
+  if (agentes.length === 0) {
+    return (
+      <Card className="bg-gradient-to-br from-gray-800 to-gray-900 text-white border-0">
+        <CardContent className="p-6 text-center py-12">
+          <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <h3 className="text-lg font-semibold mb-2">Sistema RAG no configurado</h3>
+          <p className="text-gray-400 text-sm mb-4">
+            Configura los agentes de IA para habilitar el análisis automático
+          </p>
+          <Badge variant="outline" className="text-gray-400 border-gray-600">
+            <Settings className="h-3 w-3 mr-1" />
+            Ir a configuración
+          </Badge>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="bg-gradient-to-br from-indigo-900 to-purple-900 text-white border-0">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-yellow-500/20 rounded-lg">
+              <Bot className="h-6 w-6 text-yellow-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold">Sistema RAG Multi-Tenant Activo</h3>
+              <p className="text-indigo-200 text-sm">
+                {totalDocumentos} documentos de contexto configurados para {agentesActivos.length} agentes especializados
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex gap-3">
+            <div className="bg-white/10 rounded-lg px-4 py-2 text-center">
+              <p className="text-2xl font-bold">{agentesActivos.length}</p>
+              <p className="text-xs text-indigo-200">Agentes IA</p>
+            </div>
+            <div className="bg-white/10 rounded-lg px-4 py-2 text-center">
+              <p className="text-2xl font-bold">{plantillasRag}</p>
+              <p className="text-xs text-indigo-200">Plantillas RAG</p>
+            </div>
+            <div className="bg-white/10 rounded-lg px-4 py-2 text-center">
+              <p className="text-2xl font-bold">{docsUniversales}</p>
+              <p className="text-xs text-indigo-200">Docs Universales</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Badges de agentes */}
+        <div className="flex flex-wrap gap-2">
+          {agentes.map((agente) => (
+            <Badge 
+              key={agente.id}
+              variant={agente.activo ? "secondary" : "outline"}
+              className={`
+                ${agente.activo 
+                  ? 'bg-white/20 text-white hover:bg-white/30' 
+                  : 'bg-transparent text-gray-400 border-gray-600'
+                }
+              `}
+            >
+              {agente.codigo}
+              {agente.activo && agente.documentosAsignados > 0 && (
+                <span className="ml-1 text-xs opacity-75">
+                  ({agente.documentosAsignados})
+                </span>
+              )}
+            </Badge>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+---
+
+## PASO 4: Schema de Base de Datos para Proyectos
+
+```typescript
+// db/schema/proyectos.ts
+
+import { pgTable, uuid, varchar, text, integer, boolean, timestamp, jsonb, pgEnum } from 'drizzle-orm/pg-core';
+
+export const estatusProyectoEnum = pgEnum('estatus_proyecto', [
+  'borrador', 'en_proceso', 'revision', 'completado', 'archivado'
+]);
+
+export const proyectos = pgTable('proyectos', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  
+  // Relaciones
+  usuarioId: uuid('usuario_id').notNull(),
+  empresaId: uuid('empresa_id').notNull(),
+  proveedorId: uuid('proveedor_id'),
+  
+  // Datos del proyecto
+  nombre: varchar('nombre', { length: 255 }).notNull(),
+  descripcion: text('descripcion'),
+  tipoServicio: varchar('tipo_servicio', { length: 100 }),
+  montoTotal: integer('monto_total'),
+  periodoInicio: timestamp('periodo_inicio'),
+  periodoFin: timestamp('periodo_fin'),
+  
+  // Progreso
+  faseActual: integer('fase_actual').default(1),
+  totalFases: integer('total_fases').default(10),
+  fasesCompletadas: jsonb('fases_completadas').default([]),
+  fasesBloqueadas: jsonb('fases_bloqueadas').default([]),
+  
+  // Score de riesgo
+  scoreRiesgo: jsonb('score_riesgo').default({
+    total: 0,
+    razonNegocios: 0,
+    beneficioEconomico: 0,
+    materialidad: 0,
+    trazabilidad: 0
+  }),
+  
+  // Puntos de control
+  puntosControl: jsonb('puntos_control').default({
+    total: 3,
+    aprobados: 0,
+    pendientes: 3,
+    rechazados: 0
+  }),
+  
+  // Estado
+  estatus: estatusProyectoEnum('estatus').default('borrador'),
+  
+  // Auditoría
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  createdBy: varchar('created_by', { length: 100 }).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  updatedBy: varchar('updated_by', { length: 100 }).notNull()
+});
+
+// Tabla de agentes
+export const agentes = pgTable('agentes', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  codigo: varchar('codigo', { length: 20 }).notNull().unique(), // A1, A2, A3, etc.
+  nombre: varchar('nombre', { length: 100 }).notNull(),
+  descripcion: text('descripcion'),
+  activo: boolean('activo').default(true),
+  configuracion: jsonb('configuracion'),
+  createdAt: timestamp('created_at').defaultNow().notNull()
+});
+
+// Tabla de documentos
+export const documentos = pgTable('documentos', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  proyectoId: uuid('proyecto_id'),
+  agenteId: uuid('agente_id'),
+  
+  nombre: varchar('nombre', { length: 255 }).notNull(),
+  tipo: varchar('tipo', { length: 50 }),
+  url: text('url'),
+  
+  esUniversal: boolean('es_universal').default(false),
+  
+  ocrProcesado: boolean('ocr_procesado').default(false),
+  ocrResultado: jsonb('ocr_resultado'),
+  
+  createdAt: timestamp('created_at').defaultNow().notNull()
+});
+```
+
+---
+
+## PASO 5: Seeds de Datos Iniciales (Solo Configuración)
+
+```typescript
+// db/seeds/configuracion-inicial.ts
+
+import { db } from '../index';
+import { agentes } from '../schema/proyectos';
+
+export async function seedConfiguracionInicial() {
+  // Solo insertar si no existen
+  const existentes = await db.select().from(agentes).limit(1);
+  if (existentes.length > 0) {
+    console.log('Configuración ya existe, saltando seed');
+    return;
+  }
+
+  // Insertar agentes base (sin proyectos asociados)
+  await db.insert(agentes).values([
+    {
+      codigo: 'A1',
+      nombre: 'ESTRATEGIA',
+      descripcion: 'Agente de análisis estratégico y razón de negocios',
+      activo: true,
+      configuracion: { modelo: 'claude-sonnet-4-20250514', maxTokens: 4096 }
+    },
+    {
+      codigo: 'A2',
+      nombre: 'PMO',
+      descripcion: 'Agente de gestión de proyectos y coordinación',
+      activo: true,
+      configuracion: { modelo: 'claude-sonnet-4-20250514', maxTokens: 4096 }
+    },
+    {
+      codigo: 'A3',
+      nombre: 'FISCAL',
+      descripcion: 'Agente especializado en cumplimiento fiscal mexicano',
+      activo: true,
+      configuracion: { modelo: 'claude-sonnet-4-20250514', maxTokens: 4096 }
+    },
+    {
+      codigo: 'A4',
+      nombre: 'LEGAL',
+      descripcion: 'Agente de análisis legal y contractual',
+      activo: true,
+      configuracion: { modelo: 'claude-sonnet-4-20250514', maxTokens: 4096 }
+    },
+    {
+      codigo: 'A5',
+      nombre: 'FINANZAS',
+      descripcion: 'Agente de análisis financiero y ROI',
+      activo: true,
+      configuracion: { modelo: 'claude-sonnet-4-20250514', maxTokens: 4096 }
+    },
+    {
+      codigo: 'A6',
+      nombre: 'PROVEEDOR',
+      descripcion: 'Agente de evaluación y validación de proveedores',
+      activo: true,
+      configuracion: { modelo: 'claude-sonnet-4-20250514', maxTokens: 4096 }
+    },
+    {
+      codigo: 'A7',
+      nombre: 'DEFENSA',
+      descripcion: 'Agente de generación de Defense File',
+      activo: true,
+      configuracion: { modelo: 'claude-sonnet-4-20250514', maxTokens: 8192 }
+    },
+    {
+      codigo: 'KB',
+      nombre: 'KNOWLEDGE_BASE',
+      descripcion: 'Base de conocimiento compartida',
+      activo: true,
+      configuracion: { tipo: 'rag', embeddings: true }
+    }
+  ]);
+
+  console.log('✅ Configuración inicial creada');
+}
+```
+
+---
+
+## 📋 CHECKLIST DE IMPLEMENTACIÓN
+
+### Archivos a modificar/crear:
+
+1. **Hooks de datos:**
+   - [ ] `client/hooks/useDashboardData.ts`
+
+2. **API Endpoints:**
+   - [ ] `server/routes/dashboard.ts` - Estadísticas reales
+   - [ ] Actualizar `/api/proyectos` con queries reales
+
+3. **Componentes UI:**
+   - [ ] `DashboardPrincipal.tsx` - Refactorizar completamente
+   - [ ] `TimelineFases.tsx` - Versión con datos y versión vacía
+   - [ ] `AnalisisRiesgoPilares.tsx` - Solo con datos reales
+   - [ ] `SistemaRAGPanel.tsx` - Dinámico
+   - [ ] Agregar estados vacíos a TODOS los componentes
+
+4. **Base de datos:**
+   - [ ] Schema de proyectos
+   - [ ] Schema de agentes
+   - [ ] Migraciones
+   - [ ] Seeds de configuración inicial
+
+### Reglas a seguir:
+
+✅ **SIEMPRE** usar hooks para obtener datos  
+✅ **SIEMPRE** mostrar estado de carga (skeleton/spinner)  
+✅ **SIEMPRE** mostrar estado vacío con CTA cuando no hay datos  
+✅ **SIEMPRE** mostrar estado de error si falla la API  
+❌ **NUNCA** hardcodear números o datos en componentes  
+❌ **NUNCA** mostrar datos ficticios como si fueran reales  
+❌ **NUNCA** asumir que hay datos disponibles  
+
+### Estados que debe manejar cada componente:
+
+```tsx
+// Patrón obligatorio para todos los componentes con datos
+function MiComponente() {
+  const { data, isLoading, error } = useMisDatos();
+
+  // 1. Estado de carga
+  if (isLoading) return <Skeleton />;
+  
+  // 2. Estado de error
+  if (error) return <ErrorState />;
+  
+  // 3. Estado vacío (sin datos)
+  if (!data || data.length === 0) return <EmptyState />;
+  
+  // 4. Estado con datos
+  return <ContenidoReal data={data} />;
+}
+```
+
+---
+
+## RESULTADO ESPERADO
+
+Después de implementar:
+
+- Dashboard mostrará "0 proyectos", "0 empresas" si no hay datos
+- Timeline de fases mostrará "Selecciona un proyecto" si no hay proyecto activo
+- Análisis de riesgo mostrará "--" o estado vacío si no hay proyecto
+- Panel RAG mostrará los agentes configurados (del seed) pero sin documentos asignados
+- Aparecerá un CTA prominente para "Crear primer proyecto" o "Registrar primera empresa"
+- Todo número/métrica vendrá de la base de datos real

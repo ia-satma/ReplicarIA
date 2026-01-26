@@ -1,0 +1,1040 @@
+═══════════════════════════════════════════════════════════════════════════════
+📁 DEFENSE FILES - PARTE 4: API, pCLOUD Y FRONTEND
+═══════════════════════════════════════════════════════════════════════════════
+
+Esta parte cubre:
+- Endpoints API para gestionar Defense Files
+- Sincronización con pCloud
+- Componente frontend para visualizar
+
+═══════════════════════════════════════════════════════════════════════════════
+SERVICIO DE pCLOUD
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/services/pcloud/pcloud_service.py
+
+```python
+"""
+Servicio de integración con pCloud para Defense Files
+"""
+
+import os
+import json
+import requests
+from typing import Optional, Dict, List
+from datetime import datetime
+
+
+class PCloudService:
+    """Servicio para sincronizar Defense Files con pCloud"""
+    
+    def __init__(self):
+        self.token = os.environ.get('PCLOUD_ACCESS_TOKEN')
+        self.api_base = 'https://api.pcloud.com'
+        self.root_path = '/Revisar.IA/Defense_Files'
+        
+        if not self.token:
+            print("⚠️ PCLOUD_ACCESS_TOKEN no configurado - sincronización deshabilitada")
+    
+    @property
+    def is_enabled(self) -> bool:
+        return bool(self.token)
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # OPERACIONES BÁSICAS
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def _request(self, endpoint: str, params: dict = None, 
+                 files: dict = None, method: str = 'GET') -> dict:
+        """Realiza request a pCloud API"""
+        
+        if not self.token:
+            return {'error': 'pCloud no configurado'}
+        
+        url = f"{self.api_base}/{endpoint}"
+        params = params or {}
+        params['access_token'] = self.token
+        
+        try:
+            if method == 'POST' or files:
+                if files:
+                    response = requests.post(url, params=params, files=files, timeout=120)
+                else:
+                    response = requests.post(url, params=params, timeout=60)
+            else:
+                response = requests.get(url, params=params, timeout=30)
+            
+            return response.json()
+            
+        except requests.exceptions.Timeout:
+            return {'error': 'Timeout en pCloud'}
+        except Exception as e:
+            return {'error': str(e)}
+    
+    def crear_carpeta(self, path: str) -> dict:
+        """Crea una carpeta (y todas las intermedias)"""
+        return self._request('createfolderifnotexists', {'path': path})
+    
+    def subir_archivo(self, folder_path: str, filename: str, 
+                      contenido: bytes) -> dict:
+        """Sube un archivo a pCloud"""
+        
+        # Crear carpeta si no existe
+        self.crear_carpeta(folder_path)
+        
+        files = {'file': (filename, contenido)}
+        return self._request('uploadfile', {'path': folder_path}, files=files)
+    
+    def subir_json(self, folder_path: str, filename: str, data: dict) -> dict:
+        """Sube un archivo JSON"""
+        contenido = json.dumps(data, indent=2, ensure_ascii=False, default=str)
+        return self.subir_archivo(folder_path, filename, contenido.encode('utf-8'))
+    
+    def descargar_archivo(self, file_path: str) -> Optional[bytes]:
+        """Descarga un archivo"""
+        result = self._request('getfilelink', {'path': file_path})
+        
+        if 'hosts' in result and 'path' in result:
+            url = f"https://{result['hosts'][0]}{result['path']}"
+            response = requests.get(url, timeout=60)
+            return response.content
+        
+        return None
+    
+    def listar_carpeta(self, path: str) -> dict:
+        """Lista contenido de una carpeta"""
+        return self._request('listfolder', {'path': path})
+    
+    def obtener_link_publico(self, path: str) -> Optional[str]:
+        """Obtiene link público de un archivo"""
+        result = self._request('getfilepublink', {'path': path})
+        return result.get('link')
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # DEFENSE FILES
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def crear_estructura_defense_file(self, rfc: str, año: int, 
+                                       codigo: str) -> Dict:
+        """Crea toda la estructura de carpetas para un Defense File"""
+        
+        base_path = f"{self.root_path}/{rfc}/{año}/{codigo}"
+        
+        carpetas = [
+            f"{base_path}/00_Indice",
+            f"{base_path}/01_Datos_Contribuyente/cfdis",
+            f"{base_path}/01_Datos_Contribuyente/estados_cuenta",
+            f"{base_path}/01_Datos_Contribuyente/contratos",
+            f"{base_path}/02_Proveedores_Clientes/verificaciones",
+            f"{base_path}/03_Analisis_Agentes/A1_Facturar.IA/conversaciones",
+            f"{base_path}/03_Analisis_Agentes/A1_Facturar.IA/cfdis_analizados",
+            f"{base_path}/03_Analisis_Agentes/A2_Bibliotecar.IA/consultas",
+            f"{base_path}/03_Analisis_Agentes/A2_Bibliotecar.IA/documentos",
+            f"{base_path}/03_Analisis_Agentes/A3_Revisar.IA/revisiones",
+            f"{base_path}/03_Analisis_Agentes/A4_Calcular.IA/calculos",
+            f"{base_path}/04_Marco_Legal_Aplicado",
+            f"{base_path}/05_Comunicaciones/emails",
+            f"{base_path}/06_Documentos_Generados/reportes",
+            f"{base_path}/06_Documentos_Generados/cartas",
+            f"{base_path}/07_Evidencia_Soporte",
+            f"{base_path}/08_Defense_File_Final",
+        ]
+        
+        resultados = []
+        for carpeta in carpetas:
+            result = self.crear_carpeta(carpeta)
+            resultados.append({
+                'path': carpeta,
+                'success': 'error' not in result
+            })
+        
+        return {
+            'base_path': base_path,
+            'carpetas_creadas': len([r for r in resultados if r['success']]),
+            'total_carpetas': len(carpetas)
+        }
+    
+    def sincronizar_evento(self, defense_file_path: str, agente_id: str,
+                           evento: dict) -> dict:
+        """Sincroniza un evento al pCloud"""
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        tipo = evento.get('tipo', 'evento')
+        
+        # Determinar carpeta según agente
+        if agente_id.startswith('A'):
+            carpeta = f"{defense_file_path}/03_Analisis_Agentes/{agente_id}_*/conversaciones"
+        else:
+            carpeta = f"{defense_file_path}/07_Evidencia_Soporte"
+        
+        filename = f"{timestamp}_{tipo}.json"
+        
+        return self.subir_json(carpeta, filename, evento)
+    
+    def sincronizar_documento(self, defense_file_path: str, 
+                               tipo_documento: str,
+                               nombre: str, contenido: bytes) -> dict:
+        """Sincroniza un documento al pCloud"""
+        
+        # Mapeo de tipos a carpetas
+        carpetas = {
+            'cfdi': '01_Datos_Contribuyente/cfdis',
+            'estado_cuenta': '01_Datos_Contribuyente/estados_cuenta',
+            'contrato': '01_Datos_Contribuyente/contratos',
+            'reporte': '06_Documentos_Generados/reportes',
+            'carta': '06_Documentos_Generados/cartas',
+            'calculo': '03_Analisis_Agentes/A4_Calcular.IA/calculos',
+        }
+        
+        subcarpeta = carpetas.get(tipo_documento, '07_Evidencia_Soporte')
+        path = f"{defense_file_path}/{subcarpeta}"
+        
+        return self.subir_archivo(path, nombre, contenido)
+    
+    def generar_indice(self, defense_file_path: str) -> dict:
+        """Genera índice del Defense File"""
+        
+        resultado = self.listar_carpeta(defense_file_path)
+        
+        if 'error' in resultado:
+            return resultado
+        
+        # Contar archivos por carpeta
+        indice = {
+            'generado_at': datetime.now().isoformat(),
+            'path': defense_file_path,
+            'secciones': {}
+        }
+        
+        # Procesar estructura
+        if 'metadata' in resultado and 'contents' in resultado['metadata']:
+            for item in resultado['metadata']['contents']:
+                if item.get('isfolder'):
+                    nombre = item.get('name')
+                    indice['secciones'][nombre] = {
+                        'archivos': 0,  # Requeriría listar recursivamente
+                        'path': item.get('path')
+                    }
+        
+        # Guardar índice
+        self.subir_json(
+            f"{defense_file_path}/00_Indice",
+            'indice_general.json',
+            indice
+        )
+        
+        return indice
+
+
+# Instancia global
+pcloud = PCloudService()
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+RUTAS API DE DEFENSE FILES
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/routes/defense_file_routes.py
+
+```python
+"""
+API REST para Defense Files
+"""
+
+from flask import Blueprint, jsonify, request
+from services.defense_files.defense_file_service import defense_file_service
+from services.pcloud.pcloud_service import pcloud
+
+defense_bp = Blueprint('defense', __name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CRUD DE DEFENSE FILES
+# ═══════════════════════════════════════════════════════════════════════════
+
+@defense_bp.route('', methods=['POST'])
+def crear_defense_file():
+    """Crea un nuevo Defense File"""
+    
+    data = request.get_json(force=True, silent=True) or {}
+    
+    required = ['cliente_id', 'nombre']
+    for field in required:
+        if not data.get(field):
+            return jsonify({'error': f'Campo {field} requerido'}), 400
+    
+    try:
+        df_id = defense_file_service.crear_defense_file(
+            cliente_id=data['cliente_id'],
+            nombre=data['nombre'],
+            ejercicio=data.get('ejercicio'),
+            tipo_proyecto=data.get('tipo_proyecto', 'general'),
+            descripcion=data.get('descripcion'),
+            proyecto_id=data.get('proyecto_id'),
+            responsable_id=data.get('responsable_id')
+        )
+        
+        df = defense_file_service.obtener_defense_file(df_id)
+        
+        return jsonify({
+            'success': True,
+            'defense_file': df
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@defense_bp.route('', methods=['GET'])
+def listar_defense_files():
+    """Lista Defense Files con filtros"""
+    
+    cliente_id = request.args.get('cliente_id', type=int)
+    estado = request.args.get('estado')
+    ejercicio = request.args.get('ejercicio', type=int)
+    limite = request.args.get('limite', 50, type=int)
+    
+    try:
+        defense_files = defense_file_service.listar_defense_files(
+            cliente_id=cliente_id,
+            estado=estado,
+            ejercicio=ejercicio,
+            limite=limite
+        )
+        
+        return jsonify({
+            'success': True,
+            'defense_files': defense_files,
+            'total': len(defense_files)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@defense_bp.route('/<int:df_id>', methods=['GET'])
+def obtener_defense_file(df_id):
+    """Obtiene un Defense File con su resumen"""
+    
+    try:
+        df = defense_file_service.obtener_defense_file(df_id)
+        
+        if not df:
+            return jsonify({'error': 'Defense File no encontrado'}), 404
+        
+        return jsonify({
+            'success': True,
+            'defense_file': df
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@defense_bp.route('/<int:df_id>/estado', methods=['PUT'])
+def actualizar_estado(df_id):
+    """Actualiza estado del Defense File"""
+    
+    data = request.get_json(force=True, silent=True) or {}
+    estado = data.get('estado')
+    porcentaje = data.get('porcentaje')
+    
+    if not estado:
+        return jsonify({'error': 'Estado requerido'}), 400
+    
+    try:
+        defense_file_service.actualizar_estado(df_id, estado, porcentaje)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Estado actualizado a {estado}'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TIMELINE DE EVENTOS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@defense_bp.route('/<int:df_id>/timeline', methods=['GET'])
+def obtener_timeline(df_id):
+    """Obtiene timeline de eventos"""
+    
+    limite = request.args.get('limite', 100, type=int)
+    tipo = request.args.get('tipo')
+    agente_id = request.args.get('agente')
+    
+    try:
+        eventos = defense_file_service.obtener_timeline(
+            defense_file_id=df_id,
+            limite=limite,
+            tipo=tipo,
+            agente_id=agente_id
+        )
+        
+        return jsonify({
+            'success': True,
+            'eventos': eventos,
+            'total': len(eventos)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DOCUMENTOS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@defense_bp.route('/<int:df_id>/documentos', methods=['GET'])
+def listar_documentos(df_id):
+    """Lista documentos del Defense File"""
+    
+    from extensions import db
+    from sqlalchemy import text
+    
+    try:
+        result = db.session.execute(text("""
+            SELECT id, tipo, subtipo, nombre, procesado, validado,
+                   tiene_alertas, created_at
+            FROM defense_file_documentos
+            WHERE defense_file_id = :df_id
+            ORDER BY created_at DESC
+        """), {'df_id': df_id})
+        
+        documentos = [dict(row._mapping) for row in result]
+        
+        return jsonify({
+            'success': True,
+            'documentos': documentos,
+            'total': len(documentos)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TERCEROS (PROVEEDORES/CLIENTES)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@defense_bp.route('/<int:df_id>/terceros', methods=['GET'])
+def listar_terceros(df_id):
+    """Lista terceros verificados del Defense File"""
+    
+    from extensions import db
+    from sqlalchemy import text
+    
+    tipo = request.args.get('tipo')  # proveedor, cliente
+    solo_alertas = request.args.get('solo_alertas') == 'true'
+    
+    try:
+        query = """
+            SELECT id, tipo, rfc, razon_social, 
+                   en_lista_69b, estatus_69b, es_efos,
+                   tiene_alertas, total_operaciones, monto_total,
+                   created_at
+            FROM defense_file_terceros
+            WHERE defense_file_id = :df_id
+        """
+        params = {'df_id': df_id}
+        
+        if tipo:
+            query += " AND tipo = :tipo"
+            params['tipo'] = tipo
+        
+        if solo_alertas:
+            query += " AND tiene_alertas = TRUE"
+        
+        query += " ORDER BY tiene_alertas DESC, monto_total DESC"
+        
+        result = db.session.execute(text(query), params)
+        terceros = [dict(row._mapping) for row in result]
+        
+        return jsonify({
+            'success': True,
+            'terceros': terceros,
+            'total': len(terceros),
+            'con_alertas': len([t for t in terceros if t['tiene_alertas']])
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FUNDAMENTOS LEGALES
+# ═══════════════════════════════════════════════════════════════════════════
+
+@defense_bp.route('/<int:df_id>/fundamentos', methods=['GET'])
+def listar_fundamentos(df_id):
+    """Lista fundamentos legales aplicados"""
+    
+    from extensions import db
+    from sqlalchemy import text
+    
+    try:
+        result = db.session.execute(text("""
+            SELECT id, tipo, ordenamiento, articulo, fraccion,
+                   numero_tesis, titulo, texto_relevante, contexto_uso,
+                   created_at
+            FROM defense_file_fundamentos
+            WHERE defense_file_id = :df_id
+            ORDER BY ordenamiento, articulo
+        """), {'df_id': df_id})
+        
+        fundamentos = [dict(row._mapping) for row in result]
+        
+        # Agrupar por ordenamiento
+        por_ley = {}
+        for f in fundamentos:
+            ley = f['ordenamiento'] or 'Otros'
+            if ley not in por_ley:
+                por_ley[ley] = []
+            por_ley[ley].append(f)
+        
+        return jsonify({
+            'success': True,
+            'fundamentos': fundamentos,
+            'por_ordenamiento': por_ley,
+            'total': len(fundamentos)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CÁLCULOS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@defense_bp.route('/<int:df_id>/calculos', methods=['GET'])
+def listar_calculos(df_id):
+    """Lista cálculos realizados"""
+    
+    from extensions import db
+    from sqlalchemy import text
+    
+    try:
+        result = db.session.execute(text("""
+            SELECT id, tipo, concepto, periodo,
+                   base_gravable, tasa, impuesto_calculado,
+                   impuesto_pagado, diferencia,
+                   created_at
+            FROM defense_file_calculos
+            WHERE defense_file_id = :df_id
+            ORDER BY created_at DESC
+        """), {'df_id': df_id})
+        
+        calculos = [dict(row._mapping) for row in result]
+        
+        # Totales por tipo
+        totales = {}
+        for c in calculos:
+            tipo = c['tipo']
+            if tipo not in totales:
+                totales[tipo] = {'calculado': 0, 'pagado': 0, 'diferencia': 0}
+            totales[tipo]['calculado'] += float(c['impuesto_calculado'] or 0)
+            totales[tipo]['pagado'] += float(c['impuesto_pagado'] or 0)
+            totales[tipo]['diferencia'] += float(c['diferencia'] or 0)
+        
+        return jsonify({
+            'success': True,
+            'calculos': calculos,
+            'totales_por_tipo': totales,
+            'total': len(calculos)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EXPORTACIÓN
+# ═══════════════════════════════════════════════════════════════════════════
+
+@defense_bp.route('/<int:df_id>/exportar', methods=['POST'])
+def exportar_defense_file(df_id):
+    """Exporta el Defense File completo"""
+    
+    data = request.get_json(force=True, silent=True) or {}
+    formato = data.get('formato', 'json')  # json, pdf
+    
+    try:
+        df = defense_file_service.obtener_defense_file(df_id)
+        
+        if not df:
+            return jsonify({'error': 'Defense File no encontrado'}), 404
+        
+        if formato == 'json':
+            # Obtener todo el contenido
+            timeline = defense_file_service.obtener_timeline(df_id, limite=1000)
+            
+            exportacion = {
+                'defense_file': df,
+                'timeline': timeline,
+                'exportado_at': datetime.now().isoformat()
+            }
+            
+            return jsonify({
+                'success': True,
+                'data': exportacion
+            })
+        
+        elif formato == 'pdf':
+            # TODO: Generar PDF
+            return jsonify({
+                'success': False,
+                'error': 'Exportación PDF en desarrollo'
+            }), 501
+        
+        else:
+            return jsonify({'error': f'Formato {formato} no soportado'}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SINCRONIZACIÓN pCLOUD
+# ═══════════════════════════════════════════════════════════════════════════
+
+@defense_bp.route('/<int:df_id>/sync-pcloud', methods=['POST'])
+def sincronizar_pcloud(df_id):
+    """Sincroniza Defense File con pCloud"""
+    
+    if not pcloud.is_enabled:
+        return jsonify({
+            'success': False,
+            'error': 'pCloud no configurado'
+        }), 400
+    
+    try:
+        df = defense_file_service.obtener_defense_file(df_id)
+        
+        if not df:
+            return jsonify({'error': 'Defense File no encontrado'}), 404
+        
+        # Crear/actualizar estructura
+        resultado = pcloud.crear_estructura_defense_file(
+            rfc=df['rfc'],
+            año=df['ejercicio'],
+            codigo=df['codigo']
+        )
+        
+        # Generar índice
+        if resultado.get('base_path'):
+            pcloud.generar_indice(resultado['base_path'])
+        
+        return jsonify({
+            'success': True,
+            'resultado': resultado
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@defense_bp.route('/pcloud-status', methods=['GET'])
+def pcloud_status():
+    """Verifica estado de conexión con pCloud"""
+    
+    return jsonify({
+        'enabled': pcloud.is_enabled,
+        'configured': bool(os.environ.get('PCLOUD_ACCESS_TOKEN'))
+    })
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+REGISTRAR BLUEPRINT
+═══════════════════════════════════════════════════════════════════════════════
+
+En backend/main.py:
+
+```python
+from routes.defense_file_routes import defense_bp
+
+app.register_blueprint(defense_bp, url_prefix='/api/defense-files')
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+COMPONENTE FRONTEND: LISTA DE DEFENSE FILES
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: frontend/src/components/DefenseFiles/DefenseFilesList.jsx
+
+```jsx
+import React, { useState, useEffect } from 'react';
+
+export default function DefenseFilesList() {
+  const [defenseFiles, setDefenseFiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filtro, setFiltro] = useState({ estado: '', ejercicio: '' });
+
+  useEffect(() => {
+    cargarDefenseFiles();
+  }, [filtro]);
+
+  const cargarDefenseFiles = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filtro.estado) params.append('estado', filtro.estado);
+      if (filtro.ejercicio) params.append('ejercicio', filtro.ejercicio);
+      
+      const res = await fetch(`/api/defense-files?${params}`);
+      const data = await res.json();
+      
+      if (data.success) {
+        setDefenseFiles(data.defense_files);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getEstadoColor = (estado) => {
+    switch (estado) {
+      case 'en_proceso': return 'bg-blue-500';
+      case 'revision': return 'bg-yellow-500';
+      case 'cerrado': return 'bg-green-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  return (
+    <div className="p-6 bg-gray-900 min-h-screen">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+            📁 Defense Files
+          </h1>
+          <p className="text-gray-400">Expedientes de defensa fiscal</p>
+        </div>
+        
+        <button 
+          onClick={() => {/* TODO: Modal de nuevo */}}
+          className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg"
+        >
+          + Nuevo Expediente
+        </button>
+      </div>
+
+      {/* Filtros */}
+      <div className="flex gap-4 mb-6">
+        <select
+          value={filtro.estado}
+          onChange={(e) => setFiltro({...filtro, estado: e.target.value})}
+          className="px-3 py-2 bg-gray-800 text-white rounded-lg border border-gray-700"
+        >
+          <option value="">Todos los estados</option>
+          <option value="en_proceso">En Proceso</option>
+          <option value="revision">En Revisión</option>
+          <option value="cerrado">Cerrado</option>
+        </select>
+        
+        <select
+          value={filtro.ejercicio}
+          onChange={(e) => setFiltro({...filtro, ejercicio: e.target.value})}
+          className="px-3 py-2 bg-gray-800 text-white rounded-lg border border-gray-700"
+        >
+          <option value="">Todos los ejercicios</option>
+          <option value="2025">2025</option>
+          <option value="2024">2024</option>
+          <option value="2023">2023</option>
+        </select>
+      </div>
+
+      {/* Lista */}
+      {loading ? (
+        <div className="text-center text-gray-400 py-10">Cargando...</div>
+      ) : defenseFiles.length === 0 ? (
+        <div className="text-center text-gray-400 py-10">
+          No hay Defense Files
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {defenseFiles.map((df) => (
+            <div 
+              key={df.id}
+              className="bg-gray-800 rounded-xl p-5 border border-gray-700 hover:border-cyan-500 cursor-pointer transition-all"
+              onClick={() => window.location.href = `/defense-files/${df.id}`}
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-cyan-400 font-mono">{df.codigo}</span>
+                    <span className={`px-2 py-1 rounded text-xs text-white ${getEstadoColor(df.estado)}`}>
+                      {df.estado}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-white">{df.nombre}</h3>
+                  <p className="text-gray-400">{df.razon_social} • {df.rfc}</p>
+                </div>
+                
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-cyan-400">
+                    {df.porcentaje_completado}%
+                  </div>
+                  <div className="text-sm text-gray-400">completado</div>
+                </div>
+              </div>
+              
+              {/* Stats */}
+              <div className="grid grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-700">
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-white">{df.total_eventos || 0}</div>
+                  <div className="text-xs text-gray-400">Eventos</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-white">{df.total_documentos || 0}</div>
+                  <div className="text-xs text-gray-400">Documentos</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-white">{df.total_terceros || 0}</div>
+                  <div className="text-xs text-gray-400">Terceros</div>
+                </div>
+                <div className="text-center">
+                  <div className={`text-lg font-semibold ${df.terceros_con_alertas > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                    {df.terceros_con_alertas || 0}
+                  </div>
+                  <div className="text-xs text-gray-400">Alertas</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+COMPONENTE FRONTEND: DETALLE DE DEFENSE FILE
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: frontend/src/components/DefenseFiles/DefenseFileDetail.jsx
+
+```jsx
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+
+export default function DefenseFileDetail() {
+  const { id } = useParams();
+  const [df, setDf] = useState(null);
+  const [timeline, setTimeline] = useState([]);
+  const [activeTab, setActiveTab] = useState('timeline');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    cargarDefenseFile();
+    cargarTimeline();
+  }, [id]);
+
+  const cargarDefenseFile = async () => {
+    try {
+      const res = await fetch(`/api/defense-files/${id}`);
+      const data = await res.json();
+      if (data.success) {
+        setDf(data.defense_file);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cargarTimeline = async () => {
+    try {
+      const res = await fetch(`/api/defense-files/${id}/timeline?limite=50`);
+      const data = await res.json();
+      if (data.success) {
+        setTimeline(data.eventos);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const getAgenteIcon = (agenteId) => {
+    const icons = {
+      'A1': '💰', 'A2': '📚', 'A3': '🔍', 'A4': '🧮',
+      'A5': '🔬', 'A6': '📊', 'A7': '✅', 'SYS': '⚙️', 'USR': '👤'
+    };
+    return icons[agenteId] || '📝';
+  };
+
+  if (loading) {
+    return <div className="p-6 text-center text-gray-400">Cargando...</div>;
+  }
+
+  if (!df) {
+    return <div className="p-6 text-center text-red-400">Defense File no encontrado</div>;
+  }
+
+  return (
+    <div className="p-6 bg-gray-900 min-h-screen">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-cyan-900/50 to-blue-900/50 rounded-xl p-6 mb-6 border border-cyan-500/30">
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-2xl">📁</span>
+              <span className="text-cyan-400 font-mono text-lg">{df.codigo}</span>
+              <span className={`px-3 py-1 rounded-full text-sm ${
+                df.estado === 'cerrado' ? 'bg-green-500/20 text-green-400' :
+                df.estado === 'revision' ? 'bg-yellow-500/20 text-yellow-400' :
+                'bg-blue-500/20 text-blue-400'
+              }`}>
+                {df.estado}
+              </span>
+            </div>
+            <h1 className="text-2xl font-bold text-white mb-1">{df.nombre}</h1>
+            <p className="text-gray-300">{df.razon_social}</p>
+            <p className="text-gray-400">{df.rfc} • Ejercicio {df.ejercicio}</p>
+          </div>
+          
+          <div className="text-right">
+            <div className="text-4xl font-bold text-cyan-400">{df.porcentaje_completado}%</div>
+            <div className="w-32 h-2 bg-gray-700 rounded-full mt-2">
+              <div 
+                className="h-full bg-cyan-500 rounded-full transition-all"
+                style={{ width: `${df.porcentaje_completado}%` }}
+              />
+            </div>
+          </div>
+        </div>
+        
+        {/* Stats rápidos */}
+        <div className="grid grid-cols-5 gap-4 mt-6">
+          {[
+            { label: 'Eventos', value: df.total_eventos, icon: '📝' },
+            { label: 'Documentos', value: df.total_documentos, icon: '📄' },
+            { label: 'Terceros', value: df.total_terceros, icon: '👥' },
+            { label: 'Fundamentos', value: df.total_fundamentos, icon: '⚖️' },
+            { label: 'Cálculos', value: df.total_calculos, icon: '🧮' },
+          ].map((stat) => (
+            <div key={stat.label} className="bg-gray-800/50 rounded-lg p-3 text-center">
+              <div className="text-2xl mb-1">{stat.icon}</div>
+              <div className="text-xl font-bold text-white">{stat.value || 0}</div>
+              <div className="text-xs text-gray-400">{stat.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-4">
+        {['timeline', 'documentos', 'terceros', 'fundamentos', 'calculos'].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 rounded-lg capitalize transition-all ${
+              activeTab === tab 
+                ? 'bg-cyan-600 text-white' 
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="bg-gray-800 rounded-xl p-4">
+        {activeTab === 'timeline' && (
+          <div className="space-y-3">
+            {timeline.length === 0 ? (
+              <p className="text-gray-400 text-center py-4">Sin eventos registrados</p>
+            ) : (
+              timeline.map((evento) => (
+                <div 
+                  key={evento.id}
+                  className="flex gap-4 p-3 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition-all"
+                >
+                  <div className="text-2xl">{getAgenteIcon(evento.agente_id)}</div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold text-white">{evento.titulo}</span>
+                      <span className="text-xs px-2 py-0.5 bg-gray-600 rounded text-gray-300">
+                        {evento.tipo}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-400">{evento.descripcion}</p>
+                    <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                      <span>{evento.agente_nombre}</span>
+                      <span>{new Date(evento.timestamp).toLocaleString()}</span>
+                      {evento.usuario_email && <span>{evento.usuario_email}</span>}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+        
+        {/* TODO: Otros tabs */}
+        {activeTab !== 'timeline' && (
+          <p className="text-gray-400 text-center py-10">
+            Sección {activeTab} en desarrollo
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+AGREGAR RUTAS AL ROUTER
+═══════════════════════════════════════════════════════════════════════════════
+
+En frontend/src/App.jsx o router:
+
+```jsx
+import DefenseFilesList from './components/DefenseFiles/DefenseFilesList';
+import DefenseFileDetail from './components/DefenseFiles/DefenseFileDetail';
+
+// En las rutas:
+<Route path="/defense-files" element={<DefenseFilesList />} />
+<Route path="/defense-files/:id" element={<DefenseFileDetail />} />
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CONFIGURAR pCLOUD
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Ir a https://my.pcloud.com/
+2. Settings → App → Create new App (o usar existente)
+3. Obtener Access Token
+4. Agregar a Replit Secrets:
+
+```
+PCLOUD_ACCESS_TOKEN = tu_token_aqui
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST PARTE 4
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Crear backend/services/pcloud/__init__.py
+□ Crear backend/services/pcloud/pcloud_service.py
+□ Crear backend/routes/defense_file_routes.py
+□ Registrar blueprint en main.py
+□ Crear componentes frontend
+□ Agregar rutas al router
+□ Configurar PCLOUD_ACCESS_TOKEN (opcional)
+□ Probar endpoints:
+  - POST /api/defense-files (crear)
+  - GET /api/defense-files (listar)
+  - GET /api/defense-files/:id (detalle)
+  - GET /api/defense-files/:id/timeline
+
+SIGUIENTE: Parte 5 - Verificaciones y Resumen Final

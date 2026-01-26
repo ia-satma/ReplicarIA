@@ -1,0 +1,92 @@
+echo "=== VERIFICACIÓN: SISTEMA DE HUMANIZACIÓN ==="
+
+# Verificar archivos
+echo "1. Verificando archivos creados..."
+FILES=(
+    "services/agents/__init__.py"
+    "services/agents/personas.py"
+    "services/agents/report_generator.py"
+    "tests/test_humanization.py"
+)
+
+for file in "${FILES[@]}"; do
+    if [ -f "$file" ]; then
+        echo "  ✅ $file"
+    else
+        echo "  ❌ $file - CREAR"
+        # Crear __init__.py si falta
+        if [[ "$file" == *"__init__.py" ]]; then
+            touch "$file"
+            echo "     → Creado"
+        fi
+    fi
+done
+
+# Crear __init__.py si no existe
+mkdir -p services/agents
+touch services/agents/__init__.py
+
+# Verificar imports
+echo ""
+echo "2. Verificando imports..."
+
+python -c "
+from services.agents.personas import PERSONA_AUDITOR_SAT, obtener_persona
+print('  ✅ personas.py OK')
+" 2>/dev/null || echo "  ❌ personas.py tiene errores"
+
+python -c "
+from services.agents.report_generator import humanizar_reporte
+print('  ✅ report_generator.py OK')
+" 2>/dev/null || echo "  ❌ report_generator.py tiene errores"
+
+# Ejecutar tests
+echo ""
+echo "3. Ejecutando tests..."
+pytest tests/test_humanization.py -v --tb=short 2>/dev/null || echo "⚠️ Algunos tests fallaron"
+
+# Test rápido de humanización
+echo ""
+echo "4. Test de humanización rápida..."
+python << 'EOF'
+from services.agents.report_generator import humanizar_reporte
+
+# Test OCR
+datos_ocr = {
+    'document_name': 'Test.pdf',
+    'document_type': 'contrato',
+    'status': 'VALIDATED',
+    'confidence': 0.88,
+    'iterations': 2,
+    'keywords_found': ['CONTRATO', 'FIRMA'],
+    'keywords_missing': ['VIGENCIA'],
+    'contradictions': []
+}
+
+reporte = humanizar_reporte('ocr_validation', datos_ocr, formato='dict')
+
+print(f"  ✅ OCR Humanizado: {reporte['secciones']} secciones")
+print(f"     Autor: {reporte['persona']['nombre']}")
+
+# Test Red Team
+datos_rt = {
+    'resumen': {'nivel_riesgo': 'LOW', 'vulnerabilidades_encontradas': 0},
+    'vulnerabilidades': [],
+    'conclusion': 'DEFENDIBLE'
+}
+
+reporte_rt = humanizar_reporte('red_team', datos_rt, {'nombre': 'Test'}, formato='dict')
+
+print(f"  ✅ Red Team Humanizado: {reporte_rt['secciones']} secciones")
+print(f"     Autor: {reporte_rt['persona']['nombre']}")
+
+# Mostrar preview
+print("")
+print("  📄 Preview del reporte OCR:")
+print("  " + "-" * 50)
+preview = reporte['markdown'][:500].replace('\n', '\n  ')
+print(f"  {preview}...")
+EOF
+
+echo ""
+echo "=== VERIFICACIÓN COMPLETADA ==="

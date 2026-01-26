@@ -1,0 +1,616 @@
+═══════════════════════════════════════════════════════════════════════════════
+📁 DEFENSE FILES - PARTE 5: VERIFICACIONES Y RESUMEN FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+Esta parte consolida todo y proporciona pruebas completas.
+
+═══════════════════════════════════════════════════════════════════════════════
+RESUMEN DE ARCHIVOS A CREAR
+═══════════════════════════════════════════════════════════════════════════════
+
+```
+backend/
+├── services/
+│   ├── defense_files/
+│   │   ├── __init__.py
+│   │   ├── defense_file_service.py     # Parte 2
+│   │   ├── decorators.py               # Parte 3
+│   │   └── agent_helper.py             # Parte 3
+│   │
+│   └── pcloud/
+│       ├── __init__.py
+│       └── pcloud_service.py           # Parte 4
+│
+├── routes/
+│   └── defense_file_routes.py          # Parte 4
+│
+└── utils/
+    └── extractors.py                   # Parte 3
+
+frontend/src/components/DefenseFiles/
+├── DefenseFilesList.jsx                # Parte 4
+└── DefenseFileDetail.jsx               # Parte 4
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+SCRIPT DE VERIFICACIÓN Y PRUEBAS
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/tests/test_defense_files.py
+
+```python
+#!/usr/bin/env python3
+"""
+Tests completos para el sistema de Defense Files
+Ejecutar: python backend/tests/test_defense_files.py
+"""
+
+import os
+import sys
+import json
+import requests
+from datetime import datetime
+
+# Agregar path del proyecto
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+BASE_URL = os.environ.get('APP_URL', 'http://localhost:5000')
+
+
+def test_crear_defense_file():
+    """Test 1: Crear un Defense File"""
+    print("\n🧪 TEST 1: Crear Defense File...")
+    
+    # Primero necesitamos un cliente
+    # Asumimos que existe uno con ID 1, o creamos uno
+    
+    response = requests.post(
+        f'{BASE_URL}/api/defense-files',
+        json={
+            'cliente_id': 1,
+            'nombre': 'Test Auditoría Q1 2025',
+            'ejercicio': 2025,
+            'tipo_proyecto': 'auditoria',
+            'descripcion': 'Defense File de prueba'
+        },
+        timeout=30
+    )
+    
+    if response.status_code in [200, 201]:
+        data = response.json()
+        if data.get('success') and data.get('defense_file'):
+            df = data['defense_file']
+            print(f"   ✅ PASS - Defense File creado: {df.get('codigo')}")
+            return df.get('id')
+        else:
+            print(f"   ❌ FAIL - Respuesta inesperada: {data}")
+            return None
+    else:
+        print(f"   ❌ FAIL - HTTP {response.status_code}: {response.text[:200]}")
+        return None
+
+
+def test_listar_defense_files():
+    """Test 2: Listar Defense Files"""
+    print("\n🧪 TEST 2: Listar Defense Files...")
+    
+    response = requests.get(f'{BASE_URL}/api/defense-files', timeout=10)
+    
+    if response.status_code == 200:
+        data = response.json()
+        if data.get('success'):
+            total = data.get('total', 0)
+            print(f"   ✅ PASS - {total} Defense Files encontrados")
+            return True
+    
+    print(f"   ❌ FAIL - HTTP {response.status_code}")
+    return False
+
+
+def test_obtener_defense_file(df_id):
+    """Test 3: Obtener Defense File específico"""
+    print(f"\n🧪 TEST 3: Obtener Defense File {df_id}...")
+    
+    response = requests.get(f'{BASE_URL}/api/defense-files/{df_id}', timeout=10)
+    
+    if response.status_code == 200:
+        data = response.json()
+        if data.get('success') and data.get('defense_file'):
+            df = data['defense_file']
+            print(f"   ✅ PASS - {df.get('codigo')}: {df.get('nombre')}")
+            return True
+    
+    print(f"   ❌ FAIL - HTTP {response.status_code}")
+    return False
+
+
+def test_registrar_evento(df_id):
+    """Test 4: Registrar evento en Defense File"""
+    print(f"\n🧪 TEST 4: Registrar evento...")
+    
+    # Usamos el servicio directamente ya que no hay endpoint público
+    # En producción, los eventos se registran automáticamente via los agentes
+    
+    try:
+        from services.defense_files.defense_file_service import (
+            defense_file_service, EventoDefenseFile
+        )
+        
+        evento_id = defense_file_service.registrar_evento(
+            defense_file_id=df_id,
+            evento=EventoDefenseFile(
+                tipo='conversacion_ia',
+                agente_id='A1',
+                titulo='Conversación de prueba con Facturar.IA',
+                descripcion='Usuario preguntó sobre deducibilidad de gastos',
+                datos={
+                    'mensaje_usuario': '¿Puedo deducir gastos de gasolina?',
+                    'respuesta_ia': 'Sí, según el artículo 27 de la LISR...',
+                    'test': True
+                },
+                usuario_email='test@example.com',
+                tags=['test', 'facturar', 'deduccion']
+            )
+        )
+        
+        if evento_id:
+            print(f"   ✅ PASS - Evento registrado con ID: {evento_id}")
+            return True
+        else:
+            print(f"   ❌ FAIL - No se pudo registrar evento")
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ FAIL - Error: {e}")
+        return False
+
+
+def test_obtener_timeline(df_id):
+    """Test 5: Obtener timeline de eventos"""
+    print(f"\n🧪 TEST 5: Obtener timeline...")
+    
+    response = requests.get(
+        f'{BASE_URL}/api/defense-files/{df_id}/timeline',
+        timeout=10
+    )
+    
+    if response.status_code == 200:
+        data = response.json()
+        if data.get('success'):
+            eventos = data.get('eventos', [])
+            print(f"   ✅ PASS - {len(eventos)} eventos en timeline")
+            
+            # Mostrar preview
+            for evento in eventos[:3]:
+                print(f"      • {evento.get('agente_nombre')}: {evento.get('titulo')[:40]}")
+            
+            return True
+    
+    print(f"   ❌ FAIL - HTTP {response.status_code}")
+    return False
+
+
+def test_registrar_tercero(df_id):
+    """Test 6: Registrar verificación de tercero"""
+    print(f"\n🧪 TEST 6: Registrar tercero verificado...")
+    
+    try:
+        from services.defense_files.defense_file_service import defense_file_service
+        
+        tercero_id = defense_file_service.registrar_tercero(
+            defense_file_id=df_id,
+            tipo='proveedor',
+            rfc='XAXX010101000',
+            razon_social='Proveedor de Prueba SA',
+            verificacion_69b={'en_lista': False, 'estatus': None},
+            verificacion_efos={'es_efos': False}
+        )
+        
+        if tercero_id:
+            print(f"   ✅ PASS - Tercero registrado: {tercero_id}")
+            return True
+            
+    except Exception as e:
+        print(f"   ❌ FAIL - Error: {e}")
+    
+    return False
+
+
+def test_listar_terceros(df_id):
+    """Test 7: Listar terceros"""
+    print(f"\n🧪 TEST 7: Listar terceros...")
+    
+    response = requests.get(
+        f'{BASE_URL}/api/defense-files/{df_id}/terceros',
+        timeout=10
+    )
+    
+    if response.status_code == 200:
+        data = response.json()
+        if data.get('success'):
+            terceros = data.get('terceros', [])
+            alertas = data.get('con_alertas', 0)
+            print(f"   ✅ PASS - {len(terceros)} terceros ({alertas} con alertas)")
+            return True
+    
+    print(f"   ❌ FAIL - HTTP {response.status_code}")
+    return False
+
+
+def test_registrar_fundamento(df_id):
+    """Test 8: Registrar fundamento legal"""
+    print(f"\n🧪 TEST 8: Registrar fundamento legal...")
+    
+    try:
+        from services.defense_files.defense_file_service import defense_file_service
+        
+        fund_id = defense_file_service.registrar_fundamento(
+            defense_file_id=df_id,
+            tipo='ley',
+            ordenamiento='LISR',
+            articulo='27',
+            titulo='Requisitos de las deducciones',
+            texto_relevante='Las deducciones autorizadas deberán reunir los requisitos...',
+            contexto_uso='Citado para justificar deducibilidad de gastos'
+        )
+        
+        if fund_id:
+            print(f"   ✅ PASS - Fundamento registrado: {fund_id}")
+            return True
+            
+    except Exception as e:
+        print(f"   ❌ FAIL - Error: {e}")
+    
+    return False
+
+
+def test_actualizar_estado(df_id):
+    """Test 9: Actualizar estado"""
+    print(f"\n🧪 TEST 9: Actualizar estado...")
+    
+    response = requests.put(
+        f'{BASE_URL}/api/defense-files/{df_id}/estado',
+        json={'estado': 'revision', 'porcentaje': 50},
+        timeout=10
+    )
+    
+    if response.status_code == 200:
+        data = response.json()
+        if data.get('success'):
+            print(f"   ✅ PASS - Estado actualizado a 'revision'")
+            return True
+    
+    print(f"   ❌ FAIL - HTTP {response.status_code}")
+    return False
+
+
+def test_pcloud_status():
+    """Test 10: Verificar configuración de pCloud"""
+    print(f"\n🧪 TEST 10: Verificar pCloud...")
+    
+    response = requests.get(f'{BASE_URL}/api/defense-files/pcloud-status', timeout=10)
+    
+    if response.status_code == 200:
+        data = response.json()
+        enabled = data.get('enabled', False)
+        configured = data.get('configured', False)
+        
+        if enabled:
+            print(f"   ✅ PASS - pCloud habilitado y configurado")
+        elif configured:
+            print(f"   ⚠️ WARN - pCloud configurado pero no habilitado")
+        else:
+            print(f"   ⚠️ WARN - pCloud no configurado (opcional)")
+        
+        return True
+    
+    print(f"   ❌ FAIL - HTTP {response.status_code}")
+    return False
+
+
+def main():
+    """Ejecuta todos los tests"""
+    
+    print("=" * 60)
+    print("🔍 TESTS DE DEFENSE FILES")
+    print("=" * 60)
+    
+    resultados = []
+    
+    # Test 1: Crear Defense File
+    df_id = test_crear_defense_file()
+    resultados.append(('Crear Defense File', df_id is not None))
+    
+    if df_id:
+        # Test 2: Listar
+        resultados.append(('Listar Defense Files', test_listar_defense_files()))
+        
+        # Test 3: Obtener
+        resultados.append(('Obtener Defense File', test_obtener_defense_file(df_id)))
+        
+        # Test 4: Registrar evento
+        resultados.append(('Registrar Evento', test_registrar_evento(df_id)))
+        
+        # Test 5: Timeline
+        resultados.append(('Obtener Timeline', test_obtener_timeline(df_id)))
+        
+        # Test 6: Registrar tercero
+        resultados.append(('Registrar Tercero', test_registrar_tercero(df_id)))
+        
+        # Test 7: Listar terceros
+        resultados.append(('Listar Terceros', test_listar_terceros(df_id)))
+        
+        # Test 8: Fundamento
+        resultados.append(('Registrar Fundamento', test_registrar_fundamento(df_id)))
+        
+        # Test 9: Actualizar estado
+        resultados.append(('Actualizar Estado', test_actualizar_estado(df_id)))
+    
+    # Test 10: pCloud
+    resultados.append(('pCloud Status', test_pcloud_status()))
+    
+    # Resumen
+    print("\n" + "=" * 60)
+    print("📊 RESUMEN")
+    print("=" * 60)
+    
+    pasaron = sum(1 for _, ok in resultados if ok)
+    total = len(resultados)
+    
+    for nombre, ok in resultados:
+        print(f"   {'✅' if ok else '❌'} {nombre}")
+    
+    print(f"\n   TOTAL: {pasaron}/{total} tests pasaron ({int(pasaron/total*100)}%)")
+    
+    if pasaron == total:
+        print("\n   🎉 ¡SISTEMA DE DEFENSE FILES FUNCIONAL!")
+    elif pasaron >= total * 0.7:
+        print("\n   ⚠️ SISTEMA PARCIALMENTE FUNCIONAL")
+    else:
+        print("\n   🔴 SISTEMA CON PROBLEMAS - REVISAR")
+    
+    return pasaron == total
+
+
+if __name__ == '__main__':
+    # Configurar para importar módulos del proyecto
+    import sys
+    sys.path.insert(0, 'backend')
+    
+    # Necesitamos contexto de Flask para usar la BD
+    try:
+        from app import app
+        with app.app_context():
+            success = main()
+            sys.exit(0 if success else 1)
+    except ImportError:
+        # Sin Flask, solo tests de API
+        main()
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PRUEBAS MANUALES CON CURL
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+#!/bin/bash
+
+echo "═══════════════════════════════════════════════════════════"
+echo "🧪 PRUEBAS DE DEFENSE FILES"
+echo "═══════════════════════════════════════════════════════════"
+
+BASE_URL="http://localhost:5000"
+
+# 1. Crear Defense File
+echo -e "\n=== TEST 1: Crear Defense File ==="
+RESPONSE=$(curl -s -X POST "$BASE_URL/api/defense-files" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cliente_id": 1,
+    "nombre": "Auditoría Fiscal Test",
+    "ejercicio": 2025,
+    "tipo_proyecto": "auditoria"
+  }')
+echo $RESPONSE | jq .
+DF_ID=$(echo $RESPONSE | jq -r '.defense_file.id')
+echo "Defense File ID: $DF_ID"
+
+# 2. Listar Defense Files
+echo -e "\n=== TEST 2: Listar Defense Files ==="
+curl -s "$BASE_URL/api/defense-files" | jq .
+
+# 3. Obtener Defense File específico
+echo -e "\n=== TEST 3: Obtener Defense File $DF_ID ==="
+curl -s "$BASE_URL/api/defense-files/$DF_ID" | jq .
+
+# 4. Obtener Timeline
+echo -e "\n=== TEST 4: Obtener Timeline ==="
+curl -s "$BASE_URL/api/defense-files/$DF_ID/timeline" | jq .
+
+# 5. Listar Terceros
+echo -e "\n=== TEST 5: Listar Terceros ==="
+curl -s "$BASE_URL/api/defense-files/$DF_ID/terceros" | jq .
+
+# 6. Listar Fundamentos
+echo -e "\n=== TEST 6: Listar Fundamentos ==="
+curl -s "$BASE_URL/api/defense-files/$DF_ID/fundamentos" | jq .
+
+# 7. Listar Cálculos
+echo -e "\n=== TEST 7: Listar Cálculos ==="
+curl -s "$BASE_URL/api/defense-files/$DF_ID/calculos" | jq .
+
+# 8. Actualizar Estado
+echo -e "\n=== TEST 8: Actualizar Estado ==="
+curl -s -X PUT "$BASE_URL/api/defense-files/$DF_ID/estado" \
+  -H "Content-Type: application/json" \
+  -d '{"estado": "revision", "porcentaje": 50}' | jq .
+
+# 9. Verificar pCloud
+echo -e "\n=== TEST 9: pCloud Status ==="
+curl -s "$BASE_URL/api/defense-files/pcloud-status" | jq .
+
+# 10. Exportar
+echo -e "\n=== TEST 10: Exportar JSON ==="
+curl -s -X POST "$BASE_URL/api/defense-files/$DF_ID/exportar" \
+  -H "Content-Type: application/json" \
+  -d '{"formato": "json"}' | jq '.success, .data.defense_file.codigo'
+
+echo -e "\n═══════════════════════════════════════════════════════════"
+echo "✅ PRUEBAS COMPLETADAS"
+echo "═══════════════════════════════════════════════════════════"
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST COMPLETO DE IMPLEMENTACIÓN
+═══════════════════════════════════════════════════════════════════════════════
+
+## PARTE 1: Base de Datos
+□ Ejecutar SQL de tablas (defense_files, eventos, documentos, terceros, fundamentos, calculos)
+□ Verificar que las vistas se crearon (v_defense_file_resumen, v_defense_file_timeline)
+□ Verificar índices
+
+## PARTE 2: Servicio Core
+□ Crear backend/services/defense_files/__init__.py
+□ Crear backend/services/defense_files/defense_file_service.py
+□ Probar crear_defense_file() en shell Python
+
+## PARTE 3: Integración con Agentes
+□ Crear backend/services/defense_files/decorators.py
+□ Crear backend/services/defense_files/agent_helper.py
+□ Crear backend/utils/extractors.py
+□ Modificar facturar_routes.py para documentar
+□ Modificar biblioteca_routes.py para documentar
+□ Probar que las conversaciones se registran
+
+## PARTE 4: API y Frontend
+□ Crear backend/services/pcloud/__init__.py
+□ Crear backend/services/pcloud/pcloud_service.py
+□ Crear backend/routes/defense_file_routes.py
+□ Registrar blueprint en main.py
+□ Crear frontend/src/components/DefenseFiles/DefenseFilesList.jsx
+□ Crear frontend/src/components/DefenseFiles/DefenseFileDetail.jsx
+□ Agregar rutas al router de React
+□ Configurar PCLOUD_ACCESS_TOKEN (opcional)
+
+## PARTE 5: Verificación
+□ Ejecutar script de tests
+□ Verificar todos los endpoints con curl
+□ Verificar que el frontend muestra los Defense Files
+□ Verificar que los eventos se registran automáticamente
+
+═══════════════════════════════════════════════════════════════════════════════
+INTEGRACIÓN EN EL FLUJO DE TRABAJO
+═══════════════════════════════════════════════════════════════════════════════
+
+Una vez implementado, el flujo es:
+
+1. **Al crear un proyecto/entregable** → Se crea automáticamente un Defense File
+   
+2. **Cada interacción con un agente** → Se documenta automáticamente:
+   - Conversaciones con Facturar.IA → Guardadas con CFDIs mencionados
+   - Consultas a Bibliotecar.IA → Guardadas con chunks/fuentes usadas
+   - Cálculos de Calcular.IA → Guardados con metodología
+   
+3. **Verificaciones de terceros** → Se documentan:
+   - Validaciones de Lista 69-B
+   - Verificaciones EFOS
+   - Alertas generadas
+
+4. **Fundamentos legales** → Se extraen automáticamente:
+   - Artículos citados en respuestas
+   - Jurisprudencias aplicadas
+   
+5. **Al cerrar el proyecto** → Se genera:
+   - Hash de integridad de todo el expediente
+   - Índice completo en pCloud
+   - Defense File Final exportable
+
+═══════════════════════════════════════════════════════════════════════════════
+EJEMPLO DE USO COMPLETO
+═══════════════════════════════════════════════════════════════════════════════
+
+```python
+from services.defense_files.defense_file_service import defense_file_service
+from services.defense_files.agent_helper import facturar_doc, bibliotecar_doc
+
+# 1. Crear Defense File al inicio del proyecto
+df_id = defense_file_service.crear_defense_file(
+    cliente_id=cliente.id,
+    nombre="Auditoría Fiscal 2025",
+    ejercicio=2025,
+    tipo_proyecto="auditoria",
+    responsable_id=usuario.id
+)
+
+# 2. En cada chat con Facturar.IA
+facturar_doc.registrar_conversacion(
+    defense_file_id=df_id,
+    mensaje_usuario="¿Puedo deducir estos gastos?",
+    respuesta_ia="Según el artículo 27...",
+    usuario="cliente@empresa.com",
+    cfdis_mencionados=["uuid-1", "uuid-2"],
+    articulos_citados=[{"articulo": "27", "ley": "LISR"}]
+)
+
+# 3. Al analizar un CFDI
+facturar_doc.registrar_cfdi_analizado(
+    defense_file_id=df_id,
+    uuid_cfdi="abc123-def456",
+    rfc_emisor="XAXX010101000",
+    rfc_receptor="CLIENTE010101ABC",
+    total=50000.00,
+    fecha_emision="2025-01-15",
+    tipo_comprobante="Ingreso",
+    resultado_analisis={...},
+    alertas=[]
+)
+
+# 4. Al verificar un proveedor
+facturar_doc.registrar_verificacion_tercero(
+    defense_file_id=df_id,
+    rfc="PROV010101AAA",
+    razon_social="Proveedor SA",
+    tipo_tercero="proveedor",
+    verificacion_69b={"en_lista": False},
+    verificacion_efos={"es_efos": False}
+)
+
+# 5. Al consultar Bibliotecar.IA
+bibliotecar_doc.registrar_conversacion(
+    defense_file_id=df_id,
+    mensaje_usuario="¿Qué dice el CFF sobre prescripción?",
+    respuesta_ia="Según el artículo 67 del CFF...",
+    usuario="usuario@email.com",
+    fuentes_consultadas=["CFF.pdf", "Jurisprudencia_2020.pdf"],
+    contexto={"chunks_usados": 5}
+)
+
+# 6. Al cerrar el proyecto
+defense_file_service.actualizar_estado(df_id, 'cerrado', 100)
+# Esto calcula el hash de integridad automáticamente
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+RESULTADO FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+Con este sistema implementado:
+
+✅ CADA conversación queda documentada
+✅ CADA CFDI analizado queda registrado
+✅ CADA verificación de tercero queda guardada
+✅ CADA fundamento legal citado se extrae
+✅ CADA cálculo fiscal se preserva
+✅ Timeline completo auditable
+✅ Hash de integridad para verificar que no se alteró
+✅ Sincronización opcional con pCloud
+✅ Exportación para defense file final
+
+Esto permite:
+- Demostrar ante el SAT EXACTAMENTE qué se hizo
+- Evidenciar las fuentes legales consultadas
+- Comprobar verificaciones de proveedores
+- Reconstruir el proceso de análisis
+- Defender las conclusiones con evidencia
+
+═══════════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,85 @@
+echo "=== VERIFICACIÓN FASE 12: DEFENSE FILE GENERATOR ==="
+
+# Verificar estructura de archivos
+echo "1. Verificando archivos creados..."
+FILES=(
+    "services/defense_file/__init__.py"
+    "services/defense_file/styles.py"
+    "services/defense_file/pdf_generator.py"
+    "services/defense_file/defense_file_generator.py"
+    "routes/defense_file_routes.py"
+    "tests/test_defense_file.py"
+)
+
+for file in "${FILES[@]}"; do
+    if [ -f "$file" ]; then
+        echo "  ✅ $file"
+    else
+        echo "  ❌ $file - FALTA"
+    fi
+done
+
+# Crear __init__.py si no existe
+touch services/defense_file/__init__.py
+
+# Verificar imports
+echo ""
+echo "2. Verificando imports..."
+python -c "
+from services.defense_file.styles import COLORS, get_styles
+print('  ✅ styles.py importable')
+" 2>/dev/null || echo "  ❌ styles.py tiene errores"
+
+python -c "
+from services.defense_file.pdf_generator import PDFGenerator
+print('  ✅ pdf_generator.py importable')
+" 2>/dev/null || echo "  ❌ pdf_generator.py tiene errores"
+
+python -c "
+from services.defense_file.defense_file_generator import DefenseFileGenerator, generate_defense_file
+print('  ✅ defense_file_generator.py importable')
+" 2>/dev/null || echo "  ❌ defense_file_generator.py tiene errores"
+
+# Ejecutar tests
+echo ""
+echo "3. Ejecutando tests..."
+pytest tests/test_defense_file.py -v --tb=short 2>/dev/null || echo "⚠️ Algunos tests fallaron - revisar"
+
+# Test rápido de generación
+echo ""
+echo "4. Test de generación rápida..."
+python << 'EOF'
+import asyncio
+from services.defense_file.defense_file_generator import generate_defense_file
+
+async def quick_test():
+    result = await generate_defense_file(
+        project_data={
+            'id': 'QUICK_TEST',
+            'nombre': 'Test Rápido',
+            'cliente': 'Cliente Test',
+            'rfc': 'XAXX010101000',
+            'periodo_fiscal': '2024',
+            'risk_score': 30
+        },
+        documents=[
+            {'nombre': 'Doc 1', 'tipo': 'contrato', 'status': 'VALIDATED'},
+            {'nombre': 'Doc 2', 'tipo': 'factura', 'status': 'VALIDATED'},
+        ],
+        ocr_results=[],
+        red_team_results={'resumen': {'nivel_riesgo': 'LOW', 'vulnerabilidades_encontradas': 0}, 'vulnerabilidades': [], 'conclusion': 'DEFENDIBLE'}
+    )
+    
+    if result.success:
+        print(f"  ✅ PDF generado: {result.pdf_path}")
+        print(f"  ✅ ZIP generado: {result.zip_path}")
+        print(f"  ✅ Páginas: {result.total_pages}")
+        print(f"  ✅ Tiempo: {result.generation_time_ms}ms")
+    else:
+        print(f"  ❌ Errores: {result.errors}")
+
+asyncio.run(quick_test())
+EOF
+
+echo ""
+echo "=== VERIFICACIÓN COMPLETADA ==="

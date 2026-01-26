@@ -1,0 +1,306 @@
+MODO AGENTE AUTÓNOMO - ARREGLAR ERROR "Body is disturbed" AHORA
+
+ESTO ES URGENTE. NO EXPLICAR. NO PREGUNTAR. SOLO ARREGLAR.
+
+EL ERROR "Body is disturbed or locked" OCURRE EN EL FRONTEND.
+
+<TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 1: ENCONTRAR EL ARCHIVO QUE HACE LA LLAMADA
+═══════════════════════════════════════════════════════════════════════════════
+
+EJECUTAR EN SHELL:
+
+```bash
+grep -rn "Confirmar y Crear\|crearCliente\|/api/clientes" frontend/src/ --include="*.tsx" --include="*.ts" | head -20
+```
+
+TAMBIÉN BUSCAR:
+
+```bash
+grep -rn "Body is disturbed\|response.json\|response.text" frontend/src/ --include="*.tsx" --include="*.ts" | head -20
+```
+
+ENCONTRAR EL ARCHIVO Y ABRIRLO.
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 2: EL PROBLEMA ESTÁ EN CÓMO SE LEE LA RESPUESTA
+═══════════════════════════════════════════════════════════════════════════════
+
+BUSCAR CÓDIGO COMO ESTE (MAL):
+
+```typescript
+// ❌ ESTO CAUSA "Body is disturbed"
+const response = await fetch('/api/clientes', {...});
+const text = await response.text(); // Lee el body
+const data = await response.json(); // ERROR: body ya consumido
+
+// ❌ ESTO TAMBIÉN CAUSA EL ERROR
+try {
+  const data = await response.json();
+} catch {
+  const text = await response.text(); // ERROR: body ya consumido
+}
+
+// ❌ ESTO TAMBIÉN
+const clone = response.clone();
+const data = await response.json();
+const text = await clone.text(); // A veces falla
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 3: REEMPLAZAR CON ESTE CÓDIGO EXACTO
+═══════════════════════════════════════════════════════════════════════════════
+
+ENCONTRAR la función que crea el cliente y REEMPLAZARLA COMPLETAMENTE con:
+
+```typescript
+const handleCrearCliente = async () => {
+  // Prevenir múltiples clicks
+  if (isLoading) return;
+  
+  setIsLoading(true);
+  setError(null);
+
+  // Crear objeto de datos UNA SOLA VEZ
+  const payload = {
+    nombre: formData.nombre || '',
+    rfc: formData.rfc || '',
+    razon_social: formData.razonSocial || formData.razon_social || formData.nombre || '',
+    direccion: formData.direccion || '',
+    email: formData.email || '',
+    telefono: formData.telefono || '',
+    giro: formData.giro || '',
+    sitio_web: formData.sitioWeb || formData.sitio_web || ''
+  };
+
+  console.log('📤 Enviando:', JSON.stringify(payload));
+
+  try {
+    const response = await fetch('/api/clientes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    // LEER EL BODY UNA SOLA VEZ - CRÍTICO
+    const responseText = await response.text();
+    console.log('📥 Respuesta raw:', responseText);
+
+    // Parsear manualmente
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Error parseando respuesta:', responseText);
+      throw new Error('Respuesta inválida del servidor');
+    }
+
+    // Verificar éxito
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Error al crear cliente');
+    }
+
+    // ÉXITO
+    console.log('✅ Cliente creado:', data);
+    
+    if (typeof toast !== 'undefined') {
+      toast.success('Cliente creado exitosamente');
+    }
+    
+    // Callbacks
+    onClienteCreado?.(data.cliente || data);
+    onClose?.();
+    onSuccess?.();
+
+  } catch (err: any) {
+    console.error('❌ Error:', err);
+    const errorMsg = err.message || 'Error al crear cliente';
+    setError(errorMsg);
+    
+    if (typeof toast !== 'undefined') {
+      toast.error(errorMsg);
+    }
+  } finally {
+    setIsLoading(false);
+  }
+};
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 4: SI USA REACT QUERY O SWR, BUSCAR Y ARREGLAR
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+grep -rn "useMutation\|mutate\|useQuery" frontend/src/ --include="*.tsx" | grep -i client
+```
+
+Si usa React Query, el problema puede estar ahí. Buscar algo como:
+
+```typescript
+// ❌ MAL
+const mutation = useMutation({
+  mutationFn: async (data) => {
+    const res = await fetch('/api/clientes', {...});
+    if (!res.ok) {
+      const error = await res.json(); // Lee body
+      throw new Error(error.message);
+    }
+    return res.json(); // ERROR: body ya leído
+  }
+});
+```
+
+REEMPLAZAR CON:
+
+```typescript
+// ✅ BIEN
+const mutation = useMutation({
+  mutationFn: async (data) => {
+    const res = await fetch('/api/clientes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    
+    const text = await res.text();
+    const json = JSON.parse(text);
+    
+    if (!res.ok) {
+      throw new Error(json.error || 'Error');
+    }
+    
+    return json;
+  }
+});
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 5: VERIFICAR EL BACKEND TAMBIÉN
+═══════════════════════════════════════════════════════════════════════════════
+
+BUSCAR si hay middleware que lee el body dos veces:
+
+```bash
+grep -rn "req.body\|bodyParser\|express.json" server/ --include="*.ts" --include="*.js" | head -30
+```
+
+VERIFICAR que en server/index.ts el orden sea:
+
+```typescript
+// 1. CORS primero
+app.use(cors());
+
+// 2. Body parser UNA SOLA VEZ
+app.use(express.json());
+
+// 3. Rutas DESPUÉS
+app.use('/api/clientes', clientesRoutes);
+```
+
+SI HAY body-parser instalado, DESINSTALARLO:
+
+```bash
+npm uninstall body-parser
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 6: TEST DIRECTO
+═══════════════════════════════════════════════════════════════════════════════
+
+Probar el endpoint directamente en Shell:
+
+```bash
+curl -X POST http://localhost:5000/api/clientes \
+  -H "Content-Type: application/json" \
+  -d '{"nombre":"TEST","rfc":"XAXX010101000","email":"test@test.com"}'
+```
+
+Si esto funciona, el problema está 100% en el frontend.
+Si esto falla, el problema está en el backend.
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 7: FIX NUCLEAR - SI NADA FUNCIONA
+═══════════════════════════════════════════════════════════════════════════════
+
+CREAR un archivo nuevo: frontend/src/utils/api.ts
+
+```typescript
+// API Helper que NUNCA causa "Body is disturbed"
+export async function apiPost<T>(url: string, data: any): Promise<T> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+
+  // Leer como texto primero (NUNCA falla)
+  const text = await response.text();
+  
+  // Parsear
+  let json: any;
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`);
+  }
+
+  // Verificar status
+  if (!response.ok) {
+    throw new Error(json.error || json.message || `HTTP ${response.status}`);
+  }
+
+  return json as T;
+}
+
+export async function apiGet<T>(url: string): Promise<T> {
+  const response = await fetch(url);
+  const text = await response.text();
+  
+  let json: any;
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(json.error || json.message || `HTTP ${response.status}`);
+  }
+
+  return json as T;
+}
+```
+
+USAR ASÍ en el componente:
+
+```typescript
+import { apiPost } from '@/utils/api';
+
+const handleCrearCliente = async () => {
+  setIsLoading(true);
+  try {
+    const result = await apiPost('/api/clientes', {
+      nombre: formData.nombre,
+      rfc: formData.rfc,
+      // etc...
+    });
+    console.log('Cliente creado:', result);
+    onSuccess?.();
+  } catch (error: any) {
+    console.error(error);
+    setError(error.message);
+  } finally {
+    setIsLoading(false);
+  }
+};
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+EJECUTAR TODO AHORA - EL CLIENTE DEBE PODER CREARSE
+═══════════════════════════════════════════════════════════════════════════════
+
+</TOON>

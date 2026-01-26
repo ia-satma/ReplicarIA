@@ -1,0 +1,1035 @@
+═══════════════════════════════════════════════════════════════════════════════
+🛡️ SISTEMA DE AGENTES GUARDIANES - TRABAJAN ACTIVAMENTE
+═══════════════════════════════════════════════════════════════════════════════
+
+PROBLEMA ACTUAL:
+────────────────
+- Los bugs se arreglan y luego VUELVEN A CAER
+- Los agentes son PASIVOS - esperan a que les pidas algo
+- No hay nadie vigilando que las cosas sigan funcionando
+- Cada cambio puede romper algo que ya funcionaba
+
+SOLUCIÓN:
+─────────
+Crear agentes que TRABAJEN CONSTANTEMENTE:
+1. GUARDIAN.IA - Vigila que nada se caiga, corre pruebas cada hora
+2. DEBUGGER.IA - Detecta y arregla bugs automáticamente
+3. DISEÑAR.IA - Revisa UI/UX constantemente, no solo cuando le pides
+
+═══════════════════════════════════════════════════════════════════════════════
+ARQUITECTURA: AGENTES QUE TRABAJAN SOLOS
+═══════════════════════════════════════════════════════════════════════════════
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         SISTEMA DE AGENTES ACTIVOS                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                │
+│   │ GUARDIAN.IA  │    │ DEBUGGER.IA  │    │ DISEÑAR.IA   │                │
+│   │              │    │              │    │              │                │
+│   │ • Pruebas    │───▶│ • Detecta    │───▶│ • Revisa UI  │                │
+│   │   cada hora  │    │   errores    │    │ • Mejora UX  │                │
+│   │ • Monitorea  │    │ • Propone    │    │ • Consistencia│               │
+│   │   endpoints  │    │   arreglos   │    │   visual     │                │
+│   │ • Alerta si  │    │ • Aplica     │    │              │                │
+│   │   algo falla │    │   fixes      │    │              │                │
+│   └──────────────┘    └──────────────┘    └──────────────┘                │
+│          │                   │                   │                         │
+│          ▼                   ▼                   ▼                         │
+│   ┌─────────────────────────────────────────────────────────────────┐     │
+│   │                    BASE DE DATOS DE ESTADO                       │     │
+│   │  • Últimas pruebas exitosas                                      │     │
+│   │  • Bugs detectados y su estado                                   │     │
+│   │  • Historial de cambios                                          │     │
+│   │  • Métricas de salud del sistema                                 │     │
+│   └─────────────────────────────────────────────────────────────────┘     │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PARTE 1: TABLAS PARA SISTEMA DE MONITOREO
+═══════════════════════════════════════════════════════════════════════════════
+
+```sql
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PRUEBAS AUTOMÁTICAS Y SU ESTADO
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS system_health_checks (
+    id SERIAL PRIMARY KEY,
+    
+    -- Qué se probó
+    categoria VARCHAR(50) NOT NULL,  -- endpoint, componente, integracion
+    nombre VARCHAR(255) NOT NULL,
+    descripcion TEXT,
+    
+    -- Cómo probarlo
+    tipo_prueba VARCHAR(50),  -- http_get, http_post, db_query, ui_check
+    configuracion JSONB,  -- {url, method, expected_status, body, etc}
+    
+    -- Resultado
+    ultima_ejecucion TIMESTAMP,
+    ultimo_resultado VARCHAR(20),  -- ok, warning, error, critical
+    ultimo_mensaje TEXT,
+    tiempo_respuesta_ms INTEGER,
+    
+    -- Historial
+    total_ejecuciones INTEGER DEFAULT 0,
+    total_exitosas INTEGER DEFAULT 0,
+    total_fallidas INTEGER DEFAULT 0,
+    racha_actual INTEGER DEFAULT 0,  -- Positivo = éxitos seguidos, negativo = fallos
+    
+    -- Configuración
+    intervalo_minutos INTEGER DEFAULT 60,
+    activo BOOLEAN DEFAULT TRUE,
+    notificar_fallo BOOLEAN DEFAULT TRUE,
+    
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- BUGS DETECTADOS AUTOMÁTICAMENTE
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS detected_bugs (
+    id SERIAL PRIMARY KEY,
+    
+    -- Identificación
+    codigo VARCHAR(20) UNIQUE,  -- BUG-2025-0001
+    
+    -- Qué falló
+    health_check_id INTEGER REFERENCES system_health_checks(id),
+    categoria VARCHAR(50),
+    componente VARCHAR(100),
+    
+    -- Descripción
+    titulo VARCHAR(255) NOT NULL,
+    descripcion TEXT,
+    error_message TEXT,
+    stack_trace TEXT,
+    
+    -- Severidad
+    severidad VARCHAR(20),  -- low, medium, high, critical
+    impacto TEXT,
+    
+    -- Estado
+    estado VARCHAR(20) DEFAULT 'detectado',  -- detectado, analizando, arreglando, verificando, resuelto
+    
+    -- Arreglo
+    diagnostico TEXT,
+    solucion_propuesta TEXT,
+    archivos_modificar JSONB,  -- [{archivo, cambios_sugeridos}]
+    arreglo_aplicado BOOLEAN DEFAULT FALSE,
+    arreglo_verificado BOOLEAN DEFAULT FALSE,
+    
+    -- Agente que lo maneja
+    asignado_a VARCHAR(50),  -- DEBUGGER.IA, humano
+    
+    -- Timestamps
+    detectado_at TIMESTAMP DEFAULT NOW(),
+    diagnosticado_at TIMESTAMP,
+    arreglado_at TIMESTAMP,
+    verificado_at TIMESTAMP,
+    
+    -- Recurrencia
+    veces_detectado INTEGER DEFAULT 1,
+    es_regresion BOOLEAN DEFAULT FALSE,  -- ¿Ya se había arreglado antes?
+    bug_original_id INTEGER REFERENCES detected_bugs(id)
+);
+
+CREATE INDEX idx_bugs_estado ON detected_bugs(estado);
+CREATE INDEX idx_bugs_severidad ON detected_bugs(severidad);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- HISTORIAL DE EJECUCIONES DE PRUEBAS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS health_check_history (
+    id SERIAL PRIMARY KEY,
+    health_check_id INTEGER REFERENCES system_health_checks(id) ON DELETE CASCADE,
+    
+    ejecutado_at TIMESTAMP DEFAULT NOW(),
+    resultado VARCHAR(20),
+    mensaje TEXT,
+    tiempo_respuesta_ms INTEGER,
+    detalles JSONB
+);
+
+CREATE INDEX idx_hc_history_check ON health_check_history(health_check_id);
+CREATE INDEX idx_hc_history_fecha ON health_check_history(ejecutado_at);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- INSERTAR PRUEBAS CRÍTICAS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+INSERT INTO system_health_checks (categoria, nombre, descripcion, tipo_prueba, configuracion, intervalo_minutos) VALUES
+
+-- Endpoints críticos
+('endpoint', 'Health Check General', 'Verifica que el servidor responda', 'http_get', 
+ '{"url": "/api/health", "expected_status": 200}', 5),
+
+('endpoint', 'Autenticación Login', 'Verifica que el login funcione', 'http_post',
+ '{"url": "/api/auth/login", "body": {"email": "test@test.com", "password": "test"}, "expected_status": [200, 401]}', 15),
+
+('endpoint', 'Biblioteca Stats', 'Verifica RAG disponible', 'http_get',
+ '{"url": "/api/biblioteca/stats", "expected_status": 200}', 30),
+
+('endpoint', 'Defense Files List', 'Verifica Defense Files', 'http_get',
+ '{"url": "/api/defense-files", "expected_status": 200}', 30),
+
+('endpoint', 'Projects Submit', 'Verifica formulario de proyectos', 'http_post',
+ '{"url": "/api/projects/submit", "expected_status": [200, 201, 400], "check_not": [500, 502, 503]}', 30),
+
+('endpoint', 'Admin Usuarios', 'Verifica panel admin', 'http_get',
+ '{"url": "/api/admin/usuarios", "expected_status": [200, 401]}', 60),
+
+-- Base de datos
+('database', 'Conexión PostgreSQL', 'Verifica conexión a BD', 'db_query',
+ '{"query": "SELECT 1", "expected": true}', 5),
+
+('database', 'Tablas Críticas', 'Verifica tablas existen', 'db_query',
+ '{"query": "SELECT COUNT(*) FROM users", "expected_type": "number"}', 60),
+
+-- Integraciones
+('integracion', 'Anthropic API', 'Verifica conexión a Claude', 'http_post',
+ '{"url": "/api/test/anthropic", "expected_status": [200, 503]}', 60),
+
+-- UI Components
+('ui', 'Formulario Proyectos Auth', 'Verifica que no muestre auth error cuando logueado', 'ui_check',
+ '{"component": "ProjectForm", "check": "no_auth_error_when_logged_in"}', 60)
+
+ON CONFLICT DO NOTHING;
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PARTE 2: GUARDIAN.IA - EJECUTA PRUEBAS CONSTANTEMENTE
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/services/agents/guardian_agent.py
+
+```python
+"""
+═══════════════════════════════════════════════════════════════════════════════
+GUARDIAN.IA - Agente que vigila el sistema 24/7
+═══════════════════════════════════════════════════════════════════════════════
+
+Este agente:
+1. Ejecuta pruebas automáticas cada X minutos
+2. Detecta cuando algo falla
+3. Crea tickets de bug automáticamente
+4. Notifica si algo crítico se cae
+5. Detecta REGRESIONES (bugs que vuelven)
+"""
+
+import asyncio
+import httpx
+import json
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+from sqlalchemy import text
+
+# Ajustar imports según tu proyecto
+try:
+    from database import db, get_db_session
+except:
+    from extensions import db
+
+
+class GuardianAgent:
+    """Agente guardián que vigila la salud del sistema"""
+    
+    def __init__(self):
+        self.base_url = "http://localhost:5000"  # Ajustar según tu config
+        self.running = False
+        self.client = None
+    
+    async def iniciar(self):
+        """Inicia el loop de monitoreo"""
+        print("🛡️ GUARDIAN.IA iniciado - Vigilando el sistema...")
+        self.running = True
+        self.client = httpx.AsyncClient(timeout=30.0)
+        
+        while self.running:
+            try:
+                await self.ejecutar_pruebas_pendientes()
+                await asyncio.sleep(60)  # Esperar 1 minuto entre ciclos
+            except Exception as e:
+                print(f"⚠️ Guardian error: {e}")
+                await asyncio.sleep(60)
+    
+    async def detener(self):
+        """Detiene el monitoreo"""
+        self.running = False
+        if self.client:
+            await self.client.aclose()
+        print("🛡️ GUARDIAN.IA detenido")
+    
+    async def ejecutar_pruebas_pendientes(self):
+        """Ejecuta las pruebas que toca correr"""
+        
+        # Obtener pruebas que deben ejecutarse
+        pruebas = db.session.execute(text("""
+            SELECT * FROM system_health_checks
+            WHERE activo = TRUE
+            AND (
+                ultima_ejecucion IS NULL
+                OR ultima_ejecucion < NOW() - (intervalo_minutos || ' minutes')::INTERVAL
+            )
+            ORDER BY 
+                CASE ultimo_resultado 
+                    WHEN 'critical' THEN 1 
+                    WHEN 'error' THEN 2 
+                    ELSE 3 
+                END,
+                ultima_ejecucion ASC NULLS FIRST
+            LIMIT 10
+        """)).fetchall()
+        
+        for prueba in pruebas:
+            resultado = await self.ejecutar_prueba(prueba)
+            await self.guardar_resultado(prueba, resultado)
+            
+            # Si falló, crear bug
+            if resultado['status'] in ('error', 'critical'):
+                await self.crear_bug_si_nuevo(prueba, resultado)
+    
+    async def ejecutar_prueba(self, prueba) -> Dict:
+        """Ejecuta una prueba específica"""
+        
+        config = json.loads(prueba.configuracion) if prueba.configuracion else {}
+        inicio = datetime.now()
+        
+        try:
+            if prueba.tipo_prueba == 'http_get':
+                return await self._prueba_http_get(config)
+            
+            elif prueba.tipo_prueba == 'http_post':
+                return await self._prueba_http_post(config)
+            
+            elif prueba.tipo_prueba == 'db_query':
+                return await self._prueba_db(config)
+            
+            else:
+                return {'status': 'warning', 'message': f'Tipo de prueba no soportado: {prueba.tipo_prueba}'}
+                
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': str(e),
+                'tiempo_ms': int((datetime.now() - inicio).total_seconds() * 1000)
+            }
+    
+    async def _prueba_http_get(self, config: Dict) -> Dict:
+        """Prueba HTTP GET"""
+        
+        url = self.base_url + config['url']
+        inicio = datetime.now()
+        
+        response = await self.client.get(url)
+        tiempo_ms = int((datetime.now() - inicio).total_seconds() * 1000)
+        
+        expected = config.get('expected_status', 200)
+        if isinstance(expected, list):
+            ok = response.status_code in expected
+        else:
+            ok = response.status_code == expected
+        
+        # Verificar que NO sea cierto status
+        check_not = config.get('check_not', [])
+        if response.status_code in check_not:
+            ok = False
+        
+        return {
+            'status': 'ok' if ok else 'error',
+            'message': f'Status {response.status_code}' + ('' if ok else f' (esperado: {expected})'),
+            'tiempo_ms': tiempo_ms,
+            'response_status': response.status_code
+        }
+    
+    async def _prueba_http_post(self, config: Dict) -> Dict:
+        """Prueba HTTP POST"""
+        
+        url = self.base_url + config['url']
+        body = config.get('body', {})
+        inicio = datetime.now()
+        
+        response = await self.client.post(url, json=body)
+        tiempo_ms = int((datetime.now() - inicio).total_seconds() * 1000)
+        
+        expected = config.get('expected_status', [200, 201])
+        if isinstance(expected, int):
+            expected = [expected]
+        
+        ok = response.status_code in expected
+        
+        check_not = config.get('check_not', [500, 502, 503])
+        if response.status_code in check_not:
+            ok = False
+        
+        return {
+            'status': 'ok' if ok else 'error',
+            'message': f'Status {response.status_code}',
+            'tiempo_ms': tiempo_ms,
+            'response_status': response.status_code,
+            'response_body': response.text[:500] if not ok else None
+        }
+    
+    async def _prueba_db(self, config: Dict) -> Dict:
+        """Prueba de base de datos"""
+        
+        query = config.get('query', 'SELECT 1')
+        inicio = datetime.now()
+        
+        try:
+            result = db.session.execute(text(query)).fetchone()
+            tiempo_ms = int((datetime.now() - inicio).total_seconds() * 1000)
+            
+            return {
+                'status': 'ok',
+                'message': 'Query ejecutado correctamente',
+                'tiempo_ms': tiempo_ms,
+                'result': str(result[0]) if result else None
+            }
+        except Exception as e:
+            return {
+                'status': 'critical',
+                'message': f'Error de BD: {str(e)}',
+                'tiempo_ms': int((datetime.now() - inicio).total_seconds() * 1000)
+            }
+    
+    async def guardar_resultado(self, prueba, resultado: Dict):
+        """Guarda resultado de la prueba"""
+        
+        # Actualizar health check
+        db.session.execute(text("""
+            UPDATE system_health_checks SET
+                ultima_ejecucion = NOW(),
+                ultimo_resultado = :resultado,
+                ultimo_mensaje = :mensaje,
+                tiempo_respuesta_ms = :tiempo,
+                total_ejecuciones = total_ejecuciones + 1,
+                total_exitosas = total_exitosas + CASE WHEN :ok THEN 1 ELSE 0 END,
+                total_fallidas = total_fallidas + CASE WHEN :ok THEN 0 ELSE 1 END,
+                racha_actual = CASE 
+                    WHEN :ok AND racha_actual >= 0 THEN racha_actual + 1
+                    WHEN :ok AND racha_actual < 0 THEN 1
+                    WHEN NOT :ok AND racha_actual <= 0 THEN racha_actual - 1
+                    ELSE -1
+                END,
+                updated_at = NOW()
+            WHERE id = :id
+        """), {
+            'id': prueba.id,
+            'resultado': resultado['status'],
+            'mensaje': resultado.get('message', ''),
+            'tiempo': resultado.get('tiempo_ms', 0),
+            'ok': resultado['status'] == 'ok'
+        })
+        
+        # Guardar en historial
+        db.session.execute(text("""
+            INSERT INTO health_check_history 
+            (health_check_id, resultado, mensaje, tiempo_respuesta_ms, detalles)
+            VALUES (:hc_id, :resultado, :mensaje, :tiempo, :detalles)
+        """), {
+            'hc_id': prueba.id,
+            'resultado': resultado['status'],
+            'mensaje': resultado.get('message', ''),
+            'tiempo': resultado.get('tiempo_ms', 0),
+            'detalles': json.dumps(resultado)
+        })
+        
+        db.session.commit()
+        
+        # Log
+        emoji = '✅' if resultado['status'] == 'ok' else '❌'
+        print(f"  {emoji} {prueba.nombre}: {resultado['status']} ({resultado.get('tiempo_ms', 0)}ms)")
+    
+    async def crear_bug_si_nuevo(self, prueba, resultado: Dict):
+        """Crea un bug si no existe uno igual abierto"""
+        
+        # Verificar si ya existe bug abierto para esta prueba
+        existente = db.session.execute(text("""
+            SELECT id, veces_detectado FROM detected_bugs
+            WHERE health_check_id = :hc_id
+            AND estado NOT IN ('resuelto', 'verificado')
+        """), {'hc_id': prueba.id}).fetchone()
+        
+        if existente:
+            # Incrementar contador
+            db.session.execute(text("""
+                UPDATE detected_bugs SET 
+                    veces_detectado = veces_detectado + 1,
+                    ultimo_mensaje = :mensaje
+                WHERE id = :id
+            """), {'id': existente.id, 'mensaje': resultado.get('message', '')})
+            db.session.commit()
+            print(f"  🔄 Bug existente actualizado (detectado {existente.veces_detectado + 1} veces)")
+            return
+        
+        # Verificar si es regresión (bug que ya se había arreglado)
+        bug_anterior = db.session.execute(text("""
+            SELECT id FROM detected_bugs
+            WHERE health_check_id = :hc_id
+            AND estado = 'resuelto'
+            ORDER BY verificado_at DESC
+            LIMIT 1
+        """), {'hc_id': prueba.id}).fetchone()
+        
+        es_regresion = bug_anterior is not None
+        
+        # Generar código de bug
+        año = datetime.now().year
+        ultimo = db.session.execute(text("""
+            SELECT codigo FROM detected_bugs 
+            WHERE codigo LIKE :patron
+            ORDER BY codigo DESC LIMIT 1
+        """), {'patron': f'BUG-{año}-%'}).fetchone()
+        
+        if ultimo:
+            num = int(ultimo.codigo.split('-')[-1]) + 1
+        else:
+            num = 1
+        
+        codigo = f"BUG-{año}-{num:04d}"
+        
+        # Crear bug
+        severidad = 'critical' if resultado['status'] == 'critical' else 'high'
+        if es_regresion:
+            severidad = 'critical'  # Regresiones son siempre críticas
+        
+        db.session.execute(text("""
+            INSERT INTO detected_bugs (
+                codigo, health_check_id, categoria, componente,
+                titulo, descripcion, error_message, severidad,
+                estado, es_regresion, bug_original_id, asignado_a
+            ) VALUES (
+                :codigo, :hc_id, :categoria, :componente,
+                :titulo, :descripcion, :error, :severidad,
+                'detectado', :regresion, :original_id, 'DEBUGGER.IA'
+            )
+        """), {
+            'codigo': codigo,
+            'hc_id': prueba.id,
+            'categoria': prueba.categoria,
+            'componente': prueba.nombre,
+            'titulo': f'{"🔄 REGRESIÓN: " if es_regresion else ""}{prueba.nombre} - {resultado["status"]}',
+            'descripcion': f'La prueba "{prueba.nombre}" está fallando.',
+            'error': resultado.get('message', ''),
+            'severidad': severidad,
+            'regresion': es_regresion,
+            'original_id': bug_anterior.id if bug_anterior else None
+        })
+        
+        db.session.commit()
+        
+        emoji = '🔄' if es_regresion else '🐛'
+        print(f"  {emoji} Bug creado: {codigo} - {prueba.nombre} ({'REGRESIÓN' if es_regresion else severidad})")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SINGLETON E INICIALIZACIÓN
+# ═══════════════════════════════════════════════════════════════════════════
+
+_guardian_instance = None
+
+def get_guardian() -> GuardianAgent:
+    global _guardian_instance
+    if _guardian_instance is None:
+        _guardian_instance = GuardianAgent()
+    return _guardian_instance
+
+
+async def iniciar_guardian():
+    """Inicia el agente guardián en background"""
+    guardian = get_guardian()
+    asyncio.create_task(guardian.iniciar())
+
+
+def detener_guardian():
+    """Detiene el agente guardián"""
+    guardian = get_guardian()
+    asyncio.create_task(guardian.detener())
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PARTE 3: DEBUGGER.IA - ANALIZA Y ARREGLA BUGS
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/services/agents/debugger_agent.py
+
+```python
+"""
+═══════════════════════════════════════════════════════════════════════════════
+DEBUGGER.IA - Agente que analiza y propone arreglos para bugs
+═══════════════════════════════════════════════════════════════════════════════
+
+Este agente:
+1. Toma bugs detectados por Guardian
+2. Analiza el código relevante
+3. Propone soluciones
+4. Puede aplicar arreglos automáticamente (con aprobación)
+"""
+
+import os
+import json
+import anthropic
+from datetime import datetime
+from typing import Dict, List, Optional
+from sqlalchemy import text
+
+try:
+    from database import db
+except:
+    from extensions import db
+
+
+class DebuggerAgent:
+    """Agente que diagnostica y arregla bugs"""
+    
+    def __init__(self):
+        self.client = anthropic.Anthropic()
+        self.model = "claude-sonnet-4-20250514"
+    
+    async def procesar_bugs_pendientes(self):
+        """Procesa bugs que están en estado 'detectado'"""
+        
+        bugs = db.session.execute(text("""
+            SELECT * FROM detected_bugs
+            WHERE estado = 'detectado'
+            AND asignado_a = 'DEBUGGER.IA'
+            ORDER BY 
+                CASE severidad 
+                    WHEN 'critical' THEN 1 
+                    WHEN 'high' THEN 2 
+                    WHEN 'medium' THEN 3 
+                    ELSE 4 
+                END,
+                es_regresion DESC,
+                detectado_at ASC
+            LIMIT 5
+        """)).fetchall()
+        
+        for bug in bugs:
+            print(f"\n🔍 Analizando {bug.codigo}: {bug.titulo}")
+            
+            # Cambiar estado a 'analizando'
+            db.session.execute(text("""
+                UPDATE detected_bugs SET estado = 'analizando' WHERE id = :id
+            """), {'id': bug.id})
+            db.session.commit()
+            
+            # Analizar
+            diagnostico = await self.diagnosticar_bug(bug)
+            
+            # Guardar diagnóstico
+            db.session.execute(text("""
+                UPDATE detected_bugs SET 
+                    diagnostico = :diag,
+                    solucion_propuesta = :solucion,
+                    archivos_modificar = :archivos,
+                    estado = 'arreglando',
+                    diagnosticado_at = NOW()
+                WHERE id = :id
+            """), {
+                'id': bug.id,
+                'diag': diagnostico.get('diagnostico', ''),
+                'solucion': diagnostico.get('solucion', ''),
+                'archivos': json.dumps(diagnostico.get('archivos', []))
+            })
+            db.session.commit()
+            
+            print(f"  📋 Diagnóstico: {diagnostico.get('diagnostico', '')[:100]}...")
+    
+    async def diagnosticar_bug(self, bug) -> Dict:
+        """Usa Claude para diagnosticar un bug"""
+        
+        # Obtener contexto del health check
+        hc = None
+        if bug.health_check_id:
+            hc = db.session.execute(text("""
+                SELECT * FROM system_health_checks WHERE id = :id
+            """), {'id': bug.health_check_id}).fetchone()
+        
+        # Obtener historial reciente
+        historial = db.session.execute(text("""
+            SELECT * FROM health_check_history
+            WHERE health_check_id = :id
+            ORDER BY ejecutado_at DESC
+            LIMIT 10
+        """), {'id': bug.health_check_id}).fetchall() if bug.health_check_id else []
+        
+        # Construir prompt
+        prompt = f"""
+Eres DEBUGGER.IA, un agente experto en diagnosticar y arreglar bugs.
+
+BUG DETECTADO:
+- Código: {bug.codigo}
+- Título: {bug.titulo}
+- Descripción: {bug.descripcion}
+- Error: {bug.error_message}
+- Categoría: {bug.categoria}
+- Componente: {bug.componente}
+- Es regresión: {'SÍ - Este bug ya se había arreglado antes' if bug.es_regresion else 'No'}
+- Severidad: {bug.severidad}
+
+PRUEBA QUE FALLÓ:
+- Nombre: {hc.nombre if hc else 'N/A'}
+- Tipo: {hc.tipo_prueba if hc else 'N/A'}
+- Configuración: {hc.configuracion if hc else 'N/A'}
+
+HISTORIAL RECIENTE:
+{json.dumps([{'fecha': str(h.ejecutado_at), 'resultado': h.resultado, 'mensaje': h.mensaje} for h in historial], indent=2)}
+
+ANALIZA:
+1. ¿Cuál es la causa probable del bug?
+2. ¿Qué archivos necesitan modificarse?
+3. ¿Cuál es la solución recomendada?
+4. Si es regresión, ¿por qué volvió a fallar?
+
+Responde en JSON:
+{{
+    "diagnostico": "Explicación de la causa",
+    "causa_raiz": "La causa fundamental del problema",
+    "solucion": "Pasos específicos para arreglar",
+    "archivos": [
+        {{
+            "path": "ruta/al/archivo",
+            "accion": "modificar|crear|eliminar",
+            "cambios": "Descripción de los cambios necesarios"
+        }}
+    ],
+    "prioridad": "inmediata|alta|media|baja",
+    "riesgo_arreglo": "bajo|medio|alto",
+    "requiere_revision_humana": true/false
+}}
+"""
+        
+        try:
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            
+            texto = response.content[0].text
+            
+            # Extraer JSON
+            if '```json' in texto:
+                texto = texto.split('```json')[1].split('```')[0]
+            elif '```' in texto:
+                texto = texto.split('```')[1].split('```')[0]
+            
+            return json.loads(texto)
+            
+        except Exception as e:
+            return {
+                'diagnostico': f'Error al analizar: {str(e)}',
+                'solucion': 'Requiere revisión manual',
+                'archivos': [],
+                'requiere_revision_humana': True
+            }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SINGLETON
+# ═══════════════════════════════════════════════════════════════════════════
+
+_debugger_instance = None
+
+def get_debugger() -> DebuggerAgent:
+    global _debugger_instance
+    if _debugger_instance is None:
+        _debugger_instance = DebuggerAgent()
+    return _debugger_instance
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PARTE 4: INICIAR AGENTES AL ARRANCAR EL SERVIDOR
+═══════════════════════════════════════════════════════════════════════════════
+
+Modificar el archivo principal (server.py o main.py):
+
+```python
+# Al inicio del archivo, agregar imports:
+from services.agents.guardian_agent import iniciar_guardian, detener_guardian
+
+# Después de crear la app FastAPI:
+@app.on_event("startup")
+async def startup_event():
+    # ... código existente ...
+    
+    # Iniciar agentes guardianes
+    print("🛡️ Iniciando agentes guardianes...")
+    await iniciar_guardian()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    # ... código existente ...
+    
+    # Detener agentes
+    detener_guardian()
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PARTE 5: ENDPOINTS PARA VER ESTADO
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/routes/system_health_routes.py
+
+```python
+from fastapi import APIRouter, HTTPException
+from sqlalchemy import text
+from database import db
+
+router = APIRouter(prefix="/api/system", tags=["System Health"])
+
+
+@router.get("/health/status")
+async def get_health_status():
+    """Obtiene estado general del sistema"""
+    
+    # Resumen de pruebas
+    resumen = db.session.execute(text("""
+        SELECT 
+            ultimo_resultado,
+            COUNT(*) as total
+        FROM system_health_checks
+        WHERE activo = TRUE
+        GROUP BY ultimo_resultado
+    """)).fetchall()
+    
+    status_counts = {r.ultimo_resultado: r.total for r in resumen}
+    
+    # Bugs abiertos
+    bugs = db.session.execute(text("""
+        SELECT 
+            severidad,
+            COUNT(*) as total
+        FROM detected_bugs
+        WHERE estado NOT IN ('resuelto', 'verificado')
+        GROUP BY severidad
+    """)).fetchall()
+    
+    bug_counts = {b.severidad: b.total for b in bugs}
+    
+    # Determinar estado general
+    if status_counts.get('critical', 0) > 0 or bug_counts.get('critical', 0) > 0:
+        overall = 'critical'
+    elif status_counts.get('error', 0) > 0 or bug_counts.get('high', 0) > 0:
+        overall = 'degraded'
+    elif status_counts.get('warning', 0) > 0:
+        overall = 'warning'
+    else:
+        overall = 'healthy'
+    
+    return {
+        "status": overall,
+        "health_checks": status_counts,
+        "open_bugs": bug_counts,
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@router.get("/health/checks")
+async def list_health_checks():
+    """Lista todas las pruebas y su estado"""
+    
+    checks = db.session.execute(text("""
+        SELECT * FROM system_health_checks
+        ORDER BY 
+            CASE ultimo_resultado 
+                WHEN 'critical' THEN 1 
+                WHEN 'error' THEN 2 
+                WHEN 'warning' THEN 3
+                ELSE 4 
+            END,
+            nombre
+    """)).fetchall()
+    
+    return {
+        "checks": [dict(c._mapping) for c in checks]
+    }
+
+
+@router.get("/bugs")
+async def list_bugs(estado: str = None, severidad: str = None):
+    """Lista bugs detectados"""
+    
+    query = "SELECT * FROM detected_bugs WHERE 1=1"
+    params = {}
+    
+    if estado:
+        query += " AND estado = :estado"
+        params['estado'] = estado
+    
+    if severidad:
+        query += " AND severidad = :severidad"
+        params['severidad'] = severidad
+    
+    query += " ORDER BY detectado_at DESC LIMIT 50"
+    
+    bugs = db.session.execute(text(query), params).fetchall()
+    
+    return {
+        "bugs": [dict(b._mapping) for b in bugs],
+        "total": len(bugs)
+    }
+
+
+@router.post("/bugs/{bug_id}/resolver")
+async def resolver_bug(bug_id: int, comentario: str = ""):
+    """Marca un bug como resuelto"""
+    
+    db.session.execute(text("""
+        UPDATE detected_bugs SET 
+            estado = 'resuelto',
+            arreglado_at = NOW(),
+            resolucion = :comentario
+        WHERE id = :id
+    """), {'id': bug_id, 'comentario': comentario})
+    
+    db.session.commit()
+    
+    return {"success": True, "message": "Bug marcado como resuelto"}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PARTE 6: COMPONENTE REACT PARA VER ESTADO
+═══════════════════════════════════════════════════════════════════════════════
+
+```jsx
+// frontend/src/components/SystemHealth.jsx
+
+import React, { useState, useEffect } from 'react';
+
+const SystemHealth = () => {
+  const [status, setStatus] = useState(null);
+  const [checks, setChecks] = useState([]);
+  const [bugs, setBugs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 30000); // Actualizar cada 30s
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      const [statusRes, checksRes, bugsRes] = await Promise.all([
+        fetch('/api/system/health/status'),
+        fetch('/api/system/health/checks'),
+        fetch('/api/system/bugs?estado=detectado')
+      ]);
+      
+      setStatus(await statusRes.json());
+      setChecks((await checksRes.json()).checks);
+      setBugs((await bugsRes.json()).bugs);
+    } catch (error) {
+      console.error('Error fetching health data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'ok': case 'healthy': return 'bg-green-500';
+      case 'warning': return 'bg-yellow-500';
+      case 'error': case 'degraded': return 'bg-orange-500';
+      case 'critical': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  if (loading) return <div>Cargando estado del sistema...</div>;
+
+  return (
+    <div className="p-6">
+      {/* Estado General */}
+      <div className={`${getStatusColor(status?.status)} text-white p-4 rounded-lg mb-6`}>
+        <h2 className="text-2xl font-bold">
+          Estado del Sistema: {status?.status?.toUpperCase()}
+        </h2>
+        <p>Última actualización: {new Date().toLocaleTimeString()}</p>
+      </div>
+
+      {/* Bugs Abiertos */}
+      {bugs.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-xl font-bold mb-3">🐛 Bugs Abiertos ({bugs.length})</h3>
+          <div className="space-y-2">
+            {bugs.map(bug => (
+              <div key={bug.id} className={`p-3 rounded border-l-4 ${
+                bug.severidad === 'critical' ? 'border-red-500 bg-red-50' :
+                bug.severidad === 'high' ? 'border-orange-500 bg-orange-50' :
+                'border-yellow-500 bg-yellow-50'
+              }`}>
+                <div className="font-bold">
+                  {bug.es_regresion && '🔄 '}{bug.codigo}: {bug.titulo}
+                </div>
+                <div className="text-sm text-gray-600">{bug.descripcion}</div>
+                <div className="text-xs mt-1">
+                  Estado: {bug.estado} | Severidad: {bug.severidad}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Health Checks */}
+      <div>
+        <h3 className="text-xl font-bold mb-3">🛡️ Health Checks</h3>
+        <div className="grid gap-2">
+          {checks.map(check => (
+            <div key={check.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${getStatusColor(check.ultimo_resultado)}`} />
+                <span>{check.nombre}</span>
+              </div>
+              <div className="text-sm text-gray-500">
+                {check.tiempo_respuesta_ms}ms | 
+                Racha: {check.racha_actual > 0 ? `✅${check.racha_actual}` : `❌${Math.abs(check.racha_actual)}`}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default SystemHealth;
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+RESUMEN: QUÉ HACEN LOS AGENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+GUARDIAN.IA (Cada 1-60 minutos según configuración):
+✓ Ejecuta pruebas automáticas
+✓ Detecta cuando algo falla
+✓ Crea bugs automáticamente
+✓ Detecta REGRESIONES (bugs que vuelven)
+✓ Mantiene historial de salud
+
+DEBUGGER.IA (Cuando hay bugs):
+✓ Analiza bugs detectados
+✓ Diagnostica causa raíz
+✓ Propone soluciones
+✓ Identifica archivos a modificar
+✓ Puede aplicar arreglos (con supervisión)
+
+RESULTADO:
+- Las cosas que se caigan se detectan EN MINUTOS, no cuando tú lo descubres
+- Los bugs que vuelven se marcan como REGRESIÓN (prioridad crítica)
+- Hay un historial de qué funcionó y qué no
+- Los agentes TRABAJAN constantemente, no esperan a que les pidas
+
+═══════════════════════════════════════════════════════════════════════════════

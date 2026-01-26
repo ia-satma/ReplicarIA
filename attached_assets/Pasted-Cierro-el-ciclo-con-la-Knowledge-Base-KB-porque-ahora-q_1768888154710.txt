@@ -1,0 +1,216 @@
+Cierro el ciclo con la Knowledge Base (KB), porque ahora que A1–A7 están afinados, la KB debe servirles como fuente única de NORMA y criterios, y no como un repositorio genérico.
+La planteo como v2 operativa: qué debe contener, cómo se organiza y cómo la consumen los agentes.
+ 
+1) Rol ajustado de la Knowledge Base
+La KB no es solo “biblioteca”; es el módulo normativo y de contexto que:
+•	provee a los agentes de:
+o	[NORMA] literal (artículos, reglas, NOM, tesis),
+o	[INTERPRETACIÓN] acotada (cómo se usa en la plataforma),
+o	ejemplos tipo por tipología de servicio,
+•	centraliza las referencias a:
+o	CFF, LISR, LIVA,
+o	NOM 151,
+o	RMF,
+o	criterios normativos y no vinculativos del SAT,
+o	tesis clave (incluida la de IA/SCJN que ya comentaste).
+Objetivo: que A1–A7 nunca “inventen” norma ni criterio; solo lean de la KB.
+________________________________________
+2) Estructura sugerida de la KB (carpetas lógicas)
+Propongo cinco bloques:
+1.	Normativa primaria y secundaria
+2.	Guías por pilar (4 pilares)
+3.	Tipologías de servicio
+4.	EFOS/69 B y proveedores
+5.	Plantillas y ejemplos de uso
+Cada bloque marcado claramente con [NORMA] y [INTERPRETACIÓN] donde corresponda.
+________________________________________
+2.1. Normativa primaria y secundaria
+Carpeta: /normativa
+Subcarpetas:
+•	/normativa/cff
+o	CFF_5.md – [NORMA + notas de uso]
+o	CFF_5A.md –
+• encabezado: texto literal del art. 5 A CFF (vinculado al PDF oficial).
+• sección [INTERPRETACIÓN]:
+	cómo A1 lo utiliza (razón de negocios),
+	cómo A3 lo menciona,
+	qué no debe extrapolarse.
+o	CFF_27.md – requisitos generales.
+o	CFF_29_29A.md – CFDI.
+o	CFF_69B.md – materialidad/EFOS.
+•	/normativa/lisr
+o	LISR_25.md – catálogo de deducciones.
+o	LISR_27.md – requisitos de deducciones, marcando fracciones clave para servicios: I, III, IV, XVIII, XIX.
+o	LISR_28.md – no deducibles (resaltando fracciones relevantes).
+•	/normativa/liva
+o	LIVA_5.md – requisitos para acreditamiento.
+o	LIVA_articulos_clave.md.
+•	/normativa/nom151
+o	NOM_151_SCFl_2016.md – extractos relevantes + cómo soporta trazabilidad.
+•	/normativa/rmf
+o	RMF_20XX_resumen_servicios.md – reglas RMF aplicables a CFDI, servicios, retenciones, etc.
+•	/normativa/jurisprudencia
+o	Tesis_IA_SCJN_II2oC_J1K_12a.md –
+• [NORMA]: resumen neutral de la tesis,
+• [INTERPRETACIÓN]: cómo legitima el uso de IA como auxiliar.
+o	Tesis_materialidad_deducciones.md.
+o	Tesis_estricta_indispensabilidad.md.
+o	Tesis_69B_EFOS_carga_prueba.md.
+Cada archivo con:
+•	bloque [NORMA] (fragmento relevante y link oficial, por ejemplo:
+CFF – URL: https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf)
+•	bloque [INTERPRETACIÓN EN REVISAR IA] (1–3 párrafos orientados a cómo lo usan los agentes).
+________________________________________
+2.2. Guías por pilar (4 pilares)
+Carpeta: /pilares
+Subcarpetas:
+•	/pilares/razon_negocios
+o	Guia_A1_5A_CFF.md –
+• definiciones internas de RN,
+• criterios de scoring A1,
+• ejemplos de “CONFORME / CONDICIONADA / NO CONFORME”.
+•	/pilares/beneficio_economico
+o	Guia_A1_A5_BEE.md –
+• cómo A1 describe el BEE,
+• cómo A5 lo cuantifica,
+• ejemplos por sector (gimnasios, construcción, etc.).
+•	/pilares/materialidad
+o	Guia_materialidad_servicios.md –
+• checklists mínimos de evidencia por tipología,
+• ejemplos de matrices de materialidad completas/incompletas,
+• pautas para A3 y A7.
+•	/pilares/trazabilidad
+o	Guia_trazabilidad_NOM151.md –
+• qué significa “fecha cierta” en tu contexto,
+• cómo se registra en la plataforma,
+• qué exige cada fase (F0–F9) en términos de timestamps y versionado.
+Cada guía con:
+•	vínculo a artículos relevantes (CFF, LISR, NOM),
+•	pautas aplicables a todos los servicios, y
+•	secciones específicas por tipo de servicio cuando sea muy distinto (ej. marketing vs software).
+________________________________________
+2.3. Tipologías de servicio
+Carpeta: /tipologias
+Archivos tipo:
+•	TIPO_CONSULTORIA_MACRO.md
+•	TIPO_CONSULTORIA_ESTRATEGICA.md
+•	TIPO_SOFTWARE_SAAS_DESARROLLO.md
+•	TIPO_MARKETING_DIGITAL.md
+•	TIPO_INTRAGRUPO_MANAGEMENT_FEE.md
+•	TIPO_ESG_COMPLIANCE.md, etc.
+Cada archivo debe contener, de manera fija:
+1.	Descripción de la tipología
+o	qué se entiende internamente por ese tipo de servicio.
+2.	Riesgo fiscal inherente (bajo/medio/alto/muy alto)
+o	ejemplos de operaciones típicas.
+3.	Checklists mínimos por pilar:
+o	Razón de negocios (inputs A1):
+• preguntas que sí o sí debe contestar el SIB.
+o	Beneficio económico (A1/A5):
+• ejemplos de BEE aceptables (“incremento X de socios”, “mejora en retención Y”, etc).
+o	Materialidad (A3/A7):
+• lista de evidencias mínimas:
+	consultoría: contrato, minutas, V1/VF de informes, matriz de recomendaciones, evidencia de uso;
+	marketing: brief, creatividades, reportes de plataforma, acta de cierre de campaña;
+	software: repositorio, tickets, UAT, acta de go live.
+o	Trazabilidad (A2/A7):
+• qué debe tener sello de tiempo (contratos, SOW, entregables críticos, CFDI, pagos).
+4.	Riesgos específicos / red flags típicos
+o	por ejemplo, en marketing: CFDI genéricos, campañas sin KPIs, proveedores sin presencia digital.
+5.	Notas para defensa (A7)
+o	argumentos estándar que suelen funcionar en cada tipología,
+o	errores recurrentes a evitar.
+Esto sirve de guía base para los agentes y para entrenar los checklists dinámicos.
+________________________________________
+2.4. EFOS/69 B y proveedores
+Carpeta: /efos_proveedores
+Archivos clave:
+•	Criterios_EFOS_69B.md
+o	resumen normativo del 69 B CFF,
+o	checklist de señales EFOS (ya muy bien definido en tu A6),
+o	cómo documentar la buena fe y la diligencia previa (lo que hace A6).
+•	Guia_DD_Proveedor.md
+o	pasos recomendados de due diligence según monto y tipo de servicio,
+o	“niveles” de DD (express, ampliada, profunda).
+•	Politica_interna_proveedores.md
+o	política para clientes:
+• cuándo se exige opinión 32 D,
+• cuándo REPSE es obligatorio,
+• cómo se actúa si un proveedor cae en lista presuntos/definitivos.
+Esta KB la usan principalmente A6, A3 y A7.
+________________________________________
+2.5. Plantillas y ejemplos
+Carpeta: /plantillas
+Archivos:
+•	Plantilla_SIB_BEE.md
+•	Plantilla_SOW_por_tipologia.md (una por tipo, o campos condicionales)
+•	Plantilla_Acta_Aceptacion.md
+•	Plantilla_Dictamen_A1.md, A3, A4, A5, A6, A7 (versión base)
+•	Ejemplos_Defense_File_COMPLETO.md
+o	Uno por tipología clave (Estudio macro, Fee intra grupo, ERP/software, Campaña marketing, etc.).
+Cada plantilla sirve de few shot para los agentes cuando generen sus salidas.
+________________________________________
+3) Cómo consumen la KB los agentes (reglas prácticas)
+Para evitar ruido:
+•	A1:
+o	consulta /normativa/cff/CFF_5A.md y /pilares/razon_negocios/Guia_A1_5A_CFF.md.
+o	consulta /tipologias/TIPO_X.md para saber qué preguntarle al usuario.
+•	A3:
+o	consulta /normativa/lisr/LISR_25_27_28.md, /normativa/cff/CFF_29_29A.md, /normativa/cff/CFF_69B.md.
+o	consulta /efos_proveedores/Criterios_EFOS_69B.md para su valoración de riesgo.
+•	A4:
+o	consulta /normativa/civil_mercantil/ (si decides incluirla) y /tipologias para ver cláusulas recomendadas por tipo.
+•	A5:
+o	consulta /tipologias/* para entender qué beneficios son razonables en cada tipo de servicio.
+•	A6:
+o	consume /efos_proveedores/* y /normativa/cff/CFF_69B.md.
+•	A7:
+o	consume prácticamente todo:
+• normativa,
+• tipologías,
+• tesis,
+• ejemplos de Defense File.
+ 
+4) Matriz NORMA / INTERPRETACIÓN (para evitar confusiones)
+Conviene que en cada archivo de norma tengas siempre esta estructura:
+# [NORMA] CFF – Artículo 69-B
+
+[Texto normativo relevante, extracto, con referencia y URL oficial]
+
+**Referencia oficial:**  
+https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf
+
+---
+
+# [INTERPRETACIÓN EN REVISAR-IA]
+
+- **Ámbito de uso:**  
+  • A3_FISCAL para riesgo EFOS y deducibilidad.  
+  • A6_PROVEEDOR para evaluación de proveedores.  
+  • A7_DEFENSA para argumentación ante SAT/TFJA.
+
+- **Límites:**  
+  • La plataforma **no** presume automáticamente que un proveedor es EFOS; solo marca señales y estatus en listas.  
+  • Cualquier cambio de estatus en listas 69-B debe actualizar el dictamen de A6 y la apreciación de A3.
+
+- **Buenas prácticas internas:**  
+  • Documentar siempre la debida diligencia previa a la contratación.  
+  • Si un proveedor pasa de presunto a definitivo, Reactivar A3/A7 para analizar afectación en deducciones pasadas.
+Esto evita que los agentes mezclen literal normativo con opiniones.
+ 
+5) Página pública “Base jurídica y metodología” (para tu web)
+Con todo esto, puedes alimentar una página pública en revisar ia.com con:
+•	Listado de normas base:
+• CFF, LISR, LIVA, NOM 151, RMF.
+•	Principios de diseño:
+• 4 pilares (RN, BEE, materialidad, trazabilidad),
+• flujo F0–F9,
+• uso de IA como herramienta auxiliar (tesis SCJN).
+•	Disclaimer técnico:
+• lo que ya redactamos.
+Con esto cierras el círculo:
+•	agentes bien definidos (A1–A7),
+•	KB ordenada,
+•	y una narrativa jurídica coherente frente a clientes y autoridades.
+Si quieres, el siguiente paso podría ser bajar esto a un checklist concreto de implementación (qué carpetas/archivos de KB crear primero, por orden de impacto), o revisar un caso real de gimnasio con la arquitectura ya afinada (proveedor, A1–A7 + Defense File) para validarla en la práctica.
+

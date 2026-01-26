@@ -1,0 +1,967 @@
+TOON: IMPLEMENTAR SISTEMA DE ACCESO EXCLUSIVO REVISAR.IA CON CÓDIGO OTP POR EMAIL
+
+OBJETIVO:
+- Landing y dashboard PROTEGIDOS (no públicos)
+- Solo usuarios autorizados en lista blanca
+- Login con email + código OTP de 6 dígitos
+- Código enviado por email, válido por 5 minutos
+- Sin contraseñas - solo verificación por email
+
+================================================================================
+PASO 1: CREAR TABLA DE USUARIOS AUTORIZADOS
+================================================================================
+
+CREAR: server/db/schema/auth.sql
+```sql
+-- Usuarios autorizados (lista blanca)
+CREATE TABLE IF NOT EXISTS usuarios_autorizados (
+  id VARCHAR(36) PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  nombre VARCHAR(255) NOT NULL,
+  empresa VARCHAR(255),
+  rol VARCHAR(50) DEFAULT 'usuario', -- admin, usuario
+  activo BOOLEAN DEFAULT true,
+  fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  ultimo_acceso TIMESTAMP,
+  metadata JSONB
+);
+
+-- Códigos OTP
+CREATE TABLE IF NOT EXISTS codigos_otp (
+  id VARCHAR(36) PRIMARY KEY,
+  usuario_id VARCHAR(36) REFERENCES usuarios_autorizados(id),
+  email VARCHAR(255) NOT NULL,
+  codigo VARCHAR(6) NOT NULL,
+  usado BOOLEAN DEFAULT false,
+  fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  fecha_expiracion TIMESTAMP NOT NULL,
+  ip_solicitud VARCHAR(45),
+  user_agent TEXT
+);
+
+-- Sesiones activas
+CREATE TABLE IF NOT EXISTS sesiones (
+  id VARCHAR(36) PRIMARY KEY,
+  usuario_id VARCHAR(36) REFERENCES usuarios_autorizados(id),
+  token VARCHAR(255) UNIQUE NOT NULL,
+  activa BOOLEAN DEFAULT true,
+  fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  fecha_expiracion TIMESTAMP NOT NULL,
+  ip VARCHAR(45),
+  user_agent TEXT
+);
+
+-- Índices
+CREATE INDEX idx_otp_email ON codigos_otp(email);
+CREATE INDEX idx_otp_codigo ON codigos_otp(codigo);
+CREATE INDEX idx_sesiones_token ON sesiones(token);
+
+-- Insertar usuarios autorizados iniciales (MODIFICAR CON TUS EMAILS)
+INSERT INTO usuarios_autorizados (id, email, nombre, empresa, rol) VALUES
+  ('usr-001', 'tu-email@empresa.com', 'Administrador', 'Tu Empresa', 'admin'),
+  ('usr-002', 'cliente1@empresa.com', 'Cliente Uno', 'Grupo Fortezza', 'usuario'),
+  ('usr-003', 'cliente2@empresa.com', 'Cliente Dos', 'Otra Empresa SA', 'usuario')
+ON CONFLICT (email) DO NOTHING;
+```
+
+================================================================================
+PASO 2: CREAR SERVICIO DE AUTENTICACIÓN
+================================================================================
+
+CREAR: server/services/auth/authService.ts
+```typescript
+import { v4 as uuidv4 } from 'uuid';
+import { db } from '../../db';
+import { sendEmail } from '../email';
+
+const OTP_EXPIRATION_MINUTES = 5;
+const SESSION_EXPIRATION_HOURS = 24;
+
+export class AuthService {
+
+  // Generar código OTP de 6 dígitos
+  private generateOTP(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  // Verificar si el email está autorizado
+  async isEmailAuthorized(email: string): Promise<boolean> {
+    const usuario = await db.query(
+      'SELECT id FROM usuarios_autorizados WHERE email = $1 AND activo = true',
+      [email.toLowerCase()]
+    );
+    return usuario.rows.length > 0;
+  }
+
+  // Obtener usuario por email
+  async getUsuarioByEmail(email: string) {
+    const result = await db.query(
+      'SELECT * FROM usuarios_autorizados WHERE email = $1 AND activo = true',
+      [email.toLowerCase()]
+    );
+    return result.rows[0] || null;
+  }
+
+  // Solicitar código de acceso
+  async solicitarCodigo(email: string, ip?: string, userAgent?: string): Promise<{ success: boolean; mensaje: string }> {
+    const emailLower = email.toLowerCase().trim();
+
+    // Verificar si está autorizado
+    const usuario = await this.getUsuarioByEmail(emailLower);
+    
+    if (!usuario) {
+      // NO revelar si el email existe o no (seguridad)
+      console.log(`⚠️ Intento de acceso no autorizado: ${emailLower}`);
+      return {
+        success: true, // Siempre decir "enviado" por seguridad
+        mensaje: 'Si tu email está registrado, recibirás un código de acceso.'
+      };
+    }
+
+    // Invalidar códigos anteriores no usados
+    await db.query(
+      'UPDATE codigos_otp SET usado = true WHERE email = $1 AND usado = false',
+      [emailLower]
+    );
+
+    // Generar nuevo código
+    const codigo = this.generateOTP();
+    const fechaExpiracion = new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000);
+
+    // Guardar en BD
+    await db.query(
+      `INSERT INTO codigos_otp (id, usuario_id, email, codigo, fecha_expiracion, ip_solicitud, user_agent)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [uuidv4(), usuario.id, emailLower, codigo, fechaExpiracion, ip, userAgent]
+    );
+
+    // Enviar email
+    await this.enviarEmailCodigo(emailLower, usuario.nombre, codigo);
+
+    console.log(`✅ Código enviado a: ${emailLower}`);
+
+    return {
+      success: true,
+      mensaje: 'Si tu email está registrado, recibirás un código de acceso.'
+    };
+  }
+
+  // Verificar código e iniciar sesión
+  async verificarCodigo(
+    email: string, 
+    codigo: string, 
+    ip?: string, 
+    userAgent?: string
+  ): Promise<{ success: boolean; token?: string; usuario?: any; mensaje: string }> {
+    const emailLower = email.toLowerCase().trim();
+
+    // Buscar código válido
+    const result = await db.query(
+      `SELECT co.*, ua.id as usuario_id, ua.nombre, ua.empresa, ua.rol
+       FROM codigos_otp co
+       JOIN usuarios_autorizados ua ON co.usuario_id = ua.id
+       WHERE co.email = $1 
+         AND co.codigo = $2 
+         AND co.usado = false 
+         AND co.fecha_expiracion > NOW()
+       ORDER BY co.fecha_creacion DESC
+       LIMIT 1`,
+      [emailLower, codigo]
+    );
+
+    if (result.rows.length === 0) {
+      console.log(`❌ Código inválido o expirado para: ${emailLower}`);
+      return {
+        success: false,
+        mensaje: 'Código inválido o expirado. Solicita uno nuevo.'
+      };
+    }
+
+    const otpRecord = result.rows[0];
+
+    // Marcar código como usado
+    await db.query(
+      'UPDATE codigos_otp SET usado = true WHERE id = $1',
+      [otpRecord.id]
+    );
+
+    // Crear sesión
+    const token = uuidv4() + '-' + uuidv4(); // Token largo y único
+    const fechaExpiracion = new Date(Date.now() + SESSION_EXPIRATION_HOURS * 60 * 60 * 1000);
+
+    await db.query(
+      `INSERT INTO sesiones (id, usuario_id, token, fecha_expiracion, ip, user_agent)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [uuidv4(), otpRecord.usuario_id, token, fechaExpiracion, ip, userAgent]
+    );
+
+    // Actualizar último acceso
+    await db.query(
+      'UPDATE usuarios_autorizados SET ultimo_acceso = NOW() WHERE id = $1',
+      [otpRecord.usuario_id]
+    );
+
+    console.log(`✅ Login exitoso: ${emailLower}`);
+
+    return {
+      success: true,
+      token,
+      usuario: {
+        id: otpRecord.usuario_id,
+        email: emailLower,
+        nombre: otpRecord.nombre,
+        empresa: otpRecord.empresa,
+        rol: otpRecord.rol
+      },
+      mensaje: 'Acceso concedido'
+    };
+  }
+
+  // Validar sesión activa
+  async validarSesion(token: string): Promise<{ valid: boolean; usuario?: any }> {
+    if (!token) {
+      return { valid: false };
+    }
+
+    const result = await db.query(
+      `SELECT s.*, ua.email, ua.nombre, ua.empresa, ua.rol
+       FROM sesiones s
+       JOIN usuarios_autorizados ua ON s.usuario_id = ua.id
+       WHERE s.token = $1 
+         AND s.activa = true 
+         AND s.fecha_expiracion > NOW()
+         AND ua.activo = true`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return { valid: false };
+    }
+
+    const sesion = result.rows[0];
+
+    return {
+      valid: true,
+      usuario: {
+        id: sesion.usuario_id,
+        email: sesion.email,
+        nombre: sesion.nombre,
+        empresa: sesion.empresa,
+        rol: sesion.rol
+      }
+    };
+  }
+
+  // Cerrar sesión
+  async cerrarSesion(token: string): Promise<void> {
+    await db.query(
+      'UPDATE sesiones SET activa = false WHERE token = $1',
+      [token]
+    );
+  }
+
+  // Enviar email con código
+  private async enviarEmailCodigo(email: string, nombre: string, codigo: string): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+          .container { max-width: 500px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%); padding: 30px; text-align: center; }
+          .header h1 { color: white; margin: 0; font-size: 24px; }
+          .content { padding: 40px 30px; text-align: center; }
+          .greeting { font-size: 18px; color: #374151; margin-bottom: 20px; }
+          .code-box { background: #F3F4F6; border-radius: 12px; padding: 25px; margin: 25px 0; }
+          .code { font-size: 42px; font-weight: bold; letter-spacing: 8px; color: #7C3AED; font-family: 'Courier New', monospace; }
+          .warning { display: flex; align-items: center; justify-content: center; gap: 8px; color: #F59E0B; font-size: 14px; margin-top: 15px; }
+          .footer { background: #F9FAFB; padding: 20px; text-align: center; color: #6B7280; font-size: 12px; }
+          .ignore { color: #9CA3AF; font-size: 12px; margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🔐 Revisar.IA</h1>
+          </div>
+          <div class="content">
+            <p class="greeting">¡Hola, <strong>${nombre}</strong>!</p>
+            <p>Has solicitado acceso a Revisar.IA. Aquí está tu código:</p>
+            
+            <div class="code-box">
+              <div class="code">${codigo}</div>
+            </div>
+            
+            <div class="warning">
+              ⚠️ Este código es válido por ${OTP_EXPIRATION_MINUTES} minutos
+            </div>
+            
+            <p class="ignore">Si no solicitaste este código, ignora este correo.</p>
+          </div>
+          <div class="footer">
+            <p><strong>Revisar.IA</strong> - Sistema de Auditoría Fiscal Inteligente</p>
+            <p>Este es un correo automático, no responder.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await sendEmail({
+      to: email,
+      subject: `🔐 Tu código de acceso a Revisar.IA: ${codigo}`,
+      html
+    });
+  }
+}
+
+export const authService = new AuthService();
+```
+
+================================================================================
+PASO 3: CREAR RUTAS DE AUTENTICACIÓN
+================================================================================
+
+CREAR: server/routes/auth.ts
+```typescript
+import { Router } from 'express';
+import { authService } from '../services/auth/authService';
+
+const router = Router();
+
+// POST /api/auth/request-code - Solicitar código
+router.post('/request-code', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email requerido' });
+    }
+
+    const ip = req.ip || req.connection.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+
+    const result = await authService.solicitarCodigo(email, ip, userAgent);
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error solicitando código:', error);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+// POST /api/auth/verify-code - Verificar código y login
+router.post('/verify-code', async (req, res) => {
+  try {
+    const { email, codigo } = req.body;
+
+    if (!email || !codigo) {
+      return res.status(400).json({ error: 'Email y código requeridos' });
+    }
+
+    const ip = req.ip || req.connection.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+
+    const result = await authService.verificarCodigo(email, codigo, ip, userAgent);
+
+    if (result.success) {
+      // Establecer cookie con el token
+      res.cookie('revisar_token', result.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000 // 24 horas
+      });
+    }
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error verificando código:', error);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+// GET /api/auth/session - Verificar sesión actual
+router.get('/session', async (req, res) => {
+  try {
+    const token = req.cookies?.revisar_token || req.headers.authorization?.replace('Bearer ', '');
+
+    if (!token) {
+      return res.json({ authenticated: false });
+    }
+
+    const result = await authService.validarSesion(token);
+
+    res.json({
+      authenticated: result.valid,
+      usuario: result.usuario || null
+    });
+  } catch (error: any) {
+    console.error('Error verificando sesión:', error);
+    res.json({ authenticated: false });
+  }
+});
+
+// POST /api/auth/logout - Cerrar sesión
+router.post('/logout', async (req, res) => {
+  try {
+    const token = req.cookies?.revisar_token || req.headers.authorization?.replace('Bearer ', '');
+
+    if (token) {
+      await authService.cerrarSesion(token);
+    }
+
+    res.clearCookie('revisar_token');
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Error cerrando sesión:', error);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+export default router;
+```
+
+================================================================================
+PASO 4: CREAR MIDDLEWARE DE PROTECCIÓN
+================================================================================
+
+CREAR: server/middleware/authMiddleware.ts
+```typescript
+import { Request, Response, NextFunction } from 'express';
+import { authService } from '../services/auth/authService';
+
+export interface AuthRequest extends Request {
+  usuario?: {
+    id: string;
+    email: string;
+    nombre: string;
+    empresa: string;
+    rol: string;
+  };
+}
+
+// Middleware para rutas protegidas
+export async function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const token = req.cookies?.revisar_token || req.headers.authorization?.replace('Bearer ', '');
+
+    if (!token) {
+      return res.status(401).json({ error: 'No autorizado', redirect: '/login' });
+    }
+
+    const result = await authService.validarSesion(token);
+
+    if (!result.valid) {
+      res.clearCookie('revisar_token');
+      return res.status(401).json({ error: 'Sesión expirada', redirect: '/login' });
+    }
+
+    // Agregar usuario al request
+    req.usuario = result.usuario;
+    next();
+  } catch (error) {
+    console.error('Error en auth middleware:', error);
+    res.status(500).json({ error: 'Error de autenticación' });
+  }
+}
+
+// Middleware solo para admins
+export async function requireAdmin(req: AuthRequest, res: Response, next: NextFunction) {
+  await requireAuth(req, res, () => {
+    if (req.usuario?.rol !== 'admin') {
+      return res.status(403).json({ error: 'Acceso denegado - Solo administradores' });
+    }
+    next();
+  });
+}
+```
+
+================================================================================
+PASO 5: PROTEGER RUTAS EN EL SERVIDOR
+================================================================================
+
+MODIFICAR: server/index.ts
+```typescript
+import express from 'express';
+import cookieParser from 'cookie-parser';
+import authRoutes from './routes/auth';
+import { requireAuth } from './middleware/authMiddleware';
+
+const app = express();
+
+// Middlewares básicos
+app.use(express.json());
+app.use(cookieParser());
+
+// Rutas públicas (solo login)
+app.use('/api/auth', authRoutes);
+
+// Servir página de login (pública)
+app.get('/login', (req, res) => {
+  res.sendFile('login.html', { root: './public' });
+});
+
+// ============================================
+// TODAS las demás rutas son PROTEGIDAS
+// ============================================
+
+// API protegida
+app.use('/api', requireAuth);
+app.use('/api/empresas', empresasRoutes);
+app.use('/api/proveedores', proveedoresRoutes);
+app.use('/api/proyectos', proyectosRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/upload', uploadRoutes);
+// ... otras rutas
+
+// Páginas protegidas (landing, dashboard, etc.)
+app.get('/', requireAuth, (req, res) => {
+  res.sendFile('index.html', { root: './dist' }); // o tu build
+});
+
+app.get('/dashboard', requireAuth, (req, res) => {
+  res.sendFile('index.html', { root: './dist' });
+});
+
+app.get('/chat', requireAuth, (req, res) => {
+  res.sendFile('index.html', { root: './dist' });
+});
+
+// Cualquier otra ruta que no sea /login requiere auth
+app.get('*', (req, res, next) => {
+  if (req.path === '/login' || req.path.startsWith('/api/auth')) {
+    return next();
+  }
+  requireAuth(req as any, res, () => {
+    res.sendFile('index.html', { root: './dist' });
+  });
+});
+```
+
+================================================================================
+PASO 6: CREAR PÁGINA DE LOGIN
+================================================================================
+
+CREAR: client/pages/Login.tsx
+```tsx
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Mail, Key, ArrowRight, Loader2, Shield, Lock } from 'lucide-react';
+
+export function LoginPage() {
+  const [step, setStep] = useState<'email' | 'code'>('email');
+  const [email, setEmail] = useState('');
+  const [codigo, setCodigo] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [mensaje, setMensaje] = useState('');
+  const navigate = useNavigate();
+
+  const handleSolicitarCodigo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/auth/request-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setMensaje(data.mensaje);
+        setStep('code');
+      } else {
+        setError(data.error || 'Error al enviar código');
+      }
+    } catch (err) {
+      setError('Error de conexión');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerificarCodigo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/auth/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, codigo })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Guardar token en localStorage como backup
+        if (data.token) {
+          localStorage.setItem('revisar_token', data.token);
+          localStorage.setItem('revisar_usuario', JSON.stringify(data.usuario));
+        }
+        // Redirigir al dashboard
+        navigate('/dashboard');
+      } else {
+        setError(data.mensaje || 'Código inválido');
+      }
+    } catch (err) {
+      setError('Error de conexión');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCodigoChange = (value: string) => {
+    // Solo números, máximo 6 dígitos
+    const cleaned = value.replace(/\D/g, '').slice(0, 6);
+    setCodigo(cleaned);
+    
+    // Auto-submit cuando se completan 6 dígitos
+    if (cleaned.length === 6) {
+      setTimeout(() => {
+        document.getElementById('btn-verificar')?.click();
+      }, 200);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 flex items-center justify-center p-4">
+      {/* Fondo animado */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute w-96 h-96 bg-purple-500/20 rounded-full blur-3xl -top-20 -left-20 animate-pulse" />
+        <div className="absolute w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl -bottom-20 -right-20 animate-pulse delay-1000" />
+      </div>
+
+      <div className="relative w-full max-w-md">
+        {/* Card principal */}
+        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 overflow-hidden">
+          
+          {/* Header */}
+          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-8 text-center">
+            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Shield className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-white">Revisar.IA</h1>
+            <p className="text-purple-200 text-sm mt-1">Acceso Exclusivo</p>
+          </div>
+
+          {/* Contenido */}
+          <div className="p-8">
+            {step === 'email' ? (
+              <form onSubmit={handleSolicitarCodigo}>
+                <div className="text-center mb-6">
+                  <h2 className="text-xl font-semibold text-white">Bienvenido</h2>
+                  <p className="text-purple-200 text-sm mt-1">
+                    Ingresa tu email corporativo para recibir tu código de acceso
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-300" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="tu@empresa.com"
+                      required
+                      className="w-full pl-12 pr-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                    />
+                  </div>
+
+                  {error && (
+                    <p className="text-red-400 text-sm text-center">{error}</p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading || !email}
+                    className="w-full py-4 bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-semibold rounded-xl hover:from-purple-600 hover:to-indigo-600 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        Solicitar código
+                        <ArrowRight className="w-5 h-5" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleVerificarCodigo}>
+                <div className="text-center mb-6">
+                  <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center mx-auto mb-3">
+                    <Mail className="w-6 h-6 text-green-400" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-white">Código enviado</h2>
+                  <p className="text-purple-200 text-sm mt-1">
+                    Revisa tu email <strong className="text-white">{email}</strong>
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-300" />
+                    <input
+                      type="text"
+                      value={codigo}
+                      onChange={(e) => handleCodigoChange(e.target.value)}
+                      placeholder="000000"
+                      maxLength={6}
+                      autoFocus
+                      className="w-full pl-12 pr-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white text-center text-2xl font-mono tracking-[0.5em] placeholder-purple-300/50 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    />
+                  </div>
+
+                  <p className="text-purple-300 text-xs text-center flex items-center justify-center gap-1">
+                    <Lock className="w-3 h-3" />
+                    El código expira en 5 minutos
+                  </p>
+
+                  {error && (
+                    <p className="text-red-400 text-sm text-center">{error}</p>
+                  )}
+
+                  <button
+                    id="btn-verificar"
+                    type="submit"
+                    disabled={loading || codigo.length !== 6}
+                    className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-xl hover:from-green-600 hover:to-emerald-600 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        Verificar y acceder
+                        <ArrowRight className="w-5 h-5" />
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setStep('email'); setCodigo(''); setError(''); }}
+                    className="w-full py-2 text-purple-300 hover:text-white text-sm transition"
+                  >
+                    ← Usar otro email
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <p className="text-purple-300/60 text-xs text-center mt-6">
+          Acceso restringido a usuarios autorizados
+        </p>
+      </div>
+    </div>
+  );
+}
+```
+
+================================================================================
+PASO 7: CREAR HOOK Y CONTEXTO DE AUTENTICACIÓN
+================================================================================
+
+CREAR: client/context/AuthContext.tsx
+```tsx
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+
+interface Usuario {
+  id: string;
+  email: string;
+  nombre: string;
+  empresa: string;
+  rol: string;
+}
+
+interface AuthContextType {
+  usuario: Usuario | null;
+  loading: boolean;
+  logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    verificarSesion();
+  }, []);
+
+  const verificarSesion = async () => {
+    try {
+      const response = await fetch('/api/auth/session');
+      const data = await response.json();
+
+      if (data.authenticated && data.usuario) {
+        setUsuario(data.usuario);
+      } else {
+        setUsuario(null);
+        // Redirigir a login si no está en /login
+        if (location.pathname !== '/login') {
+          navigate('/login');
+        }
+      }
+    } catch (error) {
+      console.error('Error verificando sesión:', error);
+      setUsuario(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (error) {
+      console.error('Error en logout:', error);
+    } finally {
+      localStorage.removeItem('revisar_token');
+      localStorage.removeItem('revisar_usuario');
+      setUsuario(null);
+      navigate('/login');
+    }
+  };
+
+  return (
+    <AuthContext.Provider value={{ usuario, loading, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth debe usarse dentro de AuthProvider');
+  }
+  return context;
+}
+```
+
+================================================================================
+PASO 8: CONFIGURAR RUTAS EN FRONTEND
+================================================================================
+
+MODIFICAR: client/App.tsx
+```tsx
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { LoginPage } from './pages/Login';
+import { Dashboard } from './pages/Dashboard';
+import { Landing } from './pages/Landing';
+import { Chat } from './pages/Chat';
+
+// Componente para rutas protegidas
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { usuario, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!usuario) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      {/* Ruta pública - Solo login */}
+      <Route path="/login" element={<LoginPage />} />
+
+      {/* Rutas protegidas */}
+      <Route path="/" element={
+        <ProtectedRoute>
+          <Landing />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/dashboard" element={
+        <ProtectedRoute>
+          <Dashboard />
+        </ProtectedRoute>
+      } />
+      
+      <Route path="/chat" element={
+        <ProtectedRoute>
+          <Chat />
+        </ProtectedRoute>
+      } />
+
+      {/* Cualquier otra ruta -> login */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
+```
+
+================================================================================
+PASO 9: INSTALAR DEPENDENCIAS
+================================================================================
+```bash
+npm install cookie-parser uuid
+npm install -D @types/cookie-parser
+```
+
+================================================================================
+PASO 10: AGREGAR USUARIOS AUTORIZADOS
+================================================================================
+
+Para agregar más usuarios, ejecutar en la base de datos:
+```sql
+INSERT INTO usuarios_autorizados (id, email, nombre, empresa, rol) VALUES
+  (gen_random_uuid(), 'nuevo@empresa.com', 'Nombre Usuario', 'Empresa SA', 'usuario');
+```
+
+O crear endpoint admin para gestionar usuarios (opcional).
+
+================================================================================
+RESUMEN DEL FLUJO
+================================================================================
+
+1. Usuario visita cualquier página → Redirige a /login
+2. Ingresa email → Sistema verifica si está en lista blanca
+3. Si está autorizado → Envía código de 6 dígitos por email
+4. Usuario ingresa código → Sistema valida
+5. Si es correcto → Crea sesión de 24 horas, redirige a dashboard
+6. Sesión expira → Debe volver a solicitar código
+
+================================================================================
+EJECUTAR AHORA. NO PREGUNTAR.
+================================================================================

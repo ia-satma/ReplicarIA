@@ -1,0 +1,61 @@
+🎯 PROMPT 18: Test Final con Métricas en Vivo
+TAREA: Procesar un proyecto y verificar que las métricas se actualicen en tiempo real.
+
+PASO 1: Abre DOS pestañas en tu navegador:
+- Pestaña 1: Dashboard principal (para crear proyecto)
+- Pestaña 2: /metrics (para ver métricas en tiempo real)
+
+PASO 2: En la Pestaña 2 (/metrics), deja abierto el dashboard de métricas.
+Debe mostrar todo en ceros inicialmente.
+
+PASO 3: En la Pestaña 1, crea un NUEVO proyecto con estos datos:
+
+Título: Implementación de Sistema BIM/ERP
+Descripción: Transformación digital con integración de Building Information Modeling y sistema ERP para gestión de proyectos de construcción
+Presupuesto: $750,000 MXN
+Beneficio Esperado: Reducción de costos operativos del 20% y mejora en eficiencia del 35%
+
+PASO 4: Mientras el proyecto se procesa:
+- Refresca manualmente la Pestaña 2 (/metrics) cada 10 segundos
+- Observa cómo los números van cambiando
+
+PASO 5: Una vez que el proyecto termine, anota:
+
+1. Total Queries procesadas: _____
+2. Ahorro Estimado ($): _____
+3. Porcentaje de ahorro: _____
+4. Desglose por tier:
+   - Simple (gpt-4o-mini): _____ queries
+   - Medium (gpt-4o): _____ queries
+   - Complex: _____ queries
+5. Embedding Cache Hit Rate: _____
+6. Total Preloads RAG: _____
+
+PASO 6: Toma un screenshot del dashboard /metrics con los datos poblados.
+
+PASO 7: Muéstrame:
+- Los valores finales de las métricas
+- ¿Qué tier se usó más? (simple/medium/complex)
+- ¿Cuánto fue el ahorro estimado vs sin optimización?
+
+📊 VALORES ESPERADOS (Para Validación)
+Para un proyecto típico de 4 agentes + PMO + Strategy Council:
+
+Métrica	Valor Esperado
+Total Queries	12-20
+Queries Simple (gpt-4o-mini)	4-8
+Queries Medium (gpt-4o)	8-12
+Ahorro Estimado	$0.20 - $0.50
+% Ahorro	40-65%
+Embedding Cache Hits	0-20% (bajo en primer proyecto)
+RAG Preloads	1
+🎉 CHECKLIST FINAL
+Una vez que tengas los resultados, verificaremos:
+
+ Dashboard /metrics muestra datos > 0
+ Query Router seleccionó mayormente gpt-4o-mini (tier simple)
+ Ahorro estimado es > $0.15
+ RAG Preload = 1
+ Embedding Cache tiene hits (puede ser bajo)
+ Proyecto procesado exitosamente
+Ejecuta el TEST FINAL y muéstrame los resultados. Si todo funciona, habremos completado exitosamente:

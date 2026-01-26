@@ -1,0 +1,79 @@
+// frontend/src/components/Footer.jsx
+import { useState } from 'react';
+
+const Footer = () => {
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
+
+  return (
+    <>
+      <footer className="bg-gray-900 text-gray-300 py-8 mt-auto">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            
+            {/* Columna 1: Sobre Revisar.IA */}
+            <div>
+              <h3 className="text-white font-bold text-lg mb-4">Revisar.IA</h3>
+              <p className="text-sm">
+                Plataforma tecnológica de apoyo para la gestión de riesgos fiscales 
+                y cumplimiento en México.
+              </p>
+            </div>
+
+            {/* Columna 2: Enlaces */}
+            <div>
+              <h3 className="text-white font-bold text-lg mb-4">Información Legal</h3>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <button 
+                    onClick={() => setShowDisclaimer(true)}
+                    className="hover:text-white transition-colors"
+                  >
+                    📋 Disclaimer Legal
+                  </button>
+                </li>
+                <li>
+                  <a href="/privacidad" className="hover:text-white transition-colors">
+                    🔒 Aviso de Privacidad
+                  </a>
+                </li>
+                <li>
+                  <a href="/terminos" className="hover:text-white transition-colors">
+                    📄 Términos y Condiciones
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            {/* Columna 3: Contacto */}
+            <div>
+              <h3 className="text-white font-bold text-lg mb-4">Contacto</h3>
+              <p className="text-sm">
+                <strong>Email:</strong> contacto@revisar-ia.com<br/>
+                <strong>Soporte:</strong> soporte@revisar-ia.com
+              </p>
+            </div>
+          </div>
+
+          {/* Línea divisoria y copyright */}
+          <div className="border-t border-gray-700 mt-8 pt-6 text-center">
+            <p className="text-sm text-gray-400">
+              © {new Date().getFullYear()} Revisar.IA - Plataforma tecnológica de apoyo. 
+              <strong className="text-gray-300"> No somos despacho contable ni legal.</strong>
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              La IA es utilizada como herramienta auxiliar. Las decisiones fiscales son 
+              responsabilidad de la empresa usuaria y sus asesores.
+            </p>
+          </div>
+        </div>
+      </footer>
+
+      {/* Modal de Disclaimer */}
+      {showDisclaimer && (
+        <DisclaimerModal onClose={() => setShowDisclaimer(false)} />
+      )}
+    </>
+  );
+};
+
+export default Footer;

@@ -1,0 +1,512 @@
+═══════════════════════════════════════════════════════════════════════════════
+🔒 PROTOCOLO DE VERIFICACIÓN OBLIGATORIA 🔒
+═══════════════════════════════════════════════════════════════════════════════
+
+REGLA: NO PUEDES DECIR "IMPLEMENTADO" SIN EJECUTAR ESTAS PRUEBAS
+REGLA: CADA PRUEBA DEBE MOSTRAR EL OUTPUT REAL, NO "DEBERÍA FUNCIONAR"
+REGLA: SI UNA PRUEBA FALLA, ARREGLAR ANTES DE CONTINUAR
+
+═══════════════════════════════════════════════════════════════════════════════
+CREAR ESTE ARCHIVO: server/tests/verificacion.py
+═══════════════════════════════════════════════════════════════════════════════
+
+```python
+#!/usr/bin/env python3
+"""
+SCRIPT DE VERIFICACIÓN COMPLETA DEL SISTEMA
+Ejecutar después de CADA cambio: python server/tests/verificacion.py
+"""
+
+import requests
+import json
+import sys
+from datetime import datetime
+
+BASE_URL = "http://localhost:5000"
+
+class Colores:
+    VERDE = '\033[92m'
+    ROJO = '\033[91m'
+    AMARILLO = '\033[93m'
+    AZUL = '\033[94m'
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+
+def ok(msg):
+    print(f"{Colores.VERDE}✅ PASS{Colores.RESET} - {msg}")
+    return True
+
+def fail(msg, detalle=""):
+    print(f"{Colores.ROJO}❌ FAIL{Colores.RESET} - {msg}")
+    if detalle:
+        print(f"   {Colores.AMARILLO}Detalle: {detalle}{Colores.RESET}")
+    return False
+
+def warn(msg):
+    print(f"{Colores.AMARILLO}⚠️ WARN{Colores.RESET} - {msg}")
+
+def header(titulo):
+    print(f"\n{Colores.AZUL}{Colores.BOLD}{'='*60}")
+    print(f" {titulo}")
+    print(f"{'='*60}{Colores.RESET}\n")
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TEST 1: HEALTH CHECK
+# ═══════════════════════════════════════════════════════════════════════════
+def test_health():
+    header("TEST 1: HEALTH CHECK")
+    try:
+        r = requests.get(f"{BASE_URL}/api/health", timeout=5)
+        if r.status_code == 200:
+            data = r.json()
+            print(f"   Respuesta: {json.dumps(data, indent=2)}")
+            return ok("Health check responde 200")
+        else:
+            return fail(f"Health check retorna {r.status_code}", r.text[:200])
+    except Exception as e:
+        return fail("Health check no accesible", str(e))
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TEST 2: CHAT FACTURAR.IA
+# ═══════════════════════════════════════════════════════════════════════════
+def test_chat_facturar():
+    header("TEST 2: CHAT FACTURAR.IA")
+    try:
+        r = requests.post(
+            f"{BASE_URL}/api/asistente-facturacion/chat",
+            json={"message": "hola, ¿qué puedes hacer?"},
+            timeout=30  # 30 segundos para respuesta de LLM
+        )
+        
+        print(f"   Status: {r.status_code}")
+        print(f"   Respuesta: {r.text[:500]}")
+        
+        if r.status_code == 200:
+            data = r.json()
+            # Verificar que hay respuesta real
+            respuesta = data.get('response') or data.get('message') or data.get('text') or ''
+            if len(respuesta) > 10:
+                return ok(f"Chat responde con {len(respuesta)} caracteres")
+            else:
+                return fail("Chat responde pero sin contenido útil", f"Respuesta: {respuesta}")
+        else:
+            return fail(f"Chat retorna {r.status_code}", r.text[:300])
+            
+    except requests.exceptions.Timeout:
+        return fail("Chat TIMEOUT después de 30 segundos")
+    except Exception as e:
+        return fail("Chat no accesible", str(e))
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TEST 3: CREAR CLIENTE (sin razon_social)
+# ═══════════════════════════════════════════════════════════════════════════
+def test_crear_cliente():
+    header("TEST 3: CREAR CLIENTE SIN RAZON_SOCIAL")
+    try:
+        # Intentar crear cliente con SOLO nombre
+        r = requests.post(
+            f"{BASE_URL}/api/clientes",
+            json={
+                "nombre": f"Cliente Test Verificacion {datetime.now().strftime('%H%M%S')}",
+                "rfc": "XAXX010101000"
+            },
+            timeout=10
+        )
+        
+        print(f"   Status: {r.status_code}")
+        print(f"   Respuesta: {r.text[:500]}")
+        
+        if r.status_code in [200, 201]:
+            data = r.json()
+            if data.get('id') or data.get('success'):
+                return ok("Cliente creado sin necesidad de razon_social")
+            else:
+                return fail("Respuesta 200 pero sin ID de cliente")
+        elif r.status_code == 422:
+            return fail("Aún requiere campos obligatorios", r.text[:200])
+        else:
+            return fail(f"Error {r.status_code}", r.text[:200])
+            
+    except Exception as e:
+        return fail("Endpoint clientes no accesible", str(e))
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TEST 4: ENDPOINT ONBOARDING/INVESTIGAR
+# ═══════════════════════════════════════════════════════════════════════════
+def test_onboarding_investigar():
+    header("TEST 4: ONBOARDING INVESTIGAR")
+    try:
+        r = requests.post(
+            f"{BASE_URL}/api/onboarding/investigar",
+            json={"sitio_web": "sat.gob.mx"},
+            timeout=60  # Puede tardar si usa AI
+        )
+        
+        print(f"   Status: {r.status_code}")
+        print(f"   Respuesta: {r.text[:500]}")
+        
+        if r.status_code == 405:
+            return fail("Endpoint NO EXISTE (405 Method Not Allowed)")
+        elif r.status_code == 404:
+            return fail("Endpoint NO EXISTE (404 Not Found)")
+        elif r.status_code == 200:
+            data = r.json()
+            if data.get('success'):
+                datos = data.get('datos', {})
+                campos = len([k for k, v in datos.items() if v])
+                return ok(f"Investigar funciona - {campos} campos auto-completados")
+            else:
+                return fail("Responde pero success=false", data.get('error', ''))
+        else:
+            return fail(f"Error {r.status_code}", r.text[:200])
+            
+    except requests.exceptions.Timeout:
+        return fail("TIMEOUT después de 60 segundos")
+    except Exception as e:
+        return fail("Endpoint no accesible", str(e))
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TEST 5: ESTADO DEL ACERVO
+# ═══════════════════════════════════════════════════════════════════════════
+def test_estado_acervo():
+    header("TEST 5: ESTADO DEL ACERVO")
+    try:
+        r = requests.get(f"{BASE_URL}/api/biblioteca/acervo/estado", timeout=10)
+        
+        print(f"   Status: {r.status_code}")
+        print(f"   Respuesta: {r.text[:800]}")
+        
+        if r.status_code == 404:
+            return fail("Endpoint NO EXISTE (404)")
+        elif r.status_code == 200:
+            data = r.json()
+            if data.get('success'):
+                agentes = data.get('agentes', [])
+                progreso = data.get('progreso_global', 0)
+                if len(agentes) >= 7:
+                    return ok(f"Estado acervo funciona - {len(agentes)} agentes, {progreso}% progreso")
+                elif len(agentes) > 0:
+                    warn(f"Solo {len(agentes)} agentes configurados (esperados 7)")
+                    return ok(f"Estado acervo funciona parcialmente")
+                else:
+                    return fail("Responde pero sin agentes configurados")
+            else:
+                return fail("Responde pero success=false", data.get('error', ''))
+        else:
+            return fail(f"Error {r.status_code}", r.text[:200])
+            
+    except Exception as e:
+        return fail("Endpoint no accesible", str(e))
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TEST 6: BIBLIOTECA CHAT
+# ═══════════════════════════════════════════════════════════════════════════
+def test_biblioteca_chat():
+    header("TEST 6: BIBLIOTECA CHAT")
+    try:
+        r = requests.post(
+            f"{BASE_URL}/api/biblioteca/chat",
+            json={"message": "¿qué documentos necesito subir?"},
+            timeout=30
+        )
+        
+        print(f"   Status: {r.status_code}")
+        print(f"   Respuesta: {r.text[:500]}")
+        
+        if r.status_code == 200:
+            data = r.json()
+            respuesta = data.get('response') or data.get('message') or ''
+            if len(respuesta) > 20:
+                return ok(f"Biblioteca chat funciona - {len(respuesta)} chars")
+            else:
+                return fail("Responde pero sin contenido útil")
+        else:
+            return fail(f"Error {r.status_code}", r.text[:200])
+            
+    except Exception as e:
+        return fail("Endpoint no accesible", str(e))
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TEST 7: REINGESTAR DOCUMENTO (si existe alguno)
+# ═══════════════════════════════════════════════════════════════════════════
+def test_reingestar():
+    header("TEST 7: REINGESTAR DOCUMENTO")
+    try:
+        # Primero verificar si hay documentos
+        r = requests.get(f"{BASE_URL}/api/biblioteca/stats", timeout=5)
+        if r.status_code != 200:
+            warn("No se puede verificar stats")
+            return True  # No es crítico
+            
+        stats = r.json()
+        total_docs = stats.get('total_documentos', 0)
+        
+        if total_docs == 0:
+            warn("No hay documentos para probar reingestión")
+            return True
+        
+        # Probar endpoint de reingestar (con doc ID 1)
+        r = requests.post(f"{BASE_URL}/api/biblioteca/documento/1/reingestar", timeout=60)
+        
+        print(f"   Status: {r.status_code}")
+        print(f"   Respuesta: {r.text[:300]}")
+        
+        if r.status_code == 404:
+            # Verificar si el endpoint existe pero el doc no
+            if 'no encontrado' in r.text.lower() or 'not found' in r.text.lower():
+                return ok("Endpoint existe (doc no encontrado es esperado)")
+            return fail("Endpoint reingestar NO EXISTE")
+        elif r.status_code == 200:
+            return ok("Reingestar funciona")
+        else:
+            return fail(f"Error {r.status_code}", r.text[:200])
+            
+    except Exception as e:
+        return fail("Error en test", str(e))
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TEST 8: STATS DOCUMENTO
+# ═══════════════════════════════════════════════════════════════════════════
+def test_stats_documento():
+    header("TEST 8: STATS DE DOCUMENTO")
+    try:
+        r = requests.get(f"{BASE_URL}/api/biblioteca/documento/1/stats", timeout=10)
+        
+        print(f"   Status: {r.status_code}")
+        print(f"   Respuesta: {r.text[:500]}")
+        
+        if r.status_code == 404:
+            # Puede ser que no existe el doc o el endpoint
+            if 'endpoint' in r.text.lower() or 'route' in r.text.lower():
+                return fail("Endpoint stats NO EXISTE")
+            else:
+                return ok("Endpoint existe (doc 1 no encontrado es OK)")
+        elif r.status_code == 200:
+            data = r.json()
+            if 'estadisticas' in data or 'chunks' in str(data):
+                return ok("Stats documento funciona")
+            else:
+                return fail("Responde pero sin estadísticas")
+        else:
+            return fail(f"Error {r.status_code}")
+            
+    except Exception as e:
+        return fail("Error en test", str(e))
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EJECUTAR TODOS LOS TESTS
+# ═══════════════════════════════════════════════════════════════════════════
+def main():
+    print(f"\n{Colores.BOLD}{'='*60}")
+    print(" VERIFICACIÓN COMPLETA DEL SISTEMA REVISAR.IA")
+    print(f" Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"{'='*60}{Colores.RESET}")
+    
+    resultados = {
+        'health': test_health(),
+        'chat_facturar': test_chat_facturar(),
+        'crear_cliente': test_crear_cliente(),
+        'onboarding_investigar': test_onboarding_investigar(),
+        'estado_acervo': test_estado_acervo(),
+        'biblioteca_chat': test_biblioteca_chat(),
+        'reingestar': test_reingestar(),
+        'stats_documento': test_stats_documento(),
+    }
+    
+    # Resumen
+    header("RESUMEN DE VERIFICACIÓN")
+    
+    passed = sum(1 for v in resultados.values() if v)
+    total = len(resultados)
+    porcentaje = round((passed / total) * 100)
+    
+    for nombre, resultado in resultados.items():
+        estado = f"{Colores.VERDE}✅ PASS{Colores.RESET}" if resultado else f"{Colores.ROJO}❌ FAIL{Colores.RESET}"
+        print(f"   {nombre}: {estado}")
+    
+    print(f"\n   {Colores.BOLD}TOTAL: {passed}/{total} tests pasaron ({porcentaje}%){Colores.RESET}")
+    
+    # Determinar si está listo para demo
+    criticos = ['health', 'chat_facturar', 'biblioteca_chat']
+    criticos_ok = all(resultados.get(c, False) for c in criticos)
+    
+    if porcentaje >= 90 and criticos_ok:
+        print(f"\n   {Colores.VERDE}{Colores.BOLD}🎉 SISTEMA LISTO PARA DEMO{Colores.RESET}")
+        return 0
+    elif porcentaje >= 70 and criticos_ok:
+        print(f"\n   {Colores.AMARILLO}{Colores.BOLD}⚠️ SISTEMA PARCIALMENTE LISTO - FUNCIONALIDAD BÁSICA OK{Colores.RESET}")
+        return 0
+    else:
+        print(f"\n   {Colores.ROJO}{Colores.BOLD}❌ SISTEMA NO LISTO - ARREGLAR TESTS FALLIDOS{Colores.RESET}")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+INSTRUCCIONES PARA REPLIT
+═══════════════════════════════════════════════════════════════════════════════
+
+DESPUÉS DE CREAR EL ARCHIVO verificacion.py, EJECUTARLO:
+
+```bash
+python server/tests/verificacion.py
+```
+
+EL OUTPUT DEBE MOSTRAR ALGO COMO:
+
+```
+============================================================
+ VERIFICACIÓN COMPLETA DEL SISTEMA REVISAR.IA
+ Fecha: 2025-01-22 12:30:45
+============================================================
+
+============================================================
+ TEST 1: HEALTH CHECK
+============================================================
+
+   Respuesta: {"status": "ok", "database": "connected"...}
+✅ PASS - Health check responde 200
+
+============================================================
+ TEST 2: CHAT FACTURAR.IA
+============================================================
+
+   Status: 200
+   Respuesta: {"response": "¡Hola! Soy tu asistente de facturación..."}
+✅ PASS - Chat responde con 245 caracteres
+
+... (más tests)
+
+============================================================
+ RESUMEN DE VERIFICACIÓN
+============================================================
+
+   health: ✅ PASS
+   chat_facturar: ✅ PASS
+   crear_cliente: ✅ PASS
+   onboarding_investigar: ❌ FAIL
+   estado_acervo: ❌ FAIL
+   biblioteca_chat: ✅ PASS
+   reingestar: ❌ FAIL
+   stats_documento: ❌ FAIL
+
+   TOTAL: 4/8 tests pasaron (50%)
+
+   ❌ SISTEMA NO LISTO - ARREGLAR TESTS FALLIDOS
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PROTOCOLO OBLIGATORIO
+═══════════════════════════════════════════════════════════════════════════════
+
+PARA CADA FUNCIONALIDAD QUE IMPLEMENTES:
+
+1. IMPLEMENTAR el código
+2. EJECUTAR: python server/tests/verificacion.py
+3. MOSTRAR el output COMPLETO del test
+4. Si ❌ FAIL → ARREGLAR antes de continuar
+5. Si ✅ PASS → Continuar con siguiente funcionalidad
+
+NO SE PERMITE:
+- Decir "implementado" sin mostrar output del test
+- Saltar tests que fallan
+- Modificar el script de verificación para que pase
+
+SE REQUIERE:
+- Output REAL de cada test
+- Screenshot o copia del resultado
+- Todos los tests críticos en PASS antes de marcar como "listo"
+
+═══════════════════════════════════════════════════════════════════════════════
+TESTS CRÍTICOS (BLOQUEAN DEMO)
+═══════════════════════════════════════════════════════════════════════════════
+
+Estos DEBEN pasar para considerar el sistema listo:
+
+1. ✅ health - El servidor responde
+2. ✅ chat_facturar - El asistente de facturación funciona
+3. ✅ biblioteca_chat - La biblioteca responde
+
+TESTS IMPORTANTES (AFECTAN FUNCIONALIDAD):
+
+4. ⚠️ crear_cliente - Poder crear clientes
+5. ⚠️ estado_acervo - Ver qué documentos faltan
+6. ⚠️ onboarding_investigar - Auto-completar datos
+
+TESTS SECUNDARIOS (NICE TO HAVE):
+
+7. 📊 reingestar - Reprocesar documentos
+8. 📊 stats_documento - Ver estadísticas
+
+═══════════════════════════════════════════════════════════════════════════════
+EJEMPLO DE FLUJO CORRECTO
+═══════════════════════════════════════════════════════════════════════════════
+
+REPLIT: "Voy a arreglar el chat de Facturar.IA"
+REPLIT: *hace cambios en asistente_facturacion_routes.py*
+REPLIT: "Ejecutando verificación..."
+
+```
+$ python server/tests/verificacion.py
+
+============================================================
+ TEST 2: CHAT FACTURAR.IA
+============================================================
+
+   Status: 200
+   Respuesta: {"response": "¡Hola! Soy Facturar.IA, tu asistente..."}
+✅ PASS - Chat responde con 312 caracteres
+```
+
+REPLIT: "✅ Chat Facturar.IA VERIFICADO - Test pasa con 312 caracteres de respuesta"
+
+ESTO ES CORRECTO ✅
+
+═══════════════════════════════════════════════════════════════════════════════
+EJEMPLO DE FLUJO INCORRECTO
+═══════════════════════════════════════════════════════════════════════════════
+
+REPLIT: "Implementé el endpoint de investigar"
+REPLIT: "Debería funcionar ahora"
+
+ESTO ES INCORRECTO ❌ - NO MOSTRÓ OUTPUT DEL TEST
+
+CORRECCIÓN:
+REPLIT: *ejecuta python server/tests/verificacion.py*
+REPLIT: *muestra output real del test*
+REPLIT: "El test muestra: ✅ PASS / ❌ FAIL"
+
+═══════════════════════════════════════════════════════════════════════════════
+COMANDO RÁPIDO PARA VERIFICAR TODO
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+# Crear directorio si no existe
+mkdir -p server/tests
+
+# Ejecutar verificación
+python server/tests/verificacion.py
+
+# Si quieres solo un test específico:
+python -c "from server.tests.verificacion import test_chat_facturar; test_chat_facturar()"
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+META: LLEGAR A ESTO
+═══════════════════════════════════════════════════════════════════════════════
+
+```
+   TOTAL: 8/8 tests pasaron (100%)
+
+   🎉 SISTEMA LISTO PARA DEMO
+```
+
+O AL MENOS:
+
+```
+   TOTAL: 6/8 tests pasaron (75%)
+   
+   ⚠️ SISTEMA PARCIALMENTE LISTO - FUNCIONALIDAD BÁSICA OK
+```

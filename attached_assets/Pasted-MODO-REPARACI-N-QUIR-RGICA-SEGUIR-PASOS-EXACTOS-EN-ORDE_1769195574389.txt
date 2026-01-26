@@ -1,0 +1,249 @@
+MODO: REPARACIÓN QUIRÚRGICA - SEGUIR PASOS EXACTOS EN ORDEN
+
+DIAGNÓSTICO CONFIRMADO:
+Los proyectos no se pueden ver porque:
+1. "/api/projects" está en SKIP_TENANT_CHECK_PREFIXES, lo que causa que el middleware NUNCA establezca el contexto de empresa
+2. El frontend NO envía el header X-Empresa-ID
+3. Hay endpoints duplicados en dashboard.py y projects.py que causan conflictos
+
+=== REGLAS ABSOLUTAS ===
+1. Ejecuta CADA paso en el orden indicado
+2. NO saltes pasos
+3. NO hagas cambios adicionales "de mejora"
+4. Después de CADA paso, verifica que no rompiste nada
+5. Si algo falla, DETENTE y reporta antes de continuar
+6. NO modifiques archivos que no estén explícitamente listados
+
+=== PASO 1: BACKUP ===
+Antes de cualquier cambio, crea copias de los archivos que vamos a modificar:
+
+1.1. Crea carpeta de backup:
+mkdir -p backend/backup_$(date +%Y%m%d_%H%M%S)
+
+1.2. Copia los archivos:
+cp backend/middleware/tenant_context.py backend/backup_*/
+cp backend/routes/dashboard.py backend/backup_*/
+cp backend/routes/projects.py backend/backup_*/
+cp frontend/src/App.js backend/backup_*/
+
+1.3. VERIFICACIÓN: Confirma que los 4 archivos están en la carpeta backup
+- Lista el contenido de la carpeta backup
+- Reporta: "Backup completado: [lista de archivos]"
+
+=== PASO 2: CORREGIR MIDDLEWARE - REMOVER /api/projects DE SKIP LIST ===
+
+Archivo: backend/middleware/tenant_context.py
+
+2.1. Localiza la tupla SKIP_TENANT_CHECK_PREFIXES (debería estar alrededor de línea 138-168)
+
+2.2. ELIMINA estas líneas de la tupla (busca exactamente):
+"/api/projects",
+"/api/projects/",
+
+2.3. NO elimines otras rutas de la lista, SOLO las de /api/projects
+
+2.4. VERIFICACIÓN:
+- Muestra las líneas 135-175 del archivo modificado
+- Confirma que "/api/projects" ya NO está en SKIP_TENANT_CHECK_PREFIXES
+- Confirma que el resto de la tupla está intacta
+- Reporta: "Middleware corregido: /api/projects removido de SKIP_TENANT_CHECK_PREFIXES"
+
+=== PASO 3: CORREGIR FRONTEND - AGREGAR X-Empresa-ID AL INTERCEPTOR ===
+
+Archivo: frontend/src/App.js
+
+3.1. Localiza el interceptor de axios (debería estar alrededor de líneas 53-60):
+
+api.interceptors.request.use(config => {
+  config.params = { ...config.params, _t: Date.now() };
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+3.2. REEMPLAZA ese bloque completo con:
+
+api.interceptors.request.use(config => {
+  config.params = { ...config.params, _t: Date.now() };
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+    // Extraer empresa_id del JWT y agregarlo al header
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.empresa_id) {
+        config.headers['X-Empresa-ID'] = payload.empresa_id;
+      }
+    } catch (e) {
+      console.warn('No se pudo extraer empresa_id del token');
+    }
+  }
+  // Fallback: intentar obtener empresa_id del localStorage si existe
+  const storedEmpresaId = localStorage.getItem('empresa_id');
+  if (!config.headers['X-Empresa-ID'] && storedEmpresaId) {
+    config.headers['X-Empresa-ID'] = storedEmpresaId;
+  }
+  return config;
+});
+
+3.3. VERIFICACIÓN:
+- Muestra las líneas 50-75 del archivo modificado
+- Confirma que el interceptor ahora incluye la lógica de X-Empresa-ID
+- Reporta: "Frontend corregido: interceptor ahora envía X-Empresa-ID"
+
+=== PASO 4: ELIMINAR ENDPOINTS DUPLICADOS DE DASHBOARD.PY ===
+
+Archivo: backend/routes/dashboard.py
+
+4.1. Localiza y ELIMINA COMPLETAMENTE la función get_projects (GET /projects) - debería estar alrededor de línea 187
+
+Busca algo como:
+@router.get("/projects")
+async def get_projects(status: Optional[str] = None):
+    ...
+
+ELIMINA desde el decorador @router.get("/projects") hasta el final de la función (antes del siguiente decorador o función)
+
+4.2. Localiza y ELIMINA COMPLETAMENTE la función get_project (GET /projects/{project_id}) - debería estar alrededor de línea 223
+
+Busca algo como:
+@router.get("/projects/{project_id}")
+async def get_project(project_id: str):
+    ...
+
+ELIMINA desde el decorador @router.get("/projects/{project_id}") hasta el final de la función
+
+4.3. VERIFICACIÓN:
+- Ejecuta: grep -n "def get_project" backend/routes/dashboard.py
+- Debe retornar VACÍO (ninguna coincidencia)
+- Ejecuta: grep -n '"/projects"' backend/routes/dashboard.py
+- Debe retornar VACÍO o solo imports, NO endpoints
+- Reporta: "Dashboard.py limpiado: endpoints de projects eliminados"
+
+=== PASO 5: VERIFICAR QUE PROJECTS.PY TIENE LOS ENDPOINTS CORRECTOS ===
+
+Archivo: backend/routes/projects.py
+
+5.1. VERIFICA (no modifiques) que existen estos endpoints:
+
+- GET / (lista proyectos) - debería estar alrededor de línea 449
+- GET /{project_id} (obtener proyecto individual) - debería estar alrededor de línea 496
+
+5.2. VERIFICA que ambos endpoints tienen validación de empresa_id:
+if not empresa_id:
+    raise HTTPException(status_code=400, detail="X-Empresa-ID requerido")
+
+5.3. VERIFICACIÓN:
+- Muestra el código de ambos endpoints
+- Confirma que la validación de empresa_id está presente en ambos
+- Reporta: "Projects.py verificado: endpoints con validación correcta"
+
+=== PASO 6: VERIFICAR REGISTRO DE ROUTERS EN SERVER.PY ===
+
+Archivo: backend/server.py
+
+6.1. VERIFICA que projects.router está incluido en api_router:
+Busca: api_router.include_router(projects.router)
+
+6.2. VERIFICA que el api_router tiene prefix="/api":
+Busca: app.include_router(api_router, prefix="/api")
+
+6.3. Esto significa que los endpoints de projects.py responderán en:
+- GET /api/projects (lista)
+- GET /api/projects/{project_id} (detalle)
+
+6.4. VERIFICACIÓN:
+- Confirma las líneas donde se registran los routers
+- Reporta: "Server.py verificado: routing correcto"
+
+=== PASO 7: REINICIAR SERVIDOR Y PROBAR ===
+
+7.1. Reinicia el servidor backend completamente
+
+7.2. Espera 5 segundos a que inicie
+
+7.3. Ejecuta estas pruebas con curl (reemplaza el TOKEN con uno válido si es necesario):
+
+PRUEBA A - Lista de proyectos con header:
+curl -X GET "http://localhost:5000/api/projects" \
+  -H "X-Empresa-ID: 0952d6d6-d8f8-405f-a948-09a578ef61b6" \
+  -H "Content-Type: application/json"
+
+RESULTADO ESPERADO: JSON con array de proyectos, NO vacío
+
+PRUEBA B - Proyecto individual:
+curl -X GET "http://localhost:5000/api/projects/PROJ-794BB5E7" \
+  -H "X-Empresa-ID: 0952d6d6-d8f8-405f-a948-09a578ef61b6" \
+  -H "Content-Type: application/json"
+
+RESULTADO ESPERADO: JSON con datos del proyecto PROJ-794BB5E7
+
+PRUEBA C - Sin header (debe fallar controladamente):
+curl -X GET "http://localhost:5000/api/projects"
+
+RESULTADO ESPERADO: Error 400 "X-Empresa-ID requerido"
+
+7.4. VERIFICACIÓN:
+- Reporta el resultado de cada prueba (A, B, C)
+- Si alguna falla, DETENTE y reporta el error exacto
+
+=== PASO 8: PROBAR EN NAVEGADOR ===
+
+8.1. Recarga la aplicación frontend completamente (Ctrl+Shift+R o Cmd+Shift+R)
+
+8.2. Abre las DevTools del navegador (F12)
+
+8.3. Ve a la pestaña Network
+
+8.4. Navega al Dashboard
+
+8.5. VERIFICA en Network:
+- La request a /api/projects debe incluir header X-Empresa-ID
+- La respuesta debe contener proyectos (no array vacío)
+
+8.6. Haz clic en un proyecto de la lista
+
+8.7. VERIFICA:
+- Debe cargar el detalle del proyecto (NO "No encontramos este proyecto")
+- La request a /api/projects/{id} debe incluir header X-Empresa-ID
+
+8.8. VERIFICACIÓN FINAL:
+- Reporta si el proyecto se carga correctamente
+- Si hay errores, reporta el contenido exacto de la respuesta y los headers enviados
+
+=== PASO 9: VERIFICACIÓN DE REGRESIONES ===
+
+Verifica que no se rompió nada más:
+
+9.1. ¿El login sigue funcionando?
+9.2. ¿El dashboard carga sin errores?
+9.3. ¿Se pueden crear nuevos proyectos?
+9.4. ¿Las otras funcionalidades siguen operando?
+
+Reporta el estado de cada verificación.
+
+=== REPORTE FINAL ===
+
+Cuando termines TODOS los pasos, proporciona un reporte con:
+
+1. PASOS COMPLETADOS: Lista de cada paso ejecutado con su resultado
+2. ARCHIVOS MODIFICADOS: Lista exacta con las líneas cambiadas
+3. PRUEBAS EXITOSAS: Resultados de las pruebas curl y navegador
+4. ESTADO FINAL: ¿El bug está resuelto? ¿Los proyectos se pueden ver?
+5. PROBLEMAS ENCONTRADOS: Cualquier issue durante la reparación
+6. CAMBIOS ADICIONALES NECESARIOS: Si detectaste algo más que requiera atención (pero NO lo implementes sin autorización)
+
+=== SI ALGO FALLA ===
+
+Si en CUALQUIER paso algo no funciona como se espera:
+1. DETENTE inmediatamente
+2. NO intentes "arreglar" por tu cuenta
+3. Reporta:
+   - En qué paso falló
+   - Qué error exacto apareció
+   - Qué esperabas vs qué ocurrió
+   - Contenido relevante de logs
+
+Espera instrucciones antes de continuar.

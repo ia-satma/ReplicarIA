@@ -1,0 +1,121 @@
+# ============================================================
+# ReplicarIA - Docker Compose para Desarrollo Local
+# ============================================================
+# Uso:
+#   docker-compose up -d        # Iniciar servicios
+#   docker-compose down         # Detener servicios
+#   docker-compose logs -f      # Ver logs
+# ============================================================
+
+version: '3.8'
+
+services:
+  # ============================================================
+  # MongoDB - Base de datos principal para proyectos y agentes
+  # ============================================================
+  mongodb:
+    image: mongo:7.0
+    container_name: replicaria-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-replicaria2024}
+      MONGO_INITDB_DATABASE: ${DB_NAME:-agent_network}
+    volumes:
+      - mongodb_data:/data/db
+      - ./docker/mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - replicaria-network
+
+  # ============================================================
+  # PostgreSQL - Base de datos para usuarios y autenticación
+  # ============================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: replicaria-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-replicaria}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-replicaria2024}
+      POSTGRES_DB: ${POSTGRES_DB:-replicaria}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-replicaria}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - replicaria-network
+
+  # ============================================================
+  # Redis - Cache y sesiones (opcional)
+  # ============================================================
+  redis:
+    image: redis:7-alpine
+    container_name: replicaria-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - replicaria-network
+
+  # ============================================================
+  # Backend - FastAPI (opcional, para desarrollo en container)
+  # ============================================================
+  # backend:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: replicaria-backend
+  #   restart: unless-stopped
+  #   ports:
+  #     - "5000:5000"
+  #   environment:
+  #     - MONGO_URL=mongodb://admin:replicaria2024@mongodb:27017/agent_network?authSource=admin
+  #     - DATABASE_URL=postgresql://replicaria:replicaria2024@postgres:5432/replicaria
+  #     - REDIS_URL=redis://redis:6379
+  #   depends_on:
+  #     mongodb:
+  #       condition: service_healthy
+  #     postgres:
+  #       condition: service_healthy
+  #   volumes:
+  #     - ./backend:/app
+  #   networks:
+  #     - replicaria-network
+
+# ============================================================
+# Volumes - Persistencia de datos
+# ============================================================
+volumes:
+  mongodb_data:
+    driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ============================================================
+# Networks
+# ============================================================
+networks:
+  replicaria-network:
+    driver: bridge

@@ -1,0 +1,204 @@
+{
+  "project_id": "PROJ-A7C332A5",
+  "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+  "created_at": "2026-01-23T17:32:44.399808+00:00",
+  "project_data": {
+    "id": "PROJ-A7C332A5",
+    "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+    "created_by": "f94396c4-cbc0-48fe-8fd5-1376b39a87f3",
+    "name": "Estudio Prospectivo Macroeconómico 2025",
+    "client_name": "Grupo Fortezza SA de CV",
+    "description": "Análisis de tendencias macroeconómicas y riesgos fiscales 2025",
+    "amount": 500000.0,
+    "service_type": "Plan Estratégico 2024-2026",
+    "sponsor_name": "Santiago Fortezza",
+    "sponsor_email": "sfortezza@grupofortezza.com",
+    "department": "Planeación Estratégica",
+    "expected_benefit": 1500000.0,
+    "duration_months": 6,
+    "urgency_level": "Alta",
+    "requires_human": "No",
+    "attachments": [],
+    "submitted_at": "2026-01-23T17:32:44.399552+00:00",
+    "is_modification": false,
+    "parent_folio": "",
+    "modification_notes": ""
+  },
+  "deliberation_count": 3,
+  "deliberations": [
+    {
+      "project_id": "PROJ-A7C332A5",
+      "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+      "stage": "E1_ESTRATEGIA",
+      "agent_id": "A1_SPONSOR",
+      "decision": "request_adjustment",
+      "analysis": "# DICTAMEN ESTRATÉGICO A1_ESTRATEGIA\n**Proyecto:** PROJ-A7C332A5  \n**Analista:** María Rodríguez | Directora de Estrategia  \n**Fecha de Evaluación:** 2025-01-21  \n**Fase:** F0 - INTAKE/INTI\n\n---\n\n## 📋 RESUMEN EJECUTIVO\n\n| **Elemento** | **Evaluación** |\n|--------------|----------------|\n| **Status General** | ⚠️ **CONDICIONADA** |\n| **Score Razón de Negocios** | **14/25 puntos** |\n| **Recomendación F0→F2** | **SOLICITAR AJUSTES ANTES DE AVANZAR** |\n| **Nivel de Riesgo Estratégico** | **MEDIO-ALTO** |\n\n---\n\n## 🎯 EVALUACIÓN DETALLADA POR CRITERIO\n\n### 1️⃣ SUSTANCIA SOBRE FORMA (2/5 puntos)\n**❌ DEFICIENTE**\n\n**Hallazgos:**\n- La descripción \"Análisis de tendencias macroeconómicas y riesgos fiscales 2025\" es **extremadamente genérica**\n- No se especifica qué decisiones empresariales concretas dependen de este estudio\n- **RED FLAG:** El timing (evaluación en enero 2025 de un \"Plan Estratégico 2024-2026\") sugiere que el plan ya debería estar operando desde 2024\n\n**Pregunta clave sin responder:**\n*¿Por qué Grupo Fortezza necesita este estudio macroeconómico AHORA en enero 2025, cuando el plan estratégico que lo justifica abarca 2024-2026?*\n\n---\n\n### 2️⃣ PROPÓSITO EMPRESARIAL CONCRETO (2/5 puntos)\n**❌ DEFICIENTE**\n\n**Problemas identificados:**\n- **Objetivo difuso:** \"Análisis de tendencias\" no es un objetivo ejecutable\n- **Falta de especificidad sectorial:** Como empresa constructora/inmobiliaria, ¿qué variables macro específicas impactan las decisiones de Fortezza?\n  - ¿Tasas de interés para financiamiento de proyectos?\n  - ¿Políticas de vivienda del gobierno?\n  - ¿Proyecciones de demanda residencial/comercial en Nuevo León?\n- **Sin plan de uso definido:** No se indica quién consumirá el estudio ni para qué decisiones\n\n**Lo que debería existir:**\n```\nEjemplo aceptable:\n\"Evaluar viabilidad de expandir operaciones a Querétaro en 2025,\nanalizando: (a) proyecciones de crecimiento industrial zona Bajío,\n(b) políticas estatales de infraestructura, (c) costos de financiamiento\nesperados para desarrollo de parques industriales\"\n```\n\n---\n\n### 3️⃣ COHERENCIA CON ESTRATEGIA/OKRs (3/5 puntos)\n**⚠️ INSUFICIENTE**\n\n**Problema crítico:**\n- **FALTA INPUT ESTRATÉGICO COMPLETO:** No se proporcionaron los OKRs vigentes de Grupo Fortezza\n- No hay vinculación explícita con objetivos 2025 (expansión geográfica, diversificación, etc.)\n\n**Solicitud urgente para continuar evaluación:**\n```json\nINFORMACIÓN FALTANTE REQUERIDA:\n{\n  \"okrsVigentes2025\": [\n    {\"id\": \"?\", \"descripcion\": \"?\", \"owner\": \"?\"}\n  ],\n  \"pilaresEstrategicos\": [\"?\"],\n  \"decisionesClaveQ1_2025\": [\"?\"],\n  \"metasFinancieras2025\": {\n    \"facturacion\": \"?\",\n    \"margenEBITDA\": \"?\",\n    \"proyectosNuevos\": \"?\"\n  }\n}\n```\n\n**Asunción temporal (+3 pts):**\nSi asumimos que existe un OKR de \"Expansión Estratégica 2025\", este estudio *podría* tener sentido. Pero **DEBE FORMALIZARSE**.\n\n---\n\n### 4️⃣ BENEFICIO ECONÓMICO DESCRIBIBLE (3/5 puntos)\n**⚠️ INSUFICIENTE**\n\n**Análisis:**\n\n| **Aspecto** | **Evaluación** |\n|-------------|----------------|\n| **Tipo de beneficio** | ❓ No especificado (¿evitar pérdidas?, ¿identificar oportunidades?) |\n| **Mecanismo causa-efecto** | ❌ Inexistente en documentación |\n| **Cuantificación esperada** | ❌ Cero métricas propuestas |\n| **Horizonte de impacto** | ❓ Implícito 12-24 meses (si es para 2025) |\n\n**RED FLAG ECONÓMICO:**\nUn estudio de $500K debe generar **valor 5-10x** para justificarse. Ejemplos de BEE aceptables:\n- Evitar inversión errónea de $5M+ en zona no viable\n- Identificar oportunidad de mercado que genere $3M+ en margen\n- Optimizar estructura de financiamiento ahorrando $2M+ en intereses\n\n**Estado actual:** INEXISTENTE\n\n---\n\n### 5️⃣ DOCUMENTACIÓN CONTEMPORÁNEA (4/5 puntos)\n**✅ PARCIALMENTE ACEPTABLE**\n\n**Aspectos positivos:**\n- Existe ID de proyecto formal\n- Monto clarificado\n- Vinculado a \"Plan Estratégico 2024-2026\" (aunque su existencia no está probada aquí)\n\n**Faltante crítico:**\n- ❌ SIB (Solicitud Interna de Beneficios) completo\n- ❌ Minuta de aprobación del Consejo/Dirección General\n- ❌ Terms of Reference (alcance detallado del estudio)\n- ❌ Criterios de aceptación del entregable\n\n---\n\n## 🚩 RED FLAGS ESTRATÉGICOS IDENTIFICADOS\n\n### 🔴 CRÍTICO\n1. **TIMING SOSPECHOSO**\n   - Estudio macroeconómico 2025 evaluado en enero 2025\n   - Plan estratégico que lo justifica cubre 2024-2026 (¿por qué no se hizo en 2024?)\n   - **Riesgo SAT:** Podría interpretarse como gasto oportunista de fin de año\n\n### 🟡 ALTO\n2. **OBJETIVOS VAGOS**\n   - \"Análisis de tendencias\" sin decisiones específicas asociadas\n   - Falta de KPIs medibles de éxito del estudio\n\n3. **DESVINCULACIÓN APARENTE**\n   - No se demuestra cómo conecta con operación diaria de Fortezza\n   - Ninguna mención a proyectos concretos (desarrollos residenciales, expansiones, etc.)\n\n### 🟢 MEDIO\n4. **MONTO vs. ESPECIFICIDAD**\n   - $500K es significativo para un estudio genérico\n   - Falta desglose de entregables que justifiquen el monto\n\n---\n\n## 📊 EVALUACIÓN DE PILARES SAT\n\n### 🔷 PILAR 1: RAZÓN DE NEGOCIOS (Art. 5-A CFF)\n**STATUS:** ⚠️ **NO DEMOSTRADA**\n\n**Hallazgos:**\n- ✅ Existe un servicio profesional identificable (estudio macroeconómico)\n- ❌ **Falta sustancia:** No se prueba POR QUÉ se necesita AHORA\n- ",
+      "rag_context": [],
+      "email_sent": null,
+      "timestamp": "2026-01-23T17:33:27.505899+00:00",
+      "recorded_at": "2026-01-23T17:33:27.505918+00:00"
+    },
+    {
+      "project_id": "PROJ-A7C332A5",
+      "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+      "stage": "E2_FISCAL",
+      "agent_id": "A3_FISCAL",
+      "decision": "approve",
+      "analysis": "# DICTAMEN FISCAL A3_CUMPLIMIENTO_FISCAL\n**Proyecto:** PROJ-A7C332A5  \n**Especialista Fiscal:** Laura Sánchez | Revisar.ia  \n**Fecha de Evaluación:** 2025-01-21  \n**Fase:** F0 - PRE-SCREENING FISCAL\n\n---\n\n## 📋 RESUMEN EJECUTIVO\n\n| **Elemento** | **Evaluación** |\n|--------------|----------------|\n| **Status Fiscal** | 🔴 **NO APROBAR EN ESTADO ACTUAL** |\n| **Score Fiscal Total** | **8/25 puntos** |\n| **Etiqueta Sensibilidad** | **🔴 ALTA** |\n| **Recomendación F0** | **DETENER - REQUIERE REESTRUCTURACIÓN FISCAL** |\n| **Nivel de Riesgo Fiscal** | **CRÍTICO** |\n\n---\n\n## 🔍 ANÁLISIS DE LOS 4 BLOQUES FISCALES\n\n### 1️⃣ DEDUCIBILIDAD LISR (Art. 25 y 27)\n**Score Parcial: 2/10**\n\n#### ❌ **OBSERVACIONES CRÍTICAS:**\n\n**Art. 27-I LISR - Estrictamente Indispensable:**\n- ⚠️ **PROBLEMA ESTRUCTURAL GRAVE**: Estudio prospectivo macroeconómico generalista\n- El gasto NO cumple con criterio de \"estrictamente indispensable\" para actividad preponderante (construcción e inmobiliaria)\n- **Precedentes SAT:** Los estudios económicos generales NO califican como deducibles a menos que:\n  - Sean específicos para un proyecto concreto de inversión\n  - Tengan aplicación directa e inmediata en toma de decisiones operativas\n  - Estén vinculados a un desarrollo identificado\n\n**Comparativo con Criterios SAT:**\n```\n✅ DEDUCIBLE: \"Estudio de factibilidad económica Desarrollo Valle Alto\"\n❌ NO DEDUCIBLE: \"Análisis macroeconómico general 2025\"\n```\n\n**Art. 27-III LISR + CFF 29/29-A - CFDI:**\n- 🟡 **PENDIENTE VERIFICAR**: \n  - Uso CFDI debe ser \"G03 - Gastos en general\" o \"P01 - Por definir\"\n  - Clave producto/servicio: ¿80141600 (Servicios de consultoría económica)?\n  - RFC emisor: ¿Proveedor externo o autoconsumo interno?\n\n**Art. 27-IV LISR - Pago Bancarizado:**\n- ℹ️ **SIN INFORMACIÓN** en esta fase F0\n\n**Art. 27-XVIII LISR - Registro Contable:**\n- ℹ️ **SIN INFORMACIÓN** en esta fase F0\n\n**Art. 27-XIX LISR - Partes Relacionadas:**\n- 🔴 **ALERTA MÁXIMA**: Cliente/Proveedor es \"Grupo Fortezza SA de CV\"\n- **ESTO ES AUTOCONSUMO INTERNO** - Requiere:\n  - Estudio de precios de transferencia si aplica\n  - Justificación de por qué no se hace con personal interno\n  - Documentación de capacidad técnica diferenciada\n\n---\n\n### 2️⃣ CFDI Y FORMA DE PAGO (CFF 29/29-A, LIVA)\n**Score Parcial: 2/8**\n\n#### ⚠️ **RIESGOS IDENTIFICADOS:**\n\n**Uso de CFDI:**\n- ❌ Si se factura como \"G03 - Gastos en general\" → SEÑAL DE ALERTA SAT\n- ❌ Montos >$500K en servicios intangibles → Revisión automática SIPRED\n\n**Descripción en CFDI:**\n- ⚠️ \"Análisis de tendencias macroeconómicas y riesgos fiscales 2025\" \n- **DEMASIADO GENÉRICO** para defender deducibilidad\n- Recomendación: Requiere especificidad de entregables y aplicación\n\n**IVA:**\n- ✅ Si es prestación de servicios profesionales: Sí causa IVA 16%\n- 🟡 Verificar acreditamiento correcto\n\n---\n\n### 3️⃣ RIESGO EFOS/69-B CFF\n**Score Parcial: 3/4**\n\n#### ✅ **EVALUACIÓN PRELIMINAR:**\n\n**Proveedor: Grupo Fortezza SA de CV**\n- ✅ **BAJO RIESGO EFOS**: Es la misma empresa (operación intragrupo)\n- ✅ No aplica verificación 69-B en sentido tradicional\n- 🟡 **PERO**: Genera riesgo de simulación si no hay sustancia económica real\n\n**Recomendación para A6:**\n- Verificar que exista área/departamento real que preste servicio\n- Documentar capacidades diferenciadas vs. personal ordinario\n- Justificar por qué no es función del CFO/Director de Finanzas\n\n---\n\n### 4️⃣ MATERIALIDAD FISCAL MÍNIMA\n**Score Parcial: 1/3**\n\n#### 🔴 **DEFICIENCIAS CRÍTICAS:**\n\n**Evidencia de Ejecución:**\n- ❌ **FALTA TOTAL** de especificación de entregables\n- ❌ No se menciona metodología, alcance temporal, aplicación específica\n- ❌ Sin vinculación a proyectos concretos de inversión\n\n**Defendibilidad ante Auditoría:**\n```\nPregunta SAT: \"¿Por qué pagaron $500K por análisis macroeconómico?\"\nRespuesta actual: ⚠️ INSUFICIENTE\nRespuesta requerida: \"Para evaluar viabilidad de desarrollos 2025-2026 \n                      en municipios X, Y, Z con proyección de ROI...\"\n```\n\n**Proporción Gasto/Beneficio:**\n- 🔴 $500K = 0.1% de facturación anual → **PROPORCIÓN RAZONABLE**\n- ❌ PERO sin ROI medible ni aplicación concreta → **BENEFICIO INTANGIBLE**\n\n---\n\n## 🚨 RIESGOS FISCALES IDENTIFICADOS\n\n### 🔴 **RIESGO CRÍTICO 1: Art. 5-A CFF - SIMULACIÓN**\n```\nCriterio SAT: Operación sin razón de negocios válida\nExposición: DEDUCCIÓN RECHAZADA + MULTA 55%-75% + RECARGOS\nProbabilidad: ALTA (75%) si se mantiene estructura actual\n```\n\n**Fundamentación:**\n- Servicio intangible sin entregables definidos\n- Autoconsumo interno sin justificación técnica\n- Monto significativo sin ROI medible\n\n---\n\n### 🔴 **RIESGO CRÍTICO 2: Art. 27-I LISR - NO INDISPENSABLE**\n```\nCriterio SAT: Gasto no estrictamente indispensable\nExposición: DEDUCCIÓN RECHAZADA + ISR ADEUDADO\nProbabilidad: MUY ALTA (85%) en estado actual\n```\n\n**Precedentes Judiciales:**\n- Tesis I.4o.A.855 A: Estudios económicos generales NO son deducibles\n- Tesis II.1o.A.178 A: Requiere vinculación directa a ingresos\n\n---\n\n### 🟡 **RIESGO MEDIO: REVISIÓN SIPRED**\n```\nTrigger: Servicios intangibles >$500K sin material evidente",
+      "rag_context": [],
+      "email_sent": null,
+      "timestamp": "2026-01-23T17:34:14.076797+00:00",
+      "recorded_at": "2026-01-23T17:34:14.076821+00:00"
+    },
+    {
+      "project_id": "PROJ-A7C332A5",
+      "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+      "stage": "E3_FINANZAS",
+      "agent_id": "A5_FINANZAS",
+      "decision": "approve",
+      "analysis": "# DICTAMEN FINANCIERO A5_FINANZAS\n**Proyecto:** PROJ-A7C332A5  \n**Director de Finanzas:** Roberto Sánchez | Revisar.ia  \n**Fecha de Evaluación:** 2025-01-21  \n**Fase:** F0 - ANÁLISIS FINANCIERO PRELIMINAR\n\n---\n\n## 📋 RESUMEN EJECUTIVO\n\n| **Elemento** | **Evaluación** |\n|--------------|----------------|\n| **Status Financiero** | 🔴 **NO VIABLE** |\n| **Score Beneficio Económico** | **3/15 puntos** |\n| **Score Razonabilidad Precio** | **1/7 puntos** |\n| **Score Impacto Presupuestal** | **2/3 puntos** |\n| **TOTAL** | **6/25 puntos** |\n| **Recomendación** | **🔴 NO APROBAR - BENEFICIO ECONÓMICO NO DEMOSTRABLE** |\n\n---\n\n## 💰 ANÁLISIS DE BENEFICIO ECONÓMICO (3/15 pts)\n\n### 1. Capacidad de Cuantificar Beneficio (0/5 pts)\n**CRÍTICO:** El proyecto carece completamente de hipótesis cuantificables de beneficio.\n\n**Problemas identificados:**\n- ❌ No se definen KPIs medibles vinculados al estudio\n- ❌ No existe línea base de comparación\n- ❌ No se establece horizonte de beneficio económico\n- ❌ \"Análisis macroeconómico\" es demasiado genérico para cuantificar ROI\n- ❌ No hay conexión clara entre $500K invertidos → resultados específicos\n\n**Lo que debería existir:**\n```\nEjemplo de hipótesis cuantificable:\n- Reducción de exposición cambiaria: -15% volatilidad en flujos USD\n- Mejora en timing de proyectos: +8% NPV portafolio por entrada oportuna\n- Ahorro en refinanciamiento: -50 bps por anticipación de alzas en tasas\n- Valor: ~$2-4M en 12 meses\n```\n\n**Evaluación:** 🔴 **CERO PUNTOS** - Imposible construir modelo financiero sin hipótesis de valor.\n\n---\n\n### 2. Resultado Financiero Escenario Base (0/5 pts)\n\nDado que no puedo cuantificar beneficios, **no puedo calcular:**\n- ❌ ROI\n- ❌ NPV (Valor Presente Neto)\n- ❌ TIR (Tasa Interna de Retorno)\n- ❌ Payback\n\n**Intento de modelado con supuestos extremadamente optimistas:**\n\n```\nESCENARIO HEROICO (poco realista):\nInversión: $500,000 MXN\nSupuesto: Estudio permite evitar 1 mala decisión de $10M con pérdida 5%\nBeneficio evitado: $500,000\nROI = 0% (break-even)\nPayback = 12 meses\nNPV @ 14% WACC = -$62,000 (negativo por valor tiempo dinero)\n```\n\n**Evaluación:** 🔴 **CERO PUNTOS** - Incluso en escenarios optimistas, el proyecto no genera VPN positivo.\n\n---\n\n### 3. Robustez de Escenarios (3/5 pts)\n\n| **Escenario** | **ROI** | **NPV @ 14%** | **Probabilidad** | **Comentario** |\n|---------------|---------|---------------|------------------|----------------|\n| **Optimista** | 0% | -$62K | 15% | Evita 1 mala decisión significativa |\n| **Base** | -100% | -$500K | 60% | Costo hundido sin materialización |\n| **Pesimista** | -100% | -$500K | 25% | Decisiones se toman igual sin el estudio |\n\n**Otorgo 3 puntos marginales porque:**\n- ✅ El análisis de sensibilidad muestra claramente el riesgo\n- ✅ La probabilidad del escenario base (sin beneficio) es muy alta\n- ⚠️ Falta definir qué variables cambiarían el resultado\n\n---\n\n## 💵 RAZONABILIDAD DEL PRECIO (1/7 pts)\n\n### Comparación con Benchmarks Internos (0/3 pts)\n\n**Histórico Revisar.ia - Servicios de Consultoría Estratégica:**\n| **Año** | **Proyecto** | **Monto** | **Resultado Medible** |\n|---------|--------------|-----------|------------------------|\n| 2023 | Estudio Mercado Monterrey | $350K | ✅ Identificó 3 zonas → $45M pipeline |\n| 2024 | Optimización Portafolio | $280K | ✅ Rebalanceo → +12% ROIC |\n| 2025 | **Este proyecto** | $500K | ❌ Sin KPIs definidos |\n\n**Evaluación:** 🔴 **CERO PUNTOS**  \n- Es 43% más caro que proyectos similares previos\n- Proyectos anteriores tenían entregables cuantificables\n- No se justifica la prima de precio\n\n---\n\n### Comparación Externa (0/3 pts)\n\n**Rango de mercado para \"Estudios Macroeconómicos\" (México 2025):**\n\n| **Proveedor Tipo** | **Rango Precio** | **Alcance Típico** |\n|--------------------|--------------------|---------------------|\n| **Big 4 (Deloitte, EY)** | $800K - $1.2M | Industria-específico, modelado detallado |\n| **Boutiques especializadas** | $300K - $600K | Análisis sectorial, 3-4 escenarios |\n| **Think tanks académicos** | $150K - $350K | Revisión documental, benchmarking |\n| **Analistas independientes** | $80K - $200K | Reportes de escritorio |\n\n**Posicionamiento del proyecto:**\n- Precio: $500K = **MEDIO-ALTO** en el rango\n- Alcance descrito: **VAGO** (sin especificar profundidad)\n- Proveedor: **NO IDENTIFICADO** en documentación\n\n**Evaluación:** 🔴 **CERO PUNTOS**  \nSin saber quién lo hará, imposible validar si $500K es razonable.\n\n---\n\n### Explicación de Desvíos (1/1 pt)\n\n**Otorgo 1 punto porque:**\n- ✅ El precio está dentro del rango de mercado (percentil 60-70)\n- ⚠️ Pero NO se justifica pagar percentil alto sin proveedor premium identificado\n\n---\n\n## 📊 IMPACTO PRESUPUESTAL (2/3 pts)\n\n### Datos de Referencia\n```\nPresupuesto Anual Servicios Profesionales Revisar.ia: $25,000,000 MXN\nInversión Proyecto: $500,000 MXN\n% del Presupuesto: 2.0%\n```\n\n**Análisis:**\n| **Métrica** | **Valor** | **Semáforo** |\n|-------------|-----------|--------------|\n| % s/presupuesto servicios | 2.0% | 🟡 Moderado |\n| % s/EBITDA estimado (~$50M) | 1.0% | 🟢 Bajo |\n| Comparación con proyectos aprobados 2024 | Top 15% en monto | ",
+      "rag_context": [],
+      "email_sent": null,
+      "timestamp": "2026-01-23T17:34:58.467059+00:00",
+      "recorded_at": "2026-01-23T17:34:58.467080+00:00"
+    }
+  ],
+  "email_count": 2,
+  "emails": [
+    {
+      "from_email": "estrategia@revisar-ia.com",
+      "to_email": "fiscal@revisar-ia.com",
+      "subject": "[SATMA] Deliberación E1_ESTRATEGIA",
+      "body": "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSISTEMA SATMA - COMUNICACIÓN INTER-AGENTES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nDe: María Rodríguez (Dirección Estratégica)\nPara: Laura Sánchez (Fiscal)\nEtapa: E1_ESTRATEGIA\nFecha: 23/01/2026 17:33 UTC\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPROYECTO: Estudio Prospectivo Macroeconómico 2025\nID: PROJ-A7C332A5\nMONTO: $500,000.00 MXN\nDECISIÓN: REQUIERE AJUSTES\n━━━━━━━━━━━━━━━━━━━",
+      "message_id": "A1_SPONSOR_1769189610.662402",
+      "attachments": [
+        "IDPROJ-A7C_A1_SPONSOR_Reporte_estrategia_V1.pdf"
+      ],
+      "recorded_at": "2026-01-23T17:33:30.662574+00:00"
+    },
+    {
+      "from_email": "fiscal@revisar-ia.com",
+      "to_email": "finanzas@revisar-ia.com",
+      "subject": "[SATMA] Deliberación E2_FISCAL",
+      "body": "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSISTEMA SATMA - COMUNICACIÓN INTER-AGENTES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nDe: Laura Sánchez (Fiscal)\nPara: Roberto Sánchez (Finanzas)\nEtapa: E2_FISCAL\nFecha: 23/01/2026 17:34 UTC\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPROYECTO: Estudio Prospectivo Macroeconómico 2025\nID: PROJ-A7C332A5\nMONTO: $500,000.00 MXN\nDECISIÓN: APROBADO para continuar\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "message_id": "A3_FISCAL_1769189656.764902",
+      "attachments": [
+        "IDPROJ-A7C_A3_FISCAL_Reporte_fiscal_V1.pdf"
+      ],
+      "recorded_at": "2026-01-23T17:34:16.765037+00:00"
+    }
+  ],
+  "provider_communications": [],
+  "rag_contexts": [],
+  "documents": [
+    {
+      "project_id": "PROJ-A7C332A5",
+      "stage": "E1_ESTRATEGIA",
+      "agent_id": "A1_SPONSOR",
+      "doc_type": "reporte_estrategia",
+      "file_path": "/reports/IDPROJ-A7C_A1_SPONSOR_Reporte_estrategia_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZIozK5ZIY3HNWdpDN0UuHPjcDYxMjMrqpR7",
+      "created_at": "2026-01-23T17:33:28.949952+00:00",
+      "version": 1
+    },
+    {
+      "project_id": "PROJ-A7C332A5",
+      "stage": "E1_ESTRATEGIA",
+      "agent_id": "A1_SPONSOR",
+      "doc_type": "solicitud_modificacion",
+      "file_path": "/reports/IDPROJ-A7C_A1_SPONSOR_Reporte_solicitud_modificacion_V2.pdf",
+      "pcloud_link": null,
+      "created_at": "2026-01-23T17:33:29.234638+00:00",
+      "version": 2
+    },
+    {
+      "project_id": "PROJ-A7C332A5",
+      "stage": "E2_FISCAL",
+      "agent_id": "A3_FISCAL",
+      "doc_type": "reporte_fiscal",
+      "file_path": "/reports/IDPROJ-A7C_A3_FISCAL_Reporte_fiscal_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZaozK5Zipfn8E1XTqjGpGeIhjkDY5Ata5Y7",
+      "created_at": "2026-01-23T17:34:14.887632+00:00",
+      "version": 1
+    },
+    {
+      "project_id": "PROJ-A7C332A5",
+      "stage": "E3_FINANZAS",
+      "agent_id": "A5_FINANZAS",
+      "doc_type": "reporte_finanzas",
+      "file_path": "/reports/IDPROJ-A7C_A5_FINANZAS_Reporte_finanzas_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZiozK5Z79kVEKaDdLJDMBTS6tvY1HALm8J7",
+      "created_at": "2026-01-23T17:34:59.431660+00:00",
+      "version": 1
+    },
+    {
+      "project_id": "PROJ-A7C332A5",
+      "stage": "E5_APROBADO",
+      "agent_id": "SYSTEM",
+      "doc_type": "aprobacion_final",
+      "file_path": "/reports/IDPROJ-A7C_SYSTEM_Reporte_aprobacion_final_V1.pdf",
+      "pcloud_link": null,
+      "created_at": "2026-01-23T17:34:59.681287+00:00",
+      "version": 1
+    }
+  ],
+  "document_count": 5,
+  "final_decision": "approved",
+  "final_justification": "Aprobado por todos los agentes. Deliberaciones: 3",
+  "compliance_checklist": {
+    "razon_de_negocios": true,
+    "beneficio_economico": true,
+    "materialidad": true,
+    "trazabilidad": true
+  },
+  "compliance_score": 100.0,
+  "pcloud_links": {
+    "A1_SPONSOR": "https://u.pcloud.link/publink/show?code=kZHqng5ZeW36Cw3UbmY6lu1DsJ1QYj9hhCe7",
+    "A2_PMO": "https://u.pcloud.link/publink/show?code=kZJqng5ZGDwXSRewkijTxOYa3WBCIkRXeUpV",
+    "A3_FISCAL": "https://u.pcloud.link/publink/show?code=kZQqng5ZE3BXwURDwrhkgreFBT4xXbyJDOa7",
+    "A5_FINANZAS": "https://u.pcloud.link/publink/show?code=kZhqng5ZpurMT7tJ7wH9vDUXiGy2Mbju5M0X"
+  },
+  "pcloud_documents": [
+    {
+      "agent_id": "A1_SPONSOR",
+      "doc_type": "reporte_estrategia",
+      "local_path": "/home/runner/workspace/backend/reports/IDPROJ-A7C_A1_SPONSOR_Reporte_estrategia_V1.pdf",
+      "pcloud_path": "/REVISAR_IA/Evidencias/2026-01-Evidencias/PROJ-A7C332A5/A1_SPONSOR_estrategia_20260123_173328.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZIozK5ZIY3HNWdpDN0UuHPjcDYxMjMrqpR7",
+      "file_id": 83420455396,
+      "uploaded_at": "2026-01-23T17:33:28.948798+00:00"
+    },
+    {
+      "agent_id": "A3_FISCAL",
+      "doc_type": "reporte_fiscal",
+      "local_path": "/home/runner/workspace/backend/reports/IDPROJ-A7C_A3_FISCAL_Reporte_fiscal_V1.pdf",
+      "pcloud_path": "/A3_FISCAL_fiscal_20260123_173414.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZaozK5Zipfn8E1XTqjGpGeIhjkDY5Ata5Y7",
+      "file_id": 83420476736,
+      "uploaded_at": "2026-01-23T17:34:14.885293+00:00"
+    },
+    {
+      "agent_id": "A5_FINANZAS",
+      "doc_type": "reporte_finanzas",
+      "local_path": "/home/runner/workspace/backend/reports/IDPROJ-A7C_A5_FINANZAS_Reporte_finanzas_V1.pdf",
+      "pcloud_path": "/A5_FINANZAS_finanzas_20260123_173458.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZiozK5Z79kVEKaDdLJDMBTS6tvY1HALm8J7",
+      "file_id": 83420496845,
+      "uploaded_at": "2026-01-23T17:34:59.429054+00:00"
+    }
+  ],
+  "pcloud_document_count": 3,
+  "bitacora_link": null,
+  "consolidation_report": null,
+  "agent_opinions": [],
+  "agent_opinions_count": 0,
+  "purchase_orders": [],
+  "purchase_orders_count": 0,
+  "contract_requests": [],
+  "contract_requests_count": 0,
+  "provider_change_requests": [],
+  "provider_change_requests_count": 0,
+  "version_history": [],
+  "version_history_count": 0,
+  "audit_ready": true
+}

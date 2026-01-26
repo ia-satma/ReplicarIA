@@ -1,0 +1,705 @@
+# FASE 9: INTERFAZ DE USUARIO Y DASHBOARD
+## Prompt TOON para Replit
+
+```
+=============================================================================
+TOON FASE 9: DASHBOARD, VISTAS Y FORMULARIOS DE USUARIO
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta todas las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. SOLO EJECUTA.
+
+PRERREQUISITO: Las Fases 1-8 deben estar completadas.
+
+CONTEXTO: Con toda la lógica de backend implementada, ahora necesitamos
+una interfaz de usuario que permita:
+- Ver el estado de proyectos y su fase actual
+- Cargar documentos y ver el checklist por fase
+- Ver las deliberaciones de agentes
+- Monitorear el risk_score y alertas
+- Gestionar el Defense File
+
+=============================================================================
+PASO 1: CREAR COMPONENTE DE DASHBOARD PRINCIPAL
+=============================================================================
+
+Crea archivo "components/Dashboard.jsx" (o equivalente en tu stack):
+
+import React, { useState, useEffect } from 'react';
+
+function Dashboard() {
+  const [proyectos, setProyectos] = useState([]);
+  const [filtroEstado, setFiltroEstado] = useState('TODOS');
+  const [filtroFase, setFiltroFase] = useState('TODAS');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    cargarProyectos();
+  }, [filtroEstado, filtroFase]);
+
+  async function cargarProyectos() {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filtroEstado !== 'TODOS') params.append('estado', filtroEstado);
+      if (filtroFase !== 'TODAS') params.append('fase', filtroFase);
+      
+      const response = await fetch(`/api/proyectos?${params}`);
+      const data = await response.json();
+      setProyectos(data);
+    } catch (error) {
+      console.error('Error cargando proyectos:', error);
+    }
+    setLoading(false);
+  }
+
+  function getRiskScoreColor(score) {
+    if (score < 40) return 'bg-green-100 text-green-800';
+    if (score < 60) return 'bg-yellow-100 text-yellow-800';
+    if (score < 80) return 'bg-orange-100 text-orange-800';
+    return 'bg-red-100 text-red-800';
+  }
+
+  function getFaseColor(fase) {
+    const colores = {
+      F0: 'bg-gray-200', F1: 'bg-blue-100', F2: 'bg-blue-200',
+      F3: 'bg-indigo-100', F4: 'bg-indigo-200', F5: 'bg-purple-100',
+      F6: 'bg-purple-200', F7: 'bg-pink-100', F8: 'bg-pink-200',
+      F9: 'bg-green-200'
+    };
+    return colores[fase] || 'bg-gray-100';
+  }
+
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-6">
+        Dashboard - Auditoría de Intangibles
+      </h1>
+      
+      {/* Filtros */}
+      <div className="flex gap-4 mb-6">
+        <select 
+          value={filtroEstado} 
+          onChange={(e) => setFiltroEstado(e.target.value)}
+          className="border rounded px-3 py-2"
+        >
+          <option value="TODOS">Todos los estados</option>
+          <option value="PENDIENTE">Pendiente</option>
+          <option value="APROBADO_ESTRATEGICO">Aprobado Estratégico</option>
+          <option value="APROBADO_CONDICIONAL">Aprobado Condicional</option>
+          <option value="APROBADO_OPERATIVO">Aprobado Operativo</option>
+          <option value="RECHAZADO">Rechazado</option>
+        </select>
+        
+        <select 
+          value={filtroFase} 
+          onChange={(e) => setFiltroFase(e.target.value)}
+          className="border rounded px-3 py-2"
+        >
+          <option value="TODAS">Todas las fases</option>
+          {['F0','F1','F2','F3','F4','F5','F6','F7','F8','F9'].map(f => (
+            <option key={f} value={f}>{f}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Resumen */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="bg-blue-50 p-4 rounded-lg">
+          <div className="text-3xl font-bold">{proyectos.length}</div>
+          <div className="text-gray-600">Proyectos Total</div>
+        </div>
+        <div className="bg-yellow-50 p-4 rounded-lg">
+          <div className="text-3xl font-bold">
+            {proyectos.filter(p => p.requiere_revision_humana).length}
+          </div>
+          <div className="text-gray-600">Requieren Revisión</div>
+        </div>
+        <div className="bg-red-50 p-4 rounded-lg">
+          <div className="text-3xl font-bold">
+            {proyectos.filter(p => p.risk_score_total >= 60).length}
+          </div>
+          <div className="text-gray-600">Riesgo Alto/Crítico</div>
+        </div>
+        <div className="bg-green-50 p-4 rounded-lg">
+          <div className="text-3xl font-bold">
+            {proyectos.filter(p => p.fase_actual === 'F9').length}
+          </div>
+          <div className="text-gray-600">Completados</div>
+        </div>
+      </div>
+
+      {/* Lista de proyectos */}
+      {loading ? (
+        <div className="text-center py-8">Cargando...</div>
+      ) : (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left">Proyecto</th>
+                <th className="px-4 py-3 text-left">Tipología</th>
+                <th className="px-4 py-3 text-left">Monto</th>
+                <th className="px-4 py-3 text-center">Fase</th>
+                <th className="px-4 py-3 text-center">Risk Score</th>
+                <th className="px-4 py-3 text-center">Estado</th>
+                <th className="px-4 py-3 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {proyectos.map(proyecto => (
+                <tr key={proyecto.id} className="border-t hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{proyecto.nombre}</div>
+                    <div className="text-sm text-gray-500">{proyecto.proveedor_nombre}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-sm">{proyecto.tipologia.replace(/_/g, ' ')}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    ${proyecto.monto.toLocaleString()} MXN
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getFaseColor(proyecto.fase_actual)}`}>
+                      {proyecto.fase_actual}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getRiskScoreColor(proyecto.risk_score_total)}`}>
+                      {proyecto.risk_score_total}/100
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {proyecto.requiere_revision_humana && !proyecto.revision_humana_obtenida && (
+                      <span className="inline-block px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs">
+                        ⚠️ Rev. Humana
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <a 
+                      href={`/proyecto/${proyecto.id}`}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Ver Detalle
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default Dashboard;
+
+=============================================================================
+PASO 2: CREAR COMPONENTE DE DETALLE DE PROYECTO
+=============================================================================
+
+Crea archivo "components/ProyectoDetalle.jsx":
+
+import React, { useState, useEffect } from 'react';
+
+function ProyectoDetalle({ proyectoId }) {
+  const [proyecto, setProyecto] = useState(null);
+  const [deliberaciones, setDeliberaciones] = useState([]);
+  const [checklist, setChecklist] = useState([]);
+  const [estadoFase, setEstadoFase] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('resumen');
+
+  useEffect(() => {
+    cargarDatos();
+  }, [proyectoId]);
+
+  async function cargarDatos() {
+    setLoading(true);
+    try {
+      // Cargar proyecto
+      const projRes = await fetch(`/api/proyectos/${proyectoId}`);
+      const projData = await projRes.json();
+      setProyecto(projData);
+
+      // Cargar deliberaciones
+      const delibRes = await fetch(`/api/deliberaciones/${proyectoId}`);
+      const delibData = await delibRes.json();
+      setDeliberaciones(delibData);
+
+      // Cargar estado de fase
+      const faseRes = await fetch(`/api/proyectos/${proyectoId}/fase/estado`);
+      const faseData = await faseRes.json();
+      setEstadoFase(faseData.estado_fase);
+
+    } catch (error) {
+      console.error('Error:', error);
+    }
+    setLoading(false);
+  }
+
+  async function intentarAvanzarFase() {
+    try {
+      const res = await fetch(`/api/proyectos/${proyectoId}/fase/avanzar`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      
+      if (data.exito) {
+        alert(`✅ Proyecto avanzó a ${data.fase_nueva}`);
+        cargarDatos();
+      } else {
+        alert(`❌ No se puede avanzar:\n${data.bloqueos.join('\n')}`);
+      }
+    } catch (error) {
+      alert('Error al intentar avanzar: ' + error.message);
+    }
+  }
+
+  if (loading) return <div className="p-6">Cargando...</div>;
+  if (!proyecto) return <div className="p-6">Proyecto no encontrado</div>;
+
+  return (
+    <div className="p-6">
+      {/* Header */}
+      <div className="flex justify-between items-start mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">{proyecto.nombre}</h1>
+          <p className="text-gray-600">{proyecto.tipologia.replace(/_/g, ' ')}</p>
+        </div>
+        <div className="text-right">
+          <div className="text-3xl font-bold">${proyecto.monto.toLocaleString()}</div>
+          <div className="text-gray-500">MXN</div>
+        </div>
+      </div>
+
+      {/* Indicadores principales */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="text-sm text-gray-500">Fase Actual</div>
+          <div className="text-2xl font-bold">{proyecto.fase_actual}</div>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="text-sm text-gray-500">Risk Score</div>
+          <div className={`text-2xl font-bold ${
+            proyecto.risk_score_total < 40 ? 'text-green-600' :
+            proyecto.risk_score_total < 60 ? 'text-yellow-600' :
+            proyecto.risk_score_total < 80 ? 'text-orange-600' : 'text-red-600'
+          }`}>
+            {proyecto.risk_score_total}/100
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="text-sm text-gray-500">Estado</div>
+          <div className="text-lg font-medium">{proyecto.estado_global}</div>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="text-sm text-gray-500">Rev. Humana</div>
+          <div className="text-lg font-medium">
+            {proyecto.revision_humana_obtenida ? '✅ Obtenida' : 
+             proyecto.requiere_revision_humana ? '⚠️ Pendiente' : '✓ No requerida'}
+          </div>
+        </div>
+      </div>
+
+      {/* Desglose Risk Score */}
+      <div className="bg-white p-4 rounded-lg shadow mb-6">
+        <h3 className="font-bold mb-3">Desglose Risk Score por Pilar</h3>
+        <div className="grid grid-cols-4 gap-4">
+          <div>
+            <div className="text-sm text-gray-500">Razón de Negocios</div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 bg-gray-200 rounded h-2">
+                <div 
+                  className="bg-blue-500 h-2 rounded" 
+                  style={{ width: `${(proyecto.risk_score_razon_negocios / 25) * 100}%` }}
+                />
+              </div>
+              <span className="text-sm">{proyecto.risk_score_razon_negocios}/25</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-sm text-gray-500">Beneficio Económico</div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 bg-gray-200 rounded h-2">
+                <div 
+                  className="bg-green-500 h-2 rounded" 
+                  style={{ width: `${(proyecto.risk_score_beneficio_economico / 25) * 100}%` }}
+                />
+              </div>
+              <span className="text-sm">{proyecto.risk_score_beneficio_economico}/25</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-sm text-gray-500">Materialidad</div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 bg-gray-200 rounded h-2">
+                <div 
+                  className="bg-purple-500 h-2 rounded" 
+                  style={{ width: `${(proyecto.risk_score_materialidad / 25) * 100}%` }}
+                />
+              </div>
+              <span className="text-sm">{proyecto.risk_score_materialidad}/25</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-sm text-gray-500">Trazabilidad</div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 bg-gray-200 rounded h-2">
+                <div 
+                  className="bg-orange-500 h-2 rounded" 
+                  style={{ width: `${(proyecto.risk_score_trazabilidad / 25) * 100}%` }}
+                />
+              </div>
+              <span className="text-sm">{proyecto.risk_score_trazabilidad}/25</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Estado de fase y botón avanzar */}
+      {estadoFase && (
+        <div className="bg-white p-4 rounded-lg shadow mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-bold">Estado Fase {proyecto.fase_actual}</h3>
+            <button
+              onClick={intentarAvanzarFase}
+              disabled={!estadoFase.puede_avanzar}
+              className={`px-4 py-2 rounded ${
+                estadoFase.puede_avanzar 
+                  ? 'bg-green-600 text-white hover:bg-green-700' 
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              {estadoFase.puede_avanzar ? 'Avanzar a siguiente fase →' : 'No puede avanzar'}
+            </button>
+          </div>
+          
+          {estadoFase.bloqueos.length > 0 && (
+            <div className="bg-red-50 p-3 rounded mb-4">
+              <div className="font-medium text-red-800 mb-2">Bloqueos activos:</div>
+              <ul className="list-disc list-inside text-red-700 text-sm">
+                {estadoFase.bloqueos.map((b, i) => <li key={i}>{b}</li>)}
+              </ul>
+            </div>
+          )}
+          
+          {estadoFase.checklist_pendiente.length > 0 && (
+            <div className="bg-yellow-50 p-3 rounded">
+              <div className="font-medium text-yellow-800 mb-2">Checklist pendiente:</div>
+              <ul className="list-disc list-inside text-yellow-700 text-sm">
+                {estadoFase.checklist_pendiente.map((item, i) => (
+                  <li key={i}>{item.descripcion} ({item.responsable})</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="border-b mb-4">
+        <nav className="flex gap-4">
+          {['resumen', 'deliberaciones', 'documentos', 'defense_file'].map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`py-2 px-4 border-b-2 ${
+                tab === t 
+                  ? 'border-blue-500 text-blue-600' 
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t.charAt(0).toUpperCase() + t.slice(1).replace('_', ' ')}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Contenido de tabs */}
+      {tab === 'deliberaciones' && (
+        <div className="space-y-4">
+          {deliberaciones.map(delib => (
+            <div key={delib.id} className="bg-white p-4 rounded-lg shadow">
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <span className="font-bold">{delib.agente}</span>
+                  <span className="text-gray-500 ml-2">Fase {delib.fase}</span>
+                </div>
+                <span className={`px-3 py-1 rounded text-sm ${
+                  delib.decision === 'APROBAR' ? 'bg-green-100 text-green-800' :
+                  delib.decision === 'RECHAZAR' ? 'bg-red-100 text-red-800' :
+                  'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {delib.decision}
+                </span>
+              </div>
+              {delib.risk_score_calculado && (
+                <div className="text-sm text-gray-600 mb-2">
+                  Risk Score calculado: {delib.risk_score_calculado}/100
+                </div>
+              )}
+              <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                {delib.analisis_completo?.substring(0, 500)}...
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Otros tabs... */}
+    </div>
+  );
+}
+
+export default ProyectoDetalle;
+
+=============================================================================
+PASO 3: CREAR COMPONENTE DE CARGA DE DOCUMENTOS
+=============================================================================
+
+Crea archivo "components/CargaDocumentos.jsx":
+
+import React, { useState } from 'react';
+
+function CargaDocumentos({ proyectoId, faseActual, onDocumentoCargado }) {
+  const [archivo, setArchivo] = useState(null);
+  const [tipo, setTipo] = useState('');
+  const [descripcion, setDescripcion] = useState('');
+  const [uploading, setUploading] = useState(false);
+
+  const tiposDocumento = [
+    { value: 'SIB_BEE', label: 'SIB / BEE' },
+    { value: 'SOW', label: 'SOW / Orden de Trabajo' },
+    { value: 'CONTRATO', label: 'Contrato' },
+    { value: 'ANEXO_TECNICO', label: 'Anexo Técnico' },
+    { value: 'INFORME', label: 'Informe / Entregable' },
+    { value: 'MODELO_PARAMETRICO', label: 'Modelo Paramétrico' },
+    { value: 'DASHBOARD', label: 'Dashboard' },
+    { value: 'MANUAL', label: 'Manual / Documentación' },
+    { value: 'MINUTA', label: 'Minuta de Reunión' },
+    { value: 'CRONOGRAMA', label: 'Cronograma' },
+    { value: 'CFDI', label: 'CFDI / Factura' },
+    { value: 'COMPROBANTE_PAGO', label: 'Comprobante de Pago' },
+    { value: 'EVIDENCIA_EJECUCION', label: 'Evidencia de Ejecución' },
+    { value: 'OTRO', label: 'Otro' }
+  ];
+
+  async function handleUpload(e) {
+    e.preventDefault();
+    if (!archivo || !tipo) {
+      alert('Selecciona un archivo y tipo de documento');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('archivo', archivo);
+      formData.append('tipo', tipo);
+      formData.append('descripcion', descripcion);
+      formData.append('fase_asociada', faseActual);
+
+      const response = await fetch(`/api/proyectos/${proyectoId}/documentos`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert('✅ Documento cargado exitosamente');
+        setArchivo(null);
+        setTipo('');
+        setDescripcion('');
+        if (onDocumentoCargado) onDocumentoCargado(data);
+      } else {
+        alert('❌ Error: ' + data.error);
+      }
+    } catch (error) {
+      alert('Error: ' + error.message);
+    }
+    setUploading(false);
+  }
+
+  return (
+    <div className="bg-white p-6 rounded-lg shadow">
+      <h3 className="font-bold text-lg mb-4">Cargar Documento</h3>
+      
+      <form onSubmit={handleUpload} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Tipo de documento</label>
+          <select
+            value={tipo}
+            onChange={(e) => setTipo(e.target.value)}
+            className="w-full border rounded px-3 py-2"
+            required
+          >
+            <option value="">Seleccionar tipo...</option>
+            {tiposDocumento.map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Descripción</label>
+          <input
+            type="text"
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            className="w-full border rounded px-3 py-2"
+            placeholder="Ej: Informe Final V2.0 - Estudio de Mercado NL"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Archivo</label>
+          <input
+            type="file"
+            onChange={(e) => setArchivo(e.target.files[0])}
+            className="w-full border rounded px-3 py-2"
+            required
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={uploading}
+          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:bg-gray-400"
+        >
+          {uploading ? 'Cargando...' : 'Cargar Documento'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+export default CargaDocumentos;
+
+=============================================================================
+PASO 4: CREAR COMPONENTE DE TIMELINE DE FASES
+=============================================================================
+
+Crea archivo "components/TimelineFases.jsx":
+
+import React from 'react';
+
+function TimelineFases({ faseActual, fasesCompletadas = [] }) {
+  const fases = [
+    { id: 'F0', nombre: 'Aprobación BEE', candado: false },
+    { id: 'F1', nombre: 'Pre-contratación', candado: false },
+    { id: 'F2', nombre: 'Validación inicio', candado: true },
+    { id: 'F3', nombre: 'Ejecución inicial', candado: false },
+    { id: 'F4', nombre: 'Revisión iterativa', candado: false },
+    { id: 'F5', nombre: 'Entrega final', candado: false },
+    { id: 'F6', nombre: 'VBC Fiscal/Legal', candado: true },
+    { id: 'F7', nombre: 'Auditoría interna', candado: false },
+    { id: 'F8', nombre: 'CFDI y pago', candado: true },
+    { id: 'F9', nombre: 'Post-implementación', candado: false }
+  ];
+
+  function getEstadoFase(faseId) {
+    if (fasesCompletadas.includes(faseId)) return 'completada';
+    if (faseId === faseActual) return 'actual';
+    const indexActual = fases.findIndex(f => f.id === faseActual);
+    const indexFase = fases.findIndex(f => f.id === faseId);
+    if (indexFase < indexActual) return 'completada';
+    return 'pendiente';
+  }
+
+  return (
+    <div className="bg-white p-6 rounded-lg shadow">
+      <h3 className="font-bold text-lg mb-4">Progreso del Proyecto</h3>
+      
+      <div className="relative">
+        {/* Línea de progreso */}
+        <div className="absolute top-5 left-0 right-0 h-1 bg-gray-200" />
+        <div 
+          className="absolute top-5 left-0 h-1 bg-blue-500 transition-all"
+          style={{ 
+            width: `${(fases.findIndex(f => f.id === faseActual) / (fases.length - 1)) * 100}%` 
+          }}
+        />
+        
+        {/* Nodos de fases */}
+        <div className="relative flex justify-between">
+          {fases.map((fase, index) => {
+            const estado = getEstadoFase(fase.id);
+            return (
+              <div key={fase.id} className="flex flex-col items-center" style={{ width: '10%' }}>
+                <div className={`
+                  w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold
+                  ${estado === 'completada' ? 'bg-green-500 text-white' :
+                    estado === 'actual' ? 'bg-blue-500 text-white ring-4 ring-blue-200' :
+                    'bg-gray-200 text-gray-500'}
+                `}>
+                  {fase.candado && estado !== 'completada' ? '🔒' : fase.id}
+                </div>
+                <div className="mt-2 text-xs text-center text-gray-600">
+                  {fase.nombre}
+                </div>
+                {fase.candado && (
+                  <div className="text-xs text-red-500 mt-1">Candado</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default TimelineFases;
+
+=============================================================================
+PASO 5: CREAR RUTAS DE FRONTEND
+=============================================================================
+
+Configura las rutas principales de tu aplicación:
+
+// routes/index.js o App.jsx según tu setup
+
+import Dashboard from './components/Dashboard';
+import ProyectoDetalle from './components/ProyectoDetalle';
+import NuevoProyecto from './components/NuevoProyecto';
+
+const routes = [
+  { path: '/', component: Dashboard },
+  { path: '/proyecto/:id', component: ProyectoDetalle },
+  { path: '/nuevo-proyecto', component: NuevoProyecto }
+];
+
+// Configurar según tu router (React Router, Next.js, etc.)
+
+=============================================================================
+PASO 6: VERIFICACIÓN
+=============================================================================
+
+Al terminar, verifica:
+
+1. El Dashboard muestra la lista de proyectos con filtros
+2. El detalle de proyecto muestra risk_score desglosado
+3. Se puede ver el estado de fase y los bloqueos
+4. El timeline muestra las fases con candados marcados
+5. Se pueden cargar documentos asociados a fases
+6. Las deliberaciones de agentes se muestran correctamente
+
+Si algo falla, corregirlo antes de continuar a Fase 10.
+
+=============================================================================
+FIN FASE 9
+=============================================================================
+```
+
+## Verificación Post-Implementación
+
+La interfaz de usuario es crítica para que el sistema sea utilizable. Verifica que:
+
+1. Los usuarios puedan ver de un vistazo qué proyectos requieren atención
+2. El risk_score sea visible y comprensible (desglosado por pilar)
+3. Los candados duros estén claramente marcados en el timeline
+4. Los bloqueos se comuniquen de forma clara para que el usuario sepa qué hacer

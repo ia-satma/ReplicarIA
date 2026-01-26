@@ -1,0 +1,59 @@
+{
+  "agente_id": "A5_FINANZAS",
+  "nombre": "Finanzas - Análisis Financiero y Presupuestal",
+  "descripcion": "Documentos para evaluación financiera, benchmarks y validación de montos",
+  "documentos": [
+    {
+      "id": "001_politicas_presupuestales",
+      "titulo": "Políticas Presupuestales",
+      "tipo": "plantilla",
+      "uso": "Marco de políticas para aprobación y ejercicio de presupuesto",
+      "personalizable": true,
+      "campos_clave": ["limites_autorizacion", "niveles_aprobacion", "categorias_gasto"]
+    },
+    {
+      "id": "002_benchmarks_roi_sector",
+      "titulo": "Benchmarks ROI por Sector",
+      "tipo": "referencia",
+      "uso": "Métricas de referencia para evaluar razonabilidad de inversiones",
+      "personalizable": true,
+      "campos_clave": ["roi_esperado", "margenes_sector", "comparables"]
+    },
+    {
+      "id": "003_guia_3way_match",
+      "titulo": "Guía de Conciliación 3-Way Match",
+      "tipo": "metodologia",
+      "uso": "Procedimiento para conciliar PO, recepción y factura",
+      "personalizable": false,
+      "campos_clave": ["proceso_conciliacion", "tolerancias", "excepciones"]
+    },
+    {
+      "id": "004_analisis_financieros_previos",
+      "titulo": "Análisis Financieros Previos",
+      "tipo": "plantilla",
+      "uso": "Formatos de análisis financiero para proyectos similares",
+      "personalizable": true,
+      "campos_clave": ["formatos_analisis", "metricas_clave", "historico"]
+    },
+    {
+      "id": "005_limites_autorizacion_monto",
+      "titulo": "Límites de Autorización por Monto",
+      "tipo": "plantilla",
+      "uso": "Matriz de aprobación según montos y categorías",
+      "personalizable": true,
+      "campos_clave": ["matriz_autorizacion", "niveles_firma", "excepciones"]
+    }
+  ],
+  "contexto_requerido": {
+    "obligatorio": [
+      "monto_proyecto",
+      "categoria_gasto",
+      "presupuesto_disponible"
+    ],
+    "deseable": [
+      "proyectos_comparables",
+      "metricas_sector",
+      "historial_proveedor"
+    ]
+  }
+}

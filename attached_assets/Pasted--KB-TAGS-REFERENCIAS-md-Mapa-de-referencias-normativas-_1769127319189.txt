@@ -1,0 +1,483 @@
+# KB_TAGS_REFERENCIAS.md
+## Mapa de referencias normativas y criterios para Revisar-IA
+
+---
+
+> **Propósito:** Este archivo es la "tabla de mapeo" entre cada **tag**, el **artículo/fuente**, 
+> el **archivo KB** donde está el detalle y **qué agente lo usa**.
+>
+> **Uso:** Los agentes citan usando el tag (ej: `@CFF_5A`) y este archivo indica dónde está el detalle completo.
+
+---
+
+## 1. Código Fiscal de la Federación (CFF)
+
+### `@CFF_5`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | CFF, artículo 5 – Interpretación de normas fiscales |
+| **Archivo KB** | `CFF_5_INTERPRETACION.md` |
+| **Uso principal** | A3: recordar interpretación estricta de normas que imponen cargas |
+| | A7: argumentar límites de interpretación extensiva por parte de la autoridad |
+
+---
+
+### `@CFF_5A`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | CFF, artículo 5-A – Razón de negocios |
+| **Archivo KB** | `CFF_5A_RAZON_NEGOCIOS.md` |
+| **Uso principal** | A1: definición y evaluación de razón de negocios |
+| | A3: revisar coherencia entre razón de negocios y beneficio fiscal |
+| | A7: argumentar contra recaracterizaciones por falta de RN |
+| **Prioridad** | ⭐⭐⭐ CRÍTICA |
+
+---
+
+### `@CFF_29_29A`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | CFF, artículos 29 y 29-A – Requisitos de los CFDI |
+| **Archivo KB** | `CFF_29_29A_CFDI.md` |
+| **Uso principal** | A3: checklists de CFDI (campos clave, complementos) |
+| | A7: fundamentar validez formal del CFDI en el expediente |
+| **Prioridad** | ⭐⭐⭐ CRÍTICA |
+
+---
+
+### `@CFF_32D`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | CFF, artículo 32-D – Opinión de cumplimiento |
+| **Archivo KB** | `CFF_32D_OPINION_CUMPLIMIENTO.md` |
+| **Uso principal** | A6: due diligence fiscal de proveedores (opinión 32-D) |
+| | A3: contexto de cumplimiento del proveedor |
+| **Prioridad** | ⭐⭐ ALTA |
+
+---
+
+### `@CFF_69`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | CFF, artículo 69 – Publicación de contribuyentes incumplidos |
+| **Archivo KB** | `CFF_69_LISTAS_PUBLICAS.md` |
+| **Uso principal** | A6: detección de proveedores en listas de incumplidos/no localizados |
+| | A3: valorar riesgo de operar con dichos proveedores |
+| **Prioridad** | ⭐⭐ ALTA |
+
+---
+
+### `@CFF_69B`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | CFF, artículo 69-B – Presunción de inexistencia de operaciones (EFOS/EDOS) |
+| **Archivo KB** | `CFF_69B_EFOS_MATERIALIDAD.md` |
+| **Uso principal** | A3: análisis de riesgo EFOS, impacto sobre deducibilidad |
+| | A6: criterios de riesgo EFOS en proveedores |
+| | A7: argumentación sobre materialidad y desvirtuación |
+| **Prioridad** | ⭐⭐⭐ CRÍTICA |
+
+---
+
+## 2. Ley del Impuesto sobre la Renta (LISR)
+
+### `@LISR_25`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | LISR, artículo 25 – Deducciones autorizadas |
+| **Archivo KB** | `LISR_25_DEDUCCIONES_AUTORIZADAS.md` |
+| **Uso principal** | A3: ubicar el tipo de gasto dentro del catálogo de deducciones |
+| **Prioridad** | ⭐⭐ ALTA |
+
+---
+
+### `@LISR_27`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | LISR, artículo 27 – Requisitos de deducciones (general) |
+| **Archivo KB** | `LISR_27_REQUISITOS_DEDUCCIONES.md` |
+| **Uso principal** | A3 y A7: análisis global de deducibilidad |
+| **Prioridad** | ⭐⭐⭐ CRÍTICA |
+
+---
+
+### `@LISR_27_I`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | LISR 27, fracción I – Estrictamente indispensables |
+| **Archivo KB** | `LISR_27_REQUISITOS_DEDUCCIONES.md` (sección I) |
+| **Uso principal** | A3: revisar indispensabilidad respecto al giro |
+| | A1/A5: coherencia de RN/BEE con actividad preponderante |
+| **Prioridad** | ⭐⭐⭐ CRÍTICA |
+
+---
+
+### `@LISR_27_III`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | LISR 27, fracción III – Amparadas con CFDI |
+| **Archivo KB** | `LISR_27_REQUISITOS_DEDUCCIONES.md` (sección III) |
+| **Uso principal** | A3: existencia de CFDI válido y congruente |
+| **Prioridad** | ⭐⭐⭐ CRÍTICA |
+
+---
+
+### `@LISR_27_IV`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | LISR 27, fracción IV – Medios de pago (bancarizados > $2,000) |
+| **Archivo KB** | `LISR_27_REQUISITOS_DEDUCCIONES.md` (sección IV) |
+| **Uso principal** | A3: revisar forma de pago |
+| | A5: condición para validación financiera |
+| **Prioridad** | ⭐⭐⭐ CRÍTICA |
+
+---
+
+### `@LISR_27_XVIII`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | LISR 27, fracción XVIII – Registro en contabilidad |
+| **Archivo KB** | `LISR_27_REQUISITOS_DEDUCCIONES.md` (sección XVIII) |
+| **Uso principal** | A3: verificar registro contable adecuado |
+| **Prioridad** | ⭐⭐ ALTA |
+
+---
+
+### `@LISR_27_XIX`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | LISR 27, fracción XIX – Operaciones con partes relacionadas a valor de mercado |
+| **Archivo KB** | `LISR_27_REQUISITOS_DEDUCCIONES.md` (sección XIX) |
+| **Uso principal** | A3/A5: análisis de management fees intra-grupo |
+| | A7: base para discutir valor de mercado y TP |
+| **Prioridad** | ⭐⭐⭐ CRÍTICA |
+
+---
+
+### `@LISR_28`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | LISR, artículo 28 – Gastos no deducibles |
+| **Archivo KB** | `LISR_28_GASTOS_NO_DEDUCIBLES.md` |
+| **Uso principal** | A3: identificar si el gasto cae en categoría no deducible |
+| **Ejemplos** | Gastos de representación, viáticos fuera de límite, pagos a partes relacionadas sin sustancia |
+| **Prioridad** | ⭐⭐ ALTA |
+
+---
+
+## 3. Ley del IVA (LIVA)
+
+### `@LIVA_5`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | LIVA, artículo 5 – Requisitos para el acreditamiento del IVA |
+| **Archivo KB** | `LIVA_5_ACREDITAMIENTO_IVA.md` |
+| **Uso principal** | A3: establecer si el IVA acreditado es procedente |
+| | A5: modelar impacto del IVA acreditable en flujos |
+| **Prioridad** | ⭐⭐⭐ CRÍTICA |
+
+---
+
+## 4. NOM-151
+
+### `@NOM151`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | NOM-151-SCFI-2016 – Requisitos para conservación de mensajes de datos |
+| **Archivo KB** | `NOM151_MENSAJES_DATOS_TRAZABILIDAD.md` |
+| **Uso principal** | A2/A7: trazabilidad, fecha cierta e integridad de documentos |
+| | A4: cláusulas contractuales de conservación electrónica |
+| **Prioridad** | ⭐⭐ ALTA |
+
+---
+
+## 5. Procedimientos y Defensa
+
+### `@LFPCA_BASE`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | LFPCA – Procedimiento contencioso administrativo |
+| **Archivo KB** | `LFPCA_PUNTOS_CLAVE_DEFENSA.md` |
+| **Uso principal** | A7: estructurar Defense File pensando en requisitos de demanda, medios de prueba y plazos ante TFJA |
+| **Prioridad** | ⭐⭐ ALTA |
+
+---
+
+### `@LOTFJA_TFJA`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | LOTFJA – Estructura y competencia del TFJA |
+| **Archivo KB** | `LOTFJA_ESTRUCTURA_TFJA.md` |
+| **Uso principal** | A7: contexto de la instancia que resolverá el juicio de nulidad |
+| **Prioridad** | ⭐ MEDIA |
+
+---
+
+### `@LFDC_DERECHOS`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | Ley Federal de Derechos del Contribuyente |
+| **Archivo KB** | `LFDC_DERECHOS_CONTRIBUYENTE.md` |
+| **Uso principal** | A7: invocar derechos del contribuyente en auditorías (información, audiencia, motivación) |
+| **Prioridad** | ⭐⭐ ALTA |
+
+---
+
+## 6. PLD / EFOS y Proveedores
+
+### `@LFPIORPI_VULNERABLES`
+| Campo | Valor |
+|-------|-------|
+| **Norma** | LFPIORPI – Actividades vulnerables |
+| **Archivo KB** | `LFPIORPI_ACTIVIDADES_VULNERABLES.md` |
+| **Uso principal** | A6: identificar si el servicio cae en actividades vulnerables |
+| | A7: mostrar cumplimiento reforzado cuando aplique |
+| **Prioridad** | ⭐ MEDIA |
+
+---
+
+### `@EFOS_CRITERIOS`
+| Campo | Valor |
+|-------|-------|
+| **Norma/Criterio** | Resumen operativo de criterios EFOS (Art. 69-B CFF + criterios SAT) |
+| **Archivo KB** | `EFOS_CRITERIOS_69B_PRACTICOS.md` |
+| **Uso principal** | A6: criterios de scoring EFOS |
+| | A3: lectura rápida de señales EFOS sin ir al texto completo |
+| **Prioridad** | ⭐⭐ ALTA |
+
+---
+
+## 7. Tesis y Criterios Jurisprudenciales
+
+### `@TESIS_IA_SCJN`
+| Campo | Valor |
+|-------|-------|
+| **Fuente** | Tesis II.2o.C. J/1 K (12a.), Registro digital 2031639 |
+| **Rubro** | IA como herramienta auxiliar válida para cálculo de garantías |
+| **Archivo KB** | `TESIS_SCJN_IA_HERRAMIENTA_AUXILIAR.md` |
+| **Uso principal** | A7 y narrativa general: legitimar uso de IA como auxiliar técnico |
+| **Prioridad** | ⭐⭐⭐ CRÍTICA |
+
+---
+
+### `@TESIS_RN`
+| Campo | Valor |
+|-------|-------|
+| **Fuente** | Conjunto de tesis sobre razón de negocios (Art. 5-A CFF) |
+| **Archivo KB** | `TESIS_RAZON_NEGOCIOS_5A_CFF.md` |
+| **Uso principal** | A1/A3/A7: enriquecer argumentación sobre RN en casos complejos |
+| **Prioridad** | ⭐⭐⭐ CRÍTICA |
+
+---
+
+### `@TESIS_MAT_69B`
+| Campo | Valor |
+|-------|-------|
+| **Fuente** | Tesis sobre materialidad y 69-B (carga de prueba, desvirtuación) |
+| **Archivo KB** | `TESIS_MATERIALIDAD_69B_CFF.md` |
+| **Uso principal** | A3/A6/A7: sostener argumentos de materialidad y buena fe |
+| **Prioridad** | ⭐⭐⭐ CRÍTICA |
+
+---
+
+### `@TESIS_EI_LISR27`
+| Campo | Valor |
+|-------|-------|
+| **Fuente** | Tesis sobre "estricta indispensabilidad" (LISR 27 fracc. I) |
+| **Archivo KB** | `TESIS_ESTRICTA_INDISPENSABILIDAD_LISR27.md` |
+| **Uso principal** | A3/A1/A5: criterios para calificar si un gasto es indispensable |
+| **Prioridad** | ⭐⭐ ALTA |
+
+---
+
+## 8. Mapeo: Qué Tags Usa Cada Agente
+
+### A1 (Facturar.IA) - Estrategia y Razón de Negocios
+```
+@CFF_5A          - Razón de negocios
+@LISR_27_I       - Estrictamente indispensable
+@LISR_27_XIX     - Partes relacionadas
+@TESIS_RN        - Tesis razón de negocios
+```
+
+### A2 (Bibliotecar.IA) - Trazabilidad y Documentación
+```
+@NOM151          - Conservación de mensajes de datos
+@TESIS_IA_SCJN   - Legitimidad de IA como auxiliar
+```
+
+### A3 (Revisar.IA) - Análisis de Deducibilidad ⭐ AGENTE CENTRAL
+```
+# Deducciones
+@LISR_25         - Deducciones autorizadas
+@LISR_27_I       - Estrictamente indispensable
+@LISR_27_III     - Amparado con CFDI
+@LISR_27_IV      - Forma de pago (>$2,000)
+@LISR_27_XVIII   - Registro en contabilidad
+@LISR_27_XIX     - Partes relacionadas
+@LISR_28         - No deducibles
+
+# CFDI
+@CFF_29_29A      - Requisitos CFDI
+
+# EFOS/Materialidad
+@CFF_69B         - EFOS/Materialidad
+@EFOS_CRITERIOS  - Criterios prácticos EFOS
+@TESIS_MAT_69B   - Tesis materialidad
+
+# IVA
+@LIVA_5          - Acreditamiento IVA
+
+# Interpretación
+@CFF_5           - Interpretación estricta
+@CFF_5A          - Razón de negocios
+```
+
+### A4 (Calcular.IA) - Contratos y Legal
+```
+@NOM151          - Conservación electrónica
+@CFF_5A          - Razón de negocios
+@CFF_29_29A      - Requisitos CFDI
+```
+
+### A5 (Investigar.IA) - Análisis Financiero
+```
+@CFF_5A          - Razón de negocios
+@LISR_27_I       - Estrictamente indispensable
+@LISR_27_IV      - Forma de pago
+@LISR_27_XIX     - Partes relacionadas
+@LIVA_5          - Acreditamiento IVA
+@TESIS_EI_LISR27 - Estricta indispensabilidad
+```
+
+### A6 (Tráfico.IA) - Verificación de Proveedores
+```
+@CFF_32D         - Opinión de cumplimiento
+@CFF_69          - Listas públicas
+@CFF_69B         - EFOS/EDOS
+@EFOS_CRITERIOS  - Criterios EFOS
+@LFPIORPI_VULNERABLES - Actividades vulnerables
+```
+
+### A7 (Auditar.IA) - Defense File ⭐ USA TODOS
+```
+# Todos los tags anteriores, más:
+@LFPCA_BASE      - Procedimiento contencioso
+@LOTFJA_TFJA     - Competencia TFJA
+@LFDC_DERECHOS   - Derechos del contribuyente
+@TESIS_IA_SCJN   - Legitimidad IA
+@TESIS_RN        - Razón de negocios
+@TESIS_MAT_69B   - Materialidad
+@TESIS_EI_LISR27 - Estricta indispensabilidad
+```
+
+---
+
+## 9. Checklist de Deducibilidad (para A3)
+
+Cuando A3 analiza un CFDI, debe verificar y citar:
+
+```
+□ @LISR_27_I    ¿Es estrictamente indispensable para el giro?
+□ @LISR_27_III  ¿Tiene CFDI válido y vigente en SAT?
+□ @LISR_27_IV   ¿Forma de pago correcta (>$2,000 bancarizado)?
+□ @LISR_27_XVIII ¿Registrado en contabilidad?
+□ @LISR_27_XIX  ¿Si es parte relacionada, precio de mercado?
+□ @CFF_69B      ¿Proveedor NO en lista 69-B?
+□ @CFF_5A       ¿Tiene razón de negocios documentada?
+□ @LIVA_5       ¿IVA cumple requisitos de acreditamiento?
+```
+
+---
+
+## 10. Archivos KB Requeridos
+
+| Prioridad | Archivo | Tag principal |
+|-----------|---------|---------------|
+| ⭐⭐⭐ | `CFF_5A_RAZON_NEGOCIOS.md` | @CFF_5A |
+| ⭐⭐⭐ | `CFF_69B_EFOS_MATERIALIDAD.md` | @CFF_69B |
+| ⭐⭐⭐ | `CFF_29_29A_CFDI.md` | @CFF_29_29A |
+| ⭐⭐⭐ | `LISR_27_REQUISITOS_DEDUCCIONES.md` | @LISR_27_* |
+| ⭐⭐⭐ | `LIVA_5_ACREDITAMIENTO_IVA.md` | @LIVA_5 |
+| ⭐⭐⭐ | `TESIS_SCJN_IA_HERRAMIENTA_AUXILIAR.md` | @TESIS_IA_SCJN |
+| ⭐⭐⭐ | `TESIS_RAZON_NEGOCIOS_5A_CFF.md` | @TESIS_RN |
+| ⭐⭐⭐ | `TESIS_MATERIALIDAD_69B_CFF.md` | @TESIS_MAT_69B |
+| ⭐⭐ | `CFF_32D_OPINION_CUMPLIMIENTO.md` | @CFF_32D |
+| ⭐⭐ | `CFF_69_LISTAS_PUBLICAS.md` | @CFF_69 |
+| ⭐⭐ | `LISR_28_GASTOS_NO_DEDUCIBLES.md` | @LISR_28 |
+| ⭐⭐ | `NOM151_MENSAJES_DATOS_TRAZABILIDAD.md` | @NOM151 |
+| ⭐⭐ | `LFPCA_PUNTOS_CLAVE_DEFENSA.md` | @LFPCA_BASE |
+| ⭐⭐ | `LFDC_DERECHOS_CONTRIBUYENTE.md` | @LFDC_DERECHOS |
+| ⭐⭐ | `EFOS_CRITERIOS_69B_PRACTICOS.md` | @EFOS_CRITERIOS |
+| ⭐⭐ | `TESIS_ESTRICTA_INDISPENSABILIDAD_LISR27.md` | @TESIS_EI_LISR27 |
+| ⭐ | `LOTFJA_ESTRUCTURA_TFJA.md` | @LOTFJA_TFJA |
+| ⭐ | `LFPIORPI_ACTIVIDADES_VULNERABLES.md` | @LFPIORPI_VULNERABLES |
+
+---
+
+## 11. Ejemplo de Uso en Respuesta de Agente
+
+```
+ANÁLISIS DE CFDI: 8A3D4F2E-1234-5678-ABCD-EF0123456789
+
+PROVEEDOR: Consultores ABC, S.A. de C.V.
+RFC: CAB010101XYZ
+MONTO: $150,000.00 + IVA
+
+═══════════════════════════════════════════════════════════════
+
+1. ESTRICTAMENTE INDISPENSABLE (@LISR_27_I)
+   ✅ CUMPLE
+   Servicio de consultoría en sistemas corresponde al giro 
+   de tecnología del contribuyente.
+
+2. CFDI VÁLIDO (@LISR_27_III, @CFF_29_29A)
+   ✅ CUMPLE
+   UUID validado ante SAT, status: Vigente
+   Uso de CFDI: G03 (Gastos en general) - Correcto
+
+3. FORMA DE PAGO (@LISR_27_IV)
+   ✅ CUMPLE
+   Monto > $2,000, pagado por transferencia bancaria (forma 03)
+
+4. REGISTRO CONTABLE (@LISR_27_XVIII)
+   ✅ CUMPLE
+   Registrado en cuenta 6100-001 - Gastos de consultoría
+
+5. PARTES RELACIONADAS (@LISR_27_XIX)
+   ⚠️ REVISAR
+   Accionista común detectado (30%). Verificar precio de mercado.
+   Recomendación: Obtener estudio de precios de transferencia.
+
+6. LISTA 69-B (@CFF_69B)
+   ✅ CUMPLE
+   Proveedor no publicado en listas de presuntos ni definitivos.
+   Última consulta: 2025-01-22
+
+7. RAZÓN DE NEGOCIOS (@CFF_5A)
+   ⚠️ REVISAR
+   No se encontró contrato ni entregables documentados.
+   Riesgo: Posible cuestionamiento de materialidad.
+
+8. IVA ACREDITABLE (@LIVA_5)
+   ✅ CUMPLE
+   IVA trasladado expresamente, corresponde a actividad gravada.
+
+═══════════════════════════════════════════════════════════════
+
+CONCLUSIÓN: DEDUCIBLE CON OBSERVACIONES
+
+RIESGO: ⚠️ MEDIO
+
+OBSERVACIONES:
+• Documentar entregables del servicio de consultoría
+• Considerar estudio de precios de transferencia por vinculación
+
+FUNDAMENTOS: @LISR_27_I, @LISR_27_III, @LISR_27_IV, @LISR_27_XIX, 
+             @CFF_5A, @CFF_69B, @LIVA_5
+```
+
+---
+
+**Última actualización:** 2025-01-22
+**Versión:** 1.0

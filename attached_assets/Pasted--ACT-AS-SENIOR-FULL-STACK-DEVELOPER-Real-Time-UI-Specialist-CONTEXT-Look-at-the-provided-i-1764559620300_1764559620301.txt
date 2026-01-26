@@ -1,0 +1,51 @@
+# ACT AS: SENIOR FULL-STACK DEVELOPER (Real-Time UI Specialist)
+
+**CONTEXT:**
+Look at the provided image (`image_1.png`). Currently, after the user uploads data, we show this static modal with a list of agents ("Agentes en proceso") waiting or working.
+We have a backend with multiple agents (PMO, StrategyAuditor, Fiscal, Legal, etc.) that perform complex, asynchronous tasks, including RAG searches and multi-agent debates.
+
+**OBJECTIVE:**
+Replace the static list in the modal shown in `image_1.png` with a **Dynamic, Real-Time Visualization Workflow**.
+The user must see the information flowing between agents and understand exactly what each agent is thinking/doing at every second.
+
+---
+
+## TECHNICAL EXECUTION PLAN
+
+### 1. BACKEND: Real-Time Event Streaming (Python/FastAPI)
+You need to modify the backend endpoint that triggers the analysis so it streams status updates instead of waiting for one final response.
+
+* **Technology:** Implement **Server-Sent Events (SSE)** or WebSockets for this endpoint.
+* **Instrumentation:** Go into the code of EVERY agent (PMO, Strategy, Fiscal, Legal) and add "event emitters" at key steps. They should broadcast their current activity.
+* **Event Structure Example (JSON stream):**
+    ```json
+    data: {"agent_id": "pmo", "status": "thinking", "message": "Analizando el input del usuario..."}
+    
+    data: {"agent_id": "fiscal", "status": "tool_use", "message": "Consultando base de datos tributaria (RAG)..."}
+    
+    data: {"agent_id": "pmo", "status": "sending_to_audit", "message": "Enviando borrador al Consejo de Estrategia..."}
+    
+    data: {"agent_id": "strategy", "status": "auditing", "message": "🕵️‍♂️ Auditando: Detectando posibles alucinaciones..."}
+    ```
+
+### 2. FRONTEND: The Visual Workflow Component (React/JS)
+Replace the current blue list box in the modal with a new visualization component that consumes the SSE stream.
+
+**Visual Layout Requirements:**
+
+* **Row 1: Agent Avatars (The Nodes)**
+    * Display the avatars of the active agents horizontally across the modal (PMO, Fiscal, Legal, Strategy).
+    * Use distinct icons for each (like the brain, gavel, pause icon in the image).
+
+* **Animations: The Flow (The Edges)**
+    * When Agent A communicates with Agent B (e.g., PMO sends to Strategy for audit), draw an **animated glowing line or particle effect** connecting their avatars temporarily to show data transfer.
+
+* **Row 2: Live Activity Logs (The Status)**
+    * **CRITICAL:** Directly underneath EACH agent avatar, place a "Live Activity Box" (like a terminal window or chat bubble).
+    * This box must update instantly with the `message` received from the backend stream for that specific agent.
+    * Use colors for status: Green for active, Yellow for waiting/thinking, Blue for auditing.
+
+**Desired User Experience:**
+Instead of a static list, the user sees a "living dashboard" where lines connect agents, and text boxes below them rapidly update like: *"Leyendo documento...", "Buscando leyes...", "Debatiendo estrategia...", "Finalizando reporte."*
+
+**GO.** Modify backend for streaming and build the new frontend visualization component.

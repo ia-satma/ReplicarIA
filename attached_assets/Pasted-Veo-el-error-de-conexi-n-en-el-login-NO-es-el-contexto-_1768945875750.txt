@@ -1,0 +1,223 @@
+Veo el error de conexión en el login. NO es el contexto, es un problema del servidor. Te doy el diagnóstico rápido:
+
+```
+TOON: DIAGNOSTICAR Y CORREGIR ERROR DE CONEXIÓN EN LOGIN
+
+================================================================================
+PASO 1: VERIFICAR QUE EL SERVIDOR ESTÉ CORRIENDO
+================================================================================
+
+En la consola de Replit, buscar errores:
+
+```bash
+# Ver logs del servidor
+npm run dev
+```
+
+O si usas otro comando:
+```bash
+node server/index.js
+# o
+npx ts-node server/index.ts
+```
+
+================================================================================
+PASO 2: VERIFICAR EL ENDPOINT DE AUTENTICACIÓN
+================================================================================
+
+Abrir otra terminal y probar:
+
+```bash
+curl -X POST https://TU-REPLIT-URL/api/auth/request-code \
+  -H "Content-Type: application/json" \
+  -d '{"email":"santiago@satma.mx"}'
+```
+
+O en el navegador, abrir DevTools (F12) → Network → ver qué error devuelve.
+
+================================================================================
+PASO 3: POSIBLES CAUSAS Y SOLUCIONES
+================================================================================
+
+CAUSA 1: Servidor no está corriendo
+→ Hacer clic en "Run" en Replit
+
+CAUSA 2: Error en la base de datos
+→ Verificar que DATABASE_URL esté configurado en Secrets
+
+CAUSA 3: La tabla usuarios_autorizados no existe o está vacía
+→ Ejecutar:
+```sql
+-- Crear tabla si no existe
+CREATE TABLE IF NOT EXISTS usuarios_autorizados (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  nombre VARCHAR(255),
+  empresa VARCHAR(255),
+  rol VARCHAR(50) DEFAULT 'usuario',
+  activo BOOLEAN DEFAULT true,
+  ultimo_acceso TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insertar usuario de prueba
+INSERT INTO usuarios_autorizados (email, nombre, empresa, rol, activo)
+VALUES ('santiago@satma.mx', 'Santiago', 'SATMA', 'admin', true)
+ON CONFLICT (email) DO NOTHING;
+```
+
+CAUSA 4: Error en el servicio de email (Resend)
+→ Verificar RESEND_API_KEY en Secrets
+
+CAUSA 5: Puerto bloqueado o conflicto
+→ Cambiar puerto en server/index.ts:
+```typescript
+const PORT = process.env.PORT || 3000;
+```
+
+================================================================================
+PASO 4: AGREGAR LOGS PARA DIAGNOSTICAR
+================================================================================
+
+En server/routes/auth.ts, agregar logs:
+
+```typescript
+router.post('/request-code', async (req, res) => {
+  console.log('📧 Solicitud de código recibida');
+  console.log('Body:', req.body);
+  
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      console.log('❌ Email no proporcionado');
+      return res.status(400).json({ error: 'Email requerido' });
+    }
+
+    console.log('📧 Buscando usuario:', email);
+    
+    // Verificar si el usuario está autorizado
+    const usuario = await db.query(
+      'SELECT * FROM usuarios_autorizados WHERE email = $1 AND activo = true',
+      [email]
+    );
+
+    console.log('👤 Usuario encontrado:', usuario.rows.length > 0);
+
+    if (usuario.rows.length === 0) {
+      console.log('❌ Usuario no autorizado');
+      return res.status(403).json({ error: 'Usuario no autorizado' });
+    }
+
+    // Generar código
+    const codigo = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log('🔢 Código generado:', codigo);
+
+    // Guardar código en BD
+    await db.query(`
+      INSERT INTO codigos_otp (email, codigo, expira_en, usado)
+      VALUES ($1, $2, NOW() + INTERVAL '5 minutes', false)
+    `, [email, codigo]);
+
+    console.log('💾 Código guardado en BD');
+
+    // Enviar email
+    // ... código de envío de email ...
+
+    console.log('✅ Proceso completado');
+    res.json({ success: true, message: 'Código enviado' });
+
+  } catch (error: any) {
+    console.error('❌ ERROR:', error);
+    res.status(500).json({ error: 'Error de conexion', details: error.message });
+  }
+});
+```
+
+================================================================================
+PASO 5: VERIFICAR CONEXIÓN A BASE DE DATOS
+================================================================================
+
+Agregar verificación al inicio del servidor:
+
+```typescript
+// En server/index.ts, después de importar db
+
+async function verificarConexion() {
+  try {
+    const result = await db.query('SELECT NOW()');
+    console.log('✅ Base de datos conectada:', result.rows[0].now);
+    
+    // Verificar tabla de usuarios
+    const usuarios = await db.query('SELECT COUNT(*) FROM usuarios_autorizados');
+    console.log('👥 Usuarios autorizados:', usuarios.rows[0].count);
+    
+  } catch (error: any) {
+    console.error('❌ Error conectando a BD:', error.message);
+  }
+}
+
+verificarConexion();
+```
+
+================================================================================
+PASO 6: VERIFICAR FRONTEND - MANEJO DE ERRORES
+================================================================================
+
+En client/pages/Login.tsx, mejorar el manejo de errores:
+
+```tsx
+const handleSolicitarCodigo = async () => {
+  setError('');
+  setLoading(true);
+
+  try {
+    console.log('Enviando solicitud a /api/auth/request-code');
+    
+    const response = await fetch('/api/auth/request-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+
+    console.log('Response status:', response.status);
+    
+    const data = await response.json();
+    console.log('Response data:', data);
+
+    if (!response.ok) {
+      throw new Error(data.error || data.details || 'Error desconocido');
+    }
+
+    setPaso(2); // Ir al paso de ingresar código
+
+  } catch (error: any) {
+    console.error('Error completo:', error);
+    setError(error.message || 'Error de conexion');
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+================================================================================
+DIAGNÓSTICO RÁPIDO - REVISAR CONSOLA DE REPLIT
+================================================================================
+
+1. Abre la consola de Replit
+2. Busca errores en rojo
+3. Copia y pégame el error para ayudarte
+
+Errores comunes:
+- "ECONNREFUSED" → BD no conectada
+- "relation does not exist" → Tablas no creadas
+- "no pg_hba.conf entry" → Credenciales BD incorrectas
+- "fetch failed" → Servidor no responde
+- "RESEND_API_KEY" → API key de email no configurada
+
+================================================================================
+EJECUTAR DIAGNÓSTICO. PEGAR ERROR DE CONSOLA.
+================================================================================
+```
+
+¿Puedes abrir la **consola de Replit** y decirme qué error aparece en rojo? Eso me ayudará a darte la solución exacta.

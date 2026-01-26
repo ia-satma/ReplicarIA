@@ -1,0 +1,69 @@
+🚀 PROMPT 20: Arreglos Finales Específicos
+TAREA: Arreglar colores y eliminar referencias a Durezza. SIGUE ESTAS INSTRUCCIONES AL PIE DE LA LETRA.
+
+PASO 1: Arreglar colores de botones en el navbar
+
+Archivo: frontend/src/App.js (o donde esté el navbar del dashboard)
+
+BUSCA EXACTAMENTE esta línea:
+className="... bg-blue-600 ..."  (botón "+ Nuevo Proyecto")
+
+REEMPLAZA CON:
+className="px-4 py-2 bg-[#7FEDD8] text-[#1A1A1A] rounded-lg font-semibold hover:bg-[#5DD5C0] transition-colors"
+
+BUSCA EXACTAMENTE:
+className="... bg-purple-600 ..." (botón "Administración")
+
+REEMPLAZA CON:
+className="px-4 py-2 bg-[#1A1A1A] text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+
+PASO 2: Eliminar "Grupo Durezza" del sistema
+
+Estos nombres aparecen en la BASE DE DATOS, NO en el código.
+
+Ejecuta este comando en la terminal de Python/MongoDB:
+
+Si usas demo_db.py (JSON):
+```python
+python
+>>> from backend.database.demo_db import db
+>>> companies = db.get("companies", [])
+>>> for c in companies:
+...     if "Durezza" in c.get("name", ""):
+...         c["name"] = c["name"].replace("Grupo Durezza", "Revisar.ia Demo")
+...         c["name"] = c["name"].replace("Pruebas Durezza", "Revisar.ia Test")
+>>> db.save()
+
+O muéstrame:
+
+¿Dónde se almacenan los nombres de las empresas?
+¿Es un archivo JSON? ¿Cuál?
+¿Es MongoDB? ¿Cuál es el nombre de la colección?
+PASO 3: Eliminar "Grupo Durezza" de los PROMPTS de los agentes
+
+BUSCA en TODOS los archivos backend/agents/*.py:
+
+grep -r "Grupo Durezza" backend/agents/
+
+Si encuentras algo, REEMPLAZA "Grupo Durezza" con "la empresa cliente"
+
+PASO 4: Verificar página /metrics
+
+Navega a: http://tu-replit-url/metrics
+
+Si aparece error 404, muéstrame:
+
+El archivo frontend/src/App.js completo (las rutas)
+¿Existe el archivo frontend/src/components/MetricsDashboard.js?
+PASO 5: Reinicia COMPLETAMENTE el frontend
+
+npm run build
+
+O el comando que uses para rebuild
+Limpia caché del navegador con Ctrl+Shift+R (o Cmd+Shift+R en Mac)
+
+Muéstrame screenshots de:
+
+Dashboard con botones en color #7FEDD8 (verde menta)
+Repositorio sin "Grupo Durezza"
+Página /metrics funcionando (o el error si no funciona)

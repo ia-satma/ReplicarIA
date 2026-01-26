@@ -1,0 +1,136 @@
+CONTEXTO IMPORTANTE:
+===================
+Acabamos de definir que revisar.ia debe ser MULTI-TENANT (ver prompt anterior).
+Por lo tanto, estos 5 documentos NO deben hardcodearse para "Grupo Durezza".
+
+En su lugar, deben servir como PLANTILLAS que cada empresa (tenant) puede 
+personalizar al configurar su perfil.
+
+IMPLEMENTACIÓN CORRECTA:
+=======================
+
+1. ESTRUCTURA DE CARPETAS (RAG por tenant):
+
+backend/rag/
+├── templates/                    # Plantillas base (ejemplos)
+│   └── A1_ESTRATEGIA/
+│       ├── 001_vision_pilares_template.md
+│       ├── 002_planeacion_okrs_template.md
+│       ├── 003_panorama_industria_template.md
+│       ├── 004_plan_estrategico_template.md
+│       └── 005_matriz_alineacion_bee_template.md
+│
+└── tenants/                      # Documentos reales por empresa
+    ├── {empresa_id_1}/
+    │   └── A1_ESTRATEGIA/
+    │       └── [documentos de ESA empresa]
+    ├── {empresa_id_2}/
+    │   └── A1_ESTRATEGIA/
+    │       └── [documentos de ESA empresa]
+    └── ...
+
+2. LAS PLANTILLAS deben tener placeholders:
+
+En lugar de:
+  "Grupo Durezza visualiza consolidarse como líder..."
+
+Usar:
+  "{{NOMBRE_EMPRESA}} visualiza {{VISION_EMPRESA}}..."
+
+3. INTEGRACIÓN EN CONTEXTO:
+
+El servicio InyeccionContextoService debe:
+
+async def _cargar_rag_empresa(self, empresa_id: str, agente_id: str):
+    """Carga documentos RAG específicos de la empresa para el agente"""
+    
+    # Ruta de documentos de ESTA empresa
+    ruta_tenant = f"backend/rag/tenants/{empresa_id}/{agente_id}/"
+    
+    # Si no tiene documentos propios, NO usar plantillas genéricas
+    # (cada empresa debe configurar sus propios documentos)
+    if not os.path.exists(ruta_tenant):
+        return {
+            "status": "sin_configurar",
+            "mensaje": f"La empresa no ha cargado documentos para {agente_id}"
+        }
+    
+    # Cargar y procesar documentos de la empresa
+    documentos = await self.rag_service.cargar_documentos(ruta_tenant)
+    return {
+        "status": "configurado",
+        "documentos": documentos
+    }
+
+4. FLUJO EN UI:
+
+Cuando una empresa nueva se registra:
+1. Ve las plantillas como EJEMPLOS de qué tipo de documentos subir
+2. Puede descargar las plantillas para llenarlas con SU información
+3. Sube SUS documentos personalizados
+4. Los agentes usan los documentos de ESA empresa
+
+5. ARCHIVOS A CREAR:
+
+# Plantilla 001 (ejemplo)
+# backend/rag/templates/A1_ESTRATEGIA/001_vision_pilares_template.md
+
+---
+tipo: vision_pilares
+version: "1.0"
+instrucciones: "Complete los campos {{}} con información de su empresa"
+---
+
+# Visión y Pilares Estratégicos {{PERIODO}}
+
+## 1. Visión Corporativa
+{{DESCRIPCION_VISION}}
+
+## 2. Pilares Estratégicos
+
+### Pilar 1: {{NOMBRE_PILAR_1}}
+- **Descripción**: {{DESCRIPCION_PILAR_1}}
+- **Objetivo Principal**: {{OBJETIVO_PILAR_1}}
+- **Métricas Clave**: {{METRICAS_PILAR_1}}
+
+### Pilar 2: {{NOMBRE_PILAR_2}}
+...
+
+## 3. Alineación con Servicios Externos
+Los servicios intangibles contratados deben contribuir a:
+- {{CRITERIO_ALINEACION_1}}
+- {{CRITERIO_ALINEACION_2}}
+- {{CRITERIO_ALINEACION_3}}
+
+---
+
+6. COMPONENTE UI PARA SUBIR DOCUMENTOS:
+
+El componente BaseConocimiento.jsx (del prompt multi-tenant anterior) 
+ya incluye la funcionalidad para que cada empresa suba sus documentos.
+
+Agregar sección de "Plantillas de Ejemplo":
+
+<div className="plantillas-section">
+  <h3>📋 Plantillas de Ejemplo</h3>
+  <p>Descargue estas plantillas, complételas con información de su empresa, y súbalas.</p>
+  
+  <div className="plantillas-list">
+    <a href="/api/templates/A1_ESTRATEGIA/001" download>
+      📄 Visión y Pilares Estratégicos
+    </a>
+    <a href="/api/templates/A1_ESTRATEGIA/002" download>
+      📄 Planeación OKRs
+    </a>
+    ...
+  </div>
+</div>
+
+RESULTADO:
+=========
+- Las plantillas sirven como GUÍA para las empresas
+- Cada empresa sube SUS documentos personalizados
+- Los agentes usan documentos de LA EMPRESA del proyecto
+- La plataforma es comercializable a cualquier tipo de negocio
+
+Esto asegura que los documentos estratégicos se manejen correctamente dentro de la arquitectura multi-tenant, sin hardcodear información de ninguna empresa específica.

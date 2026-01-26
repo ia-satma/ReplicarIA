@@ -1,0 +1,301 @@
+# ARCHITECTURAL EXPORT - SATMA/Fortezza Multi-Agent System
+
+## 1. AGENT ARCHITECTURE (Actual System)
+
+```yaml
+agents:
+  A1_SPONSOR:
+    name: "María Rodríguez"
+    role: "sponsor"
+    email: "estrategia@durezza.online"
+    department: "Dirección Estratégica"
+    llm_provider: "anthropic"
+    llm_model: "claude-3-7-sonnet-20250219"
+    system_prompt: |
+      Eres María Rodríguez, Directora de Estrategia de Grupo Fortezza.
+      Comunícate de manera formal, clara y profesional.
+      
+      TU BASE DE CONOCIMIENTO:
+      - Visión y Pilares Estratégicos 2026-2030
+      - Planeación Estratégica con OKRs
+      - Análisis de panorama de industria
+      
+      POLÍTICA DE CITACIÓN OBLIGATORIA:
+      Formato: [Documento: {título}] (Fecha: {DD/MM/AAAA}) - Enlace: {URL pCloud}
+      
+      UMBRAL DE CONFIANZA:
+      Si tu base NO contiene información suficiente (confianza >70%):
+      Indica: "[CONFIANZA BAJA - REQUIERE VALIDACIÓN HUMANA]"
+    
+    rag_source: "pCloud monthly structure"
+    knowledge_chunks: 622
+
+  A2_PMO:
+    name: "Carlos Mendoza"
+    role: "pmo"
+    email: "pmo@durezza.online"
+    department: "PMO"
+    llm_provider: "anthropic"
+    llm_model: "claude-3-7-sonnet-20250219"
+    system_prompt: |
+      Eres Carlos Mendoza, Gerente de PMO de Grupo Fortezza.
+      Comunicación formal y estructurada. Enfoque en procesos y cumplimiento.
+      
+      TU ROL:
+      - Orquestador del proceso multi-agente
+      - Consolidador de validaciones
+      - Generador de PO y Defense File
+      
+      RESPONSABILIDADES:
+      - Coordinar discusiones entre agentes
+      - Generar Orden de Compra (700-900 palabras)
+      - Generar Consolidation Report (1000+ palabras)
+      - Enviar documentos al sponsor
+    
+    rag_source: "pCloud monthly structure"
+    knowledge_chunks: 497
+
+  A3_FISCAL:
+    name: "Laura Sánchez"
+    role: "fiscal"
+    email: "fiscal@durezza.online"
+    department: "Fiscal"
+    llm_provider: "anthropic"
+    llm_model: "claude-3-7-sonnet-20250219"
+    system_prompt: |
+      Eres Laura Sánchez, Especialista Fiscal de Grupo Fortezza.
+      
+      TU BASE DE CONOCIMIENTO:
+      - Guías de cumplimiento fiscal (Razón de Negocios, Materialidad)
+      - Normativa fiscal mexicana (CFF, LISR, RLSR)
+      - Casos de auditoría SAT
+      
+      POLÍTICA DE CITACIÓN OBLIGATORIA:
+      Formato: [Documento: {título}] (Fecha: {DD/MM/AAAA}) - Enlace: {URL}
+      
+      UMBRAL DE CONFIANZA:
+      Si falta información: "[REQUIERE VALIDACIÓN HUMANA]"
+      
+      ESTRUCTURA ANÁLISIS:
+      1. Cumplimiento Razón de Negocios (Art. 5-A CFF)
+      2. Estricta Indispensabilidad (Art. 27 LISR)
+      3. Materialidad del Servicio (Art. 69-B CFF)
+      4. Riesgos Fiscales
+      5. Dictamen Fiscal
+    
+    rag_source: "pCloud monthly structure"
+    knowledge_chunks: 91
+
+  A5_FINANZAS:
+    name: "Roberto Torres"
+    role: "finanzas"
+    email: "finanzas@durezza.online"
+    department: "Finanzas"
+    llm_provider: "anthropic"
+    llm_model: "claude-3-7-sonnet-20250219"
+    system_prompt: |
+      Eres Roberto Torres, Director Financiero de Grupo Fortezza.
+      
+      TU BASE DE CONOCIMIENTO:
+      - Políticas Presupuestales 2026
+      - Análisis financieros de proyectos previos
+      - Benchmarks de ROI del sector
+      
+      ESTRUCTURA ANÁLISIS:
+      1. Análisis Presupuestal
+      2. Cálculo de ROI
+      3. Viabilidad Financiera
+      4. Recomendación
+    
+    rag_source: "pCloud monthly structure"
+    knowledge_chunks: 0
+
+  LEGAL:
+    name: "Equipo Legal"
+    role: "legal"
+    email: "legal@durezza.online"
+    department: "Legal"
+    responsibilities:
+      - "Elaboración de contratos"
+      - "Revisión legal de PO"
+      - "Documentación Defense File"
+```
+
+---
+
+## 2. DATABASE SCHEMA (MongoDB)
+
+```javascript
+// Collection: projects
+{
+  project_id: String,              // UUID
+  project_name: String,
+  sponsor_name: String,
+  sponsor_email: String,
+  budget_estimate: Number,
+  expected_economic_benefit: Number,
+  description: String,
+  status: String,                  // APPROVED, REJECTED, IN_REVIEW
+  current_status: String,
+  created_at: ISODate,
+  approved_at: ISODate,
+  participants: [String],          // [A1_SPONSOR, A2_PMO, A3_FISCAL, A5_FINANZAS]
+  po_path: String,
+  po_pcloud_link: String,
+  defense_file_path: String,
+  defense_file_pcloud_link: String,
+  workflow_state: String
+}
+
+// Collection: agent_interactions
+{
+  interaction_id: String,
+  project_id: String,
+  agent_id: String,
+  analysis: String,
+  decision: String,                // APPROVED, REJECTED, CONDITIONAL
+  timestamp: ISODate,
+  rag_sources_used: [String],
+  confidence_level: String
+}
+
+// Collection: agent_discussions
+{
+  discussion_id: String,
+  project_id: String,
+  status: String,                  // in_progress, completed
+  current_round: Number,
+  max_rounds: Number,
+  participants: [String],
+  moderator: String,               // A2_PMO
+  rounds: [{
+    round: Number,
+    timestamp: ISODate,
+    participants: [String],
+    type: String
+  }],
+  started_at: ISODate,
+  completed_at: ISODate
+}
+
+// Collection: purchase_orders
+{
+  po_number: String,               // PO-YYYY-XXXX
+  project_id: String,
+  amount: Number,
+  status: String,                  // issued, signed, executed
+  created_at: ISODate,
+  created_by: String,              // A2_PMO
+  approved_by: [String],
+  pdf_path: String,
+  pcloud_link: String
+}
+```
+
+---
+
+## 3. ENVIRONMENT VARIABLES
+
+```bash
+# Database
+MONGO_URL=[mongodb://localhost:27017]
+DB_NAME=[fortezza_agent_network]
+
+# SMTP DreamHost
+SMTP_HOST=[smtp.dreamhost.com]
+SMTP_PORT=[587]
+SMTP_USER_A1=[estrategia@durezza.online]
+SMTP_PASS_A1=[TU_PASSWORD_DUREZZA]
+SMTP_USER_A2=[pmo@durezza.online]
+SMTP_PASS_A2=[TU_PASSWORD_DUREZZA]
+SMTP_USER_A3=[fiscal@durezza.online]
+SMTP_PASS_A3=[TU_PASSWORD_DUREZZA]
+SMTP_USER_A5=[finanzas@durezza.online]
+SMTP_PASS_A5=[TU_PASSWORD_DUREZZA]
+SMTP_USER_LEGAL=[legal@durezza.online]
+SMTP_PASS_LEGAL=[TU_PASSWORD_DUREZZA]
+
+# IMAP DreamHost
+IMAP_HOST=[imap.dreamhost.com]
+IMAP_PORT=[993]
+IMAP_PASSWORD_A1=[TU_PASSWORD_DUREZZA]
+IMAP_PASSWORD_A2=[TU_PASSWORD_DUREZZA]
+IMAP_PASSWORD_A3=[TU_PASSWORD_DUREZZA]
+IMAP_PASSWORD_A5=[TU_PASSWORD_DUREZZA]
+
+# pCloud Storage
+PCLOUD_USERNAME=[santiago@satma.mx]
+PCLOUD_PASSWORD=[TU_PASSWORD_PCLOUD]
+
+# OpenAI Embeddings
+OPENAI_API_KEY=[sk-proj-TU_OPENAI_KEY]
+EMBEDDINGS_PROVIDER=[openai]
+EMBEDDINGS_MODEL=[text-embedding-3-small]
+
+# Emergent LLM
+EMERGENT_LLM_KEY=[sk-emergent-TU_KEY]
+
+# RAG
+CHROMA_PERSIST_DIR=[/data/vector_store/satma_prod]
+
+# Security
+WEBHOOK_SECRET_KEY=[TU_WEBHOOK_SECRET]
+
+# CORS
+CORS_ORIGINS=[https://durezza.online,http://localhost:3000]
+
+# Frontend
+REACT_APP_BACKEND_URL=[https://durezza.online]
+```
+
+---
+
+## 4. TECH STACK
+
+```yaml
+tech_stack:
+  frontend:
+    framework: "React"
+    version: "18.x"
+    ui_library: "Tailwind CSS + Shadcn UI"
+    charts: "Recharts"
+    http_client: "axios"
+    
+  backend:
+    framework: "FastAPI"
+    version: "0.110.1"
+    language: "Python 3.11"
+    async_runtime: "asyncio"
+    
+  database:
+    type: "MongoDB"
+    driver: "motor (AsyncIO)"
+    version: "Latest"
+    
+  storage:
+    provider: "pCloud"
+    structure: "/AGENT/YYYY-MM/PROJECT_ID/"
+    capacity: "4TB"
+    
+  email:
+    smtp_provider: "DreamHost"
+    smtp_host: "smtp.dreamhost.com:587"
+    imap_host: "imap.dreamhost.com:993"
+    domain: "@durezza.online"
+    
+  rag:
+    embeddings: "OpenAI text-embedding-3-small"
+    vector_store: "ChromaDB 1.3.0"
+    source: "pCloud documents"
+    
+  llm:
+    provider: "Anthropic Claude + Emergent LLM Key"
+    model: "claude-3-7-sonnet-20250219"
+    
+  deployment:
+    platform: "Emergent (Kubernetes)"
+    production_url: "https://durezza.online"
+    preview_url: "https://smart-agent-flow-1.preview.emergentagent.com"
+```
+
+**EXPORT COMPLETE. Tokens: 533k/1M**

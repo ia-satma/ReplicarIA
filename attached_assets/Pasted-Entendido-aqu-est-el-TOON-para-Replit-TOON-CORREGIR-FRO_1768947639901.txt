@@ -1,0 +1,264 @@
+Entendido, aquí está el TOON para Replit:
+
+```
+TOON: CORREGIR FRONTEND "NOT FOUND" - URGENTE
+
+EL PROBLEMA:
+La página muestra "Not Found" - el frontend React NO se está sirviendo.
+El backend puede estar corriendo pero no sirve los archivos estáticos del frontend.
+
+================================================================================
+PASO 1: VERIFICAR QUE EL FRONTEND ESTÉ CONSTRUIDO
+================================================================================
+
+Ejecutar en la Shell de Replit:
+
+```bash
+cd client
+npm run build
+```
+
+Esto debe crear la carpeta `client/dist` o `client/build` con los archivos estáticos.
+
+================================================================================
+PASO 2: CONFIGURAR EL BACKEND PARA SERVIR EL FRONTEND
+================================================================================
+
+SI ES PYTHON (FastAPI) - main.py:
+─────────────────────────────────
+
+```python
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
+
+app = FastAPI()
+
+# Primero registrar las rutas de API
+from server.routes import auth, empresas, proyectos  # tus rutas
+app.include_router(auth.router, prefix="/api/auth")
+app.include_router(empresas.router, prefix="/api/empresas")
+# ... otras rutas de API
+
+# DESPUÉS montar el frontend estático
+# Verificar qué carpeta existe
+frontend_path = None
+if os.path.exists("client/dist"):
+    frontend_path = "client/dist"
+elif os.path.exists("client/build"):
+    frontend_path = "client/build"
+elif os.path.exists("dist"):
+    frontend_path = "dist"
+elif os.path.exists("build"):
+    frontend_path = "build"
+
+if frontend_path:
+    # Servir archivos estáticos (JS, CSS, imágenes)
+    app.mount("/assets", StaticFiles(directory=f"{frontend_path}/assets"), name="assets")
+    
+    # Catch-all: servir index.html para todas las rutas que no sean API
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        # Si es una ruta de API, dejar que FastAPI maneje el 404
+        if full_path.startswith("api/"):
+            return {"error": "Not found"}
+        
+        # Para cualquier otra ruta, servir index.html (SPA)
+        index_path = f"{frontend_path}/index.html"
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        return {"error": "Frontend not built"}
+    
+    # Ruta raíz
+    @app.get("/")
+    async def root():
+        return FileResponse(f"{frontend_path}/index.html")
+
+print(f"✅ Frontend path: {frontend_path}")
+```
+
+SI ES TYPESCRIPT (Express) - server/index.ts:
+─────────────────────────────────────────────
+
+```typescript
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
+
+const app = express();
+
+// Middlewares
+app.use(express.json());
+
+// PRIMERO: Rutas de API
+import authRoutes from './routes/auth';
+import empresasRoutes from './routes/empresas';
+
+app.use('/api/auth', authRoutes);
+app.use('/api/empresas', empresasRoutes);
+// ... otras rutas de API
+
+// DESPUÉS: Servir frontend estático
+let frontendPath = '';
+if (fs.existsSync(path.join(__dirname, '../client/dist'))) {
+  frontendPath = path.join(__dirname, '../client/dist');
+} else if (fs.existsSync(path.join(__dirname, '../client/build'))) {
+  frontendPath = path.join(__dirname, '../client/build');
+} else if (fs.existsSync(path.join(__dirname, '../dist'))) {
+  frontendPath = path.join(__dirname, '../dist');
+} else if (fs.existsSync('./client/dist')) {
+  frontendPath = './client/dist';
+}
+
+console.log('📁 Frontend path:', frontendPath);
+
+if (frontendPath && fs.existsSync(frontendPath)) {
+  // Servir archivos estáticos
+  app.use(express.static(frontendPath));
+  
+  // Catch-all: servir index.html para rutas del SPA
+  app.get('*', (req, res) => {
+    // No interceptar rutas de API
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    
+    const indexPath = path.join(frontendPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send('Frontend not found');
+    }
+  });
+} else {
+  console.error('❌ Frontend not found! Run: cd client && npm run build');
+}
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
+```
+
+================================================================================
+PASO 3: VERIFICAR ESTRUCTURA DE CARPETAS
+================================================================================
+
+Tu estructura debe ser así:
+
+```
+/
+├── client/
+│   ├── src/
+│   ├── dist/          ← Carpeta generada por build
+│   │   ├── index.html
+│   │   └── assets/
+│   ├── package.json
+│   └── vite.config.ts
+├── server/
+│   ├── routes/
+│   ├── services/
+│   └── index.ts (o main.py)
+├── package.json
+└── .replit
+```
+
+================================================================================
+PASO 4: VERIFICAR .replit Y replit.nix
+================================================================================
+
+Archivo .replit debe tener:
+
+```toml
+run = "npm run start"
+# O si usas Python:
+# run = "python main.py"
+
+[nix]
+channel = "stable-22_11"
+
+[deployment]
+run = ["sh", "-c", "npm run start"]
+# O para Python:
+# run = ["sh", "-c", "python main.py"]
+```
+
+================================================================================
+PASO 5: VERIFICAR package.json (SCRIPTS)
+================================================================================
+
+En el package.json RAÍZ:
+
+```json
+{
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "build": "cd client && npm run build",
+    "start": "npm run build && node server/index.js",
+    "server": "ts-node server/index.ts",
+    "client": "cd client && npm run dev"
+  }
+}
+```
+
+================================================================================
+PASO 6: COMANDOS PARA EJECUTAR EN ORDEN
+================================================================================
+
+```bash
+# 1. Instalar dependencias del cliente
+cd client && npm install
+
+# 2. Construir el frontend
+npm run build
+
+# 3. Volver a la raíz
+cd ..
+
+# 4. Iniciar el servidor
+npm run start
+```
+
+================================================================================
+PASO 7: SI USA VITE - VERIFICAR vite.config.ts
+================================================================================
+
+```typescript
+// client/vite.config.ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+    },
+  },
+});
+```
+
+================================================================================
+RESUMEN RÁPIDO
+================================================================================
+
+1. cd client && npm run build
+2. Verificar que exista client/dist/index.html
+3. Configurar servidor para servir archivos estáticos
+4. El catch-all (*) debe servir index.html para rutas no-API
+5. Reiniciar servidor
+
+================================================================================
+EJECUTAR EN ESTE ORDEN. NO PREGUNTAR.
+================================================================================
+```
+
+**El problema es claro**: El servidor backend está corriendo pero NO está sirviendo los archivos del frontend. Necesitas construir el frontend (`npm run build`) y configurar el servidor para servir esos archivos estáticos.

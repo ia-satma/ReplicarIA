@@ -1,0 +1,96 @@
+FASE 12: Defense File Generator
+python# services/defense_generator.py
+"""
+PROPÓSITO: Generar ZIP con expediente completo + PDF índice narrativo
+"""
+
+class DefenseFileGenerator:
+    def generate_dossier(self, project_id: str) -> str:
+        """
+        Genera expediente de defensa con estructura:
+        
+        EXPEDIENTE_PROYECTO_ABC123.zip
+        ├── 00_INDICE_MAESTRO.pdf  ← Narrativa legal
+        ├── 01_SOLICITUD_COMPRA/
+        │   ├── SOW_firmado.pdf
+        │   └── metadata.json
+        ├── 02_APROBACIONES/
+        │   ├── F2_BUDGET_APPROVED.json
+        │   └── F6_MATERIALITY_APPROVED.json
+        ├── 03_EVIDENCIAS_EJECUCION/
+        │   ├── entregables/
+        │   └── minutas/
+        ├── 04_COMPROBANTES_PAGO/
+        │   ├── factura_XXXX.pdf
+        │   └── transferencia_YYYY.pdf
+        └── 05_ANALISIS_RIESGO/
+            ├── risk_assessment.json
+            └── defense_strategy.md
+        """
+        
+        project = db.get_project(project_id)
+        
+        # 1. Crear estructura de carpetas
+        temp_dir = f"/tmp/expediente_{project_id}"
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # 2. Copiar archivos desde uploads/
+        self._copy_evidence_files(project, temp_dir)
+        
+        # 3. Generar PDF Maestro (narrativa)
+        indice_pdf = self._generate_master_index(project)
+        
+        # 4. Comprimir todo
+        zip_path = f"{temp_dir}.zip"
+        shutil.make_archive(temp_dir, 'zip', temp_dir)
+        
+        return zip_path
+    
+    def _generate_master_index(self, project) -> str:
+        """
+        Genera PDF narrativo estilo "Alegatos de Defensa"
+        """
+        narrative = f"""
+        EXPEDIENTE DE DEFENSA FISCAL
+        Proyecto: {project.name}
+        RFC Contribuyente: {project.taxpayer_rfc}
+        Periodo: {project.fiscal_year}
+        
+        CRONOLOGÍA DE HECHOS:
+        1. [{project.start_date}] Identificación de Necesidad de Negocio
+           - Justificación: {project.business_case}
+        
+        2. [{project.f2_approval_date}] Aprobación de Presupuesto
+           - Monto autorizado: ${project.budget:,.2f}
+           - Aprobador: {project.f2_approver}
+        
+        3. [{project.contract_date}] Formalización Contractual
+           - Proveedor: {project.vendor_name} (RFC: {project.vendor_rfc})
+           - Objeto: {project.scope}
+        
+        ...
+        
+        ANÁLISIS DE RIESGO FISCAL:
+        - Risk Score: {project.risk_score}/100
+        - Fundamentación Legal: Cumple con CFF 5-A, LISR 27, NOM-151
+        - Puntos de Defensa: {project.defense_points}
+        
+        ÍNDICE DE EVIDENCIAS:
+        Ver carpetas 01/ a 05/ de este expediente.
+        """
+        
+        # Convertir a PDF con ReportLab
+        pdf_path = self._text_to_pdf(narrative)
+        return pdf_path
+Botón en Dashboard:
+python# routes/dashboard.py
+@app.route("/generate_defense/<project_id>")
+def download_defense_file(project_id):
+    generator = DefenseFileGenerator()
+    zip_path = generator.generate_dossier(project_id)
+    
+    return send_file(
+        zip_path,
+        as_attachment=True,
+        download_name=f"EXPEDIENTE_{project_id}.zip"
+    )

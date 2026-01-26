@@ -1,0 +1,127 @@
+TOUR #6: INTEGRACIÓN END-TO-END
+Copiá esto a Replit para que haga las 4 integraciones pendientes:
+
+INTEGRACIÓN 1: Activar ChatbotArchivoRefactored
+En frontend/src/App.js:
+
+1. Busca la línea que dice:
+   import ChatbotArchivo from './components/ChatbotArchivo';
+
+2. Cámbiala por:
+   import ChatbotArchivo from './components/ChatbotArchivoRefactored';
+
+3. NO cambies nada más - el componente refactorizado debe exportarse con el mismo nombre para que las rutas funcionen igual.
+
+Si ChatbotArchivoRefactored no exporta "default", agrégale:
+export default ChatbotArchivoRefactored;
+
+al final del archivo.
+
+INTEGRACIÓN 2: Agregar UsageDashboard al Dashboard principal
+Encuentra el componente de Dashboard principal (probablemente Dashboard.jsx o DashboardPage.jsx) y agrega el widget de uso:
+
+1. Agrega el import al inicio:
+   import UsageDashboard from './UsageDashboard';
+   // o la ruta correcta donde esté el componente
+
+2. Dentro del JSX del dashboard, agrega el widget en un lugar visible (sidebar o parte superior):
+
+   <div className="mb-6">
+     <UsageDashboard />
+   </div>
+
+Si no existe un Dashboard.jsx, créalo como un widget que se pueda agregar en cualquier página, o agrégalo en la barra lateral (Sidebar) si existe.
+
+INTEGRACIÓN 3: Agregar DefenseFileDownload a la vista de proyecto
+Encuentra el componente que muestra los detalles de un proyecto individual (probablemente ProjectDetails.jsx, ProjectDetail.jsx, o similar donde se ve la info de UN proyecto).
+
+1. Agrega el import:
+   import { DefenseFileDownload } from './DefenseFileDownload';
+   // o la ruta correcta
+
+2. Dentro del JSX, en la sección de acciones del proyecto (donde hay botones), agrega:
+
+   <DefenseFileDownload 
+     projectId={project.id} 
+     projectName={project.nombre} 
+   />
+
+Esto debe estar donde el usuario ve los detalles de su proyecto para que pueda descargar el PDF del expediente de defensa.
+
+INTEGRACIÓN 4: Agregar búsqueda semántica al Repositorio de Conocimiento
+Encuentra KnowledgeRepository.jsx (o el componente del Acervo/Repositorio de documentos).
+
+1. Agrega un estado para la búsqueda semántica:
+   const [searchQuery, setSearchQuery] = useState('');
+   const [searchResults, setSearchResults] = useState([]);
+   const [isSearching, setIsSearching] = useState(false);
+
+2. Agrega la función de búsqueda:
+   const handleSemanticSearch = async () => {
+     if (!searchQuery.trim()) return;
+     
+     setIsSearching(true);
+     try {
+       const response = await apiClient.post('/api/knowledge/hybrid_search', {
+         query: searchQuery,
+         limit: 20
+       });
+       setSearchResults(response.data.results || []);
+     } catch (error) {
+       console.error('Error en búsqueda:', error);
+     } finally {
+       setIsSearching(false);
+     }
+   };
+
+3. Agrega la UI de búsqueda en la parte superior del componente:
+
+   <div className="mb-6 flex gap-2">
+     <input
+       type="text"
+       value={searchQuery}
+       onChange={(e) => setSearchQuery(e.target.value)}
+       onKeyDown={(e) => e.key === 'Enter' && handleSemanticSearch()}
+       placeholder="Buscar por significado en todos los documentos..."
+       className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+     />
+     <button
+       onClick={handleSemanticSearch}
+       disabled={isSearching}
+       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+     >
+       {isSearching ? 'Buscando...' : '🔍 Buscar'}
+     </button>
+   </div>
+
+   {searchResults.length > 0 && (
+     <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+       <h3 className="font-semibold mb-2">Resultados de búsqueda semántica:</h3>
+       {searchResults.map((result, idx) => (
+         <div key={idx} className="p-2 bg-white rounded mb-2 border">
+           <p className="font-medium">{result.filename}</p>
+           <p className="text-sm text-gray-600">{result.contenido?.substring(0, 200)}...</p>
+           <p className="text-xs text-blue-600">Similitud: {(result.similarity * 100).toFixed(1)}%</p>
+         </div>
+       ))}
+     </div>
+   )}
+
+VERIFICACIÓN FINAL
+Después de hacer las 4 integraciones, pedile a Replit:
+Verifica las integraciones del Tour #6:
+
+1. ¿App.js ahora importa ChatbotArchivoRefactored? Muestra la línea de import.
+
+2. ¿UsageDashboard está renderizado en algún componente? Muestra dónde.
+
+3. ¿DefenseFileDownload está en la vista de proyecto? Muestra dónde.
+
+4. ¿KnowledgeRepository tiene la barra de búsqueda semántica? Muestra el código.
+
+5. Inicia la aplicación y confirma que no hay errores en consola.
+
+CHECKLIST FINAL
+IntegraciónArchivo a modificarComponente a agregar1. Chatbot RefactorizadoApp.jsCambiar import2. Dashboard de UsoDashboard.jsx o Sidebar<UsageDashboard />3. Descarga PDFProjectDetails.jsx<DefenseFileDownload />4. Búsqueda SemánticaKnowledgeRepository.jsxInput + handler
+
+Pasame el resultado de Replit después de hacer las integraciones y verificamos que todo quedó conectado. Esta vez con evidencia real 🔍

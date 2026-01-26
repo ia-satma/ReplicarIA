@@ -1,0 +1,536 @@
+═══════════════════════════════════════════════════════════════════════════════
+🚨 ARREGLAR: PANEL DE ADMINISTRACIÓN NO MUESTRA USUARIOS
+═══════════════════════════════════════════════════════════════════════════════
+
+PROBLEMA: Usuario logueado como santiago@satma.mx (admin) pero:
+- Panel muestra "0 usuarios"
+- Panel muestra "0 pendientes"  
+- No puede administrar nada
+
+ESTO ES CRÍTICO: Si hay un usuario logueado, al menos ESE usuario
+debería aparecer en la lista.
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 1: DIAGNÓSTICO INMEDIATO
+═══════════════════════════════════════════════════════════════════════════════
+
+### 1.1 ¿Cuántos usuarios hay en la BD?
+
+```bash
+echo "=== USUARIOS EN BD ===" && \
+psql $DATABASE_URL -c "SELECT id, email, nombre, is_admin, activo FROM users ORDER BY id;"
+```
+
+Si esto muestra usuarios → El problema es el endpoint o frontend
+Si esto muestra 0 → El problema es que no se guardó el usuario
+
+### 1.2 ¿Existe el endpoint de admin/usuarios?
+
+```bash
+echo "=== TEST ENDPOINT ===" && \
+curl -s http://localhost:5000/api/admin/usuarios -w "\nHTTP: %{http_code}"
+```
+
+Si da 404 → El endpoint NO EXISTE
+Si da 401 → Requiere auth
+Si da 200 pero [] → El endpoint existe pero no retorna datos
+Si da 500 → Error interno
+
+### 1.3 ¿Qué endpoints de admin existen?
+
+```bash
+echo "=== RUTAS ADMIN ===" && \
+grep -rn "admin" backend/routes/ | grep -E "route|bp\." | head -30
+```
+
+### 1.4 ¿Cómo está registrado el blueprint?
+
+```bash
+echo "=== BLUEPRINTS ===" && \
+grep -rn "register_blueprint.*admin" backend/
+grep -rn "admin_bp\|admin_routes" backend/
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 2: EL PROBLEMA MÁS PROBABLE
+═══════════════════════════════════════════════════════════════════════════════
+
+Basándome en los síntomas, el problema es UNO de estos:
+
+### CASO A: El endpoint existe pero la query está mal
+
+```python
+# ❌ CÓDIGO ROTO - Query no retorna nada
+@admin_bp.route('/usuarios', methods=['GET'])
+def listar_usuarios():
+    # Posibles errores:
+    usuarios = User.query.filter_by(activo=True, aprobado=True).all()  # Nadie está aprobado
+    # o
+    usuarios = User.query.filter(User.empresa_id == current_user.empresa_id).all()  # No hay empresa
+    # o
+    usuarios = []  # Hardcodeado vacío por error
+    
+    return jsonify([...])
+```
+
+### CASO B: El endpoint no existe
+
+El frontend llama a `/api/admin/usuarios` pero ese endpoint nunca se creó.
+
+### CASO C: El frontend no llama al endpoint correcto
+
+```javascript
+// ❌ Frontend llama a endpoint incorrecto
+const response = await fetch('/api/usuarios');  // Debería ser /api/admin/usuarios
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 3: CREAR/ARREGLAR ENDPOINT DE USUARIOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Buscar o crear: backend/routes/admin_routes.py
+
+```python
+from flask import Blueprint, jsonify, request
+from extensions import db
+from sqlalchemy import text
+
+admin_bp = Blueprint('admin', __name__)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LISTAR TODOS LOS USUARIOS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@admin_bp.route('/usuarios', methods=['GET'])
+def listar_usuarios():
+    """Lista todos los usuarios del sistema"""
+    try:
+        result = db.session.execute(text("""
+            SELECT 
+                u.id,
+                u.email,
+                u.nombre,
+                u.is_admin,
+                u.activo,
+                u.aprobado,
+                u.created_at,
+                c.nombre as empresa_nombre
+            FROM users u
+            LEFT JOIN clientes c ON u.cliente_id = c.id
+            ORDER BY u.created_at DESC
+        """))
+        
+        usuarios = []
+        for row in result:
+            usuarios.append({
+                'id': row.id,
+                'email': row.email,
+                'nombre': row.nombre,
+                'is_admin': row.is_admin,
+                'activo': row.activo,
+                'aprobado': row.aprobado,
+                'created_at': row.created_at.isoformat() if row.created_at else None,
+                'empresa': row.empresa_nombre
+            })
+        
+        return jsonify({
+            'success': True,
+            'usuarios': usuarios,
+            'total': len(usuarios)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SOLICITUDES PENDIENTES (usuarios sin aprobar)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@admin_bp.route('/usuarios/pendientes', methods=['GET'])
+def usuarios_pendientes():
+    """Lista usuarios pendientes de aprobación"""
+    try:
+        result = db.session.execute(text("""
+            SELECT 
+                u.id,
+                u.email,
+                u.nombre,
+                u.created_at,
+                c.nombre as empresa_nombre
+            FROM users u
+            LEFT JOIN clientes c ON u.cliente_id = c.id
+            WHERE u.aprobado = FALSE OR u.aprobado IS NULL
+            ORDER BY u.created_at DESC
+        """))
+        
+        pendientes = []
+        for row in result:
+            pendientes.append({
+                'id': row.id,
+                'email': row.email,
+                'nombre': row.nombre,
+                'created_at': row.created_at.isoformat() if row.created_at else None,
+                'empresa': row.empresa_nombre
+            })
+        
+        return jsonify({
+            'success': True,
+            'pendientes': pendientes,
+            'total': len(pendientes)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# APROBAR USUARIO
+# ═══════════════════════════════════════════════════════════════════════════
+
+@admin_bp.route('/usuarios/<int:user_id>/aprobar', methods=['POST'])
+def aprobar_usuario(user_id):
+    """Aprueba un usuario pendiente"""
+    try:
+        db.session.execute(text("""
+            UPDATE users SET aprobado = TRUE, activo = TRUE WHERE id = :id
+        """), {'id': user_id})
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Usuario {user_id} aprobado'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# RECHAZAR/ELIMINAR USUARIO
+# ═══════════════════════════════════════════════════════════════════════════
+
+@admin_bp.route('/usuarios/<int:user_id>', methods=['DELETE'])
+def eliminar_usuario(user_id):
+    """Elimina o desactiva un usuario"""
+    try:
+        # Soft delete - solo desactivar
+        db.session.execute(text("""
+            UPDATE users SET activo = FALSE WHERE id = :id
+        """), {'id': user_id})
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Usuario {user_id} desactivado'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CAMBIAR ROL DE USUARIO
+# ═══════════════════════════════════════════════════════════════════════════
+
+@admin_bp.route('/usuarios/<int:user_id>/rol', methods=['PUT'])
+def cambiar_rol(user_id):
+    """Cambia el rol de un usuario (admin/usuario)"""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        is_admin = data.get('is_admin', False)
+        
+        db.session.execute(text("""
+            UPDATE users SET is_admin = :is_admin WHERE id = :id
+        """), {'id': user_id, 'is_admin': is_admin})
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Rol actualizado para usuario {user_id}'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ASIGNAR EMPRESAS A USUARIO
+# ═══════════════════════════════════════════════════════════════════════════
+
+@admin_bp.route('/usuarios/<int:user_id>/empresas', methods=['PUT'])
+def asignar_empresas(user_id):
+    """Asigna empresas permitidas a un usuario"""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        empresa_ids = data.get('empresa_ids', [])
+        
+        # Limpiar asignaciones anteriores
+        db.session.execute(text("""
+            DELETE FROM user_empresas WHERE user_id = :user_id
+        """), {'user_id': user_id})
+        
+        # Insertar nuevas asignaciones
+        for empresa_id in empresa_ids:
+            db.session.execute(text("""
+                INSERT INTO user_empresas (user_id, cliente_id) 
+                VALUES (:user_id, :cliente_id)
+            """), {'user_id': user_id, 'cliente_id': empresa_id})
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'{len(empresa_ids)} empresas asignadas'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LISTAR EMPRESAS/CLIENTES
+# ═══════════════════════════════════════════════════════════════════════════
+
+@admin_bp.route('/empresas', methods=['GET'])
+def listar_empresas():
+    """Lista todas las empresas/clientes"""
+    try:
+        result = db.session.execute(text("""
+            SELECT 
+                c.id,
+                c.nombre,
+                c.razon_social,
+                c.rfc,
+                c.activo,
+                c.created_at,
+                COUNT(DISTINCT u.id) as num_usuarios
+            FROM clientes c
+            LEFT JOIN users u ON u.cliente_id = c.id
+            GROUP BY c.id
+            ORDER BY c.nombre
+        """))
+        
+        empresas = []
+        for row in result:
+            empresas.append({
+                'id': row.id,
+                'nombre': row.nombre,
+                'razon_social': row.razon_social,
+                'rfc': row.rfc,
+                'activo': row.activo,
+                'created_at': row.created_at.isoformat() if row.created_at else None,
+                'num_usuarios': row.num_usuarios
+            })
+        
+        return jsonify({
+            'success': True,
+            'empresas': empresas,
+            'total': len(empresas)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 4: REGISTRAR BLUEPRINT
+═══════════════════════════════════════════════════════════════════════════════
+
+En backend/main.py o backend/app.py:
+
+```python
+from routes.admin_routes import admin_bp
+
+app.register_blueprint(admin_bp, url_prefix='/api/admin')
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 5: CREAR TABLA user_empresas SI NO EXISTE
+═══════════════════════════════════════════════════════════════════════════════
+
+```sql
+-- Tabla para relación muchos-a-muchos entre usuarios y empresas
+CREATE TABLE IF NOT EXISTS user_empresas (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    cliente_id INTEGER REFERENCES clientes(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(user_id, cliente_id)
+);
+
+-- Agregar columna aprobado a users si no existe
+ALTER TABLE users ADD COLUMN IF NOT EXISTS aprobado BOOLEAN DEFAULT FALSE;
+
+-- Asegurarse que el admin esté aprobado
+UPDATE users SET aprobado = TRUE, activo = TRUE, is_admin = TRUE 
+WHERE email = 'santiago@satma.mx';
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 6: VERIFICAR FRONTEND
+═══════════════════════════════════════════════════════════════════════════════
+
+Buscar el componente del Panel de Administración:
+
+```bash
+grep -rn "Panel de Administracion\|Solicitudes Pendientes" frontend/src/
+```
+
+Verificar que llame a los endpoints correctos:
+
+```javascript
+// El frontend DEBE hacer:
+
+// Para cargar usuarios
+const cargarUsuarios = async () => {
+  const response = await fetch('/api/admin/usuarios');
+  const data = await response.json();
+  
+  if (data.success) {
+    setUsuarios(data.usuarios);  // ← Verificar que use data.usuarios
+  }
+};
+
+// Para cargar pendientes
+const cargarPendientes = async () => {
+  const response = await fetch('/api/admin/usuarios/pendientes');
+  const data = await response.json();
+  
+  if (data.success) {
+    setPendientes(data.pendientes);
+  }
+};
+
+// useEffect para cargar al montar
+useEffect(() => {
+  cargarUsuarios();
+  cargarPendientes();
+}, []);
+```
+
+ERRORES COMUNES:
+
+```javascript
+// ❌ ERROR: No usar data.usuarios
+setUsuarios(data);  // Debería ser data.usuarios
+
+// ❌ ERROR: No verificar success
+const data = await response.json();
+setUsuarios(data);  // ¿Y si data.success es false?
+
+// ❌ ERROR: No manejar errores
+// Si el fetch falla, usuarios queda como []
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 7: PRUEBAS OBLIGATORIAS
+═══════════════════════════════════════════════════════════════════════════════
+
+### 7.1 Verificar que hay usuarios en BD:
+
+```bash
+psql $DATABASE_URL -c "SELECT id, email, nombre, is_admin, activo, aprobado FROM users;"
+```
+
+DEBE mostrar al menos santiago@satma.mx
+
+### 7.2 Probar endpoint de usuarios:
+
+```bash
+curl -s http://localhost:5000/api/admin/usuarios | jq .
+```
+
+DEBE retornar:
+```json
+{
+  "success": true,
+  "usuarios": [
+    {"id": 1, "email": "santiago@satma.mx", "nombre": "...", ...}
+  ],
+  "total": 1
+}
+```
+
+### 7.3 Probar endpoint de pendientes:
+
+```bash
+curl -s http://localhost:5000/api/admin/usuarios/pendientes | jq .
+```
+
+### 7.4 Probar endpoint de empresas:
+
+```bash
+curl -s http://localhost:5000/api/admin/empresas | jq .
+```
+
+### 7.5 Verificar en el navegador:
+
+1. Abrir DevTools (F12) → Network
+2. Ir al Panel de Administración
+3. Ver qué requests se hacen
+4. Ver las respuestas de los endpoints
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 8: SI EL USUARIO NO EXISTE EN LA BD
+═══════════════════════════════════════════════════════════════════════════════
+
+Si `SELECT * FROM users` está vacío, el usuario se está autenticando
+pero NO se está guardando. Esto pasa si usas auth externa (OTP, OAuth)
+sin crear registro local.
+
+ARREGLO: Asegurarse de crear usuario en login:
+
+```python
+@auth_bp.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    email = data.get('email')
+    
+    # Verificar OTP o password...
+    
+    # IMPORTANTE: Crear usuario si no existe
+    user = db.session.execute(text(
+        "SELECT * FROM users WHERE email = :email"
+    ), {'email': email}).fetchone()
+    
+    if not user:
+        # Crear usuario nuevo
+        db.session.execute(text("""
+            INSERT INTO users (email, nombre, is_admin, activo, aprobado, created_at)
+            VALUES (:email, :email, FALSE, TRUE, FALSE, NOW())
+        """), {'email': email})
+        db.session.commit()
+    
+    # Generar JWT y continuar...
+```
+
+O crear el admin manualmente:
+
+```bash
+psql $DATABASE_URL -c "
+INSERT INTO users (email, nombre, is_admin, activo, aprobado, created_at)
+VALUES ('santiago@satma.mx', 'Santiago', TRUE, TRUE, TRUE, NOW())
+ON CONFLICT (email) DO UPDATE SET is_admin = TRUE, activo = TRUE, aprobado = TRUE;
+"
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+□ SELECT * FROM users muestra al menos 1 usuario
+□ santiago@satma.mx tiene is_admin=TRUE, activo=TRUE, aprobado=TRUE
+□ Endpoint GET /api/admin/usuarios retorna usuarios
+□ Endpoint GET /api/admin/usuarios/pendientes existe
+□ Endpoint GET /api/admin/empresas retorna clientes
+□ Blueprint admin_bp está registrado
+□ Frontend llama a /api/admin/usuarios (verificar en Network tab)
+□ Frontend usa data.usuarios (no solo data)
+□ Panel muestra al menos 1 usuario
+
+NO ESTÁ ARREGLADO hasta que el Panel muestre usuarios reales.

@@ -1,0 +1,101 @@
+TOON: CORREGIR ERROR "Body is disturbed or locked" EN REGISTRO DE EMPRESA
+
+CONTEXTO:
+Al intentar registrar una empresa en el sistema, aparece el error "Body is disturbed or locked". Esto indica un problema con el parsing del request body o el stream de datos.
+
+DIAGNÓSTICO INMEDIATO:
+
+1. BUSCAR el endpoint de registro de empresa en el backend (probablemente /api/empresa/register o similar)
+
+2. VERIFICAR si el body está siendo consumido múltiples veces. Causas comunes:
+   - Middleware que lee el body antes del handler
+   - express.json() duplicado
+   - body-parser mal configurado
+   - Logging middleware que consume el stream
+
+SOLUCIÓN PASO A PASO:
+
+PASO 1: Verificar middleware en server.ts o app.ts
+```typescript
+// CORRECTO - Solo UNA vez
+app.use(express.json());
+
+// INCORRECTO - Duplicado
+app.use(express.json());
+app.use(bodyParser.json()); // QUITAR ESTO
+```
+
+PASO 2: Si hay middleware de logging que lee el body, usar esto:
+```typescript
+// ANTES del endpoint
+app.use(express.json({
+  verify: (req, res, buf) => {
+    (req as any).rawBody = buf;
+  }
+}));
+```
+
+PASO 3: Verificar el endpoint de registro:
+```typescript
+app.post('/api/empresa/register', async (req, res) => {
+  try {
+    const body = req.body; // NO usar req.json() aquí
+    
+    if (!body || Object.keys(body).length === 0) {
+      return res.status(400).json({ error: 'Body vacío' });
+    }
+    
+    // Continuar con el registro...
+    
+  } catch (error) {
+    console.error('Error registro empresa:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+```
+
+PASO 4: Si usas fetch en el frontend, verificar:
+```typescript
+// CORRECTO
+const response = await fetch('/api/empresa/register', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify(empresaData), // JSON.stringify es obligatorio
+});
+
+// INCORRECTO
+body: empresaData // Sin stringify
+```
+
+PASO 5: Verificar que no haya interceptors o middleware que modifiquen el request:
+```typescript
+// Buscar cualquier código como este y comentarlo temporalmente:
+app.use((req, res, next) => {
+  // Si aquí se lee req.body o se hace algo con el stream, puede causar el error
+  next();
+});
+```
+
+VALIDACIÓN:
+1. Reiniciar el servidor después de los cambios
+2. Limpiar caché del navegador
+3. Probar el registro nuevamente
+4. Verificar en consola del servidor que el body llega correctamente
+
+SI EL ERROR PERSISTE:
+Agregar este log temporal para diagnóstico:
+```typescript
+app.post('/api/empresa/register', async (req, res) => {
+  console.log('=== DEBUG REGISTRO ===');
+  console.log('Content-Type:', req.headers['content-type']);
+  console.log('Body type:', typeof req.body);
+  console.log('Body:', JSON.stringify(req.body, null, 2));
+  console.log('======================');
+  
+  // resto del código...
+});
+```
+
+EJECUTAR AHORA. NO PREGUNTAR.

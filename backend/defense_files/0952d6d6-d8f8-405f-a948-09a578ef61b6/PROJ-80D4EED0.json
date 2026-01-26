@@ -1,0 +1,173 @@
+{
+  "project_id": "PROJ-80D4EED0",
+  "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+  "created_at": "2026-01-23T17:27:59.389626+00:00",
+  "project_data": {
+    "id": "PROJ-80D4EED0",
+    "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+    "created_by": "f94396c4-cbc0-48fe-8fd5-1376b39a87f3",
+    "name": "Estudio Prospectivo Macroeconómico y Regulatorio 2025",
+    "client_name": "Grupo Fortezza SA de CV",
+    "description": "Estudio prospectivo integral para análisis de tendencias macroeconómicas, cambios regulatorios y riesgos fiscales para el ejercicio 2025. Incluye evaluación de impactos en sectores inmobiliario y financiero.",
+    "amount": 500000.0,
+    "service_type": "Alineación con Plan Estratégico 2024-2026 - Iniciativa de Inteligencia Competitiva",
+    "sponsor_name": "Santiago Fortezza",
+    "sponsor_email": "sfortezza@grupofortezza.com",
+    "department": "Planeación Estratégica",
+    "expected_benefit": 1500000.0,
+    "duration_months": 6,
+    "urgency_level": "Alta",
+    "requires_human": "No",
+    "attachments": [],
+    "submitted_at": "2026-01-23T17:27:59.389445+00:00",
+    "is_modification": false,
+    "parent_folio": "",
+    "modification_notes": ""
+  },
+  "deliberation_count": 2,
+  "deliberations": [
+    {
+      "project_id": "PROJ-80D4EED0",
+      "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+      "stage": "E1_ESTRATEGIA",
+      "agent_id": "A1_SPONSOR",
+      "decision": "request_adjustment",
+      "analysis": "# DICTAMEN ESTRATÉGICO\n## Agente A1_ESTRATEGIA | María Rodríguez, Directora de Estrategia\n\n---\n\n## ANÁLISIS INTEGRAL DEL PROYECTO\n\n**ID Proyecto:** PROJ-80D4EED0  \n**Servicio:** Estudio Prospectivo Macroeconómico y Regulatorio 2025  \n**Monto:** $500,000 MXN  \n**Fecha de Evaluación:** Diciembre 2024\n\n---\n\n## 1️⃣ EVALUACIÓN DE RAZÓN DE NEGOCIOS (Art. 5-A CFF)\n\n### ⚠️ **RED FLAGS CRÍTICOS IDENTIFICADOS:**\n\n#### 🚨 **TIMING ALTAMENTE SOSPECHOSO**\n- Contratación en **diciembre 2024** para análisis del **ejercicio 2025**\n- Patrón típico de optimización fiscal de fin de año\n- **Pregunta clave sin responder:** ¿Por qué no se contrató en Q1 2025 cuando sería más útil?\n\n#### 🚨 **FALTA DE ESPECIFICIDAD EN OBJETIVOS**\n```\nObjetivo declarado: \"Evaluación de impactos en sectores inmobiliario y financiero\"\n```\n**Problemas:**\n- Demasiado genérico y amplio\n- No se vincula a decisión empresarial específica\n- No hay KPIs concretos asociados\n\n#### 🚨 **AUSENCIA DE VINCULACIÓN CON DECISIONES INMEDIATAS**\n- No menciona: ¿Qué decisión estratégica depende de este estudio?\n- No especifica: ¿Qué inversión, proyecto o iniciativa se fundamentará con esto?\n- Riesgo: Estudio \"de escritorio\" sin aplicación real\n\n---\n\n## 2️⃣ EVALUACIÓN DE BENEFICIO ECONÓMICO ESPERADO (BEE)\n\n### 📊 **SCORE CUALITATIVO: 8/25 puntos**\n\n| Criterio | Puntos | Justificación |\n|----------|--------|---------------|\n| **Sustancia sobre forma** | 1/5 | No se demuestra necesidad económica independiente del beneficio fiscal |\n| **Propósito empresarial concreto** | 2/5 | Objetivo extremadamente vago (\"análisis de tendencias\") |\n| **Coherencia con estrategia/OKRs** | 2/5 | Menciona \"Plan 2024-2026\" pero sin especificar qué OKR apoya |\n| **Beneficio económico describible** | 1/5 | NO se enumeran beneficios cuantificables ni mecanismo causa-efecto |\n| **Documentación contemporánea** | 2/5 | No hay evidencia de SIB, acta de decisión o minuta previa |\n\n### ❌ **BENEFICIOS NO IDENTIFICABLES:**\n```\n- ¿Incremento de ingresos? → NO ESPECIFICADO\n- ¿Reducción de costos? → NO ESPECIFICADO  \n- ¿Mejora de márgenes? → NO ESPECIFICADO\n- ¿Habilitador de proyecto específico? → NO ESPECIFICADO\n```\n\n---\n\n## 3️⃣ EVALUACIÓN DE MATERIALIDAD (Art. 69-B CFF)\n\n### ⚠️ **RIESGOS SIGNIFICATIVOS:**\n\n**Tipología de servicio de ALTO RIESGO FISCAL:**\n- Estudios prospectivos = producto intangible difícil de verificar\n- No genera entregable físico o digital fácilmente auditable\n- Alta subjetividad en valoración de \"calidad\" del análisis\n\n**Pruebas de materialidad INSUFICIENTES:**\n```\n✗ No menciona entregables específicos\n✗ No define alcance geográfico/sectorial preciso  \n✗ No especifica fuentes de información a utilizar\n✗ No establece cronograma de trabajo verificable\n```\n\n---\n\n## 4️⃣ EVALUACIÓN DE TRAZABILIDAD (NOM-151)\n\n### 📋 **DOCUMENTACIÓN FALTANTE CRÍTICA:**\n\n| Documento | Status | Impacto |\n|-----------|--------|---------|\n| **SIB (Solicitud Interna de Bien/Servicio)** | ❌ NO PRESENTE | CRÍTICO |\n| **Business Case con ROI** | ❌ NO PRESENTE | CRÍTICO |\n| **Minuta de decisión estratégica** | ❌ NO PRESENTE | ALTO |\n| **Vinculación a OKR específico** | ❌ NO PRESENTE | ALTO |\n| **Scope of Work detallado** | ❌ NO PRESENTE | ALTO |\n| **Benchmarking de mercado (precio)** | ❌ NO PRESENTE | MEDIO |\n\n---\n\n## 🎯 ANÁLISIS DE ALINEACIÓN ESTRATÉGICA\n\n### ❓ **PREGUNTAS SIN RESPONDER:**\n\n1. **¿Qué iniciativa del Plan 2024-2026 requiere específicamente este estudio?**\n   - Respuesta necesaria para proceder\n\n2. **¿Qué decisión de inversión/desinversión se tomará con base en este análisis?**\n   - Ejemplo esperado: \"Determinar viabilidad de expansión a Jalisco en 2025\"\n\n3. **¿Por qué contratar análisis macroeconómico de 2025 en diciembre 2024?**\n   - Si es para planificar 2025, debió contratarse en septiembre 2024\n   - Si es para ajustar estrategia, debería ser trimestral, no anual\n\n4. **¿Por qué $500,000 MXN para este análisis?**\n   - ¿Se cotizó con múltiples proveedores?\n   - ¿Se comparó vs. suscripciones a bancos de datos especializados?\n\n---\n\n## 🚩 RED FLAGS ESTRATÉGICOS CONSOLIDADOS\n\n```\n🔴 SEVERIDAD CRÍTICA:\n→ Timing de contratación (diciembre = optimización fiscal)\n→ Beneficio económico NO cuantificable\n→ Ausencia total de vinculación a decisión específica\n\n🟡 SEVERIDAD ALTA:\n→ Precio elevado sin justificación comparativa\n→ Falta de entregables específicos\n→ No hay documentación de proceso de decisión\n\n🟢 SEVERIDAD MEDIA:\n→ Alcance demasiado amplio (\"integral\")\n→ Riesgo de replicar información pública disponible\n```\n\n---\n\n## 💼 DICTAMEN ESTRATÉGICO FINAL\n\n```json\n{\n  \"dictamenEstrategico\": {\n    \"razonNegocios\": {\n      \"status\": \"NO_CONFORME\",\n      \"score\": 8,\n      \"comentario\": \"El proyecto carece de justificación económica independiente del beneficio fiscal. No se identifica decisión empresarial específica que dependa de este estudio. El timing de contratación (diciembre) genera alta sospecha de motivación fiscal primaria.\"\n    },\n    \"beneficioEconomicoEsperado\": {\n      \"descripcion\": \"NO IDENTIFICADO - El servicio no especifica mecanismo claro de generación de valor económico cuantificable\",\n      \"tipoBeneficio\": [],\n      \"horizonteMeses\": 0,\n      \"claridad\": \"BAJA\"\n    },\n    \"alineacionEstrategica\": {\n      \"okrsRelacionados\": [],\n      \"pilaresRelacionados\": [\"Inteligencia Competitiva - SIN ESPECIFICAR\"],\n      \"comentario\": \"Se menciona alineación al Plan 2024-2026 pero sin vincular a OKR, iniciativa o proyecto específico. Falta trazabilidad estratégica",
+      "rag_context": [],
+      "email_sent": null,
+      "timestamp": "2026-01-23T17:28:39.121700+00:00",
+      "recorded_at": "2026-01-23T17:28:39.121719+00:00"
+    },
+    {
+      "project_id": "PROJ-80D4EED0",
+      "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+      "stage": "E2_FISCAL",
+      "agent_id": "A3_FISCAL",
+      "decision": "reject",
+      "analysis": "# DICTAMEN FISCAL - AGENTE A3\n## Laura Sánchez | Especialista Fiscal de Revisar.ia\n\n---\n\n**PROYECTO:** PROJ-80D4EED0  \n**SERVICIO:** Estudio Prospectivo Macroeconómico y Regulatorio 2025  \n**MONTO:** $500,000.00 MXN  \n**FECHA ANÁLISIS:** Diciembre 2024\n\n---\n\n## ⚖️ EVALUACIÓN FISCAL INTEGRAL\n\n### 🔴 CONCLUSIÓN PRELIMINAR: **NO APROBAR F6**\n**Riesgo Fiscal Global: CRÍTICO**\n\n---\n\n## 📋 ANÁLISIS POR BLOQUE\n\n### 1️⃣ DEDUCIBILIDAD LISR (Art. 25 y 27)\n\n#### ❌ **ESTRICTAMENTE INDISPENSABLE (Art. 27-I LISR)**\n\n**EVALUACIÓN:** **NO CUMPLE**\n\n**Fundamentación:**\n- La jurisprudencia del Tribunal Federal de Justicia Administrativa establece que \"estrictamente indispensable\" requiere **necesidad demostrable** y **relación directa con generación de ingresos**\n- Un estudio prospectivo contratado en **diciembre 2024** para analizar **2025** carece de:\n  - ✗ Urgencia operativa demostrable\n  - ✗ Vinculación directa con ingresos del ejercicio fiscal 2024\n  - ✗ Imposibilidad de realizar la actividad con recursos internos\n\n**Precedente SAT relevante:**\n> *Criterio 38/2015/CFF: \"Los gastos de planeación estratégica solo son deducibles cuando existe evidencia de que NO pudieron realizarse con personal interno y que su ejecución era indispensable para la operación del ejercicio fiscal en curso\"*\n\n**Riesgo detectado:**\n- SAT podría rechazar la deducción argumentando que es un **gasto estratégico de largo plazo**, no un gasto operativo del ejercicio 2024\n- Patrón típico de \"deducción de cierre de año\" sin materialidad real\n\n---\n\n#### ⚠️ **CFDI Y REQUISITOS FORMALES (Art. 27-III + CFF 29/29-A)**\n\n**EVALUACIÓN:** **PENDIENTE DE VERIFICACIÓN**\n\n**Documentación requerida para validar:**\n- [ ] CFDI emitido con los siguientes datos:\n  - RFC emisor y receptor válidos\n  - Uso CFDI: **G03 (Gastos en general)** - ⚠️ podría ser cuestionable\n  - Clave producto/servicio coherente con \"estudios de mercado\"\n  - Método de pago y forma de pago correctos\n  \n**Recomendación específica:**\n- Si se procede (contra mi recomendación), el CFDI debe indicar:\n  - **Uso CFDI:** P01 (Por definir) o G03\n  - **Clave SAT:** 80141600 - Servicios de consultoría de negocios y administración corporativa\n  - **Descripción detallada:** especificar entregables concretos\n\n---\n\n#### 🔴 **PAGO BANCARIZADO (Art. 27-IV LISR)**\n\n**EVALUACIÓN:** **CRÍTICO - TIMING SOSPECHOSO**\n\n**Requisitos obligatorios:**\n- Pago mediante transferencia electrónica, cheque nominativo o tarjeta\n- **NO** puede pagarse en efectivo (monto > $2,000 MXN)\n- Comprobante bancario que vincule:\n  - RFC proveedor\n  - Concepto de pago\n  - Fecha dentro del ejercicio fiscal 2024\n\n**🚨 ALERTA FISCAL:**\nSi el pago se realiza en **diciembre 2024** pero el servicio se presta en **2025**, existe riesgo de:\n- **Rechazo por falta de correlación ingreso-deducción**\n- **Cuestionamiento de materialidad temporal**\n\n---\n\n#### ❌ **REGISTRO CONTABLE (Art. 27-XVIII LISR)**\n\n**EVALUACIÓN:** **INCOMPLETO**\n\n**Requisitos mínimos:**\n- Póliza contable que refleje:\n  - Naturaleza del gasto\n  - Cuenta contable específica (¿Honorarios? ¿Consultorías?)\n  - Vinculación con centro de costos o proyecto\n  \n**Problema detectado:**\n- Clasificar como \"gasto del ejercicio 2024\" un servicio que **analiza 2025** genera inconsistencia contable\n- Auditoría interna podría rechazar el registro por **principio de devengado contable**\n\n---\n\n### 2️⃣ CFDI Y FORMA DE PAGO\n\n#### ⚠️ **EVALUACIÓN DE COHERENCIA FISCAL**\n\n**Elementos a verificar:**\n\n| Elemento | Esperado | Riesgo |\n|----------|----------|--------|\n| **RFC Proveedor** | Válido y activo en SAT | ¿Proveedor real o simulado? |\n| **Uso CFDI** | G03 o P01 | Debe justificarse según naturaleza |\n| **Clave Producto** | 80141600 (Consultoría) | Debe coincidir con objeto social |\n| **Método Pago** | PUE (Pago en una exhibición) | Típico para este tipo de servicios |\n\n**🔍 Verificación obligatoria:**\n- Validar que el proveedor tenga **objeto social** compatible con prestación de servicios de consultoría estratégica\n- Confirmar que NO esté en lista de operaciones inexistentes (EFOS) - **Ver análisis A6**\n\n---\n\n### 3️⃣ RIESGO EFOS/69-B CFF\n\n#### 🟡 **ESPERANDO REPORTE DE A6 (Due Diligence Proveedor)**\n\n**Elementos críticos a validar:**\n\n**Si el proveedor es EXTERNO:**\n- ✓ Verificar capacidad operativa real\n- ✓ Validar que tenga personal, infraestructura y expertise\n- ✓ Confirmar que NO esté en listas 69-B (presunto/definitivo)\n\n**Si el proveedor es INTERNO o RELACIONADO:**\n- 🚨 **ALERTA MÁXIMA:** Art. 27-XIX LISR (Partes relacionadas)\n- Requiere documentar:\n  - Estudio de precios de transferencia\n  - Justificación de valor de mercado\n  - Imposibilidad de realizar internamente\n\n**Recomendación:**\n- **NO proceder** hasta tener reporte completo de A6\n- Si se detecta riesgo EFOS → **VETO ABSOLUTO**\n\n---\n\n### 4️⃣ MATERIALIDAD FISCAL MÍNIMA\n\n#### ❌ **EVALUACIÓN: MATERIALIDAD NO DEMOSTRABLE**\n\n**Criterios de materialidad según SAT:**\n\n| Criterio | Status | Evidencia requerida |\n|----------|--------|---------------------|\n| **Entregables tangibles** | ❌ NO DISPONIBLE | Reporte, estudio, presentación ejecutiva |\n| **Ejecución temporal** | ❌ INCONSISTENTE | Servicio 2025 facturado en 2024 |\n| **Personal ejecutor** | ⚠️ PENDIENTE | Currículum de consultores, horas trabajadas |\n| **Utilización real** | ❌ NO DEMOSTRABLE | ¿Cómo se usó en 2024 si analiza 2025? |\n\n**🚨 RED FLAG CRÍTICO:**\n> *\"No puede deducirse en 2024 un gasto cuyo beneficio y materialidad ocurren en 2025\"*\n\n**",
+      "rag_context": [],
+      "email_sent": null,
+      "timestamp": "2026-01-23T17:29:26.960519+00:00",
+      "recorded_at": "2026-01-23T17:29:26.960544+00:00"
+    }
+  ],
+  "email_count": 2,
+  "emails": [
+    {
+      "from_email": "estrategia@revisar-ia.com",
+      "to_email": "fiscal@revisar-ia.com",
+      "subject": "[SATMA] Deliberación E1_ESTRATEGIA",
+      "body": "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSISTEMA SATMA - COMUNICACIÓN INTER-AGENTES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nDe: María Rodríguez (Dirección Estratégica)\nPara: Laura Sánchez (Fiscal)\nEtapa: E1_ESTRATEGIA\nFecha: 23/01/2026 17:28 UTC\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPROYECTO: Estudio Prospectivo Macroeconómico y Regulatorio 2025\nID: PROJ-80D4EED0\nMONTO: $500,000.00 MXN\nDECISIÓN: REQUIERE AJUSTES\n━━━━━",
+      "message_id": "A1_SPONSOR_1769189322.187876",
+      "attachments": [
+        "IDPROJ-80D_A1_SPONSOR_Reporte_estrategia_V1.pdf"
+      ],
+      "recorded_at": "2026-01-23T17:28:42.187973+00:00"
+    },
+    {
+      "from_email": "fiscal@revisar-ia.com",
+      "to_email": "finanzas@revisar-ia.com",
+      "subject": "[SATMA] Deliberación E2_FISCAL",
+      "body": "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSISTEMA SATMA - COMUNICACIÓN INTER-AGENTES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nDe: Laura Sánchez (Fiscal)\nPara: Roberto Sánchez (Finanzas)\nEtapa: E2_FISCAL\nFecha: 23/01/2026 17:29 UTC\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPROYECTO: Estudio Prospectivo Macroeconómico y Regulatorio 2025\nID: PROJ-80D4EED0\nMONTO: $500,000.00 MXN\nDECISIÓN: RECHAZADO - ver justificación\n━━━━━━━━━",
+      "message_id": "A3_FISCAL_1769189370.119228",
+      "attachments": [
+        "IDPROJ-80D_A3_FISCAL_Reporte_fiscal_V1.pdf"
+      ],
+      "recorded_at": "2026-01-23T17:29:30.119422+00:00"
+    }
+  ],
+  "provider_communications": [],
+  "rag_contexts": [],
+  "documents": [
+    {
+      "project_id": "PROJ-80D4EED0",
+      "stage": "E1_ESTRATEGIA",
+      "agent_id": "A1_SPONSOR",
+      "doc_type": "reporte_estrategia",
+      "file_path": "/reports/IDPROJ-80D_A1_SPONSOR_Reporte_estrategia_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZQozK5Z2xflHUzWX7XOm2cFwwtDPVw2FSn7",
+      "created_at": "2026-01-23T17:28:40.493424+00:00",
+      "version": 1
+    },
+    {
+      "project_id": "PROJ-80D4EED0",
+      "stage": "E1_ESTRATEGIA",
+      "agent_id": "A1_SPONSOR",
+      "doc_type": "solicitud_modificacion",
+      "file_path": "/reports/IDPROJ-80D_A1_SPONSOR_Reporte_solicitud_modificacion_V2.pdf",
+      "pcloud_link": null,
+      "created_at": "2026-01-23T17:28:40.783251+00:00",
+      "version": 2
+    },
+    {
+      "project_id": "PROJ-80D4EED0",
+      "stage": "E2_FISCAL",
+      "agent_id": "A3_FISCAL",
+      "doc_type": "reporte_fiscal",
+      "file_path": "/reports/IDPROJ-80D_A3_FISCAL_Reporte_fiscal_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZBozK5Zj04YsSvvnRyuB4oQlPYVO0d2a7FV",
+      "created_at": "2026-01-23T17:29:28.418931+00:00",
+      "version": 1
+    },
+    {
+      "project_id": "PROJ-80D4EED0",
+      "stage": "E2_FISCAL",
+      "agent_id": "A3_FISCAL",
+      "doc_type": "dictamen_rechazo",
+      "file_path": "/reports/IDPROJ-80D_A3_FISCAL_Reporte_dictamen_rechazo_V2.pdf",
+      "pcloud_link": null,
+      "created_at": "2026-01-23T17:29:30.138114+00:00",
+      "version": 2
+    }
+  ],
+  "document_count": 4,
+  "final_decision": "rejected",
+  "final_justification": "Rechazado en etapa E2_FISCAL por A3_FISCAL: # DICTAMEN FISCAL - AGENTE A3\n## Laura Sánchez | Especialista Fiscal de Revisar.ia\n\n---\n\n**PROYECTO:** PROJ-80D4EED0  \n**SERVICIO:** Estudio Prospectivo Macroeconómico y Regulatorio 2025  \n**MONTO:** ",
+  "compliance_checklist": {
+    "razon_de_negocios": true,
+    "beneficio_economico": true,
+    "materialidad": true,
+    "trazabilidad": true
+  },
+  "compliance_score": 100.0,
+  "pcloud_links": {
+    "A1_SPONSOR": "https://u.pcloud.link/publink/show?code=kZHqng5ZeW36Cw3UbmY6lu1DsJ1QYj9hhCe7",
+    "A2_PMO": "https://u.pcloud.link/publink/show?code=kZJqng5ZGDwXSRewkijTxOYa3WBCIkRXeUpV",
+    "A3_FISCAL": "https://u.pcloud.link/publink/show?code=kZQqng5ZE3BXwURDwrhkgreFBT4xXbyJDOa7",
+    "A5_FINANZAS": "https://u.pcloud.link/publink/show?code=kZhqng5ZpurMT7tJ7wH9vDUXiGy2Mbju5M0X"
+  },
+  "pcloud_documents": [
+    {
+      "agent_id": "A1_SPONSOR",
+      "doc_type": "reporte_estrategia",
+      "local_path": "/home/runner/workspace/backend/reports/IDPROJ-80D_A1_SPONSOR_Reporte_estrategia_V1.pdf",
+      "pcloud_path": "/REVISAR_IA/Evidencias/2026-01-Evidencias/PROJ-80D4EED0/A1_SPONSOR_estrategia_20260123_172839.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZQozK5Z2xflHUzWX7XOm2cFwwtDPVw2FSn7",
+      "file_id": 83420331615,
+      "uploaded_at": "2026-01-23T17:28:40.492760+00:00"
+    },
+    {
+      "agent_id": "A3_FISCAL",
+      "doc_type": "reporte_fiscal",
+      "local_path": "/home/runner/workspace/backend/reports/IDPROJ-80D_A3_FISCAL_Reporte_fiscal_V1.pdf",
+      "pcloud_path": "/A3_FISCAL_fiscal_20260123_172927.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZBozK5Zj04YsSvvnRyuB4oQlPYVO0d2a7FV",
+      "file_id": 83420354801,
+      "uploaded_at": "2026-01-23T17:29:28.418134+00:00"
+    }
+  ],
+  "pcloud_document_count": 2,
+  "bitacora_link": null,
+  "consolidation_report": null,
+  "agent_opinions": [],
+  "agent_opinions_count": 0,
+  "purchase_orders": [],
+  "purchase_orders_count": 0,
+  "contract_requests": [],
+  "contract_requests_count": 0,
+  "provider_change_requests": [],
+  "provider_change_requests_count": 0,
+  "version_history": [],
+  "version_history_count": 0,
+  "audit_ready": true
+}

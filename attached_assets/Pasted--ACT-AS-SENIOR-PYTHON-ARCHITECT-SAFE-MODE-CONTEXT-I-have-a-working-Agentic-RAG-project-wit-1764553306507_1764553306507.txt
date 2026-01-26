@@ -1,0 +1,53 @@
+# ACT AS: SENIOR PYTHON ARCHITECT (SAFE MODE)
+
+**CONTEXT:**
+I have a working Agentic RAG project with a `PMOAgent`.
+**CRITICAL:** I am a non-technical user. **DO NOT DELETE OR BREAK** my existing code. Work non-destructively.
+
+**OBJECTIVE:**
+I want to add a new "Safety Layer" called `StrategyAgent` that acts as an Anti-Hallucination Council (based on the `llm-council` logic). This agent will review the PMO's drafts before they are sent to the user.
+
+---
+
+## EXECUTION PLAN (STRICT SAFETY PROTOCOL)
+
+### STEP 1: SAFE CLONING
+1. Check if a folder named `reference_repos` exists. If not, create it.
+2. Inside that folder, clone this repository to study its logic (do not overwrite my project root):
+   `https://github.com/karpathy/llm-council.git`
+3. Analyze `backend/` in that repo to understand the "multi-model consensus" pattern.
+
+### STEP 2: CREATE NEW AGENT (Do not overwrite existing agents)
+Create a **NEW** file `agents/strategy_agent.py`. Copy the following logic into it.
+*Implement the class `StrategyAgent` based on this strict manifest:*
+
+```json
+{
+  "agent_profile": {
+    "name": "StrategyAgent",
+    "role": "Quality Assurance Auditor",
+    "core_task": "Intercept PMO drafts, critique them via multi-persona simulation, and rewrite for factual accuracy based on RAG context."
+  },
+  "method_signature": "async def review_and_strategize(self, context_data: dict, proposed_draft: str) -> dict",
+  "logic_flow": [
+    "1. Receive 'rag_context' and 'pmo_draft'.",
+    "2. THE CRITICS PHASE: Use the LLM to simulate 3 specific personas (Fact Auditor, Business Strategist, Devil's Advocate) to critique the draft.",
+    "3. THE CHAIRMAN PHASE: Synthesize critiques. If 'Fact Auditor' finds a hallucination (data in draft NOT in context), REMOVE IT.",
+    "4. FINAL OUTPUT: Return a JSON with the clean, safe response."
+  ],
+  "output_schema_requirement": {
+    "format": "STRICT JSON",
+    "structure": {
+      "strategy_evaluation": {
+        "critiques": [
+            {"perspective": "Fact Auditor", "observations": "String..."},
+            {"perspective": "Business Strategist", "observations": "String..."},
+            {"perspective": "Devil's Advocate", "observations": "String..."}
+        ],
+        "consensus": "Summary of resolution",
+        "final_strategy": "THE FINAL VALIDATED RESPONSE FOR USER",
+        "risk_score": 0-100
+      }
+    }
+  }
+}

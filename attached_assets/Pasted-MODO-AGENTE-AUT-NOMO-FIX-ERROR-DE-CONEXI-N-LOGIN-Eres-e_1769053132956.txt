@@ -1,0 +1,365 @@
+MODO AGENTE AUTÓNOMO - FIX ERROR DE CONEXIÓN LOGIN
+
+Eres el agente de Replit. El login muestra "Error de conexion. Intenta de nuevo." DIAGNOSTICA Y ARREGLA.
+
+<TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 1: DIAGNÓSTICO - IDENTIFICAR LA CAUSA
+═══════════════════════════════════════════════════════════════════════════════
+
+[EJECUTAR TODOS ESTOS COMANDOS EN SHELL]
+
+```bash
+# 1. Verificar que el backend está corriendo
+curl -I http://localhost:5000/health 2>/dev/null || echo "❌ Backend NO responde en puerto 5000"
+
+# 2. Verificar puertos en uso
+lsof -i :5000 2>/dev/null || netstat -tlnp 2>/dev/null | grep 5000 || echo "❌ Nada escuchando en 5000"
+
+# 3. Ver logs del servidor
+tail -50 /home/runner/workspace/.replit.log 2>/dev/null || echo "No hay log de replit"
+
+# 4. Verificar variables de entorno críticas
+echo "DATABASE_URL: ${DATABASE_URL:0:30}..."
+echo "ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:0:10}..."
+echo "RESEND_API_KEY: ${RESEND_API_KEY:0:10}..."
+echo "SMTP configurado: $SMTP_HOST"
+
+# 5. Verificar conexión a base de datos
+node -e "
+const { Pool } = require('pg');
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+pool.query('SELECT NOW()').then(() => console.log('✅ DB conectada')).catch(e => console.log('❌ DB error:', e.message));
+" 2>/dev/null || echo "❌ No se pudo probar DB"
+
+# 6. Ver estructura de archivos del servidor
+ls -la server/ 2>/dev/null || ls -la backend/ 2>/dev/null || ls -la src/server/ 2>/dev/null
+
+# 7. Buscar el endpoint de auth
+grep -r "solicitar.*codigo\|send.*code\|otp\|magic.*link" server/ --include="*.ts" --include="*.js" 2>/dev/null | head -20
+```
+
+ANOTAR:
+□ ¿Backend responde en puerto 5000? ___
+□ ¿Base de datos conecta? ___
+□ ¿Variables de entorno existen? ___
+□ ¿Endpoint de auth existe? ___
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 2: VERIFICAR ENDPOINT DE AUTENTICACIÓN
+═══════════════════════════════════════════════════════════════════════════════
+
+[EJECUTAR SIN PREGUNTAR]
+
+```bash
+# Probar el endpoint de login directamente
+curl -X POST http://localhost:5000/api/auth/request-code \
+  -H "Content-Type: application/json" \
+  -d '{"email":"santiago@satma.mx"}' \
+  -v 2>&1
+
+# Si es otro endpoint, probar alternativas comunes
+curl -X POST http://localhost:5000/api/auth/login -H "Content-Type: application/json" -d '{"email":"santiago@satma.mx"}' 2>&1
+curl -X POST http://localhost:5000/api/auth/magic-link -H "Content-Type: application/json" -d '{"email":"santiago@satma.mx"}' 2>&1
+curl -X POST http://localhost:5000/api/auth/otp -H "Content-Type: application/json" -d '{"email":"santiago@satma.mx"}' 2>&1
+```
+
+POSIBLES RESULTADOS:
+- "Connection refused" → Backend no está corriendo
+- "404 Not Found" → Endpoint no existe
+- "500 Internal Server Error" → Error en el código del servidor
+- "ECONNREFUSED" → Base de datos no conecta
+- JSON con error → Ver mensaje específico
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 3: ARREGLAR SEGÚN EL PROBLEMA ENCONTRADO
+═══════════════════════════════════════════════════════════════════════════════
+
+### SI EL BACKEND NO ESTÁ CORRIENDO:
+
+Verificar y arrancar:
+
+```bash
+# Ver qué proceso debería correr
+cat package.json | grep -A5 '"scripts"'
+
+# Iniciar el servidor manualmente
+npm run dev
+# o
+npm run server
+# o
+npx ts-node server/index.ts
+```
+
+Verificar .replit tiene el run command correcto:
+
+```toml
+run = "npm run dev"
+```
+
+### SI LA BASE DE DATOS NO CONECTA:
+
+```bash
+# Verificar DATABASE_URL en Secrets
+echo $DATABASE_URL
+
+# Si está vacía, ir a Secrets en Replit y agregar:
+# DATABASE_URL = postgresql://user:pass@host:5432/dbname
+
+# Probar conexión manual
+psql $DATABASE_URL -c "SELECT 1"
+```
+
+### SI EL ENDPOINT NO EXISTE (404):
+
+Buscar cómo está definido el endpoint de auth:
+
+```bash
+# Buscar rutas de autenticación
+grep -r "router\.\|app\." server/routes/ --include="*.ts" | grep -i auth
+
+# Ver el archivo de rutas de auth
+cat server/routes/auth.ts 2>/dev/null || cat server/routes/auth.js 2>/dev/null
+```
+
+Crear o arreglar el endpoint:
+
+```typescript
+// server/routes/auth.ts
+import { Router } from 'express';
+import { db } from '../db';
+import crypto from 'crypto';
+
+const router = Router();
+
+// Endpoint para solicitar código
+router.post('/request-code', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email requerido' });
+    }
+
+    // Verificar si el usuario existe
+    const user = await db.query(
+      'SELECT id, email, nombre FROM usuarios WHERE email = $1',
+      [email.toLowerCase()]
+    );
+
+    if (user.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // Generar código de 6 dígitos
+    const codigo = crypto.randomInt(100000, 999999).toString();
+    const expiracion = new Date(Date.now() + 10 * 60 * 1000); // 10 minutos
+
+    // Guardar código en BD
+    await db.query(`
+      INSERT INTO codigos_acceso (usuario_id, codigo, expira_en, usado)
+      VALUES ($1, $2, $3, FALSE)
+      ON CONFLICT (usuario_id) 
+      DO UPDATE SET codigo = $2, expira_en = $3, usado = FALSE
+    `, [user.rows[0].id, codigo, expiracion]);
+
+    // Enviar email (usando Resend o SMTP)
+    await enviarCodigoEmail(email, codigo, user.rows[0].nombre);
+
+    res.json({ 
+      success: true, 
+      message: 'Código enviado a tu correo' 
+    });
+
+  } catch (error) {
+    console.error('Error en request-code:', error);
+    res.status(500).json({ error: 'Error de conexion. Intenta de nuevo.' });
+  }
+});
+
+// Función para enviar email
+async function enviarCodigoEmail(email: string, codigo: string, nombre: string) {
+  // Opción 1: Resend
+  if (process.env.RESEND_API_KEY) {
+    const { Resend } = require('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    
+    await resend.emails.send({
+      from: 'Revisar.IA <noreply@revisar.ia>',
+      to: email,
+      subject: 'Tu código de acceso',
+      html: `
+        <h2>Hola ${nombre}</h2>
+        <p>Tu código de acceso es:</p>
+        <h1 style="font-size: 32px; letter-spacing: 5px;">${codigo}</h1>
+        <p>Este código expira en 10 minutos.</p>
+      `
+    });
+    return;
+  }
+
+  // Opción 2: Nodemailer/SMTP
+  if (process.env.SMTP_HOST) {
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransporter({
+      host: process.env.SMTP_HOST,
+      port: process.env.SMTP_PORT || 587,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || 'noreply@revisar.ia',
+      to: email,
+      subject: 'Tu código de acceso - Revisar.IA',
+      html: `<h1>Tu código: ${codigo}</h1>`
+    });
+    return;
+  }
+
+  // Opción 3: Solo log (desarrollo)
+  console.log(`📧 CÓDIGO PARA ${email}: ${codigo}`);
+}
+
+export default router;
+```
+
+### SI HAY ERROR 500:
+
+Ver el log completo:
+
+```bash
+# Agregar más logging al servidor
+# En server/index.ts agregar:
+
+app.use((err, req, res, next) => {
+  console.error('Error:', err.stack);
+  res.status(500).json({ 
+    error: 'Error interno del servidor',
+    details: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 4: VERIFICAR CORS Y PROXY
+═══════════════════════════════════════════════════════════════════════════════
+
+Si el frontend y backend corren en puertos diferentes, verificar CORS:
+
+```typescript
+// server/index.ts
+import cors from 'cors';
+
+app.use(cors({
+  origin: ['http://localhost:3000', 'https://tu-app.replit.app'],
+  credentials: true
+}));
+```
+
+O verificar proxy en frontend/package.json:
+
+```json
+{
+  "proxy": "http://localhost:5000"
+}
+```
+
+O en vite.config.ts si usas Vite:
+
+```typescript
+export default {
+  server: {
+    proxy: {
+      '/api': 'http://localhost:5000'
+    }
+  }
+}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 5: CREAR TABLA DE CÓDIGOS SI NO EXISTE
+═══════════════════════════════════════════════════════════════════════════════
+
+```sql
+-- Ejecutar en la base de datos
+CREATE TABLE IF NOT EXISTS codigos_acceso (
+  id SERIAL PRIMARY KEY,
+  usuario_id INTEGER REFERENCES usuarios(id) UNIQUE,
+  codigo VARCHAR(6) NOT NULL,
+  expira_en TIMESTAMP NOT NULL,
+  usado BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Verificar que la tabla usuarios existe
+CREATE TABLE IF NOT EXISTS usuarios (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  nombre VARCHAR(255),
+  rol VARCHAR(50) DEFAULT 'usuario',
+  empresa_id INTEGER,
+  activo BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Insertar usuario de prueba si no existe
+INSERT INTO usuarios (email, nombre, rol) 
+VALUES ('santiago@satma.mx', 'Santiago', 'admin')
+ON CONFLICT (email) DO NOTHING;
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 6: VERIFICAR FRONTEND APUNTA AL BACKEND CORRECTO
+═══════════════════════════════════════════════════════════════════════════════
+
+Buscar dónde el frontend hace la llamada:
+
+```bash
+grep -r "request-code\|solicitar.*codigo\|/api/auth" frontend/src/ --include="*.tsx" --include="*.ts"
+```
+
+Verificar que usa la URL correcta:
+
+```typescript
+// Debe ser relativo (para usar proxy) o URL completa correcta
+const response = await fetch('/api/auth/request-code', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email })
+});
+
+// NO debe ser algo hardcodeado mal como:
+// fetch('http://localhost:5000/api/auth/request-code') // ❌ Falla en producción
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Backend corriendo y respondiendo en /health
+□ Base de datos conectada
+□ Tabla usuarios existe con santiago@satma.mx
+□ Tabla codigos_acceso existe
+□ Endpoint /api/auth/request-code existe y funciona
+□ CORS configurado correctamente
+□ Variables de entorno para email configuradas (RESEND_API_KEY o SMTP_*)
+□ Frontend apunta a URL correcta
+
+TEST FINAL:
+
+```bash
+# Este comando debe retornar { success: true }
+curl -X POST http://localhost:5000/api/auth/request-code \
+  -H "Content-Type: application/json" \
+  -d '{"email":"santiago@satma.mx"}'
+```
+
+</TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+EJECUTAR DIAGNÓSTICO PRIMERO, LUEGO APLICAR FIX CORRESPONDIENTE
+═══════════════════════════════════════════════════════════════════════════════

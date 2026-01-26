@@ -1,0 +1,122 @@
+"""
+GENERADOR DE PDF BASE
+Funciones comunes para crear documentos PDF profesionales
+"""
+
+import os
+import io
+import hashlib
+from datetime import datetime
+from typing import Dict, List, Any, Optional, Tuple
+
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch, cm
+from reportlab.pdfgen import canvas
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    PageBreak, Image as RLImage, HRFlowable
+)
+from reportlab.lib import colors
+
+try:
+    import qrcode
+    from PIL import Image
+    HAS_QR = True
+except ImportError:
+    HAS_QR = False
+
+from .styles import (
+    COLORS, PAGE_CONFIG, FONTS, get_styles, 
+    SEVERITY_COLORS, STATUS_COLORS, LEGAL_TEXTS
+)
+
+
+class PDFGenerator:
+    """Generador base de documentos PDF"""
+    
+    def __init__(self, output_path: str, title: str = "Documento"):
+        self.output_path = output_path
+        self.title = title
+        self.styles = get_styles()
+        self.elements = []
+        self.page_count = 0
+        self.generation_timestamp = datetime.now()
+        
+    def add_header(self, canvas_obj, doc):
+        """Agrega encabezado a cada página"""
+        canvas_obj.saveState()
+        
+        # Línea superior
+        canvas_obj.setStrokeColor(COLORS['primary'])
+        canvas_obj.setLineWidth(2)
+        canvas_obj.line(
+            PAGE_CONFIG['margin_left'],
+            letter[1] - 0.5 * inch,
+            letter[0] - PAGE_CONFIG['margin_right'],
+            letter[1] - 0.5 * inch
+        )
+        
+        # Título del documento
+        canvas_obj.setFont(*FONTS['small'])
+        canvas_obj.setFillColor(COLORS['primary'])
+        canvas_obj.drawString(
+            PAGE_CONFIG['margin_left'],
+            letter[1] - 0.4 * inch,
+            self.title
+        )
+        
+        # Fecha
+        canvas_obj.drawRightString(
+            letter[0] - PAGE_CONFIG['margin_right'],
+            letter[1] - 0.4 * inch,
+            self.generation_timestamp.strftime("%d/%m/%Y %H:%M")
+        )
+        
+        canvas_obj.restoreState()
+    
+    def add_footer(self, canvas_obj, doc):
+        """Agrega pie de página a cada página"""
+        canvas_obj.saveState()
+        
+        # Línea inferior
+        canvas_obj.setStrokeColor(COLORS['light_gray'])
+        canvas_obj.setLineWidth(1)
+        canvas_obj.line(
+            PAGE_CONFIG['margin_left'],
+            0.5 * inch,
+            letter[0] - PAGE_CONFIG['margin_right'],
+            0.5 * inch
+        )
+        
+        # Número de página
+        canvas_obj.setFont(*FONTS['tiny'])
+        canvas_obj.setFillColor(COLORS['dark_gray'])
+        canvas_obj.drawCentredString(
+            letter[0] / 2,
+            0.35 * inch,
+            f"Página {doc.page} | Expediente generado por Durezza 4.0"
+        )
+        
+        # Aviso de confidencialidad
+        canvas_obj.setFont(*FONTS['tiny'])
+        canvas_obj.drawCentredString(
+            letter[0] / 2,
+            0.2 * inch,
+            "CONFIDENCIAL - Solo para uso del destinatario autorizado"
+        )
+        
+        canvas_obj.restoreState()
+    
+    def add_title_page(
+        self,
+        project_name: str,
+        client_name: str,
+        rfc: str,
+        periodo_fiscal: str,
+        folio: str,
+        qr_data: str = None
+    ):
+        """Genera página de carátula"""
+        
+        # Espaciado inicial
+        self.elements.append(Spacer(1, 1​​​​​​​​​​​​​​​​

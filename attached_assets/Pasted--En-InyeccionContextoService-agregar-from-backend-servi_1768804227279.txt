@@ -1,0 +1,96 @@
+# En InyeccionContextoService, agregar:
+
+from backend.services.rag_agente_service import RAGAgenteService
+from backend.config.agentes_config import get_agente_config, get_contexto_obligatorio
+
+class InyeccionContextoService:
+    def __init__(self):
+        self.empresa_repo = EmpresaRepository()
+        self.rag_service = RAGAgenteService()
+    
+    async def construir_contexto_completo_para_agente(
+        self,
+        proyecto_id: str,
+        agente_id: str,
+        fase_actual: str
+    ) -> dict:
+        """
+        Construye contexto COMPLETO para un agente específico.
+        
+        Incluye:
+        1. Marco normativo UNIVERSAL
+        2. Contexto corporativo del TENANT
+        3. Contexto del PROYECTO
+        4. Documentos RAG del AGENTE
+        5. Configuración específica del agente
+        """
+        
+        # Obtener proyecto y empresa
+        proyecto = await self.proyecto_repo.get_by_id(proyecto_id)
+        empresa = await self.empresa_repo.get_by_id(proyecto.empresa_id)
+        
+        # Obtener configuración del agente
+        config_agente = get_agente_config(agente_id)
+        
+        # 1. Marco normativo UNIVERSAL
+        contexto_normativo = self._get_marco_normativo_universal()
+        
+        # 2. Contexto corporativo del TENANT
+        contexto_corporativo = self._construir_contexto_corporativo(empresa)
+        
+        # 3. Contexto del PROYECTO
+        contexto_proyecto = await self._construir_contexto_proyecto(
+            proyecto,
+            config_agente.contexto_requerido
+        )
+        
+        # 4. Documentos RAG del AGENTE (con fallback a templates)
+        documentos_rag = await self.rag_service.cargar_documentos_para_agente(
+            agente_id=agente_id,
+            empresa_id=proyecto.empresa_id
+        )
+        
+        # 5. Contexto POE según fase
+        contexto_poe = self._get_contexto_poe(fase_actual)
+        
+        # Validar que contexto obligatorio esté presente
+        contexto_obligatorio = get_contexto_obligatorio(agente_id)
+        self._validar_contexto_obligatorio(
+            contexto_obligatorio,
+            contexto_corporativo,
+            contexto_proyecto
+        )
+        
+        return {
+            "agente": {
+                "id": agente_id,
+                "nombre": config_agente.nombre,
+                "rol": config_agente.rol,
+                "output_esperado": config_agente.output_fields
+            },
+            "normativo": contexto_normativo,
+            "corporativo": contexto_corporativo,
+            "proyecto": contexto_proyecto,
+            "documentos_referencia": documentos_rag,
+            "poe": contexto_poe,
+            "fase_actual": fase_actual
+        }
+    
+    def _validar_contexto_obligatorio(
+        self,
+        requeridos: List[str],
+        corporativo: dict,
+        proyecto: dict
+    ) -> None:
+        """Valida que todo el contexto obligatorio esté presente"""
+        contexto_completo = {**corporativo, **proyecto}
+        faltantes = []
+        
+        for req in requeridos:
+            if req not in contexto_completo or contexto_completo[req] is None:
+                faltantes.append(req)
+        
+        if faltantes:
+            raise ValueError(
+                f"Contexto obligatorio faltante: {', '.join(faltantes)}"
+            )

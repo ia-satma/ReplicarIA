@@ -1,0 +1,308 @@
+Activo modo CASO.
+
+Para mejorar tus agentes no basta con más “contenido”; hay que ajustar **rol, fronteras, entradas/salidas y reglas de decisión** para que:
+
+- no se pisen,  
+- no se contradigan,  
+- y produzcan salidas accionables para el usuario (y consumibles por A7_DEFENSA).
+
+Te propongo mejoras **por agente** y luego ajustes de **arquitectura global**. No repetiré todo lo que ya tienes; me enfoco en qué cambiar y cómo.
+
+---
+
+**0) Ajuste de arquitectura general (antes de entrar agente por agente)**
+
+Hoy tus agentes son muy buenos “en teoría”, pero tienen tres problemas prácticos:
+
+1. **Solapamiento de funciones**  
+   – A1, A3 y A5 hablan todos de “beneficio económico / ROI”.  
+   – A1 y A3 se solapan en “razón de negocios”.  
+
+   ➜ **Mejora:**  
+   - A1 se concentra en **“para qué” y “en qué estrategia/OKR encaja”**.  
+   - A5 convierte eso en **números (ROI, NPV, rango de precio razonable)**.  
+   - A3 solo consume esos insumos para decidir **si el gasto es estrictamente indispensable y deducible**, no recalcular ROI.
+
+2. **Desfase con tu flujo F0–F9 real**  
+   El manual habla de F1–F10, pero tu diseño actual gira en torno a **F0–F9 con candados en F2, F6, F8**.
+
+   ➜ **Mejora:**  
+   - Reetiquetar funciones para que cada agente sepa qué hace en F0, F1/F2, F3–F5, F6–F8 y F9.  
+   - Establecer qué campos/decisiones son **“bloqueantes”** en cada fase.
+
+3. **Falta de integración explícita con proveedores (alta OCR que estás diseñando)**  
+   – A6 tiene muy buen modelo conceptual, pero no está todavía anclado al esquema de proveedor y al uso interno que hiciste (constancia SAT, acta, REPSE, etc.).
+
+   ➜ **Mejora:**  
+   - A6 debe convertirse en el “guardia de frontera” de proveedores: **ningún proyecto con proveedor nuevo entra a F3** sin dictamen mínimo de A6.  
+   - Sus salidas deben ser **campos estructurados** consumibles por A3 (EFOS, riesgo proveedor).
+
+Con eso en mente, voy por agente.
+
+---
+
+## 1) A1_ESTRATEGIA – Qué mejorar
+
+Tu A1 ya es muy sólido. Los principales ajustes:
+
+**1.1. Delimitar mejor su rol vs A5 y A3**
+
+- Hoy A1:
+  - evalúa **razón de negocios**,  
+  - habla de **beneficio económico** (casi como A5),  
+  - y se mete en temas que luego retoma A3.
+
+**Propuesta de ajuste:**
+
+- **Responsabilidad principal:**  
+  - Definir y validar el **“para qué” estratégico** del servicio.  
+  - Enlazar claramente cada proyecto con:  
+    • objetivos de negocio,  
+    • OKRs,  
+    • riesgos operativos que pretende mitigar.
+
+- **Límites explícitos:**  
+  - A1 **no calcula ROI** ni hace benchmarking de precios.  
+  - A1 **no opina de deducibilidad**; solo evalúa si el servicio **tiene sentido de negocio**.
+
+**1.2. Integrarlo explícitamente a F0 y F3**
+
+- En F0:  
+  - A1 debe consumir el **SIB/BEE** y ayudar a completarlo:  
+    • si no hay objetivos claros → marca “Razón de negocios: EN RIESGO”.  
+- En F3:  
+  - con más información (SOW, alcance, contexto proveedor), A1 puede refinar su dictamen y emitir el **score definitivo de razón de negocios**.
+
+**1.3. Ajuste concreto en el scoring de A1**
+
+- Tus 5 criterios son buenos. Yo haría un ajuste:
+
+  - **Sustancia sobre forma** (5)  
+  - **Propósito empresarial concreto** (5)  
+  - **Coherencia con estrategia/OKRs del año** (5)  
+  - **Beneficio económico describible (no numérico aún, eso es A5)** (5)  
+  - **Documentación contemporánea** (5)
+
+- Y dejar claro en el skill:  
+  **“A1 no asigna montos ni ROI; solo verifica que el beneficio económico esté claramente descrito y sea verosímil.”**
+
+---
+
+## 2) A2_PMO – Qué mejorar
+
+A2 está bien como “coordinador”, pero:
+
+**2.1. Alinear fases con tu flujo F0–F9 y candados**
+
+Tu tabla va F1–F10, pero en la plataforma real usas F0–F9 con candados en F2, F6, F8.
+
+**Propongo re-mapear:**
+
+- **F0 – INTI / INTAKE** (A2 coordinando; A1 y A3 con vista rápida)  
+- **F1 – Datos proveedor/SOW preliminar**  
+- **F2 – Candado de inicio**:  
+  - `condición`:  
+    • proveedor aprobado por A6,  
+    • BEE razonablemente descrito por A1,  
+    • SOW mínimo definido.  
+- **F3–F5 – Ejecución y evidencia** (A2 asegura minutas, entregables parciales).  
+- **F6 – Candado Fiscal/Legal (VBC)**:  
+  - no se dispara A5 ni A8 (pago) si A3/A4 no aprueban.  
+- **F7 – Auditoría interna / QA**  
+- **F8 – Candado de pago**:  
+  - `condición`: 3‑way match + VBC + materialidad > umbral.  
+- **F9 – Post‑implementación/BEE** (A1 + A5 + A3).
+
+**2.2. Mejora en reportes de A2**
+
+Hoy el reporte de A2 es neutro. Para que sirva a riesgos/fiscal:
+
+- Incluir siempre una mini‑sección de **“Riesgos de proceso”**:  
+  - “Se intentó saltar F2, se forzó excepción”,  
+  - “F6 aprobado con reservas”,  
+  - “Se pagó antes de cerrar materialidad: excepción registrada”.
+
+Eso alimenta a A7_DEFENSA para demostrar o evidenciar cuando la empresa se salió de la ruta.
+
+---
+
+## 3) A3_FISCAL – Qué mejorar
+
+A3 es el corazón fiscal; hay que hacerlo más “reactor” de datos y menos “PDF de manual”.
+
+**3.1. Consumir más A6 y proveedor.json**
+
+Con el esquema de proveedor que estás diseñando, A3 debe:
+
+- consumir de A6:  
+  - `scoreFiscalProveedor`,  
+  - `flags` (`proveedorReciente`, `sinOpinionCumplimiento`, `sinRepseSiAplica`, etc.),  
+  - tipoProveedor.  
+
+- convertir eso en lógica clara:
+  - si `sinRepseSiAplica = true` y tipoServicio = especializado con personal → **riesgo EFOS / 69‑B Alto**.  
+  - si `proveedorReciente = true` + servicio complejo + falta de evidencia → subir peso de red flag.
+
+**3.2. Simplificar su ámbito**
+
+Ahora A3 hace “de todo”: deducibilidad, CFDI, 69‑B, materialidad.  
+Yo lo segmentaría en **4 bloques de salida**, pero todos en un mismo dictamen:
+
+1. **Deducibilidad LISR (Art. 25 y 27):**  
+   – check formal y de estricta indispensabilidad.  
+2. **CFDI y forma de pago (CFF 29/29‑A + LIVA):**  
+   – check del XML, uso de CFDI, forma de pago, IVA acreditable.  
+3. **Riesgo EFOS / 69‑B:**  
+   – con base en A6 + consulta de listas + señales EFOS.  
+4. **Materialidad fiscal:**  
+   – cruza evidencia de ejecución (A7/A2) con requisitos de 69‑B.
+
+Pero siempre dejando claro que **A3 no recalcula razón de negocios** (solo revisa que sea consistente con LISR 27‑I y 5‑A CFF) ni hace ROI (eso es A5).
+
+**3.3. Operativo: reglas de veto y excepción**
+
+Define en skill de A3:
+
+- **“Condición de veto”:**  
+  - lista 69‑B definitivos **+** empresa no ha hecho proceso de desvirtuación → marcar recomendación “NO DEDUCIR / RESERVA TOTAL”.  
+  - falta de requisitos esencialísimos (sin CFDI, sin pago, sin contrato) → “NO DEDUCIR”.
+
+- **“Condición de excepción documentada”:**  
+  - se puede permitir continuar con F6/F8 si **usuario responsable firma Decisión de Excepción** (A2 la registra como tal y A7 la documenta como riesgo reconocido).
+
+---
+
+## 4) A4_LEGAL – Qué mejorar
+
+Bien en contenido, pero:
+
+**4.1. Aterrizar más su papel en F2 y F6**
+
+- En **F2**:  
+  - validar si el contrato/SOW es **suficientemente específico** para que haya materialidad.  
+  - si el objeto es genérico, A4 debe marcar “Requiere anexo técnico” → sin eso, no se abre F3.
+
+- En **F6**:  
+  - revisar versión final de contrato/anexos vs lo realmente entregado.  
+  - validar que el contrato tenga:  
+    • mecanismo claro de aceptación,  
+    • causa de terminación,  
+    • protección mínima de PI y confidencialidad.
+
+**4.2. Integrar cláusulas “estándar Durezza/Revisar‑IA”**
+
+Puedes enriquecer A4 con un set de **cláusulas tipo** que los dictámenes de A4 recomienden sistemáticamente:
+
+- cláusula de **entregables y materialidad** (“El proveedor se obliga a entregar…”),  
+- cláusula de **cooperación en auditorías SAT** (el proveedor se compromete a proveer información),  
+- cláusula **REPSE/cumplimiento laboral** cuando aplique.
+
+Esto hace que A4 no solo revise, sino que **empuje la estandarización contractual** a favor de tu Defense File.
+
+---
+
+## 5) A5_FINANZAS – Qué mejorar
+
+Muy potente, pero:
+
+**5.1. Evitar duplicidad con A1 en BEE**
+
+- A1 define **qué beneficio** (más socios, menor rotación, etc.).  
+- A5 traduce eso en **cuánto** (ROI, NPV, payback).
+
+Actualiza el skill de A5 para que **no vuelva a pedir la narrativa del BEE**, sino que la consuma de A1.
+
+**5.2. Conectar mejor con F9 (seguimiento BEE)**
+
+Hoy A5 está muy centrado en el momento de decisión (pre‑servicio). Te conviene:
+
+- que A5 tenga un bloque claro de **“Follow‑up F9”**:
+  - leer KPIs reales post‑proyecto,  
+  - comparar con BEE,  
+  - actualizar “learning” para futuros proyectos.
+
+Esto es oro tanto para negocio como para defensa:  
+“De 10 proyectos, 8 alcanzaron o superaron el BEE proyectado” es argumento fuerte ante SAT sobre **seriedad en la contratación**.
+
+---
+
+## 6) A6_PROVEEDOR – Qué mejorar (ligado a tu esquema OCR)
+
+**6.1. Integración total con alta de proveedor**
+
+Con el esquema de proveedor que ya definimos, el skill de A6 debe:
+
+- tomar como INPUT un `proveedorJson` estructurado (lo que definimos),  
+- tener reglas claras de scoring y flags (ya las bosquejaste muy bien),  
+- devolver:
+  - `nivelRiesgoProveedor`,  
+  - `motivos`,  
+  - `recomendacion (APROBAR / CONDICIONAR / RECHAZAR)`,  
+  - `condiciones` (ej. “solo contratos < X monto”, “revisar 69‑B cada mes”).
+
+**6.2. Ser claro en la interacción con A3**
+
+- A3 no debería volverse a meter en listas 69‑B cada vez; puede confiar en A6 para la **primera línea**, salvo que esté en un contexto contencioso.  
+- Skill de A6:  
+  - “Esta empresa está en lista 69‑B presuntos desde [fecha], pero no definitivos. Recomendación: seguir operando **solo si** se pide garantía extra y se monitorea mes a mes.”
+
+---
+
+## 7) A7_DEFENSA – Qué mejorar
+
+A7 es donde todo converge.
+
+**7.1. Estandarizar entrada/salida**
+
+- INPUT siempre debe ser un objeto estructurado con:  
+  - dictamen A1,  
+  - dictamen A3,  
+  - dictamen A4,  
+  - dictamen A5,  
+  - reporte A6,  
+  - log de F0–F9 (A2).  
+
+- OUTPUT:
+  - Defense File estructurado (JSON que luego se transforma a PDF/Word),  
+  - matriz de evidencia (qué acredita qué),  
+  - argumentario estándar para requerimientos SAT.
+
+**7.2. Modo “Respuesta a oficio”**
+
+Agrega a A7 un **modo específico** para cuando ya hay un requerimiento del SAT:
+
+- leer los puntos concretos del oficio,  
+- mapearlos contra el Defense File,  
+- señalar huecos críticos (“aquí el SAT tiene un ángulo fuerte, falta X”),  
+- sugerir estructura de respuesta (no redactarla completa salvo que se pida, pero sí el esqueleto: “Hecho – Prueba – Norma – Conclusión”).
+
+---
+
+## 8) Knowledge Base – Qué mejorar
+
+Tu KB es muy ambicioso. Para que funcione de verdad:
+
+**8.1. Separar [NORMA] de [INTERPRETACIÓN] de forma sistemática**
+
+- Cada artículo clave debe tener:  
+  - **Texto íntegro** (NORMA).  
+  - **Notas de uso en la plataforma** (INTERPRETACIÓN):  
+    • cómo lo usa A1, A3, etc.;  
+    • qué no debe extrapolarse.
+
+**8.2. Conectar KB con prompts de agentes**
+
+- A1, A3, A6 y A7 deberían tener referencias directas:  
+  - “Para este análisis, consulta KB:CFF_5A, KB:LISR_27, KB:CFF_69B”.  
+- Esto facilita mantener consistencia y actualizar una sola vez cuando cambie la ley o la RMF.
+
+---
+
+### Pregunta clave en relación a lo expuesto
+
+¿Quieres que el próximo paso sea que tomemos **un agente concreto (por ejemplo A3_FISCAL)** y te entregue:
+
+- una versión ajustada de su **skill** (con estas mejoras integradas),  
+- ya alineado a F0–F9, a proveedor.json y a los candados F2/F6/F8?
+
+Eso te permitiría usarlo como “plantilla revisada” para ir migrando el resto.

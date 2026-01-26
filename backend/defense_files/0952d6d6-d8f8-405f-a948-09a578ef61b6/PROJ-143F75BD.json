@@ -1,0 +1,208 @@
+{
+  "project_id": "PROJ-143F75BD",
+  "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+  "created_at": "2026-01-23T17:44:45.241607+00:00",
+  "project_data": {
+    "id": "PROJ-143F75BD",
+    "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+    "created_by": "f94396c4-cbc0-48fe-8fd5-1376b39a87f3",
+    "name": "Estrategia Competitiva Fortezza 2025",
+    "client_name": "Grupo Fortezza SA de CV",
+    "description": "Estudio de mercado y posicionamiento competitivo para Q1-Q2 2025",
+    "amount": 450000.0,
+    "service_type": "Plan Estratégico 2024-2026",
+    "sponsor_name": "Santiago Fortezza",
+    "sponsor_email": "sfortezza@grupofortezza.com",
+    "department": "Planeación",
+    "expected_benefit": 3000000.0,
+    "duration_months": 3,
+    "urgency_level": "Normal",
+    "requires_human": "No",
+    "attachments": [],
+    "submitted_at": "2026-01-23T17:44:45.241393+00:00",
+    "is_modification": false,
+    "parent_folio": "",
+    "modification_notes": ""
+  },
+  "deliberation_count": 2,
+  "deliberations": [
+    {
+      "project_id": "PROJ-143F75BD",
+      "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+      "stage": "E1_ESTRATEGIA",
+      "agent_id": "A1_SPONSOR",
+      "decision": "pending_review",
+      "analysis": "# DICTAMEN ESTRATÉGICO A1_ESTRATEGIA\n**Agente:** María Rodríguez - Directora de Estrategia  \n**Proyecto:** PROJ-143F75BD  \n**Fecha de Análisis:** 2025-01-XX  \n**Fase:** F0 - INTI/INTAKE\n\n---\n\n## ⚠️ EVALUACIÓN PRELIMINAR: INFORMACIÓN INSUFICIENTE\n\n### ESTADO DEL SIB (Solicitud Inicial de Bien/Servicio)\n\n**COMPLETITUD DEL INTAKE: 25% ❌**\n\nEl proyecto presenta **deficiencias críticas** en la documentación inicial que impiden emitir un dictamen estratégico fundamentado conforme a los estándares de Revisar.ia y requisitos SAT.\n\n---\n\n## 📋 ANÁLISIS POR PILARES SAT\n\n### 1️⃣ RAZÓN DE NEGOCIOS (Art. 5-A CFF)\n**STATUS: NO EVALUABLE** 🔴\n\n**Información Faltante Crítica:**\n- ❌ **Objetivos empresariales concretos**: \"Estudio de mercado y posicionamiento competitivo\" es descripción genérica\n- ❌ **Problemática específica a resolver**: ¿Qué desafío de negocio motiva este estudio?\n- ❌ **Hipótesis de trabajo**: ¿Qué preguntas estratégicas debe responder?\n- ❌ **Contexto de timing**: ¿Por qué Q1-Q2 2025 específicamente?\n\n**Red Flags Detectados:**\n🚩 **Autocontratación**: Grupo Fortezza contratando a sí mismo genera alerta inmediata  \n🚩 **Descripción vaga**: No especifica alcance, entregables ni metodología  \n🚩 **Horizonte estratégico ambiguo**: \"Plan 2024-2026\" pero ejecutado en 2025\n\n---\n\n### 2️⃣ BENEFICIO ECONÓMICO ESPERADO (BEE)\n**STATUS: NO EVALUABLE** 🔴\n\n**Score BEE Preliminar: 5/25 puntos**\n\n| Criterio | Puntos | Comentario |\n|----------|--------|------------|\n| Sustancia económica | 0/5 | No se describe ROI esperado |\n| Propósito concreto | 2/5 | \"Posicionamiento\" sin métricas |\n| Coherencia estratégica | 0/5 | Sin vinculación a OKRs/pilares |\n| Beneficio describible | 3/5 | Genérico (\"mejora competitiva\") |\n| Documentación | 0/5 | Solo descripción básica |\n\n**Información Faltante:**\n- ❌ KPIs esperados del estudio\n- ❌ Decisiones empresariales que habilitará\n- ❌ Beneficios cuantitativos proyectados\n- ❌ Comparación vs. status quo (costo de NO hacerlo)\n\n---\n\n### 3️⃣ MATERIALIDAD (Art. 69-B CFF)\n**STATUS: PENDIENTE DEFINICIÓN** 🟡\n\n**Entregables NO especificados:**\n- ¿Formato del plan estratégico?\n- ¿Investigación de mercado primaria/secundaria?\n- ¿Presentaciones ejecutivas?\n- ¿Sesiones de trabajo (cuántas/quiénes)?\n\n**Riesgo de Materialidad:**\n- Al ser autocontratación, requiere **pruebas inequívocas** de trabajo realizado\n- Necesario establecer **entregables verificables** con fechas y responsables\n\n---\n\n### 4️⃣ TRAZABILIDAD (NOM-151)\n**STATUS: ESTRUCTURA PENDIENTE** 🟡\n\n**Documentación Requerida (No Presente):**\n- [ ] SIB completamente desarrollado\n- [ ] Justificación estratégica formal\n- [ ] Comité que autorizó la necesidad\n- [ ] Minuta de decisión\n- [ ] Vinculación con planeación anual 2025\n- [ ] Comparativo de alternativas (make vs buy)\n\n---\n\n## 🎯 EVALUACIÓN DE RAZÓN DE NEGOCIOS\n\n### CRITERIOS A1 (0-25 puntos)\n\n| Criterio | Puntos | Máximo | Justificación |\n|----------|--------|--------|---------------|\n| **1. Sustancia sobre forma** | 0 | 5 | No se demuestra necesidad económica |\n| **2. Propósito empresarial concreto** | 2 | 5 | Muy genérico, sin objetivos SMART |\n| **3. Coherencia estratégica/OKRs** | 0 | 5 | Sin vinculación documentada |\n| **4. BEE describible** | 3 | 5 | Beneficio mencionado pero no cuantificado |\n| **5. Documentación contemporánea** | 0 | 5 | Solo descripción básica |\n| **TOTAL** | **5** | **25** | **NO CONFORME** |\n\n---\n\n## 🚨 RED FLAGS ESTRATÉGICOS CRÍTICOS\n\n### 🔴 NIVEL CRÍTICO\n\n1. **AUTOCONTRATACIÓN NO JUSTIFICADA**\n   - Grupo Fortezza SA contratando a sí mismo\n   - Requiere demostrar por qué no se usa capacidad interna\n   - Alto escrutinio SAT por riesgo de simulación\n\n2. **OBJETIVO AMBIGUO**\n   - \"Estudio de mercado\" sin especificar:\n     - ¿Qué segmento?\n     - ¿Qué geografía?\n     - ¿Qué competidores?\n     - ¿Qué líneas de negocio?\n\n3. **MONTO DESPROPORCIONAL SIN JUSTIFICACIÓN**\n   - $450,000 MXN sin desglose ni benchmarking\n   - No se indica si incluye investigación primaria, consultores externos, etc.\n\n### 🟡 NIVEL ALTO\n\n4. **TIMING NO JUSTIFICADO**\n   - Plan \"2024-2026\" ejecutado en Q1-Q2 2025\n   - ¿Por qué no se hizo en 2024?\n   - ¿Ya existen planes estratégicos vigentes?\n\n5. **AUSENCIA DE ALINEACIÓN ESTRATÉGICA**\n   - Sin mención a pilares estratégicos de Fortezza\n   - Sin vinculación a OKRs 2025\n   - No se entiende la urgencia/relevancia\n\n---\n\n## 📊 DICTAMEN ESTRATÉGICO A1\n\n```json\n{\n  \"dictamenEstrategico\": {\n    \"razonNegocios\": {\n      \"status\": \"NO_CONFORME\",\n      \"score\": 5,\n      \"comentario\": \"Información insuficiente para validar razón de negocios. Autocontratación sin justificación adecuada. Objetivos vagos y sin vinculación estratégica documentada.\"\n    },\n    \"beneficioEconomicoEsperado\": {\n      \"descripcion\": \"NO ESPECIFICADO - Genérico 'posicionamiento competitivo'\",\n      \"tipoBeneficio\": [],\n      \"horizonteMeses\": 0,\n      \"claridad\": \"BAJA\"\n    },\n    \"alineacionEstrategica\": {\n      \"okrsRelacionados\": [],\n      \"pilaresRelacionados\": [],\n      \"comentario\": \"Sin evidencia de vinculación con estrategia corporativa vigente\"\n    },\n    \"supuestosClaveNegocio\": [\n      \"SUPUESTO NO VALIDADO: Existe necesidad estratégica documentada\",\n      \"SUPUESTO NO VALIDADO: No hay capacida",
+      "rag_context": [],
+      "email_sent": null,
+      "timestamp": "2026-01-23T17:45:24.804013+00:00",
+      "recorded_at": "2026-01-23T17:45:24.804043+00:00"
+    },
+    {
+      "project_id": "PROJ-143F75BD",
+      "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+      "stage": "E2_FISCAL",
+      "agent_id": "A3_FISCAL",
+      "decision": "reject",
+      "analysis": "# DICTAMEN FISCAL A3_FISCAL\n**Agente:** Laura Sánchez - Especialista Fiscal  \n**Proyecto:** PROJ-143F75BD  \n**Fecha de Análisis:** 2025-01-XX  \n**Fase:** F0 - PRE-SCREENING FISCAL\n\n---\n\n## 🚨 ALERTA CRÍTICA: DOCUMENTACIÓN INSUFICIENTE PARA EVALUACIÓN FISCAL\n\n### RESUMEN EJECUTIVO\n\n**ETIQUETA DE SENSIBILIDAD FISCAL: ALTA** 🔴\n\nEl proyecto presenta **deficiencias estructurales críticas** que impiden realizar una evaluación fiscal completa y generan **riesgo fiscal significativo** para Grupo Fortezza.\n\n**RECOMENDACIÓN F0:** ⛔ **NO PROCEDER** hasta completar requisitos mínimos fiscales\n\n---\n\n## 📋 ANÁLISIS POR BLOQUES FISCALES\n\n### 1️⃣ DEDUCIBILIDAD LISR (Art. 25 y 27)\n\n#### ❌ CRITERIOS NO VERIFICABLES\n\n| Requisito Legal | Estado | Observación Crítica |\n|----------------|--------|---------------------|\n| **Estrictamente Indispensable (27-I)** | ⚠️ NO DEMOSTRABLE | Sin justificación de razón de negocios documentada |\n| **CFDI Correcto (27-III + CFF 29/29-A)** | ❌ NO DISPONIBLE | No se presenta CFDI ni datos del proveedor |\n| **Pago Bancarizado (27-IV)** | ❌ NO VERIFICABLE | Sin esquema de pago definido |\n| **Registro Contable (27-XVIII)** | ⚠️ PENDIENTE | No hay centro de costos ni clasificación contable |\n| **Partes Relacionadas (27-XIX)** | 🚨 **RIESGO CRÍTICO** | Cliente = Proveedor (mismo RFC) |\n\n#### 🔴 HALLAZGO CRÍTICO: OPERACIÓN INTRAGRUPO NO ESTRUCTURADA\n\n**ANOMALÍA FISCAL MAYOR:**\n```\nCliente: Grupo Fortezza SA de CV\nProveedor: Grupo Fortezza SA de CV\n```\n\nEsta configuración constituye una **OPERACIÓN ENTRE PARTES RELACIONADAS** (Art. 179 LISR) que requiere:\n\n✅ **REQUISITOS OBLIGATORIOS NO CUMPLIDOS:**\n- Estudio de precios de transferencia (Regla 3.9.1.1 RMF)\n- Justificación económica reforzada (Art. 5-A CFF)\n- Documentación de valor de mercado\n- Acuerdo anticipado de precios (APA) recomendable\n- Análisis funcional detallado\n\n**RIESGO:** El SAT puede:\n1. Rechazar la deducción por falta de sustancia económica\n2. Presumir simulación de operaciones (Art. 69-B CFF)\n3. Aplicar ajustes por precios de transferencia\n\n---\n\n### 2️⃣ CFDI Y FORMA DE PAGO (CFF 29/29-A)\n\n#### ❌ INFORMACIÓN NO PROPORCIONADA\n\n| Elemento | Estado | Impacto Fiscal |\n|----------|--------|----------------|\n| CFDI Emitido | ❌ NO EXISTE | **Pérdida de deducción inmediata** |\n| RFC Válido | ⚠️ PRESUMIBLE | Mismo contribuyente = requiere análisis especial |\n| Uso CFDI | ❌ NO DEFINIDO | Sin clave uso fiscal |\n| Clave Producto/Servicio | ❌ NO DEFINIDA | Sin clasificación SAT |\n| Método de Pago | ❌ NO ESTABLECIDO | Riesgo de no bancarización |\n\n**REQUERIMIENTO MÍNIMO F0:**\n- Definir si será CFDI 3.3 o 4.0\n- Uso CFDI sugerido: G03 (Gastos en general) o P01 (Por definir)\n- Clave producto/servicio: 80101500 - Servicios de consultoría de negocios y administración corporativa\n\n---\n\n### 3️⃣ RIESGO EFOS/69-B CFF\n\n#### ⚠️ NO EVALUABLE - OPERACIÓN INTERNA\n\n**PARTICULARIDAD:**\nAl ser proveedor = cliente, no aplica riesgo EFOS tradicional.\n\n**NUEVO RIESGO IDENTIFICADO:**\n🚨 **Simulación de Operaciones (Art. 69-B bis CFF)**\n\nCuando una empresa se \"contrata a sí misma\", el SAT puede presumir:\n- Falta de sustancia económica\n- Deducción artificial de gastos\n- Fraccionamiento indebido de operaciones\n- Elusión fiscal mediante reestructuración interna\n\n**PRECEDENTE RELEVANTE:** Tesis I.4o.A.898 A - Operaciones entre partes relacionadas requieren demostrar **valor económico independiente**.\n\n---\n\n### 4️⃣ MATERIALIDAD FISCAL MÍNIMA\n\n#### ❌ NIVEL: CRÍTICO - NO DEMOSTRABLE\n\n**EVIDENCIA REQUERIDA NO PROPORCIONADA:**\n\n| Documento | Estado | Criticidad |\n|-----------|--------|------------|\n| SOW/Alcance detallado | ❌ FALTANTE | ALTA |\n| Contrato firmado | ❌ FALTANTE | ALTA |\n| Entregables específicos | ❌ FALTANTE | ALTA |\n| Cronograma | ❌ FALTANTE | MEDIA |\n| Personal asignado | ❌ FALTANTE | ALTA |\n| Metodología de trabajo | ❌ FALTANTE | MEDIA |\n\n**PRUEBA DE MATERIALIDAD IMPOSIBLE:**\nSin documentación mínima, no se puede defender ante fiscalización que:\n- El servicio fue efectivamente prestado\n- Hubo contraprestación real\n- Existe separación de funciones\n- No hay duplicidad con funciones internas\n\n---\n\n## 🎯 INTEGRACIÓN CON FASES F0-F9\n\n### F0 - PRE-SCREENING (POSICIÓN ACTUAL)\n\n**CHECKLIST MÍNIMO FISCAL F0:**\n\n- [ ] ❌ Identificación clara proveedor/cliente\n- [ ] ❌ Justificación operación intragrupo\n- [ ] ❌ Esquema de precios de transferencia\n- [ ] ❌ Uso CFDI y clave producto\n- [ ] ❌ Centro de costos definido\n- [ ] ❌ Evidencia preliminar de sustancia\n\n**SCORE F0:** 0/25 puntos 🔴\n\n**DECISIÓN F0:** ⛔ **DETENER - NO CUMPLE REQUISITOS MÍNIMOS**\n\n---\n\n### F2 - CANDADO DE INICIO (PROYECCIÓN)\n\n**SI SE COMPLETARA F0, PARA APROBAR F2 SE REQUIERE:**\n\n1. **Estructura Legal Sólida:**\n   - Contrato formal entre áreas con autonomía fiscal\n   - Justificación de por qué no es función interna\n   - Acuerdo de nivel de servicio (SLA)\n\n2. **Fundamentación Art. 5-A CFF:**\n   - Razón de negocios documentada por A1 ✅\n   - ROI proyectado por A5\n   - Comparativo con alternativas externas\n\n3. **Precios de Transferencia:**\n   - Análisis funcional básico\n   - Benchmarking de mercado\n   - Método aplicable (CUP, Resale Price, Cost Plus)\n\n---\n\n### F6 - CANDADO CUMPLIMIENTO FISCAL (PROYECCIÓN)\n\n**REQUISITOS OBLIGATORIOS",
+      "rag_context": [],
+      "email_sent": null,
+      "timestamp": "2026-01-23T17:46:11.708574+00:00",
+      "recorded_at": "2026-01-23T17:46:11.708611+00:00"
+    }
+  ],
+  "email_count": 3,
+  "emails": [
+    {
+      "from_email": "estrategia@revisar-ia.com",
+      "to_email": "fiscal@revisar-ia.com",
+      "subject": "[SATMA] Deliberación E1_ESTRATEGIA",
+      "body": "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSISTEMA SATMA - COMUNICACIÓN INTER-AGENTES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nDe: María Rodríguez (Dirección Estratégica)\nPara: Laura Sánchez (Fiscal)\nEtapa: E1_ESTRATEGIA\nFecha: 23/01/2026 17:45 UTC\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPROYECTO: Estrategia Competitiva Fortezza 2025\nID: PROJ-143F75BD\nMONTO: $450,000.00 MXN\nDECISIÓN: EN REVISIÓN\n━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "message_id": "A1_SPONSOR_1769190327.80351",
+      "attachments": [
+        "IDPROJ-143_A1_SPONSOR_Reporte_estrategia_V1.pdf"
+      ],
+      "recorded_at": "2026-01-23T17:45:27.803634+00:00"
+    },
+    {
+      "from_email": "fiscal@revisar-ia.com",
+      "to_email": "finanzas@revisar-ia.com",
+      "subject": "[SATMA] Deliberación E2_FISCAL",
+      "body": "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSISTEMA SATMA - COMUNICACIÓN INTER-AGENTES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nDe: Laura Sánchez (Fiscal)\nPara: Roberto Sánchez (Finanzas)\nEtapa: E2_FISCAL\nFecha: 23/01/2026 17:46 UTC\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPROYECTO: Estrategia Competitiva Fortezza 2025\nID: PROJ-143F75BD\nMONTO: $450,000.00 MXN\nDECISIÓN: RECHAZADO - ver justificación\n━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "message_id": "A3_FISCAL_1769190375.056683",
+      "attachments": [
+        "IDPROJ-143_A3_FISCAL_Reporte_fiscal_V1.pdf"
+      ],
+      "recorded_at": "2026-01-23T17:46:15.056831+00:00"
+    },
+    {
+      "from_email": "pmo@revisar-ia.com",
+      "to_email": "sfortezza@grupofortezza.com",
+      "subject": "[SATMA] Resultado de Evaluación - Estrategia Competitiva Fortezza 2025 - RECHAZADO",
+      "body": "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSISTEMA SATMA - REPORTE DE CONSOLIDACIÓN FINAL\nRevisar.ia\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nEstimado(a) Grupo Fortezza SA de CV,\n\nLe informamos que su solicitud de proyecto ha completado el proceso de evaluación multi-agente del Sistema SATMA.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nDATOS DEL PROYECTO\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nID: PROJ",
+      "message_id": "A2_PMO_1769190463.270712",
+      "attachments": [
+        "IDPROJ-143_A1_SPONSOR_Reporte_estrategia_V1.pdf",
+        "IDPROJ-143_A3_FISCAL_Reporte_fiscal_V1.pdf",
+        "IDPROJ-143_A3_FISCAL_Reporte_dictamen_rechazo_V2.pdf",
+        "IDPROJ-143_A2_PMO_Reporte_consolidacion_V1.pdf"
+      ],
+      "recorded_at": "2026-01-23T17:47:43.271477+00:00"
+    }
+  ],
+  "provider_communications": [],
+  "rag_contexts": [],
+  "documents": [
+    {
+      "project_id": "PROJ-143F75BD",
+      "stage": "E1_ESTRATEGIA",
+      "agent_id": "A1_SPONSOR",
+      "doc_type": "reporte_estrategia",
+      "file_path": "/reports/IDPROJ-143_A1_SPONSOR_Reporte_estrategia_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZA7RK5ZPLEhD1Fd0FRJfBmeBeWFCVlSBpPX",
+      "created_at": "2026-01-23T17:45:26.179797+00:00",
+      "version": 1
+    },
+    {
+      "project_id": "PROJ-143F75BD",
+      "stage": "E2_FISCAL",
+      "agent_id": "A3_FISCAL",
+      "doc_type": "reporte_fiscal",
+      "file_path": "/reports/IDPROJ-143_A3_FISCAL_Reporte_fiscal_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZo7RK5Z6vtx5fBH1LBwKK5ggx3hkun54zCV",
+      "created_at": "2026-01-23T17:46:12.195421+00:00",
+      "version": 1
+    },
+    {
+      "project_id": "PROJ-143F75BD",
+      "stage": "E2_FISCAL",
+      "agent_id": "A3_FISCAL",
+      "doc_type": "dictamen_rechazo",
+      "file_path": "/reports/IDPROJ-143_A3_FISCAL_Reporte_dictamen_rechazo_V2.pdf",
+      "pcloud_link": null,
+      "created_at": "2026-01-23T17:46:15.081093+00:00",
+      "version": 2
+    },
+    {
+      "project_id": "PROJ-143F75BD",
+      "stage": "E5_APROBADO",
+      "agent_id": "A2_PMO",
+      "doc_type": "reporte_consolidacion",
+      "file_path": "/reports/IDPROJ-143_A2_PMO_Reporte_consolidacion_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZYkRK5Z8lw68IdSozfsJ6fOy7qHJbsLHopk",
+      "created_at": "2026-01-23T17:47:41.750155+00:00",
+      "version": 1
+    }
+  ],
+  "document_count": 4,
+  "final_decision": "rejected",
+  "final_justification": "Rechazado en etapa E2_FISCAL por A3_FISCAL: # DICTAMEN FISCAL A3_FISCAL\n**Agente:** Laura Sánchez - Especialista Fiscal  \n**Proyecto:** PROJ-143F75BD  \n**Fecha de Análisis:** 2025-01-XX  \n**Fase:** F0 - PRE-SCREENING FISCAL\n\n---\n\n## 🚨 ALERTA CR",
+  "compliance_checklist": {
+    "razon_de_negocios": true,
+    "beneficio_economico": true,
+    "materialidad": true,
+    "trazabilidad": true
+  },
+  "compliance_score": 100.0,
+  "pcloud_links": {
+    "A1_SPONSOR": "https://u.pcloud.link/publink/show?code=kZHqng5ZeW36Cw3UbmY6lu1DsJ1QYj9hhCe7",
+    "A2_PMO": "https://u.pcloud.link/publink/show?code=kZJqng5ZGDwXSRewkijTxOYa3WBCIkRXeUpV",
+    "A3_FISCAL": "https://u.pcloud.link/publink/show?code=kZQqng5ZE3BXwURDwrhkgreFBT4xXbyJDOa7",
+    "A5_FINANZAS": "https://u.pcloud.link/publink/show?code=kZhqng5ZpurMT7tJ7wH9vDUXiGy2Mbju5M0X"
+  },
+  "pcloud_documents": [
+    {
+      "agent_id": "A1_SPONSOR",
+      "doc_type": "reporte_estrategia",
+      "local_path": "/home/runner/workspace/backend/reports/IDPROJ-143_A1_SPONSOR_Reporte_estrategia_V1.pdf",
+      "pcloud_path": "/REVISAR_IA/Evidencias/2026-01-Evidencias/PROJ-143F75BD/A1_SPONSOR_estrategia_20260123_174525.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZA7RK5ZPLEhD1Fd0FRJfBmeBeWFCVlSBpPX",
+      "file_id": 83420769841,
+      "uploaded_at": "2026-01-23T17:45:26.178718+00:00"
+    },
+    {
+      "agent_id": "A3_FISCAL",
+      "doc_type": "reporte_fiscal",
+      "local_path": "/home/runner/workspace/backend/reports/IDPROJ-143_A3_FISCAL_Reporte_fiscal_V1.pdf",
+      "pcloud_path": "/A3_FISCAL_fiscal_20260123_174611.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZo7RK5Z6vtx5fBH1LBwKK5ggx3hkun54zCV",
+      "file_id": 83420789475,
+      "uploaded_at": "2026-01-23T17:46:12.194553+00:00"
+    },
+    {
+      "agent_id": "A2_PMO",
+      "doc_type": "reporte_consolidacion",
+      "local_path": "/home/runner/workspace/backend/reports/IDPROJ-143_A2_PMO_Reporte_consolidacion_V1.pdf",
+      "pcloud_path": "/A2_PMO_consolidacion_20260123_174741.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZYkRK5Z8lw68IdSozfsJ6fOy7qHJbsLHopk",
+      "file_id": 83420835665,
+      "uploaded_at": "2026-01-23T17:47:41.745044+00:00"
+    }
+  ],
+  "pcloud_document_count": 3,
+  "bitacora_link": "https://u.pcloud.link/publink/show?code=XZbkRK5ZIUJCKGXOsCzQbEhzsnI83Vm7NQd7",
+  "consolidation_report": {
+    "full_report": "# REPORTE DE CONSOLIDACIÓN - SISTEMA SATMA\n## Revisar.ia - Control Integral de Servicios de Consultoría\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n**CLASIFICACIÓN:** Documento Confidencial - Uso Interno  \n**FECHA DE EMISIÓN:** 24 de enero de 2025  \n**PROYECTO ID:** PROJ-143F75BD  \n**ESTADO FINAL:** **RECHAZADO**  \n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n---\n\n## 1. ENCABEZADO Y RESUMEN EJECUTIVO\n\n### 1.1 IDENTIFICACIÓN DEL PROYECTO\n\n**Denominación del Proyecto:** Estrategia Competitiva Fortezza 2025  \n**Identificador Único:** PROJ-143F75BD  \n**Solicitante/Cliente:** Grupo Fortezza SA de CV  \n**RFC del Solicitante:** No proporcionado  \n**Tipo de Servicio Solicitado:** Plan Estratégico 2024-2026  \n**Alcance Declarado:** Estudio de mercado y posicionamiento competitivo para Q1-Q2 2025  \n**Monto Total del Proyecto:** $450,000.00 MXN (Cuatrocientos cincuenta mil pesos 00/100 Moneda Nacional)  \n**Correo Electrónico del Solicitante:** No especificado en la solicitud inicial  \n**Fecha de Recepción:** No especificada  \n**Fecha de Inicio de Evaluación:** Enero 2025  \n**Fecha de Conclusión de Análisis:** 24 de enero de 2025  \n\n### 1.2 SÍNTESIS EJECUTIVA DE LA SOLICITUD\n\nEl presente documento constituye el Reporte de Consolidación Final del proyecto identificado como PROJ-143F75BD, correspondiente a la solicitud de contratación de servicios de consultoría estratégica denominada \"Estrategia Competitiva Fortezza 2025\", presentada por Grupo Fortezza SA de CV ante el Sistema de Análisis Tributario y Materialidad Avanzada (SATMA) de Revisar.ia.\n\nLa solicitud inicial planteaba la necesidad de desarrollar un estudio integral de mercado y análisis de posicionamiento competitivo para el periodo comprendido entre el primer y segundo trimestre del año 2025, con un presupuesto estimado de $450,000.00 MXN. El proyecto fue sometido al proceso de evaluación multidisciplinaria establecido en nuestro Procedimiento Operativo Estándar (POE), el cual contempla el análisis secuencial a través de las fases F0 a F9, involucrando la participación coordinada de seis áreas funcionales especializadas.\n\n### 1.3 DECISIÓN FINAL CONSOLIDADA\n\n**VEREDICTO DEL SISTEMA SATMA: PROYECTO RECHAZADO**\n\nTras completar el análisis preliminar en las fases iniciales F0 (Intake/SIB-BEE) y la evaluación parcial de las áreas de Estrategia y Fiscal, el Comité de Gestión de Proyectos (PMO) determina que el proyecto **NO PUEDE CONTINUAR** en el proceso de evaluación ni proceder a su autorización y ejecución.\n\nEsta determinación se fundamenta en deficiencias estructurales críticas en la documentación presentada, ausencia de información esencial para cumplir con los requisitos fiscales y normativos vigentes, y la imposibilidad de garantizar el cumplimiento de los cuatro pilares fundamentales de deducibilidad fiscal establecidos por la legislación mexicana.\n\n### 1.4 PRINCIPALES HALLAZGOS DEL PROCESO DE EVALUACIÓN\n\nDurante el proceso de análisis multidisciplinario, se identificaron las siguientes deficiencias críticas que fundamentan la decisión de rechazo:\n\n**a) Completitud Documental Insuficiente:** La Solicitud Inicial de Bien/Servicio (SIB) presentó un nivel de completitud del 25%, muy por debajo del umbral mínimo del 70% requerido para avanzar en el proceso de evaluación. Esto incluye la ausencia de elementos fundamentales como la justificación de negocio detallada, métricas cuantificables de impacto, análisis de alternativas consideradas, y presupuesto desglosado.\n\n**b) Ausencia de Razón de Negocios Demostrable:** No se proporcionó documentación que acredite la existencia de una razón de negocios legítima según lo establecido en el Artículo 5-A del Código Fiscal de la Federación. La solicitud carece de evidencia que demuestre que el servicio responde a necesidades empresariales reales y verificables.\n\n**c) Beneficio Económico No Cuantificado:** No se presentaron proyecciones financieras, análisis de retorno sobre inversión (ROI), ni métricas que permitan evaluar el beneficio económico esperado de la prestación del servicio, elemento indispensable para la deducibilidad fiscal.\n\n**d) Riesgos de Materialidad No Mitigables:** La ausencia de información sobre el proveedor propuesto, metodología de trabajo, entregables específicos y cronograma detallado impide garantizar la materialidad del servicio, generando riesgo fiscal alto en caso de fiscalización por parte de la autoridad tributaria.\n\n**e) Información del Proveedor Inexistente:** No se proporcionaron datos de identificación del prestador de servicios, imposibilitando la evaluación de capacidad técnica, experiencia comprobable, situación fiscal y cumplimiento de obligaciones tributarias.\n\n---\n\n## 2. ANÁLISIS DETALLADO POR ÁREA FUNCIONAL\n\n### 2.1 EVALUACIÓN ESTRATÉGICA - DIRECCIÓN DE ESTRATEGIA\n\n**Responsable:** María Rodríguez - Directora de Estrategia  \n**Agente Analítico:** A1_ESTRATEGIA  \n**Fase de Evaluación:** F0 - INTAKE/SIB-BEE  \n**Dictamen Emitido:** PENDING_REVIEW (Revisión Pendiente por Información Insuficiente)  \n\n#### 2.1.1 Alineación con Objetivos Estratégicos 2026\n\nLa Dirección de Estrategia tiene como mandato fundamental evaluar la congruencia de cada proyecto de inversión con los objetivos estratégicos corporativos establecidos en la planeación de largo plazo. En el caso del proyecto PROJ-143F75BD, el análisis preliminar revela **ausencia crítica de información** que permita establecer dicha alineación.\n\nEspecíficamente, no se proporcionó documentación que vincule el estudio de mercado y posicionamiento competitivo solicitado con:\n\n- Iniciativas estratégicas prioritarias del Plan Corporativo 2024-2026\n- Objetivos de crecimiento de mercado o expansión comercial\n- Métricas de desempeño estratégico (KPIs) a impactar\n- Análisis de brechas competitivas que justifiquen la intervención\n- Relación con ventajas competitivas a desarrollar o proteger\n\nLa ausencia de esta información imposibilita determinar si el proyecto constituye una inversión estratégicamente justificada o si representa una duplicidad con capacidades internas existentes, estudios previos realizados, o si podría atenderse mediante recursos disponibles en la organización.\n\n#### 2.1.2 Justificación del Servicio en el Portafolio de Proyectos\n\nEl análisis de portfolio requiere evaluar la prioridad relativa del proyecto frente a otras iniciativas en competencia por recursos limitados. La evaluación identificó las siguientes deficiencias:\n\n**Ausencia de Caso de Negocio Estructurado:** No se presentó un documento formal de caso de negocio (Business Case) que incluya:\n- Definición del problema u oportunidad a atender\n- Análisis situacional y diagnóstico de la necesidad\n- Alternativas evaluadas (hacer internamente, no hacer, diferir)\n- Criterios de selección de la alternativa propuesta\n- Análisis costo-beneficio preliminar\n\n**Falta de Urgencia Demostrada:** El proyecto declara un alcance para Q1-Q2 2025, sin embargo, no se justifica por qué este servicio debe contratarse en este momento específico ni qué riesgos u oportunidades se perderían al diferir o no realizar el proyecto.\n\n**Completitud del SIB: 25%** - Muy por debajo del estándar mínimo del 70% establecido en el POE de Revisar.ia para permitir el avance a la siguiente fase de evaluación.\n\n#### 2.1.3 Riesgos Estratégicos Identificados\n\nEl análisis preliminar identifica los siguientes riesgos estratégicos:\n\n1. **Riesgo de Inversión No Productiva:** Sin métricas claras de éxito, existe alto riesgo de que la inversión de $450,000.00 MXN no genere valor tangible ni retorno medible para la organización.\n\n2. **Riesgo de Capacidad Subutilizada:** No se documentó si la organización cuenta con capacidades internas para realizar este análisis, lo que podría representar duplicidad de esfuerzos y desperdicio de recursos.\n\n3. **Riesgo de Desalineación Estratégica:** Sin vinculación clara con objetivos estratégicos, el proyecto podría desviar recursos de iniciativas prioritarias.\n\n4. **Riesgo de Expectativas No Gestionadas:** La ambigüedad en alcance y entregables aumenta la probabilidad de insatisfacción con los resultados obtenidos.\n\n#### 2.1.4 Dictamen Estratégico\n\n**CONCLUSIÓN DEL ÁREA DE ESTRATEGIA:**\n\nEl proyecto **NO PUEDE APROBARSE** en su estado actual debido a información insuficiente para realizar una evaluación estratégica fundamentada. Se requiere que el solicitante:\n\n- Complete el SIB hasta alcanzar mínimo 70% de completitud\n- Presente caso de negocio formal estructurado\n- Documente alineación con objetivos estratégicos corporativos\n- Defina métricas cuantificables de éxito e impacto esperado\n- Justifique la urgencia y oportunidad del proyecto\n\n**ETIQUETA DE DICTAMEN:** PENDING_REVIEW - Información Insuficiente para Evaluación\n\n**RECOMENDACIÓN:** Devolver al solicitante para complementación documental antes de reiniciar el proceso de evaluación.\n\n---\n\n### 2.2 ANÁLISIS FISCAL - DIRECCIÓN FISCAL Y TRIBUTARIA\n\n**Responsable:** Laura Sánchez - Especialista Fiscal  \n**Agente Analítico:** A3_FISCAL  \n**Fase de Evaluación:** F0 - PRE-SCREENING FISCAL  \n**Dictamen Emitido:** REJECT (Rechazo por Riesgo Fiscal Alto)  \n**Etiqueta de Sensibilidad Fiscal:** 🔴 ALTA  \n\n#### 2.2.1 Cumplimiento de Razón de Negocios (Artículo 5-A CFF)\n\nEl Artículo 5-A del Código Fiscal de la Federación establece que las operaciones entre partes relacionadas o aquellas que pudieran generar efectos fiscales preferenciales deben sustentarse en una **razón de negocios legítima**. Para que una operación califique como deducible, debe demostrarse que:\n\na) El servicio responde a necesidades empresariales reales  \nb) Existe propósito económico sustantivo (no meramente fiscal)  \nc) Los términos corresponden a condiciones de mercado  \nd) Se genera un beneficio económico demostrable  \n\n**HALLAZGOS DEL ANÁLISIS FISCAL:**\n\nEl proyecto PROJ-143F75BD presenta **deficiencias críticas** en la demostración de razón de negocios:\n\n**Ausencia de Documentación Probatoria:** No se proporcionó evidencia documental que acredite:\n- La necesidad empresarial específica que motiva la contratación\n- Análisis de situación competitiva actual que justifique el estudio\n- Decisiones estratégicas pendientes que dependan de este análisis\n- Consecuencias económicas de no contar con la información que se busca obtener\n\n**Falta de Propósito Económico Demostrable:** La descripción genérica \"estudio de mercado y posicionamiento competitivo\" no permite identificar el propósito económico sustantivo. No se documenta:\n- Qué decisiones de negocio específicas dependen de este estudio\n- Qué oportunidades de negocio se busca explotar\n- Qué amenazas competitivas se pretende mitigar\n- Cómo se utilizará la información obtenida\n\n**Riesgo de Cuestionamiento por SAT:** En caso de fiscalización, la autoridad tributaria podría cuestionar la deducibilidad del gasto argumentando que no existe evidencia suficiente de razón de negocios, lo que derivaría en:\n- Rechazo de la deducción ($450,000.00 MXN)\n- Determinación de utilidad fiscal adicional\n- Impuesto omitido más actualizaciones\n- Multas entre 55% y 75% del impuesto omitido\n- Recargos por mora\n\n#### 2.2.2 Evaluación de Estricta Indispensabilidad (Artículo 27 LISR)\n\nEl Artículo 27 de la Ley del Impuesto Sobre la Renta establece como requisito de deducibilidad que los gastos sean **estrictamente indispensables** para los fines de la actividad del contribuyente. La jurisprudencia fiscal mexicana interpreta este concepto como:\n\n- Gastos necesarios para generar ingresos o mantener la fuente productora\n- Relación directa con la actividad económica del contribuyente\n- Imposibilidad razonable de generar ingresos sin incurrir en el gasto\n\n**EVALUACIÓN DE INDISPENSABILIDAD:**\n\nEl análisis fiscal concluye que **NO SE PUEDE ACREDITAR** la estricta indispensabilidad del servicio debido a:\n\n**Falta de Vinculación con Generación de Ingresos:** No se documenta cómo el \"estudio de mercado y posicionamiento competitivo\" contribuye directa e indispensablemente a:\n- Generar ingresos actuales o futuros cuantificables\n- Mantener o proteger fuentes de ingresos existentes\n- Desarrollar nuevas líneas de negocio con proyección de ingresos definida\n\n**Ausencia de Análisis de Alternativas:** No se evidencia que se hayan evaluado alternativas menos costosas o que se justifique por qué este servicio específico es indispensable y no opcional o prescindible.\n\n**Incumplimiento del Principio de Proporcionalidad:** Un gasto de $450,000.00 MXN requiere justificación robusta de su indispensabilidad, especialmente cuando no se presenta proyección del impacto económico esperado.\n\n#### 2.2.3 Riesgos Fiscales Identificados ante el SAT\n\nLa Dirección Fiscal identifica los siguientes riesgos tributarios de **SEVERIDAD ALTA** 🔴:\n\n**RIESGO #1 - Rechazo Total de Deducción**  \n**Probabilidad:** Alta (70-85%)  \n**Impacto Fiscal Estimado:** $157,500.00 MXN (Impuesto: $135,000 + Multas: $74,250 + Recargos: estimados)  \n**Fundamento:** Incumplimiento de requisitos de razón de negocios e indispensabilidad estricta\n\n**RIESGO #2 - Materialidad del Servicio No Comprobable**  \n**Probabilidad:** Muy Alta (85-95%)  \n**Impacto:** Imposibilidad de demostrar ante auditoría del SAT que el servicio se prestó efectivamente  \n**Consecuencia:** Rechazo de deducción por falta de materialidad (Artículo 69-B CFF)\n\n**RIESGO #3 - Operación Simulada o Inexistente**  \n**Probabilidad:** Media-Alta (50-70%)  \n**Impacto:** Calificación como operación simulada con consecuencias penales potenciales  \n**Fundamento:** Ausencia de información del proveedor y documentación probatoria insuficiente\n\n**RIESGO #4 - Precio No de Mercado**  \n**Probabilidad:** Media (40-60%)  \n**Impacto:** Ajuste en precio de transferencia si se determina que $450,000 MXN no corresponde a valor de mercado  \n**Fundamento:** Sin información del proveedor ni análisis comparativo, no se puede validar que el precio sea de mercado\n\n**RIESGO #5 - Incumplimiento de Requisitos Formales**  \n**Probabilidad:** Muy Alta (90-100%)  \n**Impacto:** Rechazo de deducción por vicios formales  \n**Fundamento:** Documentación incompleta en expediente fiscal (",
+    "final_status": "RECHAZADO",
+    "tokens_used": 8630,
+    "model_used": "claude-sonnet-4-5",
+    "audit_metadata": {
+      "risk_score": 75,
+      "was_modified": false,
+      "hallucinations_removed": [],
+      "council_validated": true
+    },
+    "recorded_at": "2026-01-23T17:47:40.992128+00:00"
+  },
+  "agent_opinions": [],
+  "agent_opinions_count": 0,
+  "purchase_orders": [],
+  "purchase_orders_count": 0,
+  "contract_requests": [],
+  "contract_requests_count": 0,
+  "provider_change_requests": [],
+  "provider_change_requests_count": 0,
+  "version_history": [],
+  "version_history_count": 0,
+  "audit_ready": true
+}

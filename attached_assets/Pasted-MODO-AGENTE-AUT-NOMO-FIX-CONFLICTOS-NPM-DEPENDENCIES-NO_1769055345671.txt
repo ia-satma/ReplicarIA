@@ -1,0 +1,113 @@
+MODO AGENTE AUTÓNOMO - FIX CONFLICTOS NPM DEPENDENCIES
+
+NO PREGUNTAR. ARREGLAR.
+
+<TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+PROBLEMA: Conflictos de peer dependencies
+═══════════════════════════════════════════════════════════════════════════════
+
+ERROR 1: date-fns@4.1.0 vs react-day-picker (requiere date-fns@^2.28.0 || ^3.0.0)
+ERROR 2: eslint@9.23.0 vs react-scripts (requiere eslint@^8.0.0)
+
+═══════════════════════════════════════════════════════════════════════════════
+SOLUCIÓN - EJECUTAR EN ORDEN
+═══════════════════════════════════════════════════════════════════════════════
+
+PASO 1: Ir al directorio frontend
+
+```bash
+cd frontend
+```
+
+PASO 2: Downgrade date-fns a versión compatible
+
+```bash
+npm uninstall date-fns
+npm install date-fns@^3.6.0
+```
+
+PASO 3: Downgrade eslint a versión compatible
+
+```bash
+npm uninstall eslint
+npm install eslint@^8.57.0 --save-dev
+```
+
+PASO 4: Limpiar cache y reinstalar
+
+```bash
+rm -rf node_modules
+rm -rf package-lock.json
+npm cache clean --force
+npm install
+```
+
+PASO 5: Si aún hay errores, forzar instalación
+
+```bash
+npm install --legacy-peer-deps
+```
+
+□ Dependencias arregladas
+
+═══════════════════════════════════════════════════════════════════════════════
+ALTERNATIVA: Modificar package.json directamente
+═══════════════════════════════════════════════════════════════════════════════
+
+Editar frontend/package.json y cambiar:
+
+```json
+{
+  "dependencies": {
+    "date-fns": "^3.6.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  }
+}
+```
+
+Luego:
+
+```bash
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
+```
+
+□ package.json modificado
+
+═══════════════════════════════════════════════════════════════════════════════
+OPCIÓN RÁPIDA: Modificar .replit para ignorar peer deps
+═══════════════════════════════════════════════════════════════════════════════
+
+Cambiar el build command en .replit:
+
+```toml
+[deployment]
+build = ["sh", "-c", "cd frontend && npm install --legacy-peer-deps && CRACO_CONFIG_PATH=./craco.config.js npx craco build && cd .. && npx ts-node server/scripts/forceSeed.ts"]
+```
+
+El flag --legacy-peer-deps ignora conflictos de peer dependencies.
+
+□ .replit modificado con --legacy-peer-deps
+
+═══════════════════════════════════════════════════════════════════════════════
+VERIFICAR Y DEPLOY
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+# Test build local
+cd frontend && npm run build
+
+# Si funciona, hacer deploy
+```
+
+□ Build local exitoso
+□ Deploy ejecutado
+
+</TOON>
+
+EJECUTAR LA OPCIÓN MÁS RÁPIDA: Agregar --legacy-peer-deps al build command.

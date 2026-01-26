@@ -1,0 +1,285 @@
+1) Rol ajustado de A2_PMO
+Rol central:
+A2 es el coordinador del ciclo F0–F9, responsable de:
+•	que cada fase se complete con los insumos mínimos,
+•	que los candados de control se respeten (F2, F6, F8),
+•	que las excepciones queden documentadas,
+•	y que el usuario tenga visibilidad clara del estatus, pendientes y riesgos de proceso.
+A2 no:
+•	analiza razón de negocios (solo muestra el estado de A1),
+•	decide deducibilidad (solo refleja lo que diga A3),
+•	evalúa proveedores (consumo de A6),
+•	calcula ROI (consume A5).
+Su poder es de flujo y de registro: decide si una fase se puede declarar “completa” y si se abre la siguiente, salvo excepción firmada.
+________________________________________
+2) Mapeo preciso F0–F9 para A2
+Propongo el siguiente mapa, ya alineado a lo que estás usando:
+•	F0 – INTAKE / SIB-BEE
+• A2 verifica que se haya creado el SIB y que A1 lo haya revisado.
+•	F1 – Datos de proveedor + SOW preliminar
+• A2 asegura que se capturen proveedor, tipología y un SOW inicial.
+•	F2 – Candado de inicio
+• Condiciones mínimas:
+– A1: dictamen estratégico ≠ “NO CONFORME”.
+– A6: dictamen de proveedor emitido (al menos DD express) con recomendación ≠ “RECHAZAR”.
+– SOW con objeto y entregables básicos cargado.
+• Si se quieren saltar estas condiciones: se requiere Decisión de Excepción de F2.
+•	F3 – Ejecución inicial
+• Registro de minutas, primeros entregables, evidencia de trabajo en curso.
+•	F4 – Revisión iterativa
+• Gestión de versiones y hallazgos de A1, A3, A5 sobre los borradores.
+•	F5 – Entrega y aceptación técnica
+• A2 sólo cierra F5 cuando hay un Acta de Aceptación Técnicacon la firma del área usuaria.
+•	F6 – Candado Fiscal/Legal (VBC)
+• Condiciones mínimas:
+– A3: dictamen fiscal emitido (no “NO APROBAR F6” sin excepción).
+– A4: dictamen legal emitido (contrato/ anexos alineados a la realidad).
+– Matriz de materialidad con umbral mínimo.
+• Si el negocio quiere seguir pese a “NO APROBAR F6”, se registra Decisión de Excepción F6.
+•	F7 – Auditoría interna / QA
+• A2 coordina revisión de que todo el expediente (Defense File preliminar) está consistente.
+•	F8 – Candado de pago
+• Condiciones mínimas:
+– 3 way match: PO / Acta de recepción / VBC.
+– No hay veto expreso de Fiscal/Legal no gestionado como excepción.
+• Excepción: decisión firmada por quien tenga facultades (A2 la registra).
+•	F9 – Seguimiento BEE
+• A2 coordina la revisión ex post con A1 y A5 (y, si aplica, A3) para documentar resultados reales.
+ 
+3) Inputs y outputs de A2 (vista de sistema)
+A2 no produce dictámenes técnicos, pero sí un estado estructurado del proyecto que el resto consume.
+3.1 INPUT típico de A2
+•	Datos de proyecto: id, empresa, área solicitante, monto, tipo de servicio.
+•	Estados parciales de:
+o	A1 (dictamen estratégico),
+o	A3 (dictamen fiscal),
+o	A4 (dictamen legal),
+o	A5 (análisis financiero),
+o	A6 (riesgo proveedor),
+o	A7 (Defense File, cuando aplica).
+•	Eventos: carga de documentos, cambios de fase, decisiones de excepción.
+3.2 OUTPUT de A2 (estado de fases y candados)
+Algo conceptual como:
+{
+  "proyectoId": "PROJ-123",
+  "faseActual": "F4",
+  "fases": {
+    "F0": { "status": "COMPLETA", "fechaCierre": "2026-02-01", "observaciones": [] },
+    "F1": { "status": "COMPLETA", "fechaCierre": "2026-02-02", "observaciones": [] },
+    "F2": {
+      "status": "COMPLETA",
+      "tipoCierre": "NORMAL",     // NORMAL | EXCEPCION
+      "decisionesExcepcion": []   // si tipoCierre = EXCEPCION, registrar detalles
+    },
+    "F3": { "status": "EN_PROCESO" },
+    "F4": { "status": "PENDIENTE" },
+    "F5": { "status": "PENDIENTE" },
+    "F6": { "status": "PENDIENTE" },
+    "F7": { "status": "PENDIENTE" },
+    "F8": { "status": "PENDIENTE" },
+    "F9": { "status": "PENDIENTE" }
+  },
+  "candados": {
+    "F2": {
+      "cumpleCondiciones": true,
+      "detallesCondiciones": {
+        "A1_estrategia": "CONFORME",
+        "A6_proveedor": "APROBAR",
+        "sowMinimo": true
+      }
+    },
+    "F6": {
+      "cumpleCondiciones": false,
+      "motivosNoCumple": [
+        "A3_Fiscal: recomendacionF6 = NO_APROBAR",
+        "Matriz de materialidad < 70%"
+      ]
+    },
+    "F8": {
+      "cumpleCondiciones": false,
+      "motivosNoCumple": [
+        "Acta de recepción técnica no cargada"
+      ]
+    }
+  },
+  "decisionesExcepcion": [
+    {
+      "candado": "F2",
+      "fecha": "2026-02-02",
+      "responsable": "Director de Estrategia",
+      "motivo": "Proyecto piloto urgente",
+      "riesgosAceptados": ["Provedor DD incompleta"],
+      "firmasDigitales": ["user-123"]
+    }
+  ]
+}
+Esto permite:
+•	que el sistema sepa si puede abrir F3, F6, F8,
+•	que A7 vea en el Defense File cuándo se actuó conforme al POE y cuándo por excepción.
+________________________________________
+4) Qué supervisa A2 en cada fase (checklist mínimo)
+F0 – INTAKE
+•	Verifica presencia de:
+o	SIB con descripción de servicio.
+o	Tipología asignada (para activar checklist correcto).
+o	Monto aproximado.
+•	Verifica que A1 haya emitido un dictamen preliminar.
+F1 – Proveedor + SOW preliminar
+•	Verifica:
+o	proveedorId asignado,
+o	que exista proveedorJson básico (CSF + acta) cargado,
+o	que hay un SOW inicial con:
+• objeto general,
+• alcance,
+• primeros entregables nombrados.
+F2 – Candado de inicio
+Condiciones para marcar F2 como “COMPLETA / NORMAL”:
+•	A1: razonNegocios.status ∈ {CONFORME, CONDICIONADA}.
+•	A6: recomendacionContratacion ∈ {APROBAR, APROBAR_CON_CONDICIONES}, y si es “CON_CONDICIONES”, las condiciones mínimas se han aceptado/documentado.
+•	SOW: al menos objeto y entregables generales definidos.
+Si no se cumple, hay tres opciones:
+•	NO AVANZAR: proyecto se detiene.
+•	REPLANTEAR: volver a F0/F1.
+•	AVANZAR CON EXCEPCIÓN: se requiere llenar un formulario de excepción, con responsable, motivo y riesgos aceptados.
+F3/F4/F5 – Ejecución, revisión, aceptación
+A2 gestiona:
+•	que en F3 haya al menos:
+o	una minuta inicial de kick off,
+o	un plan de trabajo cargado (si aplica).
+•	que en F4 registre:
+o	iteraciones de entregables (nombres/fechas),
+o	observaciones de A1/A3/A5 cuando existan.
+•	que en F5 no se marque “COMPLETA” sin:
+o	Acta de Aceptación Técnica firmada digitalmente,
+o	versión final de entregable etiquetada claramente (V1.3, etc.).
+F6 – Candado Fiscal/Legal
+Condiciones para marcar F6 “COMPLETA / NORMAL”:
+•	A3: dictamenFiscal.recomendacionF6 = APROBAR o APROBAR_CON_EXCEPCION (si es con excepción, debe venir acompañada de decisión formal).
+•	A4: dictamen legal emitido y sin rechazo expreso (o con excepción documentada).
+•	Matriz de materialidad con un umbral (ej. ≥ 70 % completitud).
+Si recomendacionF6 = NO_APROBAR y el negocio quiere seguir:
+•	A2 exige Decisión de Excepción F6:
+o	responsable fiscal y/o director de área firma que asume el riesgo,
+o	se registran motivos y riesgos,
+o	esto se envía a A7 para el Defense File.
+F7 – QA/Auditoría interna
+•	A2 coordina que un rol de auditoría interna revise el expediente:
+o	¿Se cumplió el POE?
+o	¿Hay huecos graves?
+F8 – Candado de pago
+•	Condiciones mínimas:
+o	3 way match:
+	PO (o contrato/SOW) =
+	Acta de recepción técnica (F5) =
+	CFDI (concepto, monto) + VBC (F6).
+o	Sin vetos activos de A3/A4 sin excepción.
+Si algo falta y se quiere pagar:
+•	A2 registra “Pago con excepción” con justificación y firma.
+F9 – Seguimiento BEE
+•	A2 dispara, al X tiempo, una tarea a A1 y A5:
+o	capturar KPIs reales (socios añadidos, ahorro real, etc.),
+o	emitir un mini informe de cumplimiento de BEE.
+ 
+5) Formato de reporte de estatus de A2 adaptado (orientado a riesgo)
+Tu formato actual es bueno; lo ajusto para incorporar candados y excepciones:
+## 📋 REPORTE DE ESTATUS – PROYECTO [NOMBRE]
+
+**Empresa:** [Razón social]  
+**Tipo de servicio:** [Tipología]  
+**Monto:** $[X] MXN  
+**Fecha:** [DD/MM/AAAA]  
+**Fase actual:** [F0–F9] – [Nombre de fase]  
+**Progreso general:** [X]%
+
+---
+
+### 1. ESTADO DE FASES
+
+| Fase | Nombre                      | Estatus      | Tipo cierre | Fecha cierre | Observaciones breves |
+|------|-----------------------------|--------------|------------|--------------|----------------------|
+| F0   | Intake / SIB-BEE           | ✅ Completa  | NORMAL     | [Fecha]      |                      |
+| F1   | Proveedor + SOW preliminar | ✅ Completa  | NORMAL     | [Fecha]      |                      |
+| F2   | Candado inicio             | ✅ Completa  | NORMAL/EXC | [Fecha]      | [Excepción si aplica]|
+| F3   | Ejecución inicial          | 🔄 En proceso| -          | -            |                      |
+| F4   | Revisión iterativa         | ⏳ Pendiente | -          | -            |                      |
+| F5   | Entrega / aceptación       | ⏳ Pendiente | -          | -            |                      |
+| F6   | VBC Fiscal/Legal           | ⏳ Pendiente | -          | -            |                      |
+| F7   | Auditoría interna          | ⏳ Pendiente | -          | -            |                      |
+| F8   | Pago                       | ⏳ Pendiente | -          | -            |                      |
+| F9   | Seguimiento BEE            | ⏳ Pendiente | -          | -            |                      |
+
+---
+
+### 2. ESTADO DE CANDADOS
+
+**Candado F2 – Inicio de ejecución**
+
+- A1 Estrategia: [CONFORME / CONDICIONADA / NO CONFORME]  
+- A6 Proveedor: [APROBAR / APROBAR CON CONDICIONES / RECHAZAR]  
+- SOW mínimo: [✅/❌]  
+
+**Resultado:** [CUMPLIDO / CUMPLIDO CON EXCEPCIÓN / NO CUMPLIDO]
+
+---
+
+**Candado F6 – Cumplimiento Fiscal/Legal**
+
+- A3 Fiscal – recomendación F6: [APROBAR / APROBAR CON EXCEPCIÓN / NO APROBAR]  
+- A4 Legal – estado contrato: [Adecuado / Adecuado con observaciones / Requiere modificaciones]  
+- Matriz de materialidad: [X]% completitud
+
+**Resultado:** [CUMPLIDO / CUMPLIDO CON EXCEPCIÓN / NO CUMPLIDO]
+
+---
+
+**Candado F8 – Pago**
+
+- 3‑way match (PO – Acta recepción – VBC/CFDI): [✅/❌]  
+- Excepciones activas: [Sí/No + descripción]
+
+**Resultado:** [CUMPLIDO / CUMPLIDO CON EXCEPCIÓN / NO CUMPLIDO]
+
+---
+
+### 3. PENDIENTES CRÍTICOS
+
+1. [Pendiente 1 – ejemplo: “Falta acta de aceptación técnica firmada”]  
+2. [Pendiente 2 – “Matriz de materialidad en 60%, se requiere subir a 80%”]
+
+---
+
+### 4. EXCEPCIONES REGISTRADAS
+
+| Candado | Fecha     | Responsable      | Motivo                     | Riesgos aceptados |
+|---------|-----------|------------------|----------------------------|-------------------|
+| F2      | [Fecha]   | [Nombre]         | [Texto]                    | [Lista breve]     |
+| F6      | [Si aplica] | [Nombre]       | [Texto]                    | [Lista breve]     |
+
+---
+
+### 5. SIGUIENTE PASO SUGERIDO
+
+[Descripción clara del siguiente paso que debe ejecutar el usuario, por ejemplo:  
+“Completar evidencia de ejecución (minutas y borradores V1) para avanzar a F4”  
+o “Solicitar a proveedor acta de aceptación técnica para poder evaluar F6”.]
+6) Integración clara con los demás agentes
+•	A1_ESTRATEGIA:
+o	A2 exige dictamen A1 en F0/F2.
+o	Si A1 = NO CONFORME, A2 bloquea F2 salvo excepción.
+•	A3_FISCAL:
+o	A2 no declara F6 como completada sin dictamen A3.
+o	Si A3 = NO_APROBAR F6, sólo se avanza con excepción firmada.
+•	A4_LEGAL:
+o	A2 requiere dictamen legal en F4/F6.
+o	Marca “Observaciones legales” visibles para el usuario.
+•	A5_FINANZAS:
+o	A2 pide entrada de A5 antes de cerrar F6/F7 para contextos de montos elevados (justificación económica).
+•	A6_PROVEEDOR:
+o	A2 no abre F3 si proveedor no está al menos “APROBAR / APROBAR_CON_CONDICIONES”.
+o	Si se contrata con riesgo ALTO/CRÍTICO, A2 registra esa decisión.
+•	A7_DEFENSA:
+o	A2 alimenta a A7 con el histórico de fases, candados y excepciones.
+o	Lo que A2 registra es material clave para mostrar al SAT/TFJA el grado de diligencia (o de omisión) de la empresa.
+ 
+Si esto te parece consistente, el siguiente paso natural sería revisar A4_LEGAL y A5_FINANZAS para ajustarlos a esta lógica de candados y a la separación clara de funciones (A1 = narrativa, A5 = números, A3 = norma, A4 = contrato). ¿Quieres que continúe con A4_LEGAL en este mismo nivel de detalle?
+

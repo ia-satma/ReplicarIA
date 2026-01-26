@@ -1,0 +1,1182 @@
+MODO AGENTE AUTÓNOMO - DEEP RESEARCH + AUTO-COMPLETADO INTELIGENTE
+
+EL USUARIO NO DEBE LLENAR CAMPOS MANUALMENTE.
+EL SISTEMA DEBE INVESTIGAR Y COMPLETAR TODO AUTOMÁTICAMENTE.
+
+USA LOS MODELOS MÁS AVANZADOS:
+- Claude con Extended Thinking
+- Gemini 2.0 Deep Research
+- Perplexity para búsqueda en tiempo real
+- OpenAI o1 para razonamiento complejo
+
+<TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+ARQUITECTURA: SISTEMA DE AUTO-COMPLETADO CON DEEP RESEARCH
+═══════════════════════════════════════════════════════════════════════════════
+
+```
+FLUJO ACTUAL (MALO):
+Usuario dice "fortezza.mx" → Sistema muestra formulario vacío → Usuario llena 10 campos ❌
+
+FLUJO NUEVO (CORRECTO):
+Usuario dice "fortezza.mx" → Deep Research investiga TODO → Formulario 95% lleno ✅
+```
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     🔬 DEEP RESEARCH ENGINE                                 │
+│                                                                             │
+│  Input mínimo del usuario → Investigación profunda → Auto-completado       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                    ┌───────────────┼───────────────┐
+                    │               │               │
+                    ▼               ▼               ▼
+            ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+            │  PERPLEXITY │ │   GEMINI    │ │   CLAUDE    │
+            │   SONAR     │ │  2.0 DEEP   │ │  EXTENDED   │
+            │             │ │  RESEARCH   │ │  THINKING   │
+            │ • Búsqueda  │ │ • Análisis  │ │ • Validación│
+            │ • RFC SAT   │ │ • Docs PDF  │ │ • Estructura│
+            │ • Web scrape│ │ • 2M tokens │ │ • Fiscalidad│
+            └─────────────┘ └─────────────┘ └─────────────┘
+                    │               │               │
+                    └───────────────┼───────────────┘
+                                    ▼
+                    ┌─────────────────────────────────┐
+                    │   FORMULARIO AUTO-COMPLETADO    │
+                    │                                 │
+                    │  ✅ Nombre: GRUPO FORTEZZA...   │
+                    │  ✅ RFC: GFO850101XXX           │
+                    │  ✅ Razón Social: ...           │
+                    │  ✅ Dirección: Av. Roberto...   │
+                    │  ✅ Giro: Construcción          │
+                    │  ✅ Régimen: General de Ley     │
+                    │  ⚠️ Email: (confirmar)          │
+                    └─────────────────────────────────┘
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 1: SERVICIO DE DEEP RESEARCH
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: server/services/ai/deepResearch.ts
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIGURACIÓN DE MODELOS AVANZADOS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const anthropic = new Anthropic();
+
+// Gemini 2.0 para documentos masivos y Deep Research
+const gemini = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '');
+
+interface ResearchResult {
+  confidence: number; // 0-100
+  data: Record<string, any>;
+  sources: string[];
+  needsConfirmation: string[]; // Campos que requieren confirmación del usuario
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DEEP RESEARCH ENGINE
+// ═══════════════════════════════════════════════════════════════════════════
+
+export class DeepResearchEngine {
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INVESTIGAR EMPRESA DESDE INPUT MÍNIMO
+  // ═══════════════════════════════════════════════════════════════════════════
+  async investigarEmpresa(input: {
+    sitioWeb?: string;
+    nombre?: string;
+    rfc?: string;
+    documento?: Buffer;
+    tipoDocumento?: string;
+  }): Promise<ResearchResult> {
+    
+    console.log('🔬 Iniciando Deep Research...');
+    const startTime = Date.now();
+    
+    const resultados: Record<string, any> = {};
+    const sources: string[] = [];
+    const needsConfirmation: string[] = [];
+
+    try {
+      // PASO 1: Si hay sitio web, extraer toda la información posible
+      if (input.sitioWeb) {
+        console.log('  🌐 Investigando sitio web...');
+        const webData = await this.investigarSitioWeb(input.sitioWeb);
+        Object.assign(resultados, webData.data);
+        sources.push(...webData.sources);
+      }
+
+      // PASO 2: Si hay RFC, consultar información del SAT
+      if (input.rfc || resultados.rfc) {
+        console.log('  🏛️ Consultando información SAT...');
+        const satData = await this.consultarSAT(input.rfc || resultados.rfc);
+        Object.assign(resultados, satData.data);
+        sources.push(...satData.sources);
+      }
+
+      // PASO 3: Si hay documento, analizarlo completamente
+      if (input.documento) {
+        console.log('  📄 Analizando documento con Gemini 2.0...');
+        const docData = await this.analizarDocumentoCompleto(input.documento, input.tipoDocumento);
+        Object.assign(resultados, docData.data);
+        sources.push(...docData.sources);
+      }
+
+      // PASO 4: Si hay nombre, buscar información pública
+      if (input.nombre && !resultados.razon_social) {
+        console.log('  🔍 Buscando información pública...');
+        const publicData = await this.buscarInformacionPublica(input.nombre);
+        Object.assign(resultados, publicData.data);
+        sources.push(...publicData.sources);
+      }
+
+      // PASO 5: Validación cruzada con Claude Extended Thinking
+      console.log('  🧠 Validando con Extended Thinking...');
+      const validacion = await this.validarConExtendedThinking(resultados);
+      
+      // Marcar campos que necesitan confirmación
+      for (const [campo, info] of Object.entries(validacion.fieldConfidence)) {
+        if ((info as any).confidence < 80) {
+          needsConfirmation.push(campo);
+        }
+      }
+
+      const duration = (Date.now() - startTime) / 1000;
+      console.log(`✅ Deep Research completado en ${duration.toFixed(2)}s`);
+      console.log(`   Campos encontrados: ${Object.keys(resultados).length}`);
+      console.log(`   Requieren confirmación: ${needsConfirmation.length}`);
+
+      return {
+        confidence: validacion.overallConfidence,
+        data: resultados,
+        sources: [...new Set(sources)],
+        needsConfirmation
+      };
+
+    } catch (error: any) {
+      console.error('❌ Error en Deep Research:', error);
+      return {
+        confidence: 0,
+        data: resultados,
+        sources,
+        needsConfirmation: Object.keys(resultados)
+      };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INVESTIGAR SITIO WEB CON GEMINI
+  // ═══════════════════════════════════════════════════════════════════════════
+  private async investigarSitioWeb(url: string): Promise<{ data: Record<string, any>; sources: string[] }> {
+    try {
+      // Normalizar URL
+      if (!url.startsWith('http')) {
+        url = `https://${url}`;
+      }
+
+      // Usar Gemini 2.0 para analizar el sitio
+      const model = gemini.getGenerativeModel({ 
+        model: 'gemini-2.0-flash-exp', // Modelo más reciente
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 4096,
+        }
+      });
+
+      const prompt = `Actúa como un investigador experto. Analiza este sitio web y extrae TODA la información empresarial posible.
+
+URL: ${url}
+
+Necesito que busques y extraigas:
+1. Nombre completo de la empresa
+2. Razón social (si es diferente del nombre comercial)
+3. RFC (si está visible en el sitio)
+4. Dirección completa (calle, número, colonia, CP, ciudad, estado)
+5. Teléfono(s)
+6. Email de contacto
+7. Giro o industria
+8. Descripción de servicios/productos
+9. Redes sociales
+10. Información de registro (si es visible)
+
+IMPORTANTE: 
+- Navega por las páginas de "Contacto", "Nosotros", "Aviso de Privacidad", "Legal"
+- Si encuentras PDFs o documentos, analízalos
+- Busca el pie de página que suele tener información legal
+
+Responde en JSON:
+{
+  "nombre": "...",
+  "razon_social": "...",
+  "rfc": "...",
+  "direccion": "...",
+  "ciudad": "...",
+  "estado": "...",
+  "codigo_postal": "...",
+  "telefono": "...",
+  "email": "...",
+  "giro": "...",
+  "descripcion": "...",
+  "sitio_web": "${url}",
+  "redes_sociales": {},
+  "fuentes": ["páginas donde encontraste cada dato"]
+}
+
+Si no encuentras un dato, pon null. NO inventes datos.`;
+
+      const result = await model.generateContent(prompt);
+      const response = result.response.text();
+
+      // Parsear JSON de la respuesta
+      let data: Record<string, any> = {};
+      try {
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          data = JSON.parse(jsonMatch[0]);
+        }
+      } catch {
+        console.log('  ⚠️ No se pudo parsear respuesta de Gemini');
+      }
+
+      return {
+        data,
+        sources: [url, ...(data.fuentes || [])]
+      };
+
+    } catch (error: any) {
+      console.error('  Error investigando sitio web:', error.message);
+      return { data: {}, sources: [] };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CONSULTAR INFORMACIÓN DEL SAT (simulado - en producción conectar a API real)
+  // ═══════════════════════════════════════════════════════════════════════════
+  private async consultarSAT(rfc: string): Promise<{ data: Record<string, any>; sources: string[] }> {
+    try {
+      // En producción: conectar al Portal del SAT o usar servicio de validación
+      // Por ahora, usar Perplexity/búsqueda para encontrar información pública
+
+      const model = gemini.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+
+      const prompt = `Busca información pública del RFC: ${rfc}
+
+Necesito:
+1. Validar que el RFC tenga formato correcto
+2. Determinar si es persona física o moral
+3. Si es posible, encontrar información en:
+   - Lista 69-B del SAT (EFOS)
+   - Registro público de contribuyentes
+   - Menciones públicas del RFC
+
+Responde en JSON:
+{
+  "rfc_valido": true/false,
+  "tipo_persona": "fisica" o "moral",
+  "esta_en_69b": true/false/null,
+  "razon_social_sat": "si se encontró",
+  "regimen_fiscal": "si se encontró",
+  "estatus": "activo/inactivo/no encontrado",
+  "alertas": ["lista de alertas si las hay"]
+}`;
+
+      const result = await model.generateContent(prompt);
+      const response = result.response.text();
+
+      let data: Record<string, any> = {};
+      try {
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          data = JSON.parse(jsonMatch[0]);
+        }
+      } catch {}
+
+      return {
+        data: {
+          rfc: rfc.toUpperCase(),
+          tipo_persona: data.tipo_persona,
+          regimen_fiscal: data.regimen_fiscal,
+          estatus_sat: data.estatus,
+          alertas_sat: data.alertas || []
+        },
+        sources: ['Validación RFC', 'Consulta SAT']
+      };
+
+    } catch (error: any) {
+      console.error('  Error consultando SAT:', error.message);
+      return { data: { rfc: rfc.toUpperCase() }, sources: [] };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ANALIZAR DOCUMENTO COMPLETO CON GEMINI 2.0 (hasta 2M tokens)
+  // ═══════════════════════════════════════════════════════════════════════════
+  private async analizarDocumentoCompleto(
+    documento: Buffer, 
+    tipoDocumento?: string
+  ): Promise<{ data: Record<string, any>; sources: string[] }> {
+    try {
+      const model = gemini.getGenerativeModel({ 
+        model: 'gemini-2.0-flash-exp',
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 8192,
+        }
+      });
+
+      // Convertir documento a base64 para Gemini
+      const base64Doc = documento.toString('base64');
+      const mimeType = tipoDocumento?.includes('pdf') ? 'application/pdf' : 'text/plain';
+
+      const prompt = `Analiza este documento completamente y extrae TODA la información relevante.
+
+INSTRUCCIONES:
+1. Lee el documento COMPLETO, no solo las primeras páginas
+2. Extrae todos los datos de empresas, personas, montos, fechas
+3. Identifica el tipo de documento
+4. Si es una ley o reglamento, extrae la estructura completa
+5. Si es un documento empresarial, extrae datos de contacto
+
+Para documentos LEGALES (leyes, reglamentos):
+{
+  "tipo_documento": "ley|reglamento|decreto|tesis|criterio",
+  "nombre_documento": "...",
+  "fecha_publicacion": "...",
+  "ultima_reforma": "...",
+  "articulos": [
+    { "numero": "1", "titulo": "...", "contenido_resumen": "..." }
+  ],
+  "total_articulos": N,
+  "temas_principales": ["..."]
+}
+
+Para documentos EMPRESARIALES (constancias, estados financieros):
+{
+  "tipo_documento": "constancia_fiscal|estado_financiero|contrato|factura",
+  "empresa": {
+    "nombre": "...",
+    "rfc": "...",
+    "razon_social": "...",
+    "direccion": "...",
+    "regimen_fiscal": "...",
+    "actividad_economica": "..."
+  },
+  "datos_relevantes": {...},
+  "fechas": {...},
+  "montos": [...]
+}
+
+IMPORTANTE: Extrae TODO, no resumas. El documento puede tener cientos de páginas.`;
+
+      const result = await model.generateContent([
+        prompt,
+        {
+          inlineData: {
+            mimeType,
+            data: base64Doc
+          }
+        }
+      ]);
+
+      const response = result.response.text();
+
+      let data: Record<string, any> = {};
+      try {
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          data = JSON.parse(jsonMatch[0]);
+        }
+      } catch {}
+
+      // Aplanar datos de empresa si existen
+      if (data.empresa) {
+        return {
+          data: {
+            ...data.empresa,
+            tipo_documento_analizado: data.tipo_documento,
+            datos_documento: data
+          },
+          sources: ['Documento analizado con Gemini 2.0']
+        };
+      }
+
+      return {
+        data: {
+          documento_analizado: data
+        },
+        sources: ['Documento analizado con Gemini 2.0']
+      };
+
+    } catch (error: any) {
+      console.error('  Error analizando documento:', error.message);
+      return { data: {}, sources: [] };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BUSCAR INFORMACIÓN PÚBLICA
+  // ═══════════════════════════════════════════════════════════════════════════
+  private async buscarInformacionPublica(nombre: string): Promise<{ data: Record<string, any>; sources: string[] }> {
+    try {
+      // Usar Gemini con capacidad de búsqueda
+      const model = gemini.getGenerativeModel({ 
+        model: 'gemini-2.0-flash-exp',
+        tools: [{ googleSearch: {} }] // Habilitar Google Search
+      });
+
+      const prompt = `Busca información pública sobre la empresa: "${nombre}"
+
+Busca en:
+1. Google (sitio web oficial, noticias)
+2. Redes sociales (LinkedIn, Facebook empresarial)
+3. Directorios empresariales mexicanos
+4. Registros públicos
+
+Extrae:
+- Nombre oficial/razón social
+- Sitio web
+- Dirección
+- Teléfono
+- Giro/industria
+- Información relevante
+
+Responde en JSON con la información encontrada.`;
+
+      const result = await model.generateContent(prompt);
+      const response = result.response.text();
+
+      let data: Record<string, any> = {};
+      try {
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          data = JSON.parse(jsonMatch[0]);
+        }
+      } catch {}
+
+      return {
+        data,
+        sources: ['Búsqueda pública Google']
+      };
+
+    } catch (error: any) {
+      console.error('  Error en búsqueda pública:', error.message);
+      return { data: {}, sources: [] };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VALIDAR CON CLAUDE EXTENDED THINKING
+  // ═══════════════════════════════════════════════════════════════════════════
+  private async validarConExtendedThinking(datos: Record<string, any>): Promise<{
+    overallConfidence: number;
+    fieldConfidence: Record<string, { confidence: number; reason: string }>;
+    suggestions: string[];
+  }> {
+    try {
+      // Claude con extended thinking para validación profunda
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 16000,
+        thinking: {
+          type: 'enabled',
+          budget_tokens: 10000 // Permitir razonamiento extenso
+        },
+        messages: [{
+          role: 'user',
+          content: `Eres un experto en validación de datos empresariales mexicanos.
+
+DATOS RECOPILADOS:
+${JSON.stringify(datos, null, 2)}
+
+ANALIZA PROFUNDAMENTE cada campo y determina:
+1. ¿El dato parece correcto y coherente?
+2. ¿Hay inconsistencias entre campos?
+3. ¿El RFC corresponde al tipo de persona (física/moral)?
+4. ¿La dirección parece real y completa?
+5. ¿El giro es coherente con el nombre de la empresa?
+
+Responde en JSON:
+{
+  "overallConfidence": 0-100,
+  "fieldConfidence": {
+    "nombre": { "confidence": 0-100, "reason": "..." },
+    "rfc": { "confidence": 0-100, "reason": "..." },
+    "direccion": { "confidence": 0-100, "reason": "..." },
+    ...para cada campo
+  },
+  "inconsistencias": ["lista de problemas detectados"],
+  "suggestions": ["sugerencias para completar datos faltantes"],
+  "campos_faltantes_criticos": ["campos que DEBEN ser llenados"]
+}`
+        }]
+      });
+
+      // Extraer respuesta del content block de texto
+      const textBlock = response.content.find(block => block.type === 'text');
+      const responseText = textBlock ? (textBlock as any).text : '';
+
+      let validation: any = {
+        overallConfidence: 50,
+        fieldConfidence: {},
+        suggestions: []
+      };
+
+      try {
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          validation = JSON.parse(jsonMatch[0]);
+        }
+      } catch {}
+
+      return validation;
+
+    } catch (error: any) {
+      console.error('  Error en validación Extended Thinking:', error.message);
+      return {
+        overallConfidence: 50,
+        fieldConfidence: {},
+        suggestions: []
+      };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // COMPLETAR CAMPOS FALTANTES
+  // ═══════════════════════════════════════════════════════════════════════════
+  async completarCamposFaltantes(
+    datosActuales: Record<string, any>,
+    camposFaltantes: string[]
+  ): Promise<Record<string, any>> {
+    
+    if (camposFaltantes.length === 0) return datosActuales;
+
+    console.log(`🔍 Intentando completar ${camposFaltantes.length} campos faltantes...`);
+
+    const model = gemini.getGenerativeModel({ 
+      model: 'gemini-2.0-flash-exp',
+      tools: [{ googleSearch: {} }]
+    });
+
+    const prompt = `Tengo estos datos de una empresa:
+${JSON.stringify(datosActuales, null, 2)}
+
+Necesito encontrar estos campos faltantes:
+${camposFaltantes.join(', ')}
+
+Usa la información existente para buscar los datos faltantes.
+Por ejemplo:
+- Si tengo el sitio web, busca ahí
+- Si tengo el RFC, valídalo y busca información
+- Si tengo el nombre, busca en directorios
+
+Responde SOLO con los campos que encontraste en JSON:
+{
+  "campo1": "valor encontrado",
+  "campo2": "valor encontrado"
+}
+
+Si no encontraste un campo, NO lo incluyas.`;
+
+    try {
+      const result = await model.generateContent(prompt);
+      const response = result.response.text();
+
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const nuevosData = JSON.parse(jsonMatch[0]);
+        return { ...datosActuales, ...nuevosData };
+      }
+    } catch (error: any) {
+      console.error('  Error completando campos:', error.message);
+    }
+
+    return datosActuales;
+  }
+}
+
+export const deepResearch = new DeepResearchEngine();
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 2: ENDPOINT DE ONBOARDING INTELIGENTE
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: server/routes/onboarding.ts
+
+```typescript
+import { Router, Request, Response } from 'express';
+import multer from 'multer';
+import { deepResearch } from '../services/ai/deepResearch';
+import { db } from '../db';
+
+const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INVESTIGAR CLIENTE (desde input mínimo)
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/investigar', upload.single('documento'), async (req: Request, res: Response) => {
+  try {
+    const { sitio_web, nombre, rfc, texto_libre } = req.body;
+    const documento = req.file?.buffer;
+    const tipoDocumento = req.file?.mimetype;
+
+    console.log('📥 Solicitud de investigación recibida');
+    console.log(`   Sitio web: ${sitio_web || 'no'}`);
+    console.log(`   Nombre: ${nombre || 'no'}`);
+    console.log(`   RFC: ${rfc || 'no'}`);
+    console.log(`   Documento: ${documento ? 'sí' : 'no'}`);
+    console.log(`   Texto libre: ${texto_libre ? 'sí' : 'no'}`);
+
+    // Si hay texto libre, extraer datos primero
+    let datosIniciales: any = {};
+    if (texto_libre) {
+      datosIniciales = await extraerDatosDeTextoLibre(texto_libre);
+    }
+
+    // Ejecutar Deep Research
+    const resultado = await deepResearch.investigarEmpresa({
+      sitioWeb: sitio_web || datosIniciales.sitio_web,
+      nombre: nombre || datosIniciales.nombre,
+      rfc: rfc || datosIniciales.rfc,
+      documento,
+      tipoDocumento
+    });
+
+    // Combinar resultados
+    const datosFinales = {
+      ...datosIniciales,
+      ...resultado.data
+    };
+
+    // Intentar completar campos faltantes
+    const camposRequeridos = ['nombre', 'rfc', 'razon_social', 'direccion', 'email', 'telefono', 'giro'];
+    const camposFaltantes = camposRequeridos.filter(c => !datosFinales[c]);
+    
+    if (camposFaltantes.length > 0 && resultado.confidence > 30) {
+      const datosCompletados = await deepResearch.completarCamposFaltantes(datosFinales, camposFaltantes);
+      Object.assign(datosFinales, datosCompletados);
+    }
+
+    // Recalcular campos que necesitan confirmación
+    const camposParaConfirmar = camposRequeridos.filter(c => !datosFinales[c] || resultado.needsConfirmation.includes(c));
+
+    res.json({
+      success: true,
+      confidence: resultado.confidence,
+      datos: {
+        nombre: datosFinales.nombre || '',
+        rfc: datosFinales.rfc || '',
+        razon_social: datosFinales.razon_social || datosFinales.nombre || '',
+        direccion: datosFinales.direccion || '',
+        ciudad: datosFinales.ciudad || '',
+        estado: datosFinales.estado || '',
+        codigo_postal: datosFinales.codigo_postal || '',
+        email: datosFinales.email || '',
+        telefono: datosFinales.telefono || '',
+        giro: datosFinales.giro || '',
+        sitio_web: datosFinales.sitio_web || sitio_web || '',
+        regimen_fiscal: datosFinales.regimen_fiscal || '',
+        tipo_persona: datosFinales.tipo_persona || '',
+        actividad_economica: datosFinales.actividad_economica || datosFinales.descripcion || ''
+      },
+      campos_autocompletados: Object.keys(datosFinales).filter(k => datosFinales[k]),
+      campos_para_confirmar: camposParaConfirmar,
+      fuentes: resultado.sources,
+      alertas: datosFinales.alertas_sat || []
+    });
+
+  } catch (error: any) {
+    console.error('Error en investigación:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CREAR CLIENTE (después de confirmación)
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/crear-cliente', async (req: Request, res: Response) => {
+  try {
+    const datos = req.body;
+
+    // Validar campos mínimos
+    if (!datos.nombre) {
+      return res.status(400).json({ success: false, error: 'El nombre es requerido' });
+    }
+
+    // Insertar cliente
+    const result = await db.query(`
+      INSERT INTO clientes (
+        nombre, rfc, razon_social, direccion, email, telefono,
+        giro, sitio_web, regimen_fiscal, tipo_persona, actividad_economica,
+        estado, origen
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'aprobado', 'deep_research')
+      RETURNING *
+    `, [
+      datos.nombre,
+      datos.rfc?.toUpperCase() || null,
+      datos.razon_social || datos.nombre,
+      datos.direccion || null,
+      datos.email?.toLowerCase() || null,
+      datos.telefono || null,
+      datos.giro || null,
+      datos.sitio_web || null,
+      datos.regimen_fiscal || null,
+      datos.tipo_persona || null,
+      datos.actividad_economica || null
+    ]);
+
+    res.json({
+      success: true,
+      message: 'Cliente creado exitosamente',
+      cliente: result.rows[0]
+    });
+
+  } catch (error: any) {
+    console.error('Error creando cliente:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPER: Extraer datos de texto libre
+// ═══════════════════════════════════════════════════════════════════════════
+async function extraerDatosDeTextoLibre(texto: string): Promise<Record<string, any>> {
+  const Anthropic = require('@anthropic-ai/sdk').default;
+  const anthropic = new Anthropic();
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1000,
+    messages: [{
+      role: 'user',
+      content: `Extrae datos de empresa de este texto:
+
+"${texto}"
+
+Responde en JSON:
+{
+  "nombre": "...",
+  "rfc": "...",
+  "direccion": "...",
+  "email": "...",
+  "telefono": "...",
+  "sitio_web": "...",
+  "giro": "..."
+}
+
+Solo incluye campos que encuentres claramente en el texto.`
+    }]
+  });
+
+  const content = response.content[0];
+  if (content.type === 'text') {
+    try {
+      const match = content.text.match(/\{[\s\S]*\}/);
+      if (match) return JSON.parse(match[0]);
+    } catch {}
+  }
+
+  return {};
+}
+
+export default router;
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 3: COMPONENTE FRONTEND DE ONBOARDING INTELIGENTE
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: frontend/src/components/OnboardingInteligente.tsx
+
+```typescript
+import React, { useState } from 'react';
+
+interface DatosCliente {
+  nombre: string;
+  rfc: string;
+  razon_social: string;
+  direccion: string;
+  email: string;
+  telefono: string;
+  giro: string;
+  sitio_web: string;
+  regimen_fiscal: string;
+  tipo_persona: string;
+  actividad_economica: string;
+}
+
+export const OnboardingInteligente: React.FC<{ onComplete: (cliente: any) => void }> = ({ onComplete }) => {
+  const [paso, setPaso] = useState<'input' | 'investigando' | 'confirmacion' | 'completado'>('input');
+  const [inputInicial, setInputInicial] = useState('');
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [datos, setDatos] = useState<DatosCliente | null>(null);
+  const [confidence, setConfidence] = useState(0);
+  const [camposParaConfirmar, setCamposParaConfirmar] = useState<string[]>([]);
+  const [fuentes, setFuentes] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INICIAR INVESTIGACIÓN
+  // ═══════════════════════════════════════════════════════════════════════════
+  const iniciarInvestigacion = async () => {
+    if (!inputInicial && !archivo) {
+      setError('Proporciona al menos un dato: sitio web, nombre, RFC o documento');
+      return;
+    }
+
+    setError(null);
+    setPaso('investigando');
+
+    try {
+      const formData = new FormData();
+      
+      // Detectar tipo de input
+      if (inputInicial.includes('.') && !inputInicial.includes('@')) {
+        formData.append('sitio_web', inputInicial);
+      } else if (/^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/i.test(inputInicial.replace(/\s/g, ''))) {
+        formData.append('rfc', inputInicial.replace(/\s/g, ''));
+      } else if (inputInicial) {
+        formData.append('texto_libre', inputInicial);
+      }
+
+      if (archivo) {
+        formData.append('documento', archivo);
+      }
+
+      const response = await fetch('/api/onboarding/investigar', {
+        method: 'POST',
+        body: formData
+      });
+
+      const text = await response.text();
+      const result = JSON.parse(text);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Error en investigación');
+      }
+
+      setDatos(result.datos);
+      setConfidence(result.confidence);
+      setCamposParaConfirmar(result.campos_para_confirmar || []);
+      setFuentes(result.fuentes || []);
+      setPaso('confirmacion');
+
+    } catch (err: any) {
+      setError(err.message);
+      setPaso('input');
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CONFIRMAR Y CREAR CLIENTE
+  // ═══════════════════════════════════════════════════════════════════════════
+  const confirmarYCrear = async () => {
+    if (!datos) return;
+
+    try {
+      const response = await fetch('/api/onboarding/crear-cliente', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(datos)
+      });
+
+      const text = await response.text();
+      const result = JSON.parse(text);
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      setPaso('completado');
+      onComplete(result.cliente);
+
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER: PASO INPUT
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (paso === 'input') {
+    return (
+      <div className="max-w-2xl mx-auto p-6 bg-gray-900 rounded-xl">
+        <h2 className="text-2xl font-bold text-white mb-2">
+          🔬 Alta de Cliente Inteligente
+        </h2>
+        <p className="text-gray-400 mb-6">
+          Proporciona cualquier dato y el sistema investigará automáticamente el resto.
+        </p>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded text-red-200">
+            {error}
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-gray-300 mb-2">
+              Escribe cualquier cosa: sitio web, RFC, nombre de empresa, o pega información
+            </label>
+            <textarea
+              value={inputInicial}
+              onChange={(e) => setInputInicial(e.target.value)}
+              placeholder="Ejemplos:&#10;• fortezza.mx&#10;• GFO850101XXX&#10;• Grupo Fortezza construcción monterrey&#10;• Pega aquí datos de un correo o documento..."
+              className="w-full h-32 p-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500"
+            />
+          </div>
+
+          <div className="text-center text-gray-500">— o —</div>
+
+          <div>
+            <label className="block text-gray-300 mb-2">
+              Sube un documento (constancia fiscal, estado de cuenta, contrato)
+            </label>
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx,.txt,.xml"
+              onChange={(e) => setArchivo(e.target.files?.[0] || null)}
+              className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-white file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-cyan-600 file:text-white"
+            />
+            {archivo && (
+              <p className="mt-2 text-sm text-cyan-400">📄 {archivo.name}</p>
+            )}
+          </div>
+
+          <button
+            onClick={iniciarInvestigacion}
+            disabled={!inputInicial && !archivo}
+            className="w-full py-4 bg-gradient-to-r from-cyan-600 to-green-600 text-white font-bold rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            🔍 Investigar y Auto-completar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER: INVESTIGANDO
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (paso === 'investigando') {
+    return (
+      <div className="max-w-2xl mx-auto p-6 bg-gray-900 rounded-xl text-center">
+        <div className="animate-spin w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full mx-auto mb-6"></div>
+        <h2 className="text-2xl font-bold text-white mb-2">
+          🔬 Investigando...
+        </h2>
+        <p className="text-gray-400">
+          Deep Research está analizando sitios web, documentos y bases de datos...
+        </p>
+        <div className="mt-6 space-y-2 text-left text-sm text-gray-500">
+          <p>✓ Analizando sitio web con Gemini 2.0...</p>
+          <p>✓ Consultando información del SAT...</p>
+          <p>✓ Buscando datos públicos...</p>
+          <p>✓ Validando con Extended Thinking...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER: CONFIRMACIÓN
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (paso === 'confirmacion' && datos) {
+    const camposCompletados = Object.entries(datos).filter(([_, v]) => v).length;
+    const totalCampos = Object.keys(datos).length;
+
+    return (
+      <div className="max-w-3xl mx-auto p-6 bg-gray-900 rounded-xl">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-white">
+            ✅ Datos Encontrados
+          </h2>
+          <div className="text-right">
+            <div className="text-2xl font-bold text-cyan-400">{confidence}%</div>
+            <div className="text-sm text-gray-400">confianza</div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded text-red-200">
+            {error}
+          </div>
+        )}
+
+        <div className="mb-4 p-3 bg-cyan-900/30 border border-cyan-700 rounded">
+          <p className="text-cyan-200">
+            📊 Auto-completado: {camposCompletados}/{totalCampos} campos
+            {camposParaConfirmar.length > 0 && (
+              <span className="ml-2 text-yellow-400">
+                • {camposParaConfirmar.length} campos requieren confirmación
+              </span>
+            )}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          {Object.entries(datos).map(([campo, valor]) => {
+            const requiereConfirmacion = camposParaConfirmar.includes(campo);
+            const label = campo.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
+            
+            return (
+              <div key={campo} className={`${requiereConfirmacion ? 'col-span-2' : ''}`}>
+                <label className="block text-sm text-gray-400 mb-1">
+                  {label}
+                  {requiereConfirmacion && <span className="ml-2 text-yellow-400">⚠️ Confirmar</span>}
+                  {valor && !requiereConfirmacion && <span className="ml-2 text-green-400">✓</span>}
+                </label>
+                <input
+                  type="text"
+                  value={valor}
+                  onChange={(e) => setDatos({ ...datos, [campo]: e.target.value })}
+                  className={`w-full p-2 rounded border ${
+                    requiereConfirmacion 
+                      ? 'bg-yellow-900/30 border-yellow-600' 
+                      : valor 
+                        ? 'bg-green-900/20 border-green-700' 
+                        : 'bg-gray-800 border-gray-700'
+                  } text-white`}
+                  placeholder={`Ingresa ${label.toLowerCase()}`}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        {fuentes.length > 0 && (
+          <div className="mb-6 text-sm text-gray-500">
+            <p className="font-semibold mb-1">Fuentes consultadas:</p>
+            <ul className="list-disc list-inside">
+              {fuentes.map((f, i) => <li key={i}>{f}</li>)}
+            </ul>
+          </div>
+        )}
+
+        <div className="flex gap-4">
+          <button
+            onClick={() => setPaso('input')}
+            className="flex-1 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600"
+          >
+            ← Volver
+          </button>
+          <button
+            onClick={confirmarYCrear}
+            className="flex-2 py-3 px-8 bg-gradient-to-r from-green-600 to-cyan-600 text-white font-bold rounded-lg hover:opacity-90"
+          >
+            ✓ Confirmar y Crear Cliente
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER: COMPLETADO
+  // ═══════════════════════════════════════════════════════════════════════════
+  return (
+    <div className="max-w-2xl mx-auto p-6 bg-gray-900 rounded-xl text-center">
+      <div className="text-6xl mb-4">🎉</div>
+      <h2 className="text-2xl font-bold text-white mb-2">
+        ¡Cliente Creado Exitosamente!
+      </h2>
+      <p className="text-gray-400 mb-6">
+        {datos?.nombre} ha sido agregado al sistema.
+      </p>
+      <button
+        onClick={() => {
+          setPaso('input');
+          setDatos(null);
+          setInputInicial('');
+          setArchivo(null);
+        }}
+        className="py-3 px-8 bg-cyan-600 text-white rounded-lg hover:bg-cyan-500"
+      >
+        + Agregar Otro Cliente
+      </button>
+    </div>
+  );
+};
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 4: CONFIGURAR APIs EN REPLIT
+═══════════════════════════════════════════════════════════════════════════════
+
+En Replit Secrets, agregar:
+
+```
+GOOGLE_AI_API_KEY = tu_api_key_de_google_ai_studio
+```
+
+Para obtener la API key de Google AI:
+1. Ve a https://aistudio.google.com/
+2. Click en "Get API key"
+3. Crea una nueva API key
+4. Copia y pega en Replit Secrets
+
+NOTA: Replit puede usar sus créditos para algunos modelos. Verifica en la configuración de tu proyecto.
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 5: INSTALAR DEPENDENCIAS
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+npm install @google/generative-ai
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 6: REGISTRAR RUTAS
+═══════════════════════════════════════════════════════════════════════════════
+
+En server/index.ts:
+
+```typescript
+import onboardingRoutes from './routes/onboarding';
+
+app.use('/api/onboarding', onboardingRoutes);
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+RESULTADO ESPERADO
+═══════════════════════════════════════════════════════════════════════════════
+
+ANTES (malo):
+- Usuario escribe "fortezza.mx"
+- Sistema muestra formulario con 10 campos vacíos
+- Usuario tiene que llenar todo manualmente
+
+DESPUÉS (correcto):
+- Usuario escribe "fortezza.mx"
+- Sistema investiga 5-10 segundos
+- Formulario aparece con 8/10 campos llenos
+- Usuario solo confirma y corrige si es necesario
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Servicio DeepResearchEngine implementado
+□ Endpoint /api/onboarding/investigar implementado
+□ Componente OnboardingInteligente implementado
+□ GOOGLE_AI_API_KEY configurada
+□ @google/generative-ai instalado
+□ Rutas registradas
+□ Deploy ejecutado
+
+</TOON>
+
+EL USUARIO SOLO DEBE PROPORCIONAR UN DATO MÍNIMO.
+EL SISTEMA HACE TODO EL TRABAJO DE INVESTIGACIÓN.

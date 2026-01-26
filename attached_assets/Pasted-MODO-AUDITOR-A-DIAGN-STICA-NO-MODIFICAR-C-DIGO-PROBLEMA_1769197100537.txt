@@ -1,0 +1,141 @@
+MODO: AUDITORÍA DIAGNÓSTICA - NO MODIFICAR CÓDIGO
+
+PROBLEMA: En el perfil de usuario, pestaña "Empresa", muestra "Este usuario no tiene empresa asociada" cuando debería:
+1. Mostrar los documentos de la empresa que ya fueron subidos
+2. Permitir agregar nuevos documentos
+3. Permitir eliminar documentos existentes
+4. Los documentos deberían estar ingestados en el RAG y guardados en el expediente del cliente
+
+Usuario de prueba: fortezza@revisar-ia.com (JAIR BRAVO GUTIERREZ)
+Empresa esperada: Grupo Fortezza S.A. de C.V. (empresa_id: 0952d6d6-d8f8-405f-a948-09a578ef61b6)
+
+=== REGLAS ===
+1. NO modifiques ningún archivo
+2. Sé exhaustivo en el diagnóstico
+3. Incluye rutas de archivos y líneas exactas
+4. Muestra código relevante
+
+=== PARTE 1: VERIFICAR DATOS DEL USUARIO EN BASE DE DATOS ===
+
+1.1. Busca el usuario fortezza@revisar-ia.com en PostgreSQL:
+- ¿Qué campos tiene?
+- ¿Tiene campo company o empresa_id?
+- ¿Cuál es el valor de ese campo?
+
+1.2. Verifica la tabla de empresas:
+- ¿Existe la empresa "Grupo Fortezza"?
+- ¿Cuál es su ID?
+- ¿Qué relación hay entre usuarios y empresas?
+
+1.3. ¿Cómo se asocia un usuario con una empresa?
+- ¿Es por campo directo en la tabla users?
+- ¿Hay tabla intermedia users_empresas?
+- ¿Se asocia por nombre de compañía (string) o por ID?
+
+=== PARTE 2: FRONTEND - COMPONENTE DE PERFIL/EMPRESA ===
+
+2.1. ¿En qué archivo está el componente que muestra la pestaña "Empresa"?
+- Ruta completa del archivo
+- Muestra el código del componente completo
+
+2.2. ¿Cómo obtiene los datos de la empresa del usuario?
+- ¿Qué endpoint llama?
+- ¿Qué respuesta espera?
+- ¿Dónde está la lógica que decide mostrar "no tiene empresa asociada"?
+
+2.3. ¿Hay componente para listar documentos de empresa?
+- ¿Existe?
+- ¿Qué endpoint usa para obtener documentos?
+- ¿Hay funcionalidad de upload/delete?
+
+=== PARTE 3: BACKEND - ENDPOINTS DE EMPRESA Y DOCUMENTOS ===
+
+3.1. Lista TODOS los endpoints relacionados con:
+- Obtener empresa del usuario
+- Obtener documentos de empresa
+- Subir documentos de empresa
+- Eliminar documentos de empresa
+
+Para cada uno muestra:
+- Método HTTP y ruta
+- Archivo donde está definido
+- Código completo del endpoint
+
+3.2. ¿Hay endpoint GET /api/users/me/empresa o similar?
+- ¿Qué retorna?
+- ¿Cómo obtiene la empresa del usuario autenticado?
+
+3.3. ¿Hay endpoint GET /api/empresas/{id}/documentos o similar?
+- ¿Existe?
+- ¿Qué retorna?
+
+=== PARTE 4: ALMACENAMIENTO DE DOCUMENTOS ===
+
+4.1. ¿Dónde se guardan los documentos de empresa?
+- ¿En sistema de archivos? ¿Qué ruta?
+- ¿En base de datos? ¿Qué tabla?
+- ¿En almacenamiento externo (S3, etc)?
+
+4.2. Verifica si hay documentos existentes:
+- Busca en el filesystem: find . -name "*.pdf" -o -name "*.docx" | head -20
+- Busca en la base de datos si hay tabla de documentos
+- ¿Hay documentos asociados a la empresa Fortezza?
+
+4.3. ¿Cómo se relacionan documentos con empresas?
+- ¿Por empresa_id en el documento?
+- ¿Por carpeta/directorio?
+
+=== PARTE 5: INTEGRACIÓN RAG ===
+
+5.1. ¿Hay sistema RAG implementado?
+- ¿Qué tecnología usa? (LangChain, LlamaIndex, custom, etc)
+- ¿Dónde está el código de ingestión?
+
+5.2. ¿Cómo se ingestan documentos al RAG?
+- ¿Automáticamente al subir?
+- ¿Manualmente?
+- ¿Hay cola de procesamiento?
+
+5.3. ¿Dónde se almacenan los embeddings?
+- ¿Vector DB? ¿Cuál?
+- ¿En PostgreSQL con pgvector?
+- ¿En MongoDB?
+
+=== PARTE 6: FLUJO DE ASOCIACIÓN USUARIO-EMPRESA ===
+
+6.1. ¿Cómo debería asociarse un usuario con una empresa?
+- ¿Durante el registro?
+- ¿Después del registro por admin?
+- ¿Por invitación?
+
+6.2. El mensaje dice "La empresa se asocia cuando el usuario ingresa su empresa durante el registro"
+- ¿Hay campo de empresa en el formulario de registro?
+- ¿Qué pasa con ese dato al registrarse?
+- ¿Se crea la empresa automáticamente o debe existir?
+
+6.3. Para el usuario fortezza@revisar-ia.com:
+- ¿Completó el registro correctamente?
+- ¿Ingresó el nombre de empresa?
+- ¿Por qué no está asociado si la empresa existe?
+
+=== PARTE 7: DIAGNÓSTICO ===
+
+7.1. PROBLEMA PRINCIPAL:
+- ¿Por qué el usuario no ve su empresa?
+- ¿Falta la asociación en la DB?
+- ¿El endpoint no retorna los datos?
+- ¿El frontend no procesa la respuesta?
+
+7.2. PROBLEMAS SECUNDARIOS:
+- ¿Existen los endpoints para gestionar documentos?
+- ¿Está implementada la funcionalidad de upload/delete?
+- ¿El RAG está conectado?
+
+7.3. Lista todos los problemas encontrados ordenados por prioridad:
+- Descripción
+- Archivo(s) afectado(s)
+- Evidencia
+- Severidad (crítica/alta/media/baja)
+
+=== FORMATO DE RESPUESTA ===
+Responde cada sección en orden con código y evidencia específica.

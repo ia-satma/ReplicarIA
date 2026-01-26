@@ -1,0 +1,1339 @@
+═══════════════════════════════════════════════════════════════════════════════
+🎯 TOON MAESTRO - REVISAR.IA - ARREGLAR TODO DE UNA VEZ
+═══════════════════════════════════════════════════════════════════════════════
+
+FECHA: Enero 2025
+OBJETIVO: Dejar el sistema 100% funcional para demo
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 RESUMEN DE PROBLEMAS (POR PRIORIDAD)
+═══════════════════════════════════════════════════════════════════════════════
+
+🔴 CRÍTICO (Bloquean uso del sistema):
+  P1. Bibliotecar.IA se cuelga al procesar PDFs grandes
+  P2. Bibliotecar.IA NO GUARDA documentos en BD (0 docs, 0 chunks)
+  P3. Panel Admin muestra 0 usuarios (no se puede administrar)
+  P4. "Autenticación requerida" bloquea formulario de entregables
+
+🟠 IMPORTANTE (Funcionalidad incompleta):
+  P5. No hay feedback de progreso al procesar documentos
+  P6. Sidebar no se actualiza después de subir documentos
+  P7. Búsqueda RAG no funciona (sin embeddings)
+
+🟡 MEJORAS (Para después de demo):
+  P8. Defense Files en pCloud (documentación de evidencia)
+  P9. Tráfico.IA (monitoreo con emails automáticos)
+  P10. Diseñar.IA (auditoría de UI)
+
+═══════════════════════════════════════════════════════════════════════════════
+                            PARTE 1: DEPENDENCIAS
+═══════════════════════════════════════════════════════════════════════════════
+
+Ejecutar PRIMERO:
+
+```bash
+pip install pdfplumber PyMuPDF python-docx openpyxl \
+            anthropic openai google-generativeai \
+            sendgrid apscheduler \
+            --break-system-packages
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+                     PARTE 2: VERIFICAR/CREAR TABLAS
+═══════════════════════════════════════════════════════════════════════════════
+
+```sql
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TABLAS PARA KNOWLEDGE BASE (RAG)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS kb_documentos (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL,
+    contenido_raw TEXT,
+    categoria VARCHAR(100) DEFAULT 'General',
+    procesado BOOLEAN DEFAULT FALSE,
+    activo BOOLEAN DEFAULT TRUE,
+    num_chunks INTEGER DEFAULT 0,
+    error_procesamiento TEXT,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS kb_chunks (
+    id SERIAL PRIMARY KEY,
+    documento_id INTEGER REFERENCES kb_documentos(id) ON DELETE CASCADE,
+    contenido TEXT NOT NULL,
+    posicion INTEGER DEFAULT 0,
+    embedding vector(1536),
+    tokens INTEGER,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_kb_chunks_documento ON kb_chunks(documento_id);
+CREATE INDEX IF NOT EXISTS idx_kb_chunks_embedding ON kb_chunks USING ivfflat (embedding vector_cosine_ops);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TABLAS PARA USUARIOS Y PERMISOS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Agregar columnas faltantes a users
+ALTER TABLE users ADD COLUMN IF NOT EXISTS aprobado BOOLEAN DEFAULT TRUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS cliente_id INTEGER REFERENCES clientes(id);
+
+-- Asegurar que el admin existe y está activo
+INSERT INTO users (email, nombre, is_admin, activo, aprobado, created_at)
+VALUES ('santiago@satma.mx', 'Santiago Admin', TRUE, TRUE, TRUE, NOW())
+ON CONFLICT (email) DO UPDATE SET 
+    is_admin = TRUE, 
+    activo = TRUE, 
+    aprobado = TRUE;
+
+-- Tabla de relación usuarios-empresas
+CREATE TABLE IF NOT EXISTS user_empresas (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    cliente_id INTEGER REFERENCES clientes(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(user_id, cliente_id)
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- VERIFICAR QUE TODO EXISTE
+-- ═══════════════════════════════════════════════════════════════════════════
+
+SELECT 'kb_documentos' as tabla, COUNT(*) as registros FROM kb_documentos
+UNION ALL
+SELECT 'kb_chunks', COUNT(*) FROM kb_chunks
+UNION ALL
+SELECT 'users', COUNT(*) FROM users
+UNION ALL
+SELECT 'clientes', COUNT(*) FROM clientes;
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+         PARTE 3: SERVICIO DE PROCESAMIENTO DE DOCUMENTOS (CON GEMINI)
+═══════════════════════════════════════════════════════════════════════════════
+
+Gemini 2.0 Flash tiene ventana de 1M tokens - PERFECTO para PDFs grandes.
+El CFF de 376 páginas no es problema.
+
+Crear: backend/services/document_processor.py
+
+```python
+"""
+═══════════════════════════════════════════════════════════════════════════════
+PROCESADOR DE DOCUMENTOS INTELIGENTE
+Usa Gemini 2.0 Flash para PDFs grandes (1M tokens de contexto)
+═══════════════════════════════════════════════════════════════════════════════
+"""
+
+import os
+import time
+import json
+import hashlib
+from typing import Optional, Dict, List, Tuple, Callable
+from dataclasses import dataclass
+from datetime import datetime
+
+# Librerías de PDF
+try:
+    import pdfplumber
+    PDF_LIBRARY = 'pdfplumber'
+except ImportError:
+    try:
+        import fitz  # PyMuPDF
+        PDF_LIBRARY = 'pymupdf'
+    except ImportError:
+        PDF_LIBRARY = None
+
+# APIs de IA
+import google.generativeai as genai
+from anthropic import Anthropic
+
+
+@dataclass
+class ResultadoProcesamiento:
+    exito: bool
+    documento_id: Optional[int]
+    nombre: str
+    caracteres: int
+    chunks: int
+    categoria: str
+    tiempo_segundos: float
+    error: Optional[str] = None
+
+
+class DocumentProcessor:
+    """Procesador de documentos con soporte para PDFs grandes"""
+    
+    def __init__(self):
+        # Configurar Gemini (para PDFs grandes)
+        self.gemini_key = os.environ.get('GOOGLE_AI_API_KEY') or os.environ.get('GEMINI_API_KEY')
+        if self.gemini_key:
+            genai.configure(api_key=self.gemini_key)
+            self.gemini = genai.GenerativeModel('gemini-2.0-flash-exp')
+            print("✅ Gemini 2.0 Flash configurado (1M tokens)")
+        else:
+            self.gemini = None
+            print("⚠️ GOOGLE_AI_API_KEY no configurada")
+        
+        # Configurar Anthropic (para análisis y respuestas)
+        self.anthropic = Anthropic() if os.environ.get('ANTHROPIC_API_KEY') else None
+        
+        # Configurar OpenAI (para embeddings)
+        self.openai_key = os.environ.get('OPENAI_API_KEY')
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # MÉTODO PRINCIPAL: PROCESAR DOCUMENTO COMPLETO
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def procesar_documento(self, 
+                           file, 
+                           filename: str,
+                           callback_progreso: Callable = None) -> ResultadoProcesamiento:
+        """
+        Procesa un documento completo:
+        1. Extrae texto
+        2. Detecta categoría con IA
+        3. Guarda en BD
+        4. Crea chunks
+        5. Genera embeddings (opcional)
+        """
+        
+        inicio = time.time()
+        
+        try:
+            # ═══════════════════════════════════════════════════════════════
+            # PASO 1: Extraer texto
+            # ═══════════════════════════════════════════════════════════════
+            self._log(callback_progreso, 5, "📖 Extrayendo texto del documento...")
+            
+            extension = os.path.splitext(filename)[1].lower()
+            
+            if extension == '.pdf':
+                contenido = self._extraer_pdf(file, callback_progreso)
+            elif extension in {'.txt', '.md'}:
+                contenido = file.read().decode('utf-8')
+            elif extension == '.docx':
+                contenido = self._extraer_docx(file)
+            else:
+                contenido = file.read().decode('utf-8', errors='ignore')
+            
+            if len(contenido) < 100:
+                return ResultadoProcesamiento(
+                    exito=False,
+                    documento_id=None,
+                    nombre=filename,
+                    caracteres=len(contenido),
+                    chunks=0,
+                    categoria='',
+                    tiempo_segundos=time.time() - inicio,
+                    error='Documento vacío o no se pudo extraer texto'
+                )
+            
+            self._log(callback_progreso, 30, f"✅ Extraídos {len(contenido):,} caracteres")
+            
+            # ═══════════════════════════════════════════════════════════════
+            # PASO 2: Detectar categoría con IA
+            # ═══════════════════════════════════════════════════════════════
+            self._log(callback_progreso, 35, "🏷️ Detectando categoría...")
+            
+            categoria = self._detectar_categoria_ia(filename, contenido[:10000])
+            
+            self._log(callback_progreso, 40, f"✅ Categoría: {categoria}")
+            
+            # ═══════════════════════════════════════════════════════════════
+            # PASO 3: Guardar documento en BD
+            # ═══════════════════════════════════════════════════════════════
+            self._log(callback_progreso, 45, "💾 Guardando en base de datos...")
+            
+            from extensions import db
+            from sqlalchemy import text
+            
+            # Limitar contenido a 1MB para la BD
+            contenido_bd = contenido[:1000000]
+            
+            result = db.session.execute(text("""
+                INSERT INTO kb_documentos 
+                (nombre, contenido_raw, categoria, procesado, activo, created_at)
+                VALUES (:nombre, :contenido, :categoria, FALSE, TRUE, NOW())
+                RETURNING id
+            """), {
+                'nombre': filename,
+                'contenido': contenido_bd,
+                'categoria': categoria
+            })
+            db.session.commit()
+            
+            doc_id = result.fetchone()[0]
+            
+            self._log(callback_progreso, 50, f"✅ Documento ID: {doc_id}")
+            
+            # ═══════════════════════════════════════════════════════════════
+            # PASO 4: Crear chunks inteligentes
+            # ═══════════════════════════════════════════════════════════════
+            self._log(callback_progreso, 55, "📦 Creando chunks semánticos...")
+            
+            chunks = self._crear_chunks_inteligentes(contenido, categoria)
+            
+            self._log(callback_progreso, 70, f"✅ {len(chunks)} chunks creados")
+            
+            # ═══════════════════════════════════════════════════════════════
+            # PASO 5: Guardar chunks
+            # ═══════════════════════════════════════════════════════════════
+            self._log(callback_progreso, 75, "💾 Guardando chunks...")
+            
+            for i, chunk_texto in enumerate(chunks):
+                db.session.execute(text("""
+                    INSERT INTO kb_chunks (documento_id, contenido, posicion, created_at)
+                    VALUES (:doc_id, :contenido, :posicion, NOW())
+                """), {
+                    'doc_id': doc_id,
+                    'contenido': chunk_texto,
+                    'posicion': i
+                })
+                
+                if i % 50 == 0:
+                    db.session.commit()
+                    progreso = 75 + int((i / len(chunks)) * 15)
+                    self._log(callback_progreso, progreso, f"💾 Chunks {i}/{len(chunks)}...")
+            
+            db.session.commit()
+            
+            # ═══════════════════════════════════════════════════════════════
+            # PASO 6: Actualizar documento como procesado
+            # ═══════════════════════════════════════════════════════════════
+            db.session.execute(text("""
+                UPDATE kb_documentos 
+                SET procesado = TRUE, num_chunks = :num_chunks
+                WHERE id = :id
+            """), {'id': doc_id, 'num_chunks': len(chunks)})
+            db.session.commit()
+            
+            self._log(callback_progreso, 95, "✅ Documento procesado")
+            
+            # ═══════════════════════════════════════════════════════════════
+            # PASO 7: Generar embeddings en background (opcional)
+            # ═══════════════════════════════════════════════════════════════
+            if self.openai_key:
+                self._log(callback_progreso, 97, "🧠 Generando embeddings...")
+                self._generar_embeddings_async(doc_id)
+            
+            self._log(callback_progreso, 100, "🎉 ¡Completado!")
+            
+            return ResultadoProcesamiento(
+                exito=True,
+                documento_id=doc_id,
+                nombre=filename,
+                caracteres=len(contenido),
+                chunks=len(chunks),
+                categoria=categoria,
+                tiempo_segundos=time.time() - inicio
+            )
+            
+        except Exception as e:
+            import traceback
+            error = traceback.format_exc()
+            print(f"❌ ERROR procesando documento:\n{error}")
+            
+            return ResultadoProcesamiento(
+                exito=False,
+                documento_id=None,
+                nombre=filename,
+                caracteres=0,
+                chunks=0,
+                categoria='',
+                tiempo_segundos=time.time() - inicio,
+                error=str(e)
+            )
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # EXTRACCIÓN DE PDF
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def _extraer_pdf(self, file, callback=None) -> str:
+        """Extrae texto de PDF con la mejor librería disponible"""
+        
+        if PDF_LIBRARY == 'pdfplumber':
+            return self._extraer_pdf_pdfplumber(file, callback)
+        elif PDF_LIBRARY == 'pymupdf':
+            return self._extraer_pdf_pymupdf(file, callback)
+        else:
+            raise Exception("No hay librería de PDF instalada. Ejecuta: pip install pdfplumber")
+    
+    def _extraer_pdf_pdfplumber(self, file, callback=None) -> str:
+        """Extrae con pdfplumber (mejor para tablas)"""
+        import pdfplumber
+        
+        textos = []
+        
+        with pdfplumber.open(file) as pdf:
+            total = len(pdf.pages)
+            print(f"📄 PDF: {total} páginas")
+            
+            for i, page in enumerate(pdf.pages):
+                try:
+                    texto = page.extract_text() or ''
+                    textos.append(texto)
+                    
+                    # Progreso cada 20 páginas
+                    if i % 20 == 0 and callback:
+                        progreso = 5 + int((i / total) * 25)
+                        self._log(callback, progreso, f"📖 Página {i}/{total}...")
+                        
+                except Exception as e:
+                    print(f"⚠️ Error página {i}: {e}")
+                    continue
+        
+        return '\n\n'.join(textos)
+    
+    def _extraer_pdf_pymupdf(self, file, callback=None) -> str:
+        """Extrae con PyMuPDF (más rápido)"""
+        import fitz
+        
+        file.seek(0)
+        pdf_bytes = file.read()
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        
+        textos = []
+        total = len(doc)
+        print(f"📄 PDF: {total} páginas")
+        
+        for i, page in enumerate(doc):
+            try:
+                texto = page.get_text()
+                textos.append(texto)
+                
+                if i % 20 == 0 and callback:
+                    progreso = 5 + int((i / total) * 25)
+                    self._log(callback, progreso, f"📖 Página {i}/{total}...")
+                    
+            except Exception as e:
+                print(f"⚠️ Error página {i}: {e}")
+                continue
+        
+        return '\n\n'.join(textos)
+    
+    def _extraer_docx(self, file) -> str:
+        """Extrae texto de DOCX"""
+        from docx import Document
+        
+        doc = Document(file)
+        textos = []
+        
+        for para in doc.paragraphs:
+            if para.text.strip():
+                textos.append(para.text)
+        
+        return '\n\n'.join(textos)
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # DETECCIÓN DE CATEGORÍA CON IA
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def _detectar_categoria_ia(self, filename: str, contenido_muestra: str) -> str:
+        """Usa Gemini o Claude para detectar categoría"""
+        
+        categorias = [
+            "Marco Legal",
+            "Jurisprudencias", 
+            "Criterios SAT",
+            "Catálogos SAT",
+            "Casos de Referencia",
+            "Glosarios",
+            "Plantillas"
+        ]
+        
+        prompt = f"""Analiza este documento y clasifícalo en UNA de estas categorías:
+{', '.join(categorias)}
+
+Nombre del archivo: {filename}
+
+Primeros 5000 caracteres del contenido:
+{contenido_muestra[:5000]}
+
+Responde SOLO con el nombre de la categoría, nada más."""
+
+        try:
+            if self.gemini:
+                response = self.gemini.generate_content(prompt)
+                categoria = response.text.strip()
+            elif self.anthropic:
+                response = self.anthropic.messages.create(
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=50,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                categoria = response.content[0].text.strip()
+            else:
+                # Fallback sin IA
+                return self._detectar_categoria_simple(filename, contenido_muestra)
+            
+            # Validar que sea una categoría válida
+            for cat in categorias:
+                if cat.lower() in categoria.lower():
+                    return cat
+            
+            return "Casos de Referencia"
+            
+        except Exception as e:
+            print(f"⚠️ Error detectando categoría: {e}")
+            return self._detectar_categoria_simple(filename, contenido_muestra)
+    
+    def _detectar_categoria_simple(self, filename: str, contenido: str) -> str:
+        """Detección simple por palabras clave"""
+        
+        nombre = filename.lower()
+        texto = contenido.lower()
+        
+        if 'cff' in nombre or 'código fiscal' in texto or 'codigo fiscal' in texto:
+            return 'Marco Legal'
+        elif 'lisr' in nombre or 'impuesto sobre la renta' in texto:
+            return 'Marco Legal'
+        elif 'liva' in nombre or 'valor agregado' in texto:
+            return 'Marco Legal'
+        elif 'rmf' in nombre or 'miscelánea' in texto:
+            return 'Criterios SAT'
+        elif 'jurisprudencia' in texto or 'tesis' in texto:
+            return 'Jurisprudencias'
+        elif 'catálogo' in nombre or 'catalogo' in nombre:
+            return 'Catálogos SAT'
+        elif 'glosario' in nombre:
+            return 'Glosarios'
+        elif 'plantilla' in nombre or 'template' in nombre:
+            return 'Plantillas'
+        else:
+            return 'Casos de Referencia'
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # CHUNKING INTELIGENTE
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def _crear_chunks_inteligentes(self, contenido: str, categoria: str) -> List[str]:
+        """Crea chunks respetando estructura del documento"""
+        
+        # Configuración según tipo de documento
+        if categoria == 'Marco Legal':
+            # Leyes: chunks por artículo
+            return self._chunk_por_articulos(contenido)
+        elif categoria == 'Jurisprudencias':
+            # Jurisprudencias: chunks más grandes
+            return self._chunk_por_tamano(contenido, tamano=2000, overlap=200)
+        else:
+            # Default: chunks estándar
+            return self._chunk_por_tamano(contenido, tamano=1000, overlap=100)
+    
+    def _chunk_por_articulos(self, contenido: str) -> List[str]:
+        """Divide por artículos (para leyes)"""
+        import re
+        
+        # Buscar patrones de artículos
+        patron = r'(Artículo\s+\d+[\w\-]*\.?)'
+        
+        partes = re.split(patron, contenido, flags=re.IGNORECASE)
+        
+        chunks = []
+        chunk_actual = ""
+        
+        for i, parte in enumerate(partes):
+            if re.match(patron, parte, re.IGNORECASE):
+                # Es inicio de artículo
+                if chunk_actual and len(chunk_actual) > 100:
+                    chunks.append(chunk_actual.strip())
+                chunk_actual = parte
+            else:
+                chunk_actual += parte
+                
+                # Si el chunk es muy grande, dividirlo
+                if len(chunk_actual) > 3000:
+                    chunks.append(chunk_actual.strip())
+                    chunk_actual = ""
+        
+        # Último chunk
+        if chunk_actual and len(chunk_actual) > 100:
+            chunks.append(chunk_actual.strip())
+        
+        # Si no encontró artículos, usar método estándar
+        if len(chunks) < 3:
+            return self._chunk_por_tamano(contenido, 1500, 150)
+        
+        return chunks
+    
+    def _chunk_por_tamano(self, contenido: str, tamano: int = 1000, overlap: int = 100) -> List[str]:
+        """Divide por tamaño con overlap"""
+        
+        if len(contenido) <= tamano:
+            return [contenido]
+        
+        chunks = []
+        inicio = 0
+        
+        while inicio < len(contenido):
+            fin = inicio + tamano
+            chunk = contenido[inicio:fin]
+            
+            # Intentar cortar en punto natural
+            if fin < len(contenido):
+                # Buscar mejor punto de corte
+                puntos_corte = [
+                    chunk.rfind('\n\n'),  # Párrafo
+                    chunk.rfind('.\n'),    # Fin de oración con newline
+                    chunk.rfind('. '),     # Fin de oración
+                    chunk.rfind('\n'),     # Newline
+                ]
+                
+                mejor_corte = max(puntos_corte)
+                if mejor_corte > tamano * 0.5:
+                    chunk = chunk[:mejor_corte + 1]
+                    fin = inicio + mejor_corte + 1
+            
+            chunk = chunk.strip()
+            if len(chunk) > 50:
+                chunks.append(chunk)
+            
+            inicio = fin - overlap
+        
+        return chunks
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # EMBEDDINGS
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def _generar_embeddings_async(self, documento_id: int):
+        """Genera embeddings para los chunks de un documento"""
+        
+        if not self.openai_key:
+            print("⚠️ OPENAI_API_KEY no configurada, saltando embeddings")
+            return
+        
+        try:
+            import openai
+            from extensions import db
+            from sqlalchemy import text
+            
+            client = openai.OpenAI()
+            
+            # Obtener chunks sin embedding
+            chunks = db.session.execute(text("""
+                SELECT id, contenido FROM kb_chunks 
+                WHERE documento_id = :doc_id AND embedding IS NULL
+            """), {'doc_id': documento_id}).fetchall()
+            
+            print(f"🧠 Generando embeddings para {len(chunks)} chunks...")
+            
+            for i, (chunk_id, contenido) in enumerate(chunks):
+                try:
+                    response = client.embeddings.create(
+                        model="text-embedding-3-small",
+                        input=contenido[:8000]  # Limitar tokens
+                    )
+                    
+                    embedding = response.data[0].embedding
+                    
+                    # Guardar embedding
+                    db.session.execute(text("""
+                        UPDATE kb_chunks SET embedding = :embedding WHERE id = :id
+                    """), {
+                        'id': chunk_id,
+                        'embedding': str(embedding)
+                    })
+                    
+                    if i % 20 == 0:
+                        db.session.commit()
+                        print(f"   🧠 {i}/{len(chunks)} embeddings...")
+                        
+                except Exception as e:
+                    print(f"   ⚠️ Error embedding chunk {chunk_id}: {e}")
+                    continue
+            
+            db.session.commit()
+            print(f"✅ Embeddings completados")
+            
+        except Exception as e:
+            print(f"❌ Error generando embeddings: {e}")
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # ANÁLISIS CON GEMINI (PARA PDFS GRANDES)
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def analizar_documento_gemini(self, contenido: str, pregunta: str) -> str:
+        """
+        Usa Gemini 2.0 Flash para analizar documentos grandes.
+        Ventana de 1M tokens = ~750,000 palabras = PDFs de 1000+ páginas
+        """
+        
+        if not self.gemini:
+            raise Exception("Gemini no configurado. Agrega GOOGLE_AI_API_KEY")
+        
+        prompt = f"""Eres un experto en derecho fiscal mexicano. 
+Analiza el siguiente documento y responde la pregunta.
+
+DOCUMENTO:
+{contenido}
+
+PREGUNTA: {pregunta}
+
+Responde de forma clara, citando artículos o secciones específicas cuando sea relevante."""
+
+        try:
+            response = self.gemini.generate_content(prompt)
+            return response.text
+            
+        except Exception as e:
+            print(f"❌ Error Gemini: {e}")
+            raise
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # UTILIDADES
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def _log(self, callback, progreso: int, mensaje: str):
+        """Log con callback opcional"""
+        print(f"  [{progreso:3d}%] {mensaje}")
+        if callback:
+            callback(progreso, mensaje)
+
+
+# Instancia global
+doc_processor = DocumentProcessor()
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+              PARTE 4: RUTAS DE BIBLIOTECA (REEMPLAZAR COMPLETO)
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear/Reemplazar: backend/routes/biblioteca_routes.py
+
+```python
+"""
+═══════════════════════════════════════════════════════════════════════════════
+RUTAS DE BIBLIOTECAR.IA
+Chat + Upload + RAG
+═══════════════════════════════════════════════════════════════════════════════
+"""
+
+import os
+from flask import Blueprint, jsonify, request
+from werkzeug.utils import secure_filename
+
+biblioteca_bp = Blueprint('biblioteca', __name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CHAT PRINCIPAL (CON SOPORTE DE ARCHIVOS)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@biblioteca_bp.route('/chat', methods=['POST'])
+def chat_biblioteca():
+    """Endpoint principal de chat - soporta mensajes y archivos"""
+    
+    print("\n" + "="*60)
+    print("📚 BIBLIOTECAR.IA - Request recibido")
+    print(f"   Content-Type: {request.content_type}")
+    print("="*60)
+    
+    try:
+        # Detectar si es archivo o mensaje
+        if request.content_type and 'multipart' in request.content_type:
+            return _procesar_archivo()
+        else:
+            return _procesar_chat()
+            
+    except Exception as e:
+        import traceback
+        print(f"❌ ERROR:\n{traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'response': f'❌ Error: {str(e)}'
+        }), 500
+
+
+def _procesar_archivo():
+    """Procesa upload de archivo"""
+    from services.document_processor import doc_processor
+    
+    file = request.files.get('file')
+    if not file or file.filename == '':
+        return jsonify({
+            'success': False,
+            'response': '❌ No se recibió archivo'
+        }), 400
+    
+    filename = secure_filename(file.filename)
+    print(f"📁 Procesando: {filename}")
+    
+    # Procesar documento
+    resultado = doc_processor.procesar_documento(file, filename)
+    
+    if resultado.exito:
+        return jsonify({
+            'success': True,
+            'response': f'''✅ **Documento "{resultado.nombre}" procesado exitosamente**
+
+📄 **Detalles:**
+• ID: {resultado.documento_id}
+• Categoría: {resultado.categoria}
+• Caracteres: {resultado.caracteres:,}
+• Chunks creados: {resultado.chunks}
+• Tiempo: {resultado.tiempo_segundos:.1f}s
+
+El documento ya está disponible para consultas.'''
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'response': f'❌ Error procesando "{resultado.nombre}":\n\n{resultado.error}'
+        }), 500
+
+
+def _procesar_chat():
+    """Procesa mensaje de chat con RAG"""
+    from anthropic import Anthropic
+    from extensions import db
+    from sqlalchemy import text
+    
+    data = request.get_json(force=True, silent=True) or {}
+    mensaje = data.get('message', '').strip()
+    
+    if not mensaje:
+        return jsonify({
+            'success': True,
+            'response': '¡Hola! Soy Bibliotecar.IA 📚 ¿En qué puedo ayudarte?'
+        })
+    
+    print(f"💬 Mensaje: {mensaje[:100]}...")
+    
+    # Buscar chunks relevantes
+    chunks = _buscar_chunks_relevantes(mensaje)
+    
+    # Construir contexto
+    contexto = ""
+    fuentes = []
+    
+    if chunks:
+        contexto = "\n\n📚 CONTEXTO DE LA BASE DE CONOCIMIENTO:\n"
+        for chunk in chunks[:5]:
+            contexto += f"\n[Documento: {chunk['documento']}]\n{chunk['contenido'][:800]}\n"
+            if chunk['documento'] not in fuentes:
+                fuentes.append(chunk['documento'])
+    
+    # Generar respuesta con Claude
+    client = Anthropic()
+    
+    system_prompt = f"""Eres Bibliotecar.IA, la bibliotecaria experta en derecho fiscal mexicano de Revisar.IA.
+
+Tu rol es:
+- Mantener actualizada la base de conocimiento
+- Responder consultas sobre legislación fiscal
+- Ayudar a encontrar información específica
+{contexto}
+
+Responde de forma clara y profesional en español.
+Si usas información del contexto, menciona la fuente."""
+
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=2000,
+        system=system_prompt,
+        messages=[{"role": "user", "content": mensaje}]
+    )
+    
+    respuesta = response.content[0].text
+    
+    # Agregar fuentes si las hay
+    if fuentes:
+        respuesta += f"\n\n📖 *Fuentes consultadas: {', '.join(fuentes)}*"
+    
+    return jsonify({
+        'success': True,
+        'response': respuesta
+    })
+
+
+def _buscar_chunks_relevantes(query: str, limite: int = 5) -> list:
+    """Búsqueda semántica de chunks relevantes"""
+    from extensions import db
+    from sqlalchemy import text
+    
+    try:
+        # Búsqueda por palabras clave (fallback sin embeddings)
+        palabras = [p for p in query.lower().split() if len(p) > 3][:5]
+        
+        if not palabras:
+            return []
+        
+        condiciones = ' OR '.join([f"LOWER(c.contenido) LIKE '%{p}%'" for p in palabras])
+        
+        result = db.session.execute(text(f"""
+            SELECT c.id, c.contenido, c.documento_id, d.nombre as documento
+            FROM kb_chunks c
+            JOIN kb_documentos d ON c.documento_id = d.id
+            WHERE ({condiciones})
+            AND d.activo = TRUE
+            LIMIT :limite
+        """), {'limite': limite})
+        
+        return [dict(row._mapping) for row in result]
+        
+    except Exception as e:
+        print(f"⚠️ Error buscando chunks: {e}")
+        return []
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ESTADÍSTICAS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@biblioteca_bp.route('/stats', methods=['GET'])
+def stats_biblioteca():
+    """Estadísticas del knowledge base"""
+    from extensions import db
+    from sqlalchemy import text
+    
+    try:
+        # Totales
+        docs = db.session.execute(text(
+            "SELECT COUNT(*) FROM kb_documentos WHERE activo = TRUE"
+        )).scalar() or 0
+        
+        chunks = db.session.execute(text(
+            "SELECT COUNT(*) FROM kb_chunks"
+        )).scalar() or 0
+        
+        embeddings = db.session.execute(text(
+            "SELECT COUNT(*) FROM kb_chunks WHERE embedding IS NOT NULL"
+        )).scalar() or 0
+        
+        # Por categoría
+        categorias = db.session.execute(text("""
+            SELECT categoria, COUNT(*) as total
+            FROM kb_documentos
+            WHERE activo = TRUE
+            GROUP BY categoria
+        """)).fetchall()
+        
+        categorias_dict = {row.categoria: row.total for row in categorias}
+        
+        return jsonify({
+            'success': True,
+            'documentos': docs,
+            'chunks': chunks,
+            'embeddings': embeddings,
+            'porcentaje_embeddings': round((embeddings / chunks) * 100) if chunks > 0 else 0,
+            'categorias': categorias_dict
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ESTADO DEL ACERVO
+# ═══════════════════════════════════════════════════════════════════════════
+
+@biblioteca_bp.route('/acervo/estado', methods=['GET'])
+def estado_acervo():
+    """Estado detallado del acervo por agente/categoría"""
+    from extensions import db
+    from sqlalchemy import text
+    
+    try:
+        # Agentes y sus categorías asignadas
+        agentes = {
+            'A1': {'nombre': 'Facturar.IA', 'categorias': ['Catálogos SAT', 'Criterios SAT']},
+            'A2': {'nombre': 'Bibliotecar.IA', 'categorias': ['Marco Legal', 'Jurisprudencias']},
+            'A3': {'nombre': 'Revisar.IA', 'categorias': ['Casos de Referencia']},
+            'A4': {'nombre': 'Investigar.IA', 'categorias': ['Glosarios']},
+            'A5': {'nombre': 'Analizar.IA', 'categorias': ['Plantillas']},
+            'A6': {'nombre': 'Reportar.IA', 'categorias': []},
+            'A7': {'nombre': 'Auditar.IA', 'categorias': []},
+        }
+        
+        # Contar documentos por categoría
+        categorias = db.session.execute(text("""
+            SELECT categoria, COUNT(*) as docs, SUM(num_chunks) as chunks
+            FROM kb_documentos
+            WHERE activo = TRUE
+            GROUP BY categoria
+        """)).fetchall()
+        
+        cat_stats = {row.categoria: {'docs': row.docs, 'chunks': row.chunks or 0} for row in categorias}
+        
+        # Calcular progreso por agente
+        resultado_agentes = {}
+        for agente_id, info in agentes.items():
+            docs_agente = sum(cat_stats.get(c, {}).get('docs', 0) for c in info['categorias'])
+            chunks_agente = sum(cat_stats.get(c, {}).get('chunks', 0) for c in info['categorias'])
+            
+            # Progreso estimado (meta: 10 docs por categoría)
+            meta = len(info['categorias']) * 10
+            progreso = min(100, round((docs_agente / meta) * 100)) if meta > 0 else 0
+            
+            resultado_agentes[agente_id] = {
+                'nombre': info['nombre'],
+                'categorias': info['categorias'],
+                'documentos': docs_agente,
+                'chunks': chunks_agente,
+                'progreso': progreso
+            }
+        
+        # Total general
+        total_docs = db.session.execute(text(
+            "SELECT COUNT(*) FROM kb_documentos WHERE activo = TRUE"
+        )).scalar() or 0
+        
+        total_chunks = db.session.execute(text(
+            "SELECT COUNT(*) FROM kb_chunks"
+        )).scalar() or 0
+        
+        return jsonify({
+            'success': True,
+            'total_documentos': total_docs,
+            'total_chunks': total_chunks,
+            'agentes': resultado_agentes,
+            'categorias': cat_stats
+        })
+        
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LISTAR DOCUMENTOS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@biblioteca_bp.route('/documentos', methods=['GET'])
+def listar_documentos():
+    """Lista todos los documentos"""
+    from extensions import db
+    from sqlalchemy import text
+    
+    try:
+        categoria = request.args.get('categoria')
+        
+        query = """
+            SELECT id, nombre, categoria, procesado, num_chunks, created_at
+            FROM kb_documentos
+            WHERE activo = TRUE
+        """
+        
+        params = {}
+        if categoria:
+            query += " AND categoria = :categoria"
+            params['categoria'] = categoria
+        
+        query += " ORDER BY created_at DESC"
+        
+        result = db.session.execute(text(query), params)
+        
+        documentos = [{
+            'id': row.id,
+            'nombre': row.nombre,
+            'categoria': row.categoria,
+            'procesado': row.procesado,
+            'chunks': row.num_chunks or 0,
+            'created_at': row.created_at.isoformat() if row.created_at else None
+        } for row in result]
+        
+        return jsonify({
+            'success': True,
+            'documentos': documentos,
+            'total': len(documentos)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+                   PARTE 5: RUTAS DE ADMIN (USUARIOS)
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear/Reemplazar: backend/routes/admin_routes.py
+
+```python
+"""
+═══════════════════════════════════════════════════════════════════════════════
+RUTAS DE ADMINISTRACIÓN
+Gestión de usuarios, empresas y permisos
+═══════════════════════════════════════════════════════════════════════════════
+"""
+
+from flask import Blueprint, jsonify, request
+from extensions import db
+from sqlalchemy import text
+
+admin_bp = Blueprint('admin', __name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# USUARIOS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@admin_bp.route('/usuarios', methods=['GET'])
+def listar_usuarios():
+    """Lista todos los usuarios"""
+    try:
+        result = db.session.execute(text("""
+            SELECT 
+                u.id, u.email, u.nombre, u.is_admin, u.activo, u.aprobado, u.created_at,
+                c.nombre as empresa
+            FROM users u
+            LEFT JOIN clientes c ON u.cliente_id = c.id
+            ORDER BY u.created_at DESC
+        """))
+        
+        usuarios = [{
+            'id': row.id,
+            'email': row.email,
+            'nombre': row.nombre,
+            'is_admin': row.is_admin,
+            'activo': row.activo,
+            'aprobado': row.aprobado,
+            'empresa': row.empresa,
+            'created_at': row.created_at.isoformat() if row.created_at else None
+        } for row in result]
+        
+        return jsonify({
+            'success': True,
+            'usuarios': usuarios,
+            'total': len(usuarios)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/usuarios/pendientes', methods=['GET'])
+def usuarios_pendientes():
+    """Lista usuarios pendientes de aprobación"""
+    try:
+        result = db.session.execute(text("""
+            SELECT u.id, u.email, u.nombre, u.created_at, c.nombre as empresa
+            FROM users u
+            LEFT JOIN clientes c ON u.cliente_id = c.id
+            WHERE u.aprobado = FALSE OR u.aprobado IS NULL
+            ORDER BY u.created_at DESC
+        """))
+        
+        pendientes = [{
+            'id': row.id,
+            'email': row.email,
+            'nombre': row.nombre,
+            'empresa': row.empresa,
+            'created_at': row.created_at.isoformat() if row.created_at else None
+        } for row in result]
+        
+        return jsonify({
+            'success': True,
+            'pendientes': pendientes,
+            'total': len(pendientes)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/usuarios/<int:user_id>/aprobar', methods=['POST'])
+def aprobar_usuario(user_id):
+    """Aprueba un usuario"""
+    try:
+        db.session.execute(text(
+            "UPDATE users SET aprobado = TRUE, activo = TRUE WHERE id = :id"
+        ), {'id': user_id})
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': f'Usuario {user_id} aprobado'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/usuarios/<int:user_id>/rol', methods=['PUT'])
+def cambiar_rol(user_id):
+    """Cambia rol de usuario"""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        is_admin = data.get('is_admin', False)
+        
+        db.session.execute(text(
+            "UPDATE users SET is_admin = :is_admin WHERE id = :id"
+        ), {'id': user_id, 'is_admin': is_admin})
+        db.session.commit()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EMPRESAS/CLIENTES
+# ═══════════════════════════════════════════════════════════════════════════
+
+@admin_bp.route('/empresas', methods=['GET'])
+def listar_empresas():
+    """Lista todas las empresas"""
+    try:
+        result = db.session.execute(text("""
+            SELECT c.id, c.nombre, c.razon_social, c.rfc, c.activo, c.created_at,
+                   COUNT(DISTINCT u.id) as usuarios
+            FROM clientes c
+            LEFT JOIN users u ON u.cliente_id = c.id
+            GROUP BY c.id
+            ORDER BY c.nombre
+        """))
+        
+        empresas = [{
+            'id': row.id,
+            'nombre': row.nombre,
+            'razon_social': row.razon_social,
+            'rfc': row.rfc,
+            'activo': row.activo,
+            'usuarios': row.usuarios,
+            'created_at': row.created_at.isoformat() if row.created_at else None
+        } for row in result]
+        
+        return jsonify({
+            'success': True,
+            'empresas': empresas,
+            'total': len(empresas)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+                     PARTE 6: REGISTRAR BLUEPRINTS
+═══════════════════════════════════════════════════════════════════════════════
+
+En backend/main.py o backend/app.py, asegurar que estén registrados:
+
+```python
+# Imports
+from routes.biblioteca_routes import biblioteca_bp
+from routes.admin_routes import admin_bp
+
+# Registrar blueprints
+app.register_blueprint(biblioteca_bp, url_prefix='/api/biblioteca')
+app.register_blueprint(admin_bp, url_prefix='/api/admin')
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+                    PARTE 7: VARIABLES DE ENTORNO
+═══════════════════════════════════════════════════════════════════════════════
+
+En Replit Secrets, asegurar que existan:
+
+```
+ANTHROPIC_API_KEY = sk-ant-...        # Para Claude (chat)
+OPENAI_API_KEY = sk-...               # Para embeddings
+GOOGLE_AI_API_KEY = ...               # Para Gemini (PDFs grandes) ⭐ NUEVO
+DATABASE_URL = postgresql://...       # Base de datos
+```
+
+Para obtener GOOGLE_AI_API_KEY:
+1. Ir a https://makersuite.google.com/app/apikey
+2. Crear API Key
+3. Es GRATIS y tiene 1M tokens de contexto
+
+═══════════════════════════════════════════════════════════════════════════════
+                       PARTE 8: PRUEBAS OBLIGATORIAS
+═══════════════════════════════════════════════════════════════════════════════
+
+Ejecutar TODAS estas pruebas y mostrar resultados:
+
+```bash
+echo "
+═══════════════════════════════════════════════════════════════════════════════
+🧪 PRUEBAS DEL SISTEMA
+═══════════════════════════════════════════════════════════════════════════════
+"
+
+# Test 1: Health check
+echo "=== TEST 1: Health Check ===" && \
+curl -s http://localhost:5000/api/health && echo ""
+
+# Test 2: Stats biblioteca
+echo "=== TEST 2: Stats Biblioteca ===" && \
+curl -s http://localhost:5000/api/biblioteca/stats && echo ""
+
+# Test 3: Listar usuarios
+echo "=== TEST 3: Admin Usuarios ===" && \
+curl -s http://localhost:5000/api/admin/usuarios && echo ""
+
+# Test 4: Subir documento de prueba
+echo "=== TEST 4: Upload Documento ===" && \
+echo "Documento de prueba para Revisar.IA
+Código Fiscal de la Federación - Extracto
+Artículo 1. Las personas están obligadas a contribuir.
+Artículo 2. Las contribuciones se clasifican en impuestos." > /tmp/test_doc.txt && \
+curl -X POST http://localhost:5000/api/biblioteca/chat \
+  -F "file=@/tmp/test_doc.txt" && echo ""
+
+# Test 5: Verificar que se guardó
+echo "=== TEST 5: Verificar BD ===" && \
+psql $DATABASE_URL -c "SELECT id, nombre, categoria, num_chunks FROM kb_documentos ORDER BY id DESC LIMIT 3;"
+
+# Test 6: Verificar chunks
+echo "=== TEST 6: Verificar Chunks ===" && \
+psql $DATABASE_URL -c "SELECT COUNT(*) as total_chunks FROM kb_chunks;"
+
+# Test 7: Chat con RAG
+echo "=== TEST 7: Chat RAG ===" && \
+curl -X POST http://localhost:5000/api/biblioteca/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "¿Qué dice el artículo 1?"}' && echo ""
+
+echo "
+═══════════════════════════════════════════════════════════════════════════════
+📊 RESUMEN
+═══════════════════════════════════════════════════════════════════════════════
+"
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+                      PARTE 9: CHECKLIST FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+□ pip install pdfplumber PyMuPDF python-docx google-generativeai
+□ Ejecutar SQL para crear/verificar tablas
+□ Asegurar usuario admin existe en BD
+□ Crear backend/services/document_processor.py
+□ Crear/Reemplazar backend/routes/biblioteca_routes.py
+□ Crear/Reemplazar backend/routes/admin_routes.py
+□ Registrar blueprints en main.py
+□ Agregar GOOGLE_AI_API_KEY a Secrets (para PDFs grandes)
+□ Reiniciar servidor
+□ Ejecutar TODAS las pruebas
+□ Verificar que upload guarda en BD (documentos > 0)
+□ Verificar que chunks se crean (chunks > 0)
+□ Verificar que admin muestra usuarios
+□ Probar con PDF real (CFF.pdf)
+
+═══════════════════════════════════════════════════════════════════════════════
+                        RESULTADO ESPERADO
+═══════════════════════════════════════════════════════════════════════════════
+
+Después de implementar TODO:
+
+1. ✅ Subir CFF.pdf → Se procesa con progreso visible
+2. ✅ Sidebar muestra: X Documentos, Y Chunks
+3. ✅ Chat responde usando contenido del CFF
+4. ✅ Panel Admin muestra santiago@satma.mx como admin
+5. ✅ Formulario de entregables funciona
+
+Para PDFs de 300+ páginas: Gemini 2.0 Flash los procesa sin problema
+(1M tokens = ~750,000 palabras = PDFs enormes)
+
+═══════════════════════════════════════════════════════════════════════════════
+                     ¡ÉXITO = TODOS LOS TESTS PASAN!
+═══════════════════════════════════════════════════════════════════════════════

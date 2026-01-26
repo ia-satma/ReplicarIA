@@ -1,0 +1,344 @@
+```
+TOON: CONFIGURAR SERVICIOS REALES REVISAR.IA - SALIR DE MODO DEMO
+
+EL PROBLEMA:
+Todo está en modo demo/simulado. Necesitas configurar los servicios reales.
+
+================================================================================
+PASO 1: CONFIGURAR SECRETS EN REPLIT
+================================================================================
+
+En Replit, ir a "Secrets" (candado en el panel izquierdo) y agregar CADA UNO:
+
+ANTHROPIC_API_KEY = sk-ant-api03-xxxxxxxxx
+(Obtener de: https://console.anthropic.com/settings/keys)
+
+RESEND_API_KEY = re_xxxxxxxxx
+(Obtener de: https://resend.com/api-keys)
+(Alternativa: SENDGRID_API_KEY si usas SendGrid)
+
+EMAIL_FROM = noreply@tudominio.com
+(Debe ser un dominio verificado en Resend/SendGrid)
+
+PCLOUD_ACCESS_TOKEN = xxxxxxxxx
+(Obtener de: https://docs.pcloud.com/methods/oauth_2.0/)
+
+PCLOUD_FOLDER_ID = 123456789
+(ID de la carpeta raíz en pCloud para Revisar.IA)
+
+DATABASE_URL = postgresql://user:pass@host:5432/db
+(Ya debe estar configurado si usas Replit DB o externo)
+
+================================================================================
+PASO 2: VERIFICAR QUE LOS SECRETS SE LEAN
+================================================================================
+
+MODIFICAR server/index.ts o donde inicie el servidor:
+
+```typescript
+// Al INICIO del archivo, después de imports
+console.log('='.repeat(60));
+console.log('🔧 VERIFICACIÓN DE CONFIGURACIÓN REVISAR.IA');
+console.log('='.repeat(60));
+
+const requiredEnvVars = [
+  'ANTHROPIC_API_KEY',
+  'RESEND_API_KEY', 
+  'EMAIL_FROM',
+  'PCLOUD_ACCESS_TOKEN',
+  'PCLOUD_FOLDER_ID',
+  'DATABASE_URL'
+];
+
+let allConfigured = true;
+
+requiredEnvVars.forEach(varName => {
+  const value = process.env[varName];
+  if (value) {
+    // Mostrar solo primeros 10 caracteres por seguridad
+    const masked = value.substring(0, 10) + '***';
+    console.log(`✅ ${varName}: ${masked}`);
+  } else {
+    console.log(`❌ ${varName}: NO CONFIGURADO`);
+    allConfigured = false;
+  }
+});
+
+console.log('='.repeat(60));
+
+if (!allConfigured) {
+  console.log('⚠️  ADVERTENCIA: Faltan variables de entorno');
+  console.log('   El sistema funcionará en MODO DEMO');
+} else {
+  console.log('✅ Todas las variables configuradas');
+  console.log('   El sistema funcionará en MODO PRODUCCIÓN');
+}
+
+console.log('='.repeat(60) + '\n');
+```
+
+================================================================================
+PASO 3: ACTUALIZAR SERVICIO DE ANTHROPIC
+================================================================================
+
+BUSCAR el archivo que maneja llamadas a Claude (probablemente anthropic.ts o similar).
+
+ASEGURAR que use el API key correctamente:
+
+```typescript
+// server/services/anthropic.ts
+
+import Anthropic from '@anthropic-ai/sdk';
+
+const apiKey = process.env.ANTHROPIC_API_KEY;
+
+if (!apiKey) {
+  console.error('❌ ANTHROPIC_API_KEY no está configurado');
+}
+
+const anthropic = new Anthropic({
+  apiKey: apiKey || 'demo-key' // Fallback para evitar crash
+});
+
+export async function callClaude(systemPrompt: string, userMessage: string) {
+  if (!apiKey) {
+    console.log('⚠️ Modo demo: Simulando respuesta de Claude');
+    return {
+      simulado: true,
+      contenido: 'Respuesta simulada - Configurar ANTHROPIC_API_KEY para respuestas reales'
+    };
+  }
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 4096,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userMessage }]
+  });
+
+  return {
+    simulado: false,
+    contenido: response.content[0].type === 'text' ? response.content[0].text : ''
+  };
+}
+
+export { anthropic };
+```
+
+================================================================================
+PASO 4: ACTUALIZAR SERVICIO DE EMAIL
+================================================================================
+
+```typescript
+// server/services/email.ts
+
+import { Resend } from 'resend';
+
+const resendApiKey = process.env.RESEND_API_KEY;
+const emailFrom = process.env.EMAIL_FROM || 'noreply@example.com';
+
+let resend: Resend | null = null;
+
+if (resendApiKey) {
+  resend = new Resend(resendApiKey);
+  console.log('✅ Servicio de email configurado');
+} else {
+  console.log('⚠️ RESEND_API_KEY no configurado - emails deshabilitados');
+}
+
+export async function sendEmail(options: {
+  to: string;
+  subject: string;
+  html: string;
+}) {
+  if (!resend) {
+    console.log('⚠️ Email simulado (sin API key):', options.subject);
+    return { success: false, simulado: true, messageId: 'demo-' + Date.now() };
+  }
+
+  try {
+    const result = await resend.emails.send({
+      from: emailFrom,
+      to: options.to,
+      subject: options.subject,
+      html: options.html
+    });
+
+    console.log('✅ Email enviado:', result.data?.id);
+    return { success: true, simulado: false, messageId: result.data?.id };
+  } catch (error: any) {
+    console.error('❌ Error enviando email:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+```
+
+================================================================================
+PASO 5: ACTUALIZAR SERVICIO DE PCLOUD
+================================================================================
+
+```typescript
+// server/services/pcloud.ts
+
+import axios from 'axios';
+import fs from 'fs';
+import FormData from 'form-data';
+
+const accessToken = process.env.PCLOUD_ACCESS_TOKEN;
+const baseFolderId = process.env.PCLOUD_FOLDER_ID;
+
+const PCLOUD_API = 'https://api.pcloud.com';
+
+export class PCloudService {
+  
+  isConfigured(): boolean {
+    return !!(accessToken && baseFolderId);
+  }
+
+  async uploadFile(localPath: string, fileName: string, folderId?: string): Promise<any> {
+    if (!this.isConfigured()) {
+      console.log('⚠️ pCloud no configurado - upload simulado');
+      return { simulado: true, fileId: 'demo-' + Date.now() };
+    }
+
+    const targetFolder = folderId || baseFolderId;
+    const formData = new FormData();
+    formData.append('file', fs.createReadStream(localPath));
+
+    const response = await axios.post(`${PCLOUD_API}/uploadfile`, formData, {
+      params: {
+        access_token: accessToken,
+        folderid: targetFolder,
+        filename: fileName
+      },
+      headers: formData.getHeaders()
+    });
+
+    if (response.data.result !== 0) {
+      throw new Error(`pCloud error: ${response.data.error}`);
+    }
+
+    console.log('✅ Archivo subido a pCloud:', fileName);
+    return {
+      simulado: false,
+      fileId: response.data.metadata[0].fileid,
+      path: response.data.metadata[0].path
+    };
+  }
+
+  async createPublicLink(fileId: string): Promise<string> {
+    if (!this.isConfigured()) {
+      return 'https://demo.pcloud.link/' + fileId;
+    }
+
+    const response = await axios.get(`${PCLOUD_API}/getfilepublink`, {
+      params: {
+        access_token: accessToken,
+        fileid: fileId
+      }
+    });
+
+    if (response.data.result !== 0) {
+      throw new Error(`pCloud error: ${response.data.error}`);
+    }
+
+    return `https://my.pcloud.com/publink/show?code=${response.data.code}`;
+  }
+
+  async createFolder(parentFolderId: string, folderName: string): Promise<string> {
+    if (!this.isConfigured()) {
+      return 'demo-folder-' + Date.now();
+    }
+
+    const response = await axios.get(`${PCLOUD_API}/createfolder`, {
+      params: {
+        access_token: accessToken,
+        folderid: parentFolderId,
+        name: folderName
+      }
+    });
+
+    // Si ya existe, no es error
+    if (response.data.result !== 0 && response.data.result !== 2004) {
+      throw new Error(`pCloud error: ${response.data.error}`);
+    }
+
+    return response.data.metadata?.folderid || parentFolderId;
+  }
+}
+
+export const pcloudService = new PCloudService();
+```
+
+================================================================================
+PASO 6: INSTALAR DEPENDENCIAS SI FALTAN
+================================================================================
+
+En Shell de Replit ejecutar:
+
+```bash
+npm install @anthropic-ai/sdk resend axios form-data
+```
+
+================================================================================
+PASO 7: REINICIAR Y PROBAR
+================================================================================
+
+1. Después de agregar todos los Secrets, hacer clic en "Stop" y luego "Run"
+
+2. Verificar en la consola que aparezca:
+   ✅ ANTHROPIC_API_KEY: sk-ant-api***
+   ✅ RESEND_API_KEY: re_xxxxx***
+   ✅ PCLOUD_ACCESS_TOKEN: xxxxx***
+   etc.
+
+3. Ejecutar prueba nuevamente:
+   POST /api/test/software
+
+4. Ahora debería mostrar:
+   AGENTE A6 ✅ (no simulado)
+   AGENTE A3 ✅ (no simulado)
+   PDF ✅ Generado
+   PCLOUD ✅ Subido
+   EMAIL ✅ Enviado
+
+================================================================================
+SI NO TIENES API KEYS AÚN
+================================================================================
+
+ANTHROPIC (Gratis para empezar):
+1. Ir a https://console.anthropic.com/
+2. Crear cuenta
+3. Settings > API Keys > Create Key
+4. Copiar y pegar en Replit Secrets
+
+RESEND (Gratis 100 emails/día):
+1. Ir a https://resend.com/
+2. Crear cuenta
+3. API Keys > Create API Key
+4. Copiar y pegar en Replit Secrets
+5. Verificar dominio o usar el de prueba
+
+PCLOUD:
+1. Crear cuenta en https://www.pcloud.com/
+2. Ir a https://docs.pcloud.com/methods/oauth_2.0/
+3. Crear aplicación
+4. Obtener access token
+5. Crear carpeta "Revisar.IA" y copiar su folder ID
+
+================================================================================
+RESUMEN DE SECRETS NECESARIOS
+================================================================================
+
+Nombre                  | Ejemplo                           | Dónde obtener
+------------------------|-----------------------------------|------------------
+ANTHROPIC_API_KEY       | sk-ant-api03-xxx                  | console.anthropic.com
+RESEND_API_KEY          | re_xxx                            | resend.com
+EMAIL_FROM              | noreply@tudominio.com             | Tu dominio verificado
+PCLOUD_ACCESS_TOKEN     | xxxxx                             | docs.pcloud.com
+PCLOUD_FOLDER_ID        | 123456789                         | pCloud web app
+
+================================================================================
+EJECUTAR AHORA. CONFIGURAR SECRETS. REINICIAR. PROBAR.
+================================================================================
+```

@@ -1,0 +1,699 @@
+═══════════════════════════════════════════════════════════════════════════════
+🚨 URGENTE: BIBLIOTECAR.IA SE CUELGA AL PROCESAR DOCUMENTOS
+═══════════════════════════════════════════════════════════════════════════════
+
+SÍNTOMA: 
+- Usuario sube CFF.pdf
+- Aparece "📁 Analizando archivo: CFF.pdf"  
+- Se queda en "..." indefinidamente
+- NO muestra progreso
+- NO completa
+- NO muestra errores
+
+ESTO ES CRÍTICO - Sin poder cargar documentos, el RAG no sirve.
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 1: DIAGNÓSTICO INMEDIATO
+═══════════════════════════════════════════════════════════════════════════════
+
+### 1.1 Ver logs del servidor EN TIEMPO REAL
+
+Abre una terminal y ejecuta:
+```bash
+# Ver logs mientras subes el archivo
+tail -f logs/*.log 2>/dev/null &
+
+# O ver output del servidor directamente en la consola de Replit
+```
+
+Luego sube el archivo y observa qué error aparece.
+
+### 1.2 Buscar dónde está el código que procesa archivos
+
+```bash
+echo "=== BUSCAR ENDPOINT DE CHAT CON ARCHIVOS ===" && \
+grep -rn "file\|archivo\|upload" backend/routes/ | grep -i "biblioteca\|chat"
+
+echo "=== BUSCAR FUNCIÓN QUE EXTRAE PDF ===" && \
+grep -rn "pdf\|extract\|PyPDF\|pdfplumber" backend/
+```
+
+### 1.3 Probar extracción de PDF directamente
+
+```bash
+# Crear script de prueba
+cat > /tmp/test_pdf.py << 'EOF'
+import sys
+sys.path.insert(0, 'backend')
+
+# Probar diferentes librerías de PDF
+print("=== Probando PyPDF2 ===")
+try:
+    import PyPDF2
+    print("✅ PyPDF2 instalado")
+except:
+    print("❌ PyPDF2 NO instalado")
+
+print("\n=== Probando pdfplumber ===")
+try:
+    import pdfplumber
+    print("✅ pdfplumber instalado")
+except:
+    print("❌ pdfplumber NO instalado")
+
+print("\n=== Probando PyMuPDF (fitz) ===")
+try:
+    import fitz
+    print("✅ PyMuPDF instalado")
+except:
+    print("❌ PyMuPDF NO instalado")
+EOF
+
+python /tmp/test_pdf.py
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 2: CAUSAS PROBABLES Y SOLUCIONES
+═══════════════════════════════════════════════════════════════════════════════
+
+### CAUSA 1: El PDF es muy grande y hay timeout
+
+El CFF tiene 376 páginas. Extraer texto toma MUCHO tiempo.
+
+**SOLUCIÓN: Procesar en chunks con feedback**
+
+```python
+def extraer_texto_pdf_con_progreso(file, callback_progreso=None):
+    """Extrae texto de PDF mostrando progreso"""
+    import pdfplumber
+    
+    texto_completo = []
+    
+    with pdfplumber.open(file) as pdf:
+        total_paginas = len(pdf.pages)
+        print(f"📄 PDF tiene {total_paginas} páginas")
+        
+        for i, page in enumerate(pdf.pages):
+            try:
+                texto = page.extract_text() or ''
+                texto_completo.append(texto)
+                
+                # Mostrar progreso cada 10 páginas
+                if i % 10 == 0:
+                    progreso = int((i / total_paginas) * 100)
+                    print(f"  📖 Procesando... {progreso}% ({i}/{total_paginas})")
+                    
+                    if callback_progreso:
+                        callback_progreso(progreso, i, total_paginas)
+                        
+            except Exception as e:
+                print(f"  ⚠️ Error en página {i}: {e}")
+                continue
+    
+    return '\n'.join(texto_completo)
+```
+
+### CAUSA 2: No hay librería de PDF instalada
+
+**SOLUCIÓN: Instalar pdfplumber**
+
+```bash
+pip install pdfplumber --break-system-packages
+```
+
+### CAUSA 3: El endpoint no maneja archivos correctamente
+
+**SOLUCIÓN: Verificar que el endpoint recibe el archivo**
+
+```python
+@biblioteca_bp.route('/chat', methods=['POST'])
+def chat_biblioteca():
+    print("=== RECIBIENDO REQUEST ===")
+    print(f"Content-Type: {request.content_type}")
+    print(f"Files: {request.files}")
+    print(f"Form: {request.form}")
+    print(f"JSON: {request.get_json(silent=True)}")
+    
+    # Si hay archivo
+    if request.files:
+        file = request.files.get('file')
+        if file:
+            print(f"📁 Archivo recibido: {file.filename}, {file.content_type}")
+            # ... procesar
+    
+    # ... resto del código
+```
+
+### CAUSA 4: Error silencioso que no se muestra
+
+**SOLUCIÓN: Agregar try/catch con logs**
+
+```python
+@biblioteca_bp.route('/chat', methods=['POST'])
+def chat_biblioteca():
+    try:
+        # ... código existente ...
+        
+    except Exception as e:
+        import traceback
+        error_completo = traceback.format_exc()
+        print(f"❌ ERROR EN BIBLIOTECA CHAT:\n{error_completo}")
+        
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'response': f'❌ Error procesando: {str(e)}'
+        }), 500
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 3: SOLUCIÓN COMPLETA - REESCRIBIR PROCESAMIENTO
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear/Reemplazar el endpoint de chat con archivos:
+
+```python
+import os
+import time
+from flask import Blueprint, jsonify, request, Response, stream_with_context
+from werkzeug.utils import secure_filename
+
+biblioteca_bp = Blueprint('biblioteca', __name__)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ENDPOINT PRINCIPAL DE CHAT (CON SOPORTE DE ARCHIVOS)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@biblioteca_bp.route('/chat', methods=['POST'])
+def chat_biblioteca():
+    """Chat con Bibliotecar.IA - soporta mensajes y archivos"""
+    
+    print("\n" + "="*50)
+    print("📚 BIBLIOTECAR.IA - Nueva solicitud")
+    print("="*50)
+    
+    try:
+        # Detectar si es multipart (archivo) o JSON (mensaje)
+        if request.content_type and 'multipart' in request.content_type:
+            return procesar_archivo_chat()
+        else:
+            return procesar_mensaje_chat()
+            
+    except Exception as e:
+        import traceback
+        error = traceback.format_exc()
+        print(f"❌ ERROR GENERAL:\n{error}")
+        return jsonify({
+            'success': False,
+            'response': f'❌ Error: {str(e)}'
+        }), 500
+
+
+def procesar_archivo_chat():
+    """Procesa cuando se sube un archivo"""
+    
+    file = request.files.get('file')
+    
+    if not file:
+        return jsonify({
+            'success': False,
+            'response': '❌ No se recibió ningún archivo'
+        }), 400
+    
+    filename = secure_filename(file.filename)
+    print(f"📁 Archivo recibido: {filename}")
+    print(f"   Tipo: {file.content_type}")
+    
+    # Validar extensión
+    extension = os.path.splitext(filename)[1].lower()
+    extensiones_validas = {'.pdf', '.txt', '.md', '.docx'}
+    
+    if extension not in extensiones_validas:
+        return jsonify({
+            'success': False,
+            'response': f'❌ Formato no soportado: {extension}\nFormatos válidos: {extensiones_validas}'
+        }), 400
+    
+    try:
+        # PASO 1: Extraer texto
+        print("📖 Extrayendo texto...")
+        inicio = time.time()
+        
+        if extension == '.pdf':
+            contenido = extraer_texto_pdf(file)
+        elif extension in {'.txt', '.md'}:
+            contenido = file.read().decode('utf-8')
+        else:
+            contenido = f"Archivo {filename} recibido (extracción no disponible para {extension})"
+        
+        tiempo_extraccion = time.time() - inicio
+        print(f"✅ Texto extraído: {len(contenido)} caracteres en {tiempo_extraccion:.1f}s")
+        
+        if len(contenido) < 100:
+            return jsonify({
+                'success': False,
+                'response': f'⚠️ El documento parece estar vacío o no se pudo extraer texto.\n\nCaracteres extraídos: {len(contenido)}'
+            }), 400
+        
+        # PASO 2: Guardar documento en BD
+        print("💾 Guardando en base de datos...")
+        from extensions import db
+        from sqlalchemy import text
+        
+        # Detectar categoría
+        categoria = detectar_categoria_documento(filename, contenido)
+        
+        result = db.session.execute(text("""
+            INSERT INTO kb_documentos (nombre, contenido_raw, categoria, procesado, activo, created_at)
+            VALUES (:nombre, :contenido, :categoria, FALSE, TRUE, NOW())
+            RETURNING id
+        """), {
+            'nombre': filename,
+            'contenido': contenido[:500000],  # Limitar a 500k caracteres
+            'categoria': categoria
+        })
+        db.session.commit()
+        
+        doc_id = result.fetchone()[0]
+        print(f"✅ Documento guardado con ID: {doc_id}")
+        
+        # PASO 3: Crear chunks
+        print("📦 Creando chunks...")
+        chunks = crear_chunks(contenido)
+        print(f"✅ {len(chunks)} chunks creados")
+        
+        # PASO 4: Guardar chunks (sin embeddings por ahora para no bloquear)
+        print("💾 Guardando chunks...")
+        for i, chunk_texto in enumerate(chunks):
+            db.session.execute(text("""
+                INSERT INTO kb_chunks (documento_id, contenido, posicion, created_at)
+                VALUES (:doc_id, :contenido, :posicion, NOW())
+            """), {
+                'doc_id': doc_id,
+                'contenido': chunk_texto,
+                'posicion': i
+            })
+        
+        db.session.commit()
+        print(f"✅ Chunks guardados")
+        
+        # PASO 5: Marcar como procesado (embeddings se generarán después)
+        db.session.execute(text("""
+            UPDATE kb_documentos SET procesado = TRUE WHERE id = :id
+        """), {'id': doc_id})
+        db.session.commit()
+        
+        # Respuesta exitosa
+        return jsonify({
+            'success': True,
+            'response': f'''✅ **Documento "{filename}" procesado exitosamente**
+
+📄 **Detalles:**
+• ID: {doc_id}
+• Categoría: {categoria}
+• Caracteres: {len(contenido):,}
+• Chunks creados: {len(chunks)}
+• Tiempo de procesamiento: {tiempo_extraccion:.1f}s
+
+El documento ya está disponible para consultas. Puedes preguntarme sobre su contenido.'''
+        })
+        
+    except Exception as e:
+        import traceback
+        error = traceback.format_exc()
+        print(f"❌ ERROR procesando archivo:\n{error}")
+        
+        return jsonify({
+            'success': False,
+            'response': f'❌ Error procesando "{filename}":\n\n{str(e)}'
+        }), 500
+
+
+def procesar_mensaje_chat():
+    """Procesa mensaje de texto (consulta RAG)"""
+    
+    data = request.get_json(force=True, silent=True) or {}
+    mensaje = data.get('message', '').strip()
+    
+    if not mensaje:
+        return jsonify({
+            'success': False,
+            'response': '¿En qué puedo ayudarte?'
+        })
+    
+    print(f"💬 Mensaje: {mensaje[:100]}...")
+    
+    try:
+        # Aquí va la lógica de RAG existente
+        # Por ahora, respuesta simple
+        
+        from anthropic import Anthropic
+        
+        # Buscar chunks relevantes (si hay)
+        chunks_relevantes = buscar_chunks_relevantes(mensaje)
+        
+        contexto = ""
+        if chunks_relevantes:
+            contexto = "\n\nContexto de la base de conocimiento:\n"
+            for chunk in chunks_relevantes[:5]:
+                contexto += f"- {chunk['contenido'][:500]}...\n"
+        
+        client = Anthropic()
+        
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2000,
+            system=f"""Eres Bibliotecar.IA, la bibliotecaria experta en derecho fiscal mexicano.
+            
+Tu rol es ayudar a mantener actualizada la base de conocimiento y responder consultas.
+{contexto}
+
+Responde de forma clara y profesional en español.""",
+            messages=[{"role": "user", "content": mensaje}]
+        )
+        
+        respuesta = response.content[0].text
+        
+        return jsonify({
+            'success': True,
+            'response': respuesta
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"❌ ERROR en chat:\n{traceback.format_exc()}")
+        
+        return jsonify({
+            'success': False,
+            'response': f'❌ Error: {str(e)}'
+        }), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FUNCIONES AUXILIARES
+# ═══════════════════════════════════════════════════════════════════════════
+
+def extraer_texto_pdf(file):
+    """Extrae texto de un PDF"""
+    
+    # Intentar con pdfplumber (mejor para PDFs complejos)
+    try:
+        import pdfplumber
+        
+        texto_paginas = []
+        with pdfplumber.open(file) as pdf:
+            total = len(pdf.pages)
+            print(f"   📄 {total} páginas detectadas")
+            
+            for i, page in enumerate(pdf.pages):
+                try:
+                    texto = page.extract_text() or ''
+                    texto_paginas.append(texto)
+                    
+                    # Log progreso cada 50 páginas
+                    if (i + 1) % 50 == 0:
+                        print(f"   📖 Procesadas {i+1}/{total} páginas...")
+                        
+                except Exception as e:
+                    print(f"   ⚠️ Error en página {i+1}: {e}")
+                    continue
+        
+        return '\n\n'.join(texto_paginas)
+        
+    except ImportError:
+        print("⚠️ pdfplumber no instalado, intentando PyPDF2...")
+    
+    # Fallback a PyPDF2
+    try:
+        import PyPDF2
+        
+        file.seek(0)  # Resetear posición
+        reader = PyPDF2.PdfReader(file)
+        
+        texto_paginas = []
+        for i, page in enumerate(reader.pages):
+            try:
+                texto = page.extract_text() or ''
+                texto_paginas.append(texto)
+            except:
+                continue
+        
+        return '\n\n'.join(texto_paginas)
+        
+    except ImportError:
+        raise Exception("No hay librería de PDF instalada. Ejecuta: pip install pdfplumber")
+
+
+def crear_chunks(texto: str, tamano: int = 1000, overlap: int = 100) -> list:
+    """Divide texto en chunks con overlap"""
+    
+    if len(texto) < tamano:
+        return [texto]
+    
+    chunks = []
+    inicio = 0
+    
+    while inicio < len(texto):
+        fin = inicio + tamano
+        chunk = texto[inicio:fin]
+        
+        # Intentar cortar en punto natural
+        if fin < len(texto):
+            ultimo_punto = chunk.rfind('.')
+            ultimo_parrafo = chunk.rfind('\n\n')
+            corte = max(ultimo_punto, ultimo_parrafo)
+            
+            if corte > tamano * 0.5:
+                chunk = chunk[:corte + 1]
+                fin = inicio + corte + 1
+        
+        chunk = chunk.strip()
+        if len(chunk) > 50:
+            chunks.append(chunk)
+        
+        inicio = fin - overlap
+    
+    return chunks
+
+
+def detectar_categoria_documento(nombre: str, contenido: str) -> str:
+    """Detecta categoría del documento"""
+    
+    nombre_lower = nombre.lower()
+    contenido_lower = contenido[:5000].lower()
+    
+    if 'cff' in nombre_lower or 'código fiscal' in contenido_lower or 'codigo fiscal' in contenido_lower:
+        return 'Marco Legal'
+    elif 'lisr' in nombre_lower or 'impuesto sobre la renta' in contenido_lower:
+        return 'Marco Legal'
+    elif 'iva' in nombre_lower or 'valor agregado' in contenido_lower:
+        return 'Marco Legal'
+    elif 'rmf' in nombre_lower or 'resolución miscelánea' in contenido_lower:
+        return 'Criterios SAT'
+    elif 'jurisprudencia' in contenido_lower or 'tesis' in contenido_lower:
+        return 'Jurisprudencias'
+    elif 'catálogo' in nombre_lower or 'catalogo' in nombre_lower:
+        return 'Catálogos SAT'
+    else:
+        return 'Casos de Referencia'
+
+
+def buscar_chunks_relevantes(query: str, limite: int = 5) -> list:
+    """Busca chunks relevantes para la query (búsqueda simple por ahora)"""
+    
+    from extensions import db
+    from sqlalchemy import text
+    
+    try:
+        # Búsqueda simple por palabras clave
+        palabras = query.lower().split()[:5]  # Primeras 5 palabras
+        
+        condiciones = ' OR '.join([f"LOWER(contenido) LIKE '%{p}%'" for p in palabras if len(p) > 3])
+        
+        if not condiciones:
+            return []
+        
+        result = db.session.execute(text(f"""
+            SELECT id, contenido, documento_id
+            FROM kb_chunks
+            WHERE {condiciones}
+            LIMIT :limite
+        """), {'limite': limite})
+        
+        chunks = []
+        for row in result:
+            chunks.append({
+                'id': row.id,
+                'contenido': row.contenido,
+                'documento_id': row.documento_id
+            })
+        
+        return chunks
+        
+    except Exception as e:
+        print(f"⚠️ Error buscando chunks: {e}")
+        return []
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 4: INSTALAR DEPENDENCIAS
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+pip install pdfplumber --break-system-packages
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 5: VERIFICAR TABLAS EN BD
+═══════════════════════════════════════════════════════════════════════════════
+
+```sql
+-- Verificar que las tablas existen
+SELECT table_name FROM information_schema.tables 
+WHERE table_schema = 'public' 
+AND table_name IN ('kb_documentos', 'kb_chunks');
+
+-- Si no existen, crearlas:
+CREATE TABLE IF NOT EXISTS kb_documentos (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL,
+    contenido_raw TEXT,
+    categoria VARCHAR(100),
+    procesado BOOLEAN DEFAULT FALSE,
+    activo BOOLEAN DEFAULT TRUE,
+    error_procesamiento TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS kb_chunks (
+    id SERIAL PRIMARY KEY,
+    documento_id INTEGER REFERENCES kb_documentos(id) ON DELETE CASCADE,
+    contenido TEXT NOT NULL,
+    posicion INTEGER,
+    embedding vector(1536),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_kb_chunks_documento ON kb_chunks(documento_id);
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 6: PRUEBA MANUAL
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+# Crear archivo de prueba pequeño primero
+echo "Este es un documento de prueba para Bibliotecar.IA.
+Contiene información sobre el Código Fiscal de la Federación.
+Artículo 1. Las personas físicas y morales están obligadas a contribuir.
+Artículo 2. Las contribuciones se clasifican en impuestos." > /tmp/test_cff.txt
+
+# Subir via curl
+curl -X POST http://localhost:5000/api/biblioteca/chat \
+  -F "file=@/tmp/test_cff.txt" \
+  -v
+
+# Verificar que se guardó
+psql $DATABASE_URL -c "SELECT id, nombre, procesado, LENGTH(contenido_raw) as chars FROM kb_documentos ORDER BY id DESC LIMIT 1;"
+psql $DATABASE_URL -c "SELECT COUNT(*) as chunks FROM kb_chunks;"
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 7: AGREGAR FEEDBACK EN FRONTEND
+═══════════════════════════════════════════════════════════════════════════════
+
+El frontend debe mostrar progreso mientras procesa:
+
+```javascript
+const subirArchivo = async (file) => {
+  // Mostrar estado de carga
+  setMensajes(prev => [...prev, {
+    role: 'system',
+    content: `📁 Subiendo ${file.name}...`,
+    loading: true
+  }]);
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  try {
+    const response = await fetch('/api/biblioteca/chat', {
+      method: 'POST',
+      body: formData
+    });
+    
+    const data = await response.json();
+    
+    // Remover mensaje de carga y mostrar resultado
+    setMensajes(prev => {
+      const sinLoading = prev.filter(m => !m.loading);
+      return [...sinLoading, {
+        role: 'assistant',
+        content: data.response
+      }];
+    });
+    
+    // Actualizar stats del sidebar
+    await cargarEstadisticas();
+    
+  } catch (error) {
+    setMensajes(prev => {
+      const sinLoading = prev.filter(m => !m.loading);
+      return [...sinLoading, {
+        role: 'assistant',
+        content: `❌ Error subiendo archivo: ${error.message}`
+      }];
+    });
+  }
+};
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST OBLIGATORIO
+═══════════════════════════════════════════════════════════════════════════════
+
+□ pip install pdfplumber
+□ Verificar tablas kb_documentos y kb_chunks existen
+□ Agregar logs al endpoint de chat
+□ Agregar try/catch con error completo
+□ Probar con archivo TXT pequeño primero
+□ Probar con PDF pequeño
+□ Verificar que se guarda en BD después de subir
+□ Verificar que el sidebar se actualiza
+□ Probar con CFF.pdf completo
+
+═══════════════════════════════════════════════════════════════════════════════
+RESULTADO ESPERADO
+═══════════════════════════════════════════════════════════════════════════════
+
+Al subir CFF.pdf:
+
+1. Aparece "📁 Subiendo CFF.pdf..."
+2. Servidor muestra logs:
+   📚 BIBLIOTECAR.IA - Nueva solicitud
+   📁 Archivo recibido: CFF.pdf
+   📖 Extrayendo texto...
+   📄 376 páginas detectadas
+   📖 Procesadas 50/376 páginas...
+   📖 Procesadas 100/376 páginas...
+   ...
+   ✅ Texto extraído: 500000 caracteres en 45.2s
+   💾 Guardando en base de datos...
+   ✅ Documento guardado con ID: 1
+   📦 Creando chunks...
+   ✅ 487 chunks creados
+   💾 Guardando chunks...
+   ✅ Chunks guardados
+
+3. Chat muestra:
+   ✅ Documento "CFF.pdf" procesado exitosamente
+   • ID: 1
+   • Categoría: Marco Legal
+   • Caracteres: 500,000
+   • Chunks creados: 487
+
+4. Sidebar actualiza:
+   • 1 Documento
+   • 487 Chunks RAG
+   • Marco Legal: 100%

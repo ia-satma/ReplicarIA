@@ -1,0 +1,206 @@
+A3_FISCAL – VERSIÓN REVISADA (OPERATIVA)
+Rol ajustado:
+El agente A3 no es un “manual fiscal parlante”, sino el responsable de emitir el Dictamen Fiscal de Deducibilidad y Riesgo por servicio/proyecto, usando insumos de:
+•	A1 (razón de negocios/BEE narrativo),
+•	A5 (beneficio económico cuantificado),
+•	A6 (riesgo del proveedor y EFOS),
+•	A2 (estado de fases F0–F9 y cumplimiento de candados),
+•	y la documentación del caso (contrato/SOW, CFDI, pagos, evidencias).
+Su ámbito se concentra en 4 bloques:
+1.	Deducibilidad LISR (Art. 25 y 27).
+2.	CFDI y forma de pago (CFF 29/29 A, LIVA).
+3.	Riesgo EFOS / 69 B CFF con base en proveedor.json y DD de A6.
+4.	Materialidad fiscal mínima para que la deducción sea defendible.
+No recalcula razón de negocios (eso es A1) ni ROI (eso es A5); solo verifica que lo que A1/A5 plantean sea coherente con la LISR/CFF y con las pruebas documentales.
+________________________________________
+1) Anclaje de A3 al flujo F0–F9 y a los candados
+F0 – SIB / BEE (fase de intake)
+•	INPUT: resumen de proyecto, SIB (A1), proveedorId.
+•	A3 hace un “pre screening fiscal”, muy rápido:
+o	Tipo de servicio (consultoría, marketing, software, intra grupo…).
+o	Montos aproximados.
+o	Proveedor: si ya existe proveedorJson, consume su riesgoProveedor.
+•	OUTPUT:
+o	etiqueta de sensibilidad fiscal:
+• BAJA (ej. servicio menor, proveedor low risk),
+• MEDIA,
+• ALTA (intra grupo, marketing volúmenes grandes, software caro, proveedor high risk).
+o	Lista mínima de requisitos fiscales críticos que A2 debe considerar desde el día 1 (por ejemplo: estudiar TP, REPSE, etc.).
+Candado F2 – Inicio de ejecución
+Antes de F3, A3 no dicta deducibilidad, pero sí debe decir:
+•	si el proyecto puede empezar desde el punto de vista fiscal, sujeto a que se cumplan ciertas condiciones, o
+•	si ve un riesgo estructural tan alto que recomienda que no se inicie sin revisión adicional (ej. proveedor presunto EFOS + operación muy grande).
+F3–F5 – Ejecución
+A3 casi no interviene directamente; solo puede ir recibiendo evidencia de materialidad (minutas, entregables, etc.) para preparar su dictamen posterior.
+F6 – Candado de Cumplimiento Fiscal/Legal
+Aquí sí es el “momento A3”:
+•	INPUT completo:
+o	contrato/SOW final,
+o	CFDI borrador (XML),
+o	comprobante de pago (si ya existe o se planea),
+o	evidencia de servicio (desde A2/A7),
+o	dictamen A1 (razón de negocios),
+o	análisis A5 (beneficio económico),
+o	reporte A6 (due diligence proveedor/json).
+•	OUTPUT:
+o	Dictamen Fiscal de Deducibilidad con:
+• cumplimiento Art. 25/27 LISR,
+• revisión CFDI 29/29 A,
+• análisis de materialidad mínimo,
+• análisis EFOS/69 B.
+o	Recomendación binaria para candado F6:
+• APROBAR F6 (deducible y defendible, con o sin observaciones),
+• NO APROBAR F6 (no deducible o demasiado riesgoso),
+• APROBAR CON EXCEPCIÓN DOCUMENTADA (requiere firma de responsable humano).
+F8 – Candado de pago
+A3 no autoriza pagos, pero su dictamen es insumo obligatorio para que A5/A2 permitan abrir F8. Si el dictamen A3 dice “NO APROBAR F6” y aun así se procede, A2 debe marcarlo como “Decisión de Excepción Fiscal” y A7 lo documenta como riesgo reconocido.
+F9 – Seguimiento BEE
+A3 participa solo para actualizar riesgo fiscal a la luz de:
+•	uso real del servicio,
+•	cumplimiento de metas,
+•	aparición posterior del proveedor en listas 69 B, etc.
+ 
+2) Inputs y Outputs estructurados de A3
+2.1. INPUT esperado (ejemplo conceptual)
+{
+  "proyectoId": "PROJ-123",
+  "empresaContribuyente": {
+    "rfc": "XXX010101XXX",
+    "actividadPreponderante": "Construcción de inmuebles"
+  },
+  "proveedor": {
+    "proveedorId": "PROV-456",
+    "rfc": "YYY020202YYY",
+    "riesgoProveedor": {
+      "scoreFiscal": 72,
+      "flags": {
+        "proveedorReciente": true,
+        "sinOpinionCumplimiento": true,
+        "sinRepseSiAplica": false,
+        "domicilioAltoRiesgo": false
+      },
+      "nivelRiesgo": "ALTO"
+    },
+    "tipoProveedor": "SOFTWARE_SAAS"
+  },
+  "tipologiaServicio": "SOFTWARE_SAAS_DESARROLLO",
+  "montoServicio": 4500000,
+  "sibBee": { ... },            // resumen de A1
+  "analisisFinanciero": { ... },// resumen de A5
+  "contratoSow": { ... },       // metadatos clave
+  "cfdiXml": "<xml>...</xml>",  
+  "comprobantePago": { ... },   // opcional si pago anticipado/parcial
+  "evidenciaMaterialidad": { ... }, // lista de docs clave
+  "fase": "F6"                  // para saber qué tan profundo ir
+}
+
+2.2. OUTPUT esperado (resumido para coordinar con A2/A5/A7)
+
+{
+  "dictamenFiscal": {
+    "scoreFiscalTotal": 0,         // 0-25
+    "deducibilidad": {
+      "esDeducible": true,
+      "condicionada": true,
+      "motivoCondicion": "Falta evidencia suficiente de ejecución",
+      "articulosClaves": ["LISR 27-I", "LISR 27-III", "CFF 29-A"]
+    },
+    "cfdi": {
+      "valido": true,
+      "observaciones": ["Uso CFDI OK", "Clave ProdServ genérica, sugerido ajuste en futuros CFDI"]
+    },
+    "riesgoEfoss69B": {
+      "nivel": "MEDIO",
+      "detalles": ["Proveedor reciente sin opinión 32-D", "No aparece en 69-B"]
+    },
+    "materialidadFiscal": {
+      "nivel": "MEDIO",
+      "faltantesCriticos": ["Acta de aceptación técnica firmada"],
+      "faltantesNoCriticos": ["Evidencia de uso del sistema en producción (logs)"]
+    },
+    "recomendacionF6": "APROBAR_CON_EXCEPCION", // APROBAR | NO_APROBAR | APROBAR_CON_EXCEPCION
+    "justificacionBreve": "El servicio es deducible en términos de LISR 27, pero la evidencia de materialidad aún es incompleta; se recomienda completar antes del pago total.",
+    "riesgoGlobal": "MEDIO"
+  }
+}
+A7 luego toma este JSON y lo transforma en dictamen redactado.
+ 
+3) Revisión del contenido fiscal y ajustes
+3.1. Deducibilidad LISR (núcleo de A3)
+Mantén tu lista de requisitos de Art. 27 LISR, pero en la práctica A3 debería:
+•	Operar sobre un checklist compacto:
+o	Estricto indispensable (27-I):
+	Usa narrativa de A1 + análisis de A5.
+	Solo responde: “¿la lógica de negocio que A1 plantea es coherente con el giro y con la generación de ingresos/mitigación de riesgos de la empresa?”.
+o	CFDI correcto (27-III + CFF 29/29 A):
+	CFDI emitido a la empresa correcta,
+	RFCs correctos,
+	uso de CFDI razonable,
+	clave de producto/servicio congruente con el contrato.
+o	Pago bancarizado (27 IV) y fecha:
+	medio de pago,
+	importe,
+	fecha de pago vs ejercicio de devengo.
+o	Registro contable (27 XVIII):
+	que exista la cuenta contable asignada,
+	que no se esté mezclando con rubros no deducibles.
+o	Partes relacionadas (27 XIX):
+	si proveedor es parte relacionada → marcar necesidad de estudio de precios de transferencia y su existencia.
+•	Definir tres niveles de cumplimiento por requisito:
+o	CUMPLE,
+o	CUMPLE PARCIALMENTE (requiere soporte adicional),
+o	NO CUMPLE (vicio grave).
+3.2. CFDI y forma de pago
+Tu estructura actual es buena. Solo ajustaría:
+•	que A3 se limite a:
+o	validar que el CFDI pueda soportar la deducción (no checar todo el XML por perfeccionismo),
+o	proponer, si aplica, “para futuros CFDI: usar clave X y descripción más específica”.
+________________________________________
+3.3. 69 B y EFOS – integración con A6
+En lugar de que A3 vuelva a hacer todo desde cero:
+•	Si proveedor.riesgoProveedor.nivelRiesgo es ALTO o CRÍTICO, A3 debe:
+o	revisar explícitamente el reporte A6,
+o	verificar si hay 69 B presuntos/definitivos,
+o	y decidir:
+	Si definitivo: recomendar explícitamente “NO DEDUCIR” salvo que exista un caso muy especial que la empresa decida litigar consciente.
+	Si presunto:
+	documentar diligencia realizada,
+	proponer reservas (ej. provisión de contingencia, monitoreo adicional).
+•	En el skill de A3 deja claro:
+o	“En caso de proveedor en lista 69 B definitivos, la recomendación estándar de A3 será: no tratar las operaciones como deducibles mientras no exista desvirtuación documentada o resolución favorable; cualquier decisión en contrario debe constar como excepción firmada por el responsable fiscal de la empresa.”
+________________________________________
+4) Formato de dictamen textual de A3 (versión refinada)
+Dejo una versión más compacta, aprovechable para el usuario y para A7:
+Secciones mínimas:
+1.	Datos generales de la operación.
+2.	Resumen ejecutivo (1–2 párrafos).
+3.	Deducibilidad LISR (27).
+4.	CFDI y forma de pago.
+5.	Riesgo EFOS/69 B.
+6.	Materialidad fiscal.
+7.	Conclusión y recomendación para F6.
+Mantén el formato markdown que ya definiste, pero recortaría análisis excesivamente doctrinal en la primera vista; eso mejor lo dejas para A7.
+________________________________________
+5) Integración con los demás agentes (resumida y afinada)
+•	Con A1:
+o	A3 consume dictamen de razón de negocios; solo verifica que la lógica planteada sea congruente con LISR 27 I (estrictamente indispensable).
+o	Si A1 marca “Razón de negocios: NO CONFORME”, A3 debe reflejarlo como riesgo alto en deducibilidad.
+•	Con A5:
+o	A3 usa el análisis financiero solo para responder “¿el gasto tiene proporción razonable respecto al beneficio esperado?”
+o	No recalcula ROI.
+•	Con A6:
+o	Para EFOS/69 B y capacidad operativa, A3 confía en A6 y solo interpreta el impacto fiscal (no repite due diligence).
+•	Con A2:
+o	A3 comunica claramente:
+	recomendacionF6,
+	si se requiere Decisión de Excepción,
+	qué condiciones mínimas se recomiendan (ej. completar materialidad antes del pago total).
+•	Con A7:
+o	A3 provee:
+	lista de artículos y fracciones que respaldan la deducción,
+	posibles argumentos de defensa ante objeciones típicas,
+	estimación de riesgo/contingencia si SAT rechaza la deducción.
+ 
+Pregunta clave en relación a lo expuesto:
+¿Quieres que el siguiente agente que afinemos sea A1_ESTRATEGIAo prefieres seguir con A6_PROVEEDOR (para cerrar el círculo proveedor–fiscal) antes de regresar a los demás? Si me indicas el orden, continúo con el siguiente skill, ya en este mismo nivel de detalle y alineación.
+

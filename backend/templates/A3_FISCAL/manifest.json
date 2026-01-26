@@ -1,0 +1,98 @@
+{
+  "agent_id": "A3_FISCAL",
+  "version": "1.0.0",
+  "generated_at": "{{FECHA_ACTUAL}}",
+  "templates": [
+    {
+      "filename": "razon_negocios_5a.docx",
+      "title": "ANÁLISIS DE RAZÓN DE NEGOCIOS - ARTÍCULO 5-A CFF",
+      "section_count": 4,
+      "placeholders": [
+        "EMPRESA_RFC",
+        "BENEFICIO_CUANTIFICADO",
+        "EMPRESA_NOMBRE",
+        "PROYECTO_NOMBRE",
+        "DESCRIPCION_SERVICIO",
+        "OBSERVACIONES_RAZON_NEGOCIOS",
+        "FECHA_ACTUAL"
+      ]
+    },
+    {
+      "filename": "materialidad_69b.docx",
+      "title": "ANÁLISIS DE MATERIALIDAD - ARTÍCULO 69-B CFF",
+      "section_count": 5,
+      "placeholders": [
+        "EMPRESA_NOMBRE",
+        "PROVEEDOR_RFC",
+        "FECHA_ACTUAL",
+        "PROVEEDOR_NOMBRE"
+      ]
+    },
+    {
+      "filename": "indispensabilidad_27.docx",
+      "title": "ANÁLISIS DE ESTRICTA INDISPENSABILIDAD - ARTÍCULO 27 LISR",
+      "section_count": 4,
+      "placeholders": [
+        "PORCENTAJE_INGRESOS",
+        "MONTO_CREDITO",
+        "EMPRESA_NOMBRE",
+        "PROYECTO_NOMBRE",
+        "DESCRIPCION_SERVICIO",
+        "NECESIDAD_SERVICIO",
+        "CONSECUENCIA_NO_CONTRATAR",
+        "COMPARATIVO_MERCADO",
+        "NEXO_CAUSAL"
+      ]
+    },
+    {
+      "filename": "cff_extractos.docx",
+      "title": "EXTRACTOS RELEVANTES DEL CÓDIGO FISCAL DE LA FEDERACIÓN",
+      "section_count": 4,
+      "placeholders": [
+        "CUMPLIMIENTO_CFF",
+        "PROYECTO_NOMBRE"
+      ]
+    },
+    {
+      "filename": "lisr_extractos.docx",
+      "title": "EXTRACTOS RELEVANTES DE LA LEY DEL IMPUESTO SOBRE LA RENTA",
+      "section_count": 3,
+      "placeholders": []
+    },
+    {
+      "filename": "casos_sat.docx",
+      "title": "CASOS DE AUDITORÍA SAT - ANÁLISIS Y PRECEDENTES",
+      "section_count": 4,
+      "placeholders": [
+        "PROYECTO_NOMBRE",
+        "EVIDENCIA_MATERIALIDAD",
+        "RESULTADO_69B",
+        "ENTREGABLES_DOCUMENTADOS",
+        "PROVEEDOR_NOMBRE"
+      ]
+    },
+    {
+      "filename": "lista_69b.docx",
+      "title": "PROTOCOLO DE VERIFICACIÓN LISTA 69-B SAT",
+      "section_count": 4,
+      "placeholders": [
+        "PROVEEDOR_RFC",
+        "FECHA_ACTUAL",
+        "PROVEEDOR_NOMBRE"
+      ]
+    },
+    {
+      "filename": "criterios_efos.docx",
+      "title": "CRITERIOS DE IDENTIFICACIÓN DE EFOS",
+      "section_count": 4,
+      "placeholders": [
+        "DOMICILIO_VERIFICADO",
+        "ANTIGUEDAD_RFC",
+        "PROVEEDOR_RFC",
+        "EMPLEADOS_IMSS",
+        "OBJETO_COMPATIBLE",
+        "PROVEEDOR_NOMBRE"
+      ]
+    }
+  ]
+}

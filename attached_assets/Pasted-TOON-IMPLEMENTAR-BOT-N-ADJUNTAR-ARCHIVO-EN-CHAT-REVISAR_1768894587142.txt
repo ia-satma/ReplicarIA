@@ -1,0 +1,553 @@
+TOON: IMPLEMENTAR BOTÓN ADJUNTAR ARCHIVO EN CHAT REVISAR.IA
+
+EL PROBLEMA:
+El usuario quiere subir archivos pero no hay botón de adjuntar en la interfaz del chat.
+
+================================================================================
+PASO 1: AGREGAR INPUT DE ARCHIVO EN EL COMPONENTE DE CHAT
+================================================================================
+
+BUSCAR el componente de chat (probablemente Chat.tsx, ChatInput.tsx o similar)
+
+AGREGAR el input de archivo y botón:
+```tsx
+// Dentro del componente de chat
+
+import { useState, useRef } from 'react';
+import { Send, Paperclip, X, FileText, File, Image } from 'lucide-react';
+
+export function ChatInput({ onSend, onFileUpload, disabled }) {
+  const [message, setMessage] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(e.target.files || []);
+    if (selectedFiles.length > 0) {
+      setFiles(prev => [...prev, ...selectedFiles]);
+    }
+    // Reset input para permitir seleccionar el mismo archivo
+    e.target.value = '';
+  };
+
+  const removeFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const getFileIcon = (file: File) => {
+    if (file.type.startsWith('image/')) return <Image className="w-4 h-4" />;
+    if (file.type === 'application/pdf') return <FileText className="w-4 h-4" />;
+    return <File className="w-4 h-4" />;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const handleSubmit = async () => {
+    if (!message.trim() && files.length === 0) return;
+    
+    setUploading(true);
+    
+    try {
+      // Si hay archivos, subirlos primero
+      if (files.length > 0) {
+        await onFileUpload(files, message);
+      } else {
+        await onSend(message);
+      }
+      
+      setMessage('');
+      setFiles([]);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="border-t bg-white p-4">
+      {/* Preview de archivos seleccionados */}
+      {files.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {files.map((file, index) => (
+            <div 
+              key={index}
+              className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2 text-sm"
+            >
+              {getFileIcon(file)}
+              <span className="max-w-32 truncate">{file.name}</span>
+              <span className="text-gray-500 text-xs">({formatFileSize(file.size)})</span>
+              <button
+                onClick={() => removeFile(index)}
+                className="text-gray-500 hover:text-red-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Input area */}
+      <div className="flex items-center gap-2">
+        {/* Botón adjuntar */}
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={disabled || uploading}
+          className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-purple-600 transition disabled:opacity-50"
+          title="Adjuntar archivo"
+        >
+          <Paperclip className="w-5 h-5" />
+        </button>
+
+        {/* Input oculto para archivos */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.xml,.json"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+
+        {/* Campo de texto */}
+        <input
+          type="text"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit()}
+          placeholder={files.length > 0 ? "Agrega un mensaje (opcional)..." : "Escribe tu mensaje..."}
+          disabled={disabled || uploading}
+          className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100"
+        />
+
+        {/* Botón enviar */}
+        <button
+          onClick={handleSubmit}
+          disabled={disabled || uploading || (!message.trim() && files.length === 0)}
+          className="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {uploading ? (
+            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Send className="w-5 h-5" />
+          )}
+        </button>
+      </div>
+
+      {/* Texto de ayuda */}
+      <p className="text-xs text-gray-400 mt-2">
+        Formatos: PDF, Word, Excel, imágenes, XML, JSON (máx. 10MB por archivo)
+      </p>
+    </div>
+  );
+}
+```
+
+================================================================================
+PASO 2: CREAR API ENDPOINT PARA SUBIR ARCHIVOS
+================================================================================
+
+CREAR: server/routes/upload.ts
+```typescript
+import { Router } from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
+import { pcloudService } from '../services/pcloud';
+import { db } from '../db';
+
+const router = Router();
+
+// Configurar multer para almacenamiento temporal
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = '/tmp/uploads';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${uuidv4()}-${file.originalname}`;
+    cb(null, uniqueName);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB máximo
+    files: 10 // Máximo 10 archivos a la vez
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/csv',
+      'text/plain',
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'application/xml',
+      'text/xml',
+      'application/json'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Tipo de archivo no permitido: ${file.mimetype}`));
+    }
+  }
+});
+
+// POST /api/upload - Subir archivos
+router.post('/', upload.array('files', 10), async (req, res) => {
+  try {
+    const files = req.files as Express.Multer.File[];
+    const { empresaId, proveedorId, proyectoId, mensaje, sessionId } = req.body;
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'No se recibieron archivos' });
+    }
+
+    console.log(`📁 Recibidos ${files.length} archivo(s)`);
+
+    const resultados = [];
+
+    for (const file of files) {
+      console.log(`   Procesando: ${file.originalname} (${(file.size / 1024).toFixed(1)} KB)`);
+
+      // Clasificar tipo de documento
+      const tipoDocumento = clasificarDocumento(file.originalname, file.mimetype);
+
+      // Subir a pCloud si está configurado
+      let pcloudResult = null;
+      let publicLink = null;
+
+      if (pcloudService.isConfigured() && empresaId) {
+        try {
+          const folderPath = construirRutaPCloud(empresaId, proveedorId, tipoDocumento);
+          const folderId = await pcloudService.createFolderPath(folderPath);
+          
+          pcloudResult = await pcloudService.uploadFile(file.path, file.originalname, folderId);
+          
+          if (pcloudResult.fileId) {
+            publicLink = await pcloudService.createPublicLink(pcloudResult.fileId);
+          }
+          
+          console.log(`   ☁️ Subido a pCloud: ${folderPath}`);
+        } catch (pcloudError: any) {
+          console.error(`   ⚠️ Error pCloud: ${pcloudError.message}`);
+        }
+      }
+
+      // Guardar registro en base de datos
+      const documento = await db.documentos.create({
+        id: uuidv4(),
+        empresaId: empresaId || null,
+        proveedorId: proveedorId || null,
+        proyectoId: proyectoId || null,
+        sessionId: sessionId || null,
+        nombreOriginal: file.originalname,
+        nombreArchivo: file.filename,
+        tipo: tipoDocumento,
+        mimeType: file.mimetype,
+        tamaño: file.size,
+        rutaLocal: file.path,
+        pcloudFileId: pcloudResult?.fileId || null,
+        pcloudPath: pcloudResult?.path || null,
+        publicLink: publicLink,
+        estado: 'recibido',
+        fechaSubida: new Date()
+      });
+
+      resultados.push({
+        id: documento.id,
+        nombre: file.originalname,
+        tipo: tipoDocumento,
+        tamaño: file.size,
+        pcloudLink: publicLink,
+        estado: 'recibido'
+      });
+
+      // Limpiar archivo temporal después de subir a pCloud
+      if (pcloudResult && !pcloudResult.simulado) {
+        fs.unlinkSync(file.path);
+      }
+    }
+
+    // Generar respuesta del chatbot
+    const respuestaChat = generarRespuestaArchivos(resultados, mensaje);
+
+    res.json({
+      success: true,
+      archivos: resultados,
+      mensaje: respuestaChat,
+      total: resultados.length
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error en upload:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Función para clasificar tipo de documento
+function clasificarDocumento(nombre: string, mimeType: string): string {
+  const nombreLower = nombre.toLowerCase();
+  
+  // Por nombre
+  if (nombreLower.includes('contrato')) return 'contrato';
+  if (nombreLower.includes('factura') || nombreLower.includes('cfdi')) return 'factura';
+  if (nombreLower.includes('estado') && nombreLower.includes('financiero')) return 'estado_financiero';
+  if (nombreLower.includes('presupuesto')) return 'presupuesto';
+  if (nombreLower.includes('cronograma')) return 'cronograma';
+  if (nombreLower.includes('propuesta')) return 'propuesta';
+  if (nombreLower.includes('plan')) return 'plan_estrategico';
+  if (nombreLower.includes('acta')) return 'acta';
+  if (nombreLower.includes('32-d') || nombreLower.includes('32d')) return 'opinion_32d';
+  if (nombreLower.includes('69-b') || nombreLower.includes('69b')) return 'verificacion_69b';
+  
+  // Por tipo MIME
+  if (mimeType === 'application/pdf') return 'documento_pdf';
+  if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return 'hoja_calculo';
+  if (mimeType.includes('word')) return 'documento_word';
+  if (mimeType.startsWith('image/')) return 'imagen';
+  if (mimeType.includes('xml')) return 'xml';
+  if (mimeType.includes('json')) return 'json';
+  
+  return 'otro';
+}
+
+// Función para construir ruta en pCloud
+function construirRutaPCloud(empresaId: string, proveedorId?: string, tipoDocumento?: string): string {
+  let ruta = `/Revisar.IA/Empresas/${empresaId}`;
+  
+  if (proveedorId) {
+    ruta += `/Proveedores/${proveedorId}`;
+  }
+  
+  // Subcarpeta por tipo
+  const carpetasTipo: Record<string, string> = {
+    'contrato': 'Contratos',
+    'factura': 'Facturas',
+    'estado_financiero': 'Financieros',
+    'presupuesto': 'Presupuestos',
+    'cronograma': 'Cronogramas',
+    'propuesta': 'Propuestas',
+    'plan_estrategico': 'Planes',
+    'acta': 'Actas',
+    'opinion_32d': 'Fiscales',
+    'verificacion_69b': 'Fiscales'
+  };
+  
+  if (tipoDocumento && carpetasTipo[tipoDocumento]) {
+    ruta += `/${carpetasTipo[tipoDocumento]}`;
+  } else {
+    ruta += '/Documentos';
+  }
+  
+  return ruta;
+}
+
+// Función para generar respuesta del chatbot
+function generarRespuestaArchivos(archivos: any[], mensajeUsuario?: string): string {
+  const emoji = archivos.length === 1 ? '📄' : '📁';
+  
+  let respuesta = `${emoji} **¡Archivos recibidos correctamente!**\n\n`;
+  
+  respuesta += `He recibido **${archivos.length} archivo(s)**:\n\n`;
+  
+  archivos.forEach((archivo, index) => {
+    const iconos: Record<string, string> = {
+      'contrato': '📝',
+      'factura': '🧾',
+      'estado_financiero': '📊',
+      'presupuesto': '💰',
+      'cronograma': '📅',
+      'propuesta': '📋',
+      'plan_estrategico': '🎯',
+      'documento_pdf': '📕',
+      'hoja_calculo': '📗',
+      'documento_word': '📘',
+      'imagen': '🖼️',
+      'otro': '📎'
+    };
+    
+    const icono = iconos[archivo.tipo] || '📎';
+    const tamaño = (archivo.tamaño / 1024).toFixed(1);
+    
+    respuesta += `${index + 1}. ${icono} **${archivo.nombre}**\n`;
+    respuesta += `   • Tipo: ${archivo.tipo.replace(/_/g, ' ')}\n`;
+    respuesta += `   • Tamaño: ${tamaño} KB\n`;
+    
+    if (archivo.pcloudLink) {
+      respuesta += `   • [📥 Ver en pCloud](${archivo.pcloudLink})\n`;
+    }
+    
+    respuesta += '\n';
+  });
+  
+  respuesta += `---\n\n`;
+  respuesta += `✅ Los archivos han sido guardados en tu expediente.\n\n`;
+  respuesta += `¿Qué deseas hacer ahora?\n`;
+  respuesta += `• Subir más archivos\n`;
+  respuesta += `• Iniciar análisis de los documentos\n`;
+  respuesta += `• Ver resumen de mi expediente`;
+  
+  return respuesta;
+}
+
+export default router;
+```
+
+================================================================================
+PASO 3: REGISTRAR LA RUTA EN EL SERVIDOR
+================================================================================
+
+En server/index.ts o server/routes/index.ts:
+```typescript
+import uploadRoutes from './routes/upload';
+
+// Agregar ANTES de otras rutas
+app.use('/api/upload', uploadRoutes);
+```
+
+================================================================================
+PASO 4: INSTALAR DEPENDENCIAS
+================================================================================
+```bash
+npm install multer uuid
+npm install -D @types/multer @types/uuid
+```
+
+================================================================================
+PASO 5: CONECTAR EL FRONTEND CON EL BACKEND
+================================================================================
+
+En el componente padre del chat (donde manejas el estado de mensajes):
+```tsx
+// Función para manejar upload de archivos
+const handleFileUpload = async (files: File[], mensaje?: string) => {
+  const formData = new FormData();
+  
+  files.forEach(file => {
+    formData.append('files', file);
+  });
+  
+  // Agregar metadata
+  formData.append('empresaId', empresaId || '');
+  formData.append('proveedorId', proveedorId || '');
+  formData.append('proyectoId', proyectoId || '');
+  formData.append('sessionId', sessionId);
+  formData.append('mensaje', mensaje || '');
+
+  // Mostrar mensaje del usuario con archivos
+  const userMessage = {
+    id: Date.now().toString(),
+    role: 'user',
+    content: mensaje || `📎 Subiendo ${files.length} archivo(s)...`,
+    files: files.map(f => ({ name: f.name, size: f.size })),
+    timestamp: new Date()
+  };
+  
+  setMessages(prev => [...prev, userMessage]);
+
+  try {
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // Agregar respuesta del bot
+      const botMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: data.mensaje,
+        archivos: data.archivos,
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, botMessage]);
+    } else {
+      throw new Error(data.error);
+    }
+  } catch (error: any) {
+    const errorMessage = {
+      id: (Date.now() + 1).toString(),
+      role: 'assistant',
+      content: `⚠️ Error al subir archivos: ${error.message}`,
+      timestamp: new Date()
+    };
+    
+    setMessages(prev => [...prev, errorMessage]);
+  }
+};
+
+// Pasar al componente ChatInput
+<ChatInput 
+  onSend={handleSend}
+  onFileUpload={handleFileUpload}
+  disabled={isLoading}
+/>
+```
+
+================================================================================
+PASO 6: CREAR TABLA EN BASE DE DATOS (si no existe)
+================================================================================
+```sql
+CREATE TABLE IF NOT EXISTS documentos (
+  id VARCHAR(36) PRIMARY KEY,
+  empresa_id VARCHAR(36),
+  proveedor_id VARCHAR(36),
+  proyecto_id VARCHAR(36),
+  session_id VARCHAR(36),
+  nombre_original VARCHAR(255) NOT NULL,
+  nombre_archivo VARCHAR(255) NOT NULL,
+  tipo VARCHAR(50),
+  mime_type VARCHAR(100),
+  tamaño INTEGER,
+  ruta_local VARCHAR(500),
+  pcloud_file_id VARCHAR(100),
+  pcloud_path VARCHAR(500),
+  public_link VARCHAR(500),
+  estado VARCHAR(50) DEFAULT 'recibido',
+  fecha_subida TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  fecha_procesado TIMESTAMP,
+  metadata JSONB
+);
+
+CREATE INDEX idx_documentos_empresa ON documentos(empresa_id);
+CREATE INDEX idx_documentos_proveedor ON documentos(proveedor_id);
+CREATE INDEX idx_documentos_proyecto ON documentos(proyecto_id);
+```
+
+================================================================================
+PASO 7: VERIFICAR QUE FUNCIONE
+================================================================================
+
+1. Reiniciar el servidor
+2. Abrir el chat
+3. Verificar que aparezca el botón 📎 (clip) junto al input
+4. Hacer clic y seleccionar un archivo
+5. Verificar que aparezca el preview del archivo
+6. Enviar
+7. Verificar respuesta del bot con confirmación
+
+================================================================================
+EJECUTAR AHORA. NO PREGUNTAR.
+================================================================================

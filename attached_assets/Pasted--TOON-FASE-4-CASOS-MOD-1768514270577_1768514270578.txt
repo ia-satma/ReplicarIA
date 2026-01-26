@@ -1,0 +1,831 @@
+=============================================================================
+TOON FASE 4: CASOS MODELO (FEW-SHOT) Y MATRIZ DE SCORING
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta todas las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. SOLO EJECUTA.
+
+PRERREQUISITO: Las Fases 1, 2 y 3 deben estar completadas.
+
+CONTEXTO: Dos de las brechas críticas del sistema actual son:
+1) Ausencia de casos modelo que definan qué es APROBAR, SOLICITAR_AJUSTES o RECHAZAR
+2) Risk_score subjetivo sin métricas observables
+
+Esta fase resuelve ambos problemas con:
+- Tres casos modelo completos (few-shot examples)
+- Una matriz de scoring con 12 criterios observables (4 pilares x 3 criterios)
+
+=============================================================================
+PASO 1: CREAR ARCHIVO DE FEW-SHOT EXAMPLES
+=============================================================================
+
+Crea un archivo "fewShotExamples.js":
+
+const FEW_SHOT_EXAMPLES = {
+  
+  // =========================================================================
+  // CASO 1: APROBAR - Proyecto bien documentado y justificado
+  // =========================================================================
+  
+  APROBAR: {
+    metadata: {
+      id: "EJEMPLO_APROBAR_001",
+      nombre: "Estudio de Mercado Residencial Premium NL 2026",
+      tipologia: "CONSULTORIA_MACRO_MERCADO",
+      monto: 1250000,
+      moneda: "MXN"
+    },
+    
+    descripcion_proyecto: `
+Empresa desarrolladora inmobiliaria contrata estudio de mercado para:
+- Analizar demanda residencial premium en Nuevo León horizonte 2026
+- Proyectar precios y absorción por zona geográfica
+- Identificar competidores y factores diferenciadores
+- Generar modelo paramétrico para decisiones de inversión
+- Entregar dashboard interactivo para monitoreo continuo
+    `,
+    
+    contexto_empresa: "Grupo inmobiliario con ingresos anuales de $500M MXN, operando en segmento residencial premium en Nuevo León y Nayarit. El estudio alimentará el Plan Estratégico 2026-2028.",
+    
+    proveedor: {
+      nombre: "Consultoría Económica Especializada SA",
+      rfc: "CES890101XXX",
+      tipo_relacion: "TERCERO_INDEPENDIENTE",
+      historial: "Sin proyectos previos con el grupo, pero con track record verificable en estudios similares"
+    },
+    
+    analisis_por_pilar: {
+      razon_negocios: {
+        status: "CONFORME",
+        detalle: "El estudio se vincula directamente con el Pipeline de Proyectos 2026-2028. La empresa opera en el segmento residencial premium en NL, exactamente lo que analiza el estudio. Existe conexión clara entre el estudio y decisiones de inversión de alto impacto (apertura de nuevos desarrollos, timing de lanzamientos, pricing).",
+        riesgo_puntos: 3,
+        justificacion_puntos: "Vinculación fuerte con giro (0), objetivo claro con KPIs (0), monto razonable 0.25% de ventas (3)"
+      },
+      beneficio_economico: {
+        status: "CONFORME",
+        detalle: "ROI estimado de 2.5x documentado y razonable: mejor asignación de CAPEX evitando proyectos subóptimos, timing optimizado de lanzamientos basado en proyecciones de demanda, pricing basado en datos de mercado. Horizonte de 24 meses congruente con ciclo de desarrollo inmobiliario.",
+        riesgo_puntos: 5,
+        justificacion_puntos: "Beneficios específicos identificados (0), ROI documentado con metodología (5 - podría tener más detalle), horizonte razonable (0)"
+      },
+      materialidad: {
+        status: "CONFORME",
+        detalle: "Entregables claros y tangibles: informe final de 180 páginas con metodología PESTEL, modelo Excel paramétrico con 12 variables, dashboard Power BI operativo con 8 indicadores clave, manual metodológico de 25 páginas, 3 minutas de sesiones de trabajo con asistentes y acuerdos documentados.",
+        riesgo_puntos: 5,
+        justificacion_puntos: "Contrato con entregables específicos (0), evidencias abundantes de ejecución (0), CFDI específico 'Estudio de mercado residencial NL' (5 - verificar descripción)"
+      },
+      trazabilidad: {
+        status: "CONFORME",
+        detalle: "Todos los documentos versionados (V1.0, V1.2, V2.0), fechados, con hash SHA-256 calculado, integrados en Defense File estructurado. Timeline reconstruible: propuesta (15/mar) → contrato (1/abr) → kick-off (5/abr) → V1 (15/may) → V2 (10/jun) → entrega final (30/jun) → factura (5/jul) → pago (15/jul).",
+        riesgo_puntos: 3,
+        justificacion_puntos: "Expediente estructurado (0), mecanismo de integridad (0), timeline claro con pequeños huecos no críticos (3)"
+      }
+    },
+    
+    risk_score: {
+      total: 16,
+      desglose: {
+        razon_negocios: 3,
+        beneficio_economico: 5,
+        materialidad: 5,
+        trazabilidad: 3
+      }
+    },
+    
+    checklist_cumplido: [
+      { item: "SIB con BEE documentado", estado: "ENTREGADO" },
+      { item: "Contrato con entregables listados", estado: "ENTREGADO" },
+      { item: "Informe final versionado", estado: "ENTREGADO" },
+      { item: "Modelo paramétrico funcional", estado: "ENTREGADO" },
+      { item: "Dashboard operativo", estado: "ENTREGADO" },
+      { item: "Manual metodológico", estado: "ENTREGADO" },
+      { item: "Minutas de sesiones (mín 2)", estado: "ENTREGADO" },
+      { item: "CFDI específico", estado: "ENTREGADO" },
+      { item: "Comprobante de pago", estado: "ENTREGADO" }
+    ],
+    
+    decision: "APROBAR",
+    
+    justificacion_decision: "El proyecto cumple con los 4 pilares fiscales de forma satisfactoria. La razón de negocios está claramente vinculada al giro y plan estratégico. El BEE está documentado con ROI razonable. Existe materialidad abundante con entregables tangibles. La trazabilidad es completa. Risk score de 16/100 indica bajo riesgo fiscal. No se requiere revisión humana adicional.",
+    
+    notas_para_agentes: "Este caso representa el estándar de lo que debe considerarse un proyecto bien documentado y defendible ante SAT."
+  },
+  
+  // =========================================================================
+  // CASO 2: SOLICITAR_AJUSTES - Proyecto viable pero con brechas corregibles
+  // =========================================================================
+  
+  SOLICITAR_AJUSTES: {
+    metadata: {
+      id: "EJEMPLO_AJUSTES_001",
+      nombre: "Consultoría en Transformación Digital",
+      tipologia: "CONSULTORIA_ESTRATEGICA",
+      monto: 3500000,
+      moneda: "MXN"
+    },
+    
+    descripcion_proyecto: `
+Empresa contrata consultoría para "transformación digital" con alcance inicial:
+- Diagnóstico de madurez digital
+- Diseño de estrategia de transformación
+- Roadmap de implementación
+- Acompañamiento inicial
+    `,
+    
+    contexto_empresa: "Empresa manufacturera con $800M MXN de ingresos, buscando modernizar operaciones y canales de venta.",
+    
+    proveedor: {
+      nombre: "Digital Consulting Partners SC",
+      rfc: "DCP150601XXX",
+      tipo_relacion: "TERCERO_INDEPENDIENTE",
+      historial: "Un proyecto previo de $500K hace 2 años, sin incidentes"
+    },
+    
+    analisis_por_pilar: {
+      razon_negocios: {
+        status: "CONDICIONADO",
+        detalle: "El objetivo 'transformación digital' es genérico. No se especifica qué procesos se transformarán, qué sistemas se implementarán, qué eficiencias específicas se esperan. Existe vínculo con el negocio (manufacturera que quiere modernizarse) pero falta concreción.",
+        riesgo_puntos: 13,
+        justificacion_puntos: "Vinculación genérica (3), objetivo vago sin métricas (10), monto alto pero podría justificarse (0)"
+      },
+      beneficio_economico: {
+        status: "NO_CONFORME",
+        detalle: "No existe ROI cuantificado. La propuesta menciona 'mejora competitiva' y 'eficiencias operativas' pero sin números. No hay horizonte temporal definido para ver resultados. No hay KPIs de éxito medibles.",
+        riesgo_puntos: 20,
+        justificacion_puntos: "Beneficios genéricos (10), sin ROI ni proyecciones (10), sin horizonte definido (0 - no penaliza doble)"
+      },
+      materialidad: {
+        status: "EN_RIESGO",
+        detalle: "El SOW actual solo menciona 'diagnóstico y estrategia' sin listar entregables específicos. No hay criterios de aceptación. No hay cronograma de hitos. El riesgo es que al final solo haya un PowerPoint genérico.",
+        riesgo_puntos: 15,
+        justificacion_puntos: "SOW sin entregables específicos (3), sin evidencias de ejecución aún - normal en F0 (7), coherencia por verificar (5)"
+      },
+      trazabilidad: {
+        status: "EN_RIESGO",
+        detalle: "Solo existe una propuesta en PDF sin fecha cierta. No hay contrato formalizado aún. No hay mecanismo de integridad documental establecido.",
+        riesgo_puntos: 10,
+        justificacion_puntos: "Archivos dispersos (5), sin mecanismo de integridad (5), timeline incompleto pero es inicio (0)"
+      }
+    },
+    
+    risk_score: {
+      total: 58,
+      desglose: {
+        razon_negocios: 13,
+        beneficio_economico: 20,
+        materialidad: 15,
+        trazabilidad: 10
+      }
+    },
+    
+    brechas_identificadas: [
+      {
+        pilar: "Razón de negocios",
+        brecha: "Objetivo demasiado genérico",
+        accion_correctiva: "Especificar en SOW: qué procesos concretos se analizarán/transformarán (ej: cadena de suministro, CRM, ERP)",
+        responsable: "A1_SPONSOR con A4_LEGAL"
+      },
+      {
+        pilar: "Beneficio económico",
+        brecha: "Sin ROI cuantificado",
+        accion_correctiva: "Agregar en SIB: ROI mínimo esperado, horizonte temporal, al menos 3 KPIs medibles",
+        responsable: "A1_SPONSOR con A5_FINANZAS"
+      },
+      {
+        pilar: "Materialidad",
+        brecha: "Entregables no especificados",
+        accion_correctiva: "Modificar SOW para incluir: lista de entregables con formato y extensión esperada, cronograma de hitos, criterios de aceptación",
+        responsable: "A4_LEGAL"
+      },
+      {
+        pilar: "Trazabilidad",
+        brecha: "Sin contrato formalizado",
+        accion_correctiva: "Formalizar contrato antes de F2 con mecanismo de fecha cierta",
+        responsable: "A4_LEGAL"
+      }
+    ],
+    
+    checklist_pendiente: [
+      { item: "SIB con BEE cuantificado", estado: "PENDIENTE" },
+      { item: "SOW con entregables específicos", estado: "PENDIENTE" },
+      { item: "Cronograma de hitos", estado: "PENDIENTE" },
+      { item: "Criterios de aceptación", estado: "PENDIENTE" },
+      { item: "KPIs medibles definidos", estado: "PENDIENTE" },
+      { item: "Contrato formalizado", estado: "PENDIENTE" }
+    ],
+    
+    decision: "SOLICITAR_AJUSTES",
+    
+    justificacion_decision: "El proyecto tiene potencial de ser legítimo - una empresa manufacturera que busca modernizarse es razonable. Sin embargo, la documentación actual es insuficiente para defender ante SAT. Con risk score de 58/100, está en zona de riesgo. Se requieren ajustes específicos antes de proceder. Si se corrigen las brechas identificadas, el proyecto podría pasar a APROBAR.",
+    
+    condiciones_para_reevaluar: [
+      "SOW modificado con entregables específicos y cronograma",
+      "SIB actualizado con ROI estimado y KPIs",
+      "Contrato formalizado con cláusulas de materialidad",
+      "Compromiso del proveedor de entregar minutas de sesiones"
+    ],
+    
+    notas_para_agentes: "Este caso ilustra un proyecto 'salvable' pero que requiere trabajo adicional. NO es rechazo, pero tampoco se puede aprobar en su estado actual."
+  },
+  
+  // =========================================================================
+  // CASO 3: RECHAZAR - Proyecto con señales de simulación o riesgo extremo
+  // =========================================================================
+  
+  RECHAZAR: {
+    metadata: {
+      id: "EJEMPLO_RECHAZAR_001",
+      nombre: "Servicios Profesionales de Gestión y Asesoría",
+      tipologia: "INTRAGRUPO_MANAGEMENT_FEE",
+      monto: 8000000,
+      moneda: "MXN"
+    },
+    
+    descripcion_proyecto: `
+Pago a empresa relacionada ubicada en [jurisdicción de baja imposición] por 
+"servicios profesionales varios de gestión y asesoría corporativa general".
+    `,
+    
+    contexto_empresa: "Grupo empresarial con operaciones en México. La empresa receptora del pago se constituyó hace 6 meses en jurisdicción favorable.",
+    
+    proveedor: {
+      nombre: "Global Management Services LLC",
+      rfc: "EXTRANJERO_SIN_RFC_MEX",
+      tipo_relacion: "PARTE_RELACIONADA_EXTRANJERA",
+      historial: "Empresa recién constituida, sin historial de operaciones previas, sin empleados visibles"
+    },
+    
+    analisis_por_pilar: {
+      razon_negocios: {
+        status: "NO_CONFORME",
+        detalle: "No se identifica qué servicio concreto se presta. 'Gestión y asesoría corporativa general' no especifica actividades, funciones ni resultados esperados. No hay vínculo con necesidades operativas documentadas. Parece diseñado para transferir valor, no para recibir un servicio.",
+        riesgo_puntos: 25,
+        justificacion_puntos: "Débilmente vinculado al giro (5), objetivo vago sin ninguna métrica (10), monto claramente desproporcionado (10)"
+      },
+      beneficio_economico: {
+        status: "NO_CONFORME",
+        detalle: "Sin ROI documentado. Sin análisis de precios de transferencia. Sin justificación de por qué el monto es de $8M. El beneficio económico aparente es únicamente fiscal (deducción en México, ingreso en jurisdicción de baja imposición).",
+        riesgo_puntos: 25,
+        justificacion_puntos: "Sin beneficios económicos identificables (10), sin ROI ni proyecciones (10), horizonte inexistente (5)"
+      },
+      materialidad: {
+        status: "FALLA_CRITICA",
+        detalle: "CFDI genérico 'servicios profesionales varios'. Sin contrato con alcance definido. Sin ningún entregable identificable. Sin minutas, reportes, ni evidencia de trabajo alguno. El proveedor no tiene personal ni infraestructura visible para prestar servicios. Señales de EFOS.",
+        riesgo_puntos: 25,
+        justificacion_puntos: "Sin formalización seria (5), sin evidencia de ejecución (10), discrepancias graves CFDI genérico (10)"
+      },
+      trazabilidad: {
+        status: "FALLA_CRITICA",
+        detalle: "Solo existe CFDI y transferencia bancaria. No hay secuencia de propuesta → contrato → ejecución → entregables. El único rastro es: factura → pago. Imposible reconstruir qué servicio se prestó.",
+        riesgo_puntos: 17,
+        justificacion_puntos: "Dependencia de correos sueltos (7), sin integridad documental (5), timeline confuso/inexistente (5)"
+      }
+    },
+    
+    risk_score: {
+      total: 92,
+      desglose: {
+        razon_negocios: 25,
+        beneficio_economico: 25,
+        materialidad: 25,
+        trazabilidad: 17
+      }
+    },
+    
+    alertas_criticas: [
+      {
+        tipo: "EFOS_POTENCIAL",
+        severidad: "CRITICA",
+        descripcion: "Proveedor sin capacidad operativa visible, CFDI genérico, monto alto, parte relacionada"
+      },
+      {
+        tipo: "PARTE_RELACIONADA_EXTRANJERA",
+        severidad: "CRITICA",
+        descripcion: "Operación con empresa relacionada en jurisdicción de baja imposición sin estudio de TP"
+      },
+      {
+        tipo: "ESQUEMA_REPORTABLE_POSIBLE",
+        severidad: "ALTA",
+        descripcion: "Transferencia de valor significativa sin sustancia económica demostrable"
+      },
+      {
+        tipo: "TP_NO_DOCUMENTADO",
+        severidad: "CRITICA",
+        descripcion: "Sin estudio de precios de transferencia para operación intra-grupo de $8M"
+      }
+    ],
+    
+    decision: "RECHAZAR",
+    
+    justificacion_decision: "El proyecto presenta múltiples señales de simulación o planeación fiscal agresiva sin sustancia. Risk score de 92/100 indica riesgo extremo. No hay razón de negocios identificable más allá del efecto fiscal. No hay materialidad demostrable. El proveedor tiene características de EFOS. Aprobar este proyecto expondría a la empresa a: rechazo de deducción, inclusión en lista 69-B, posible delito fiscal. No es cuestión de 'ajustes' - el proyecto no debe realizarse en su forma actual.",
+    
+    recomendaciones_si_es_legitimo: [
+      "Si realmente existe un servicio necesario, redefinir completamente el alcance con entregables tangibles",
+      "Obtener estudio de precios de transferencia antes de cualquier pago",
+      "Documentar capacidad operativa del proveedor (empleados, infraestructura)",
+      "Generar evidencia de ejecución real antes de pagar",
+      "Considerar si el servicio puede prestarse desde una entidad mexicana"
+    ],
+    
+    notas_para_agentes: "Este caso representa lo que NUNCA debe aprobarse. Si un proyecto tiene características similares (monto alto + parte relacionada + descripción genérica + sin materialidad), debe rechazarse o al mínimo requerir reestructuración total."
+  }
+};
+
+module.exports = { FEW_SHOT_EXAMPLES };
+
+=============================================================================
+PASO 2: CREAR MATRIZ DE SCORING OBJETIVO
+=============================================================================
+
+Crea archivo "riskScoring.js":
+
+const RISK_SCORING_MATRIX = {
+  
+  descripcion: "Matriz de 12 criterios observables para calcular risk_score objetivo (0-100). Cada pilar tiene 3 criterios que suman máximo 25 puntos. Más puntos = más riesgo.",
+  
+  // =========================================================================
+  // PILAR 1: RAZÓN DE NEGOCIOS (0-25 puntos de riesgo)
+  // =========================================================================
+  
+  RAZON_NEGOCIOS: {
+    nombre: "Razón de Negocios (Art. 5-A CFF)",
+    max_puntos: 25,
+    criterios: {
+      
+      vinculacion_giro: {
+        nombre: "Vinculación del servicio con el giro del contribuyente",
+        max_puntos: 5,
+        escala: {
+          0: {
+            descripcion: "Servicio plenamente alineado al giro",
+            ejemplo: "Desarrollo de software para empresa de TI, estudio de mercado inmobiliario para desarrolladora"
+          },
+          3: {
+            descripcion: "Alineado de forma genérica",
+            ejemplo: "Consultoría genérica de gestión, capacitación general"
+          },
+          5: {
+            descripcion: "Débilmente vinculado o no vinculado",
+            ejemplo: "Coaching personal, 'estrategias holísticas', servicios sin relación clara con el negocio"
+          }
+        }
+      },
+      
+      objetivo_economico: {
+        nombre: "Existencia de objetivo económico concreto y medible",
+        max_puntos: 10,
+        escala: {
+          0: {
+            descripcion: "Objetivo cuantificable definido",
+            ejemplo: "Reducir costo logístico 15%, aumentar conversión web 20%, optimizar inventario $X"
+          },
+          5: {
+            descripcion: "Objetivo descrito pero sin métricas",
+            ejemplo: "'Mejorar eficiencia', 'optimizar procesos' sin números concretos"
+          },
+          10: {
+            descripcion: "Objetivo vago o inexistente",
+            ejemplo: "'Potenciar la marca', 'mejor visibilidad', 'asesoría general'"
+          }
+        }
+      },
+      
+      coherencia_monto: {
+        nombre: "Coherencia del monto vs escala del negocio y beneficio esperado",
+        max_puntos: 10,
+        escala: {
+          0: {
+            descripcion: "Monto razonable",
+            ejemplo: "Estudio de $1M para empresa de $500M (0.2%), consultoría $500K para problema de $5M"
+          },
+          5: {
+            descripcion: "Monto alto pero defendible",
+            ejemplo: "Proyecto representa 2-3% de ventas pero con justificación clara"
+          },
+          10: {
+            descripcion: "Monto claramente desproporcionado",
+            ejemplo: "Consultoría de $8M para 'asesoría general', monto > 5% de ventas sin justificación"
+          }
+        }
+      }
+    }
+  },
+  
+  // =========================================================================
+  // PILAR 2: BENEFICIO ECONÓMICO (0-25 puntos de riesgo)
+  // =========================================================================
+  
+  BENEFICIO_ECONOMICO: {
+    nombre: "Beneficio Económico Esperado (Art. 5-A CFF)",
+    max_puntos: 25,
+    criterios: {
+      
+      identificacion_beneficios: {
+        nombre: "Identificación de beneficios económicos específicos",
+        max_puntos: 10,
+        escala: {
+          0: {
+            descripcion: "Beneficios económicos concretos descritos",
+            ejemplo: "Mayor producción X%, ahorro de costos $Y, acceso a nuevos mercados con proyección $Z"
+          },
+          5: {
+            descripcion: "Beneficios genéricos",
+            ejemplo: "'Mejora competitiva', 'eficiencias operativas' sin cuantificar"
+          },
+          10: {
+            descripcion: "Beneficio económico prácticamente inexistente",
+            ejemplo: "Solo ahorro fiscal, o ni siquiera eso identificable"
+          }
+        }
+      },
+      
+      modelo_roi: {
+        nombre: "Existencia de modelo de ROI o análisis costo-beneficio",
+        max_puntos: 10,
+        escala: {
+          0: {
+            descripcion: "Hay proyecciones, supuestos y metodología documentada",
+            ejemplo: "ROI 2.5x basado en: ahorro logístico $X + incremento ventas $Y, con supuestos explícitos"
+          },
+          5: {
+            descripcion: "Solo narrativa sin cifras",
+            ejemplo: "'Esperamos recuperar la inversión' sin números"
+          },
+          10: {
+            descripcion: "Ninguna reflexión explícita del ROI",
+            ejemplo: "No se menciona retorno ni justificación económica"
+          }
+        }
+      },
+      
+      horizonte_temporal: {
+        nombre: "Horizonte temporal razonable del beneficio",
+        max_puntos: 5,
+        escala: {
+          0: {
+            descripcion: "Plazo congruente con naturaleza del intangible",
+            ejemplo: "Estudio de mercado → decisiones en 6-12 meses, implementación ERP → beneficios en 18-24 meses"
+          },
+          3: {
+            descripcion: "Plazo optimista pero defendible",
+            ejemplo: "ROI en 6 meses para proyecto que típicamente toma 12"
+          },
+          5: {
+            descripcion: "Expectativas temporales irreales",
+            ejemplo: "Beneficios inmediatos para proyectos de largo plazo, o viceversa"
+          }
+        }
+      }
+    }
+  },
+  
+  // =========================================================================
+  // PILAR 3: MATERIALIDAD (0-25 puntos de riesgo)
+  // =========================================================================
+  
+  MATERIALIDAD: {
+    nombre: "Materialidad (Art. 69-B CFF)",
+    max_puntos: 25,
+    criterios: {
+      
+      formalizacion: {
+        nombre: "Contratos/formalización adecuada",
+        max_puntos: 5,
+        escala: {
+          0: {
+            descripcion: "Contrato firmado con objeto, alcance, entregables, precio y plazos claros",
+            ejemplo: "Contrato de 15 páginas con anexo técnico detallando entregables específicos"
+          },
+          3: {
+            descripcion: "Solo orden de servicio o correos formales",
+            ejemplo: "Correo de aceptación de propuesta, sin contrato formal"
+          },
+          5: {
+            descripcion: "Ausencia de cualquier formalización",
+            ejemplo: "Solo existe factura, no hay propuesta ni contrato previo"
+          }
+        }
+      },
+      
+      evidencias_ejecucion: {
+        nombre: "Evidencias de ejecución del servicio",
+        max_puntos: 10,
+        escala: {
+          0: {
+            descripcion: "Entregables claros",
+            ejemplo: "Reportes, códigos, diseños, estrategias, actas de reuniones, logs de trabajo"
+          },
+          5: {
+            descripcion: "Evidencias parciales o genéricas",
+            ejemplo: "Solo presentación final, sin borradores ni registros intermedios"
+          },
+          10: {
+            descripcion: "Prácticamente sin evidencia material",
+            ejemplo: "Solo existe la factura, no hay ningún entregable identificable"
+          }
+        }
+      },
+      
+      coherencia_documentos: {
+        nombre: "Coherencia entre CFDI, contrato y entregables",
+        max_puntos: 10,
+        escala: {
+          0: {
+            descripcion: "Conceptos, montos y fechas coinciden razonablemente",
+            ejemplo: "CFDI dice 'Estudio de mercado NL', contrato dice lo mismo, entregable es eso"
+          },
+          5: {
+            descripcion: "Inconsistencias menores",
+            ejemplo: "Fechas desfasadas por días, descripción ligeramente diferente"
+          },
+          10: {
+            descripcion: "Discrepancias serias",
+            ejemplo: "CFDI genérico 'servicios profesionales varios' sin correspondencia con contrato"
+          }
+        }
+      }
+    }
+  },
+  
+  // =========================================================================
+  // PILAR 4: TRAZABILIDAD (0-25 puntos de riesgo)
+  // =========================================================================
+  
+  TRAZABILIDAD: {
+    nombre: "Trazabilidad (NOM-151)",
+    max_puntos: 25,
+    criterios: {
+      
+      conservacion: {
+        nombre: "Conservación de documentos fuente y respaldos electrónicos",
+        max_puntos: 10,
+        escala: {
+          0: {
+            descripcion: "Expediente digital estructurado con fechas",
+            ejemplo: "Defense File organizado por fase, todos los docs con versión y fecha"
+          },
+          5: {
+            descripcion: "Archivos dispersos sin orden",
+            ejemplo: "Documentos en diferentes carpetas sin nomenclatura consistente"
+          },
+          10: {
+            descripcion: "Dependencia de correos sueltos sin orden mínimo",
+            ejemplo: "Solo existen correos con adjuntos, sin expediente consolidado"
+          }
+        }
+      },
+      
+      integridad: {
+        nombre: "Pruebas de integridad y autenticidad",
+        max_puntos: 10,
+        escala: {
+          0: {
+            descripcion: "Documentos con mecanismos robustos",
+            ejemplo: "Hash SHA-256 calculado, timestamps verificables, firmas electrónicas"
+          },
+          5: {
+            descripcion: "Algunos elementos pero no sistemáticos",
+            ejemplo: "Algunos PDFs con firma, otros sin nada"
+          },
+          10: {
+            descripcion: "Sin rastro de integridad/autenticidad",
+            ejemplo: "Solo PDFs editables sin ningún mecanismo de verificación"
+          }
+        }
+      },
+      
+      timeline: {
+        nombre: "Relacionamiento lógico entre documentos (timeline claro)",
+        max_puntos: 5,
+        escala: {
+          0: {
+            descripcion: "Secuencia reconstruible fácilmente",
+            ejemplo: "Propuesta → contrato → ejecución → entregables → factura → pago, todo con fechas lógicas"
+          },
+          3: {
+            descripcion: "Secuencia existe pero con huecos",
+            ejemplo: "Falta fecha de kick-off, o hay salto de 2 meses sin explicación"
+          },
+          5: {
+            descripcion: "Secuencia confusa o contradictoria",
+            ejemplo: "Factura antes de contrato, entregables con fecha posterior al pago"
+          }
+        }
+      }
+    }
+  }
+};
+
+// =========================================================================
+// FUNCIÓN PARA CALCULAR RISK SCORE
+// =========================================================================
+
+function calcularRiskScore(evaluacion) {
+  // evaluacion debe tener estructura:
+  // {
+  //   razon_negocios: { vinculacion_giro: 0-5, objetivo_economico: 0-10, coherencia_monto: 0-10 },
+  //   beneficio_economico: { identificacion_beneficios: 0-10, modelo_roi: 0-10, horizonte_temporal: 0-5 },
+  //   materialidad: { formalizacion: 0-5, evidencias_ejecucion: 0-10, coherencia_documentos: 0-10 },
+  //   trazabilidad: { conservacion: 0-10, integridad: 0-10, timeline: 0-5 }
+  // }
+  
+  const rn = (evaluacion.razon_negocios.vinculacion_giro || 0) + 
+             (evaluacion.razon_negocios.objetivo_economico || 0) + 
+             (evaluacion.razon_negocios.coherencia_monto || 0);
+  
+  const be = (evaluacion.beneficio_economico.identificacion_beneficios || 0) +
+             (evaluacion.beneficio_economico.modelo_roi || 0) +
+             (evaluacion.beneficio_economico.horizonte_temporal || 0);
+  
+  const mat = (evaluacion.materialidad.formalizacion || 0) +
+              (evaluacion.materialidad.evidencias_ejecucion || 0) +
+              (evaluacion.materialidad.coherencia_documentos || 0);
+  
+  const tra = (evaluacion.trazabilidad.conservacion || 0) +
+              (evaluacion.trazabilidad.integridad || 0) +
+              (evaluacion.trazabilidad.timeline || 0);
+
+  // Validar rangos
+  const validarRango = (valor, max, nombre) => {
+    if (valor < 0 || valor > max) {
+      throw new Error(`${nombre} fuera de rango: ${valor} (debe ser 0-${max})`);
+    }
+    return valor;
+  };
+
+  validarRango(rn, 25, 'Razón de negocios');
+  validarRango(be, 25, 'Beneficio económico');
+  validarRango(mat, 25, 'Materialidad');
+  validarRango(tra, 25, 'Trazabilidad');
+
+  const total = rn + be + mat + tra;
+
+  return {
+    risk_score_total: total,
+    risk_score_razon_negocios: rn,
+    risk_score_beneficio_economico: be,
+    risk_score_materialidad: mat,
+    risk_score_trazabilidad: tra,
+    nivel_riesgo: total < 40 ? 'BAJO' : total < 60 ? 'MEDIO' : total < 80 ? 'ALTO' : 'CRITICO',
+    requiere_revision_humana: total >= 60,
+    explicacion: `
+Risk Score Total: ${total}/100 (${total < 40 ? 'BAJO' : total < 60 ? 'MEDIO' : total < 80 ? 'ALTO' : 'CRÍTICO'})
+
+Desglose por pilar:
+- Razón de Negocios: ${rn}/25 ${rn > 15 ? '⚠️' : '✓'}
+- Beneficio Económico: ${be}/25 ${be > 15 ? '⚠️' : '✓'}
+- Materialidad: ${mat}/25 ${mat > 15 ? '⚠️' : '✓'}
+- Trazabilidad: ${tra}/25 ${tra > 15 ? '⚠️' : '✓'}
+
+${total >= 60 ? '⚠️ REQUIERE REVISIÓN HUMANA OBLIGATORIA' : '✓ Puede procesarse automáticamente'}
+    `.trim()
+  };
+}
+
+// =========================================================================
+// FUNCIÓN PARA OBTENER DESCRIPCIÓN DE CRITERIO
+// =========================================================================
+
+function getDescripcionCriterio(pilar, criterio, puntos) {
+  const pilarConfig = RISK_SCORING_MATRIX[pilar];
+  if (!pilarConfig) return null;
+  
+  const criterioConfig = pilarConfig.criterios[criterio];
+  if (!criterioConfig) return null;
+  
+  // Encontrar la descripción más cercana al puntaje dado
+  let descripcion = null;
+  let puntosCercanos = -1;
+  
+  for (const [puntosEscala, info] of Object.entries(criterioConfig.escala)) {
+    const puntosNum = parseInt(puntosEscala);
+    if (puntosNum <= puntos && puntosNum > puntosCercanos) {
+      puntosCercanos = puntosNum;
+      descripcion = info;
+    }
+  }
+  
+  return descripcion;
+}
+
+module.exports = { 
+  RISK_SCORING_MATRIX, 
+  calcularRiskScore,
+  getDescripcionCriterio
+};
+
+=============================================================================
+PASO 3: CREAR ARCHIVO ÍNDICE DE EJEMPLOS Y SCORING
+=============================================================================
+
+Crea archivo "ejemplosYScoring/index.js":
+
+const { FEW_SHOT_EXAMPLES } = require('./fewShotExamples');
+const { RISK_SCORING_MATRIX, calcularRiskScore, getDescripcionCriterio } = require('./riskScoring');
+
+module.exports = {
+  FEW_SHOT_EXAMPLES,
+  RISK_SCORING_MATRIX,
+  calcularRiskScore,
+  getDescripcionCriterio
+};
+
+=============================================================================
+PASO 4: CREAR FUNCIÓN PARA INCLUIR FEW-SHOT EN PROMPTS
+=============================================================================
+
+Crea archivo "utils/buildPromptWithExamples.js":
+
+const { FEW_SHOT_EXAMPLES } = require('../ejemplosYScoring');
+
+function buildFewShotSection(incluirTodos = true) {
+  let section = `
+## CASOS DE REFERENCIA (FEW-SHOT EXAMPLES)
+
+Usa estos casos como referencia para calibrar tus decisiones:
+
+`;
+
+  if (incluirTodos) {
+    section += `
+### CASO MODELO: APROBAR
+${JSON.stringify(FEW_SHOT_EXAMPLES.APROBAR, null, 2)}
+
+---
+
+### CASO MODELO: SOLICITAR_AJUSTES
+${JSON.stringify(FEW_SHOT_EXAMPLES.SOLICITAR_AJUSTES, null, 2)}
+
+---
+
+### CASO MODELO: RECHAZAR
+${JSON.stringify(FEW_SHOT_EXAMPLES.RECHAZAR, null, 2)}
+`;
+  }
+
+  return section;
+}
+
+function buildRiskScoringInstructions() {
+  return `
+## INSTRUCCIONES PARA CALCULAR RISK SCORE
+
+El risk_score debe calcularse de forma OBJETIVA usando estos criterios:
+
+### PILAR 1: RAZÓN DE NEGOCIOS (0-25 puntos)
+- Vinculación con giro: 0 (plena), 3 (genérica), 5 (débil)
+- Objetivo económico: 0 (cuantificable), 5 (sin métricas), 10 (vago)
+- Coherencia monto: 0 (razonable), 5 (alto defendible), 10 (desproporcionado)
+
+### PILAR 2: BENEFICIO ECONÓMICO (0-25 puntos)
+- Identificación beneficios: 0 (concretos), 5 (genéricos), 10 (inexistentes)
+- Modelo ROI: 0 (documentado), 5 (narrativa), 10 (ninguno)
+- Horizonte temporal: 0 (congruente), 3 (optimista), 5 (irreal)
+
+### PILAR 3: MATERIALIDAD (0-25 puntos)
+- Formalización: 0 (contrato completo), 3 (orden/correos), 5 (nada)
+- Evidencias ejecución: 0 (claras), 5 (parciales), 10 (ninguna)
+- Coherencia documentos: 0 (coinciden), 5 (inconsistencias menores), 10 (discrepancias graves)
+
+### PILAR 4: TRAZABILIDAD (0-25 puntos)
+- Conservación: 0 (expediente estructurado), 5 (disperso), 10 (correos sueltos)
+- Integridad: 0 (mecanismos robustos), 5 (parcial), 10 (ninguno)
+- Timeline: 0 (reconstruible), 3 (con huecos), 5 (confuso)
+
+TOTAL: 0-100. Menor es mejor.
+- 0-39: BAJO riesgo
+- 40-59: MEDIO riesgo
+- 60-79: ALTO riesgo (requiere revisión humana)
+- 80-100: CRÍTICO (considerar rechazo)
+`;
+}
+
+module.exports = {
+  buildFewShotSection,
+  buildRiskScoringInstructions
+};
+
+=============================================================================
+PASO 5: VERIFICACIÓN
+=============================================================================
+
+Al terminar, verifica:
+
+1. Los archivos de few-shot examples se crearon correctamente
+2. La función calcularRiskScore funciona con datos de prueba:
+
+   const resultado = calcularRiskScore({
+     razon_negocios: { vinculacion_giro: 3, objetivo_economico: 5, coherencia_monto: 5 },
+     beneficio_economico: { identificacion_beneficios: 5, modelo_roi: 5, horizonte_temporal: 3 },
+     materialidad: { formalizacion: 0, evidencias_ejecucion: 5, coherencia_documentos: 5 },
+     trazabilidad: { conservacion: 5, integridad: 5, timeline: 3 }
+   });
+   // Debería retornar risk_score_total: 49
+
+3. Puedes acceder a FEW_SHOT_EXAMPLES.APROBAR y FEW_SHOT_EXAMPLES.RECHAZAR
+4. Las funciones buildFewShotSection y buildRiskScoringInstructions retornan strings válidos
+
+Si algo falla, corregirlo antes de continuar a Fase 5.
+
+=============================================================================
+FIN FASE 4
+=============================================================================

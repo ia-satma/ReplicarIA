@@ -1,0 +1,308 @@
+A6_PROVEEDOR – VERSIÓN REVISADA (OPERATIVA)
+Rol ajustado:
+A6 es el guardia de frontera de terceros: su función es emitir un Dictamen de Riesgo de Proveedor que responda, de forma estructurada, si ese proveedor:
+•	existe y es localizable,
+•	tiene capacidad operativa mínima real para el tipo de servicio,
+•	presenta señales de EFOS/69 B o de riesgo fiscal/laboral relevantes,
+•	puede ser contratado y bajo qué condiciones.
+No decide sobre deducibilidad (eso es A3), pero su dictamen es insumo obligatorio para:
+•	el candado F2 (inicio de ejecución),
+•	el análisis fiscal de A3,
+•	y la defensa posterior de A7 (“hicimos debida diligencia antes de contratar”).
+________________________________________
+1) Anclaje de A6 al flujo F0–F9 y a los candados
+F0 – Alta de proyecto (SIB/BEE)
+•	Si el proyecto usa un proveedor nuevo o modificado, A2 dispara automáticamente una tarea A6_DD_BÁSICA.
+•	Si se usa un proveedor ya existente, A6 sólo verifica la vigenciade su dictamen (ej. no más de X meses) y si no ha cambiado su estatus (69 B, opinión 32 D, etc.).
+F1 – Captura/actualización de datos de proveedor
+•	El usuario sube: constancia SAT, acta constitutiva, opinión de cumplimiento, REPSE, etc.
+•	OCR de la plataforma genera un proveedorJson con los campos que definimos (razón social, RFC, régimen, fecha constitución, objeto, capital, flags, etc.).
+F2 – Candado de inicio (NO se entra a F3 sin A6)
+•	A2 no debe abrir F3 (ejecución) mientras A6 no haya emitido al menos un Dictamen de Due Diligence Básico con:
+o	nivel de riesgo,
+o	recomendación (aprobar / aprobar con condiciones / rechazar).
+•	Condición estándar de F2:
+o	Para proyectos con monto > umbral o tipos de riesgo alto (consultoría compleja, marketing, intra grupo, software caro, personal en sitio), A6 no puede quedar “pendiente”; el alta de proveedor debe estar completa.
+F6 – Candado fiscal/legal
+•	Antes de que A3 y A4 emitan sus Vistos Buenos, A6 debe confirmar que:
+o	no han cambiado los riesgos críticos del proveedor (p. ej., que no cayó en 69 B desde el alta),
+o	si algo cambió (nuevo listado, opinión negativa), se actualiza el dictamen para que A3 y A4 lo valoren.
+F9 – Seguimiento
+•	A6 puede establecer, para ciertos proveedores de riesgo medio/alto, un plan de monitoreo (consultar listas SAT y REPSE cada X meses) que alimenta la política de continuidad o sustitución de proveedor.
+ 
+2) Inputs y outputs estructurados de A6
+2.1 INPUT principal de A6 (proveedorJson)
+A6 ya no parte sólo de “datos sueltos”, sino de un objeto estructurado cargado y preprocesado por la plataforma:
+{
+  "proveedorId": "PROV-456",
+  "razonSocial": "Servicios Especializados XYZ, S.A. de C.V.",
+  "rfc": "XYZ010101ABC",
+  "tipoPersona": "moral",
+  "regimenFiscal": "General de Ley Personas Morales",
+  "domicilioFiscal": {
+    "calle": "Av. Ejemplo",
+    "numeroExterior": "123",
+    "colonia": "Centro",
+    "municipio": "Monterrey",
+    "estado": "Nuevo León",
+    "codigoPostal": "64000",
+    "pais": "México"
+  },
+  "fechaConstitucion": "2019-06-15",
+  "objetoSocialRelevante": "Prestación de servicios de desarrollo de software y consultoría tecnológica",
+  "capitalSocial": {
+    "monto": 500000,
+    "moneda": "MXN"
+  },
+  "datosContactoOperativos": {
+    "nombreComercial": "XYZ Tech",
+    "sitioWeb": "https://xyztech.mx",
+    "contactoPrincipal": {
+      "nombreCompleto": "Juan Pérez",
+      "puesto": "Director Comercial",
+      "email": "juan.perez@xyztech.mx",
+      "telefono": "+52 81 0000 0000"
+    },
+    "tipoProveedor": "SOFTWARE_SAAS",
+    "subtipoProveedor": "ERP_IMPLEMENTACION"
+  },
+  "documentosClave": {
+    "constanciaSituacionFiscal": {
+      "archivoId": "DOC-CSF-123",
+      "fechaEmision": "2025-01-10",
+      "estatusRfc": "activo",
+      "ocrOk": true
+    },
+    "actaConstitutiva": {
+      "archivoId": "DOC-ACTA-456",
+      "fechaEscritura": "2019-06-15",
+      "ocrOk": true
+    },
+    "opinionCumplimiento": {
+      "archivoId": "DOC-32D-789",
+      "tipoOpinion": "positiva",
+      "fechaEmision": "2025-01-05",
+      "vigenciaHasta": "2025-04-05",
+      "obligatoriaPorPolitica": true
+    },
+    "repse": {
+      "archivoId": null,
+      "numeroRegistro": null,
+      "aplicable": false
+    },
+    "comprobantesNominaSeguridadSocial": [],
+    "permisosLicenciasCertificaciones": []
+  },
+  "consultasSat": {
+    "lista69BDefinitivos": false,
+    "lista69BPresuntos": false,
+    "listaArt69NoLocalizados": false,
+    "listaArt69Incumplidos": false,
+    "fechaUltimaConsulta": "2025-01-20"
+  }
+}
+2.2 OUTPUT estándar de A6 (dictamen de proveedor)
+{
+  "proveedorId": "PROV-456",
+  "nivelRiesgo": "MEDIO",           // BAJO | MEDIO | ALTO | CRITICO
+  "scoreFiscalProveedor": 68,       // 0-100 si quieres granularidad
+  "categoriaRiesgo": {
+    "fiscal": "MEDIO",
+    "operativo": "BAJO",
+    "reputacional": "BAJO"
+  },
+  "flags": {
+    "proveedorReciente": false,
+    "capitalVsMontosIncongruente": false,
+    "sinOpinionCumplimiento": false,
+    "sinRepseSiAplica": false,
+    "domicilioAltoRiesgo": false,
+    "presuntoEfoss69B": false,
+    "definitivoEfoss69B": false
+  },
+  "hallazgosClave": [
+    "Proveedor con más de 5 años de constitución y objeto social congruente con servicios de software.",
+    "Cuenta con opinión de cumplimiento 32-D positiva vigente.",
+    "No aparece en listas 69-B, Art. 69 ni de no localizados."
+  ],
+  "recomendacionContratacion": "APROBAR",  // APROBAR | APROBAR_CONDICIONES | RECHAZAR | REQUIERE_MAS_INVESTIGACION
+  "condiciones": [
+    // Si aplica APROBAR_CONDICIONES, detallar aquí
+  ],
+  "frecuenciaMonitoreoSugeridaMeses": 6,
+  "fechaDictamen": "2025-01-21",
+  "comentariosA3Fiscal": "Proveedor sin señales EFOS relevantes; riesgo fiscal MEDIO por monto del proyecto y tipo de servicio."
+}
+Este OUTPUT es justo lo que A3 debe consumir (en vez de rehacer due diligence).
+ 
+3) Lógica de scoring y flags en A6 (operativa)
+3.1. Dimensiones de scoring (sugeridas)
+Puedes puntuar sobre 100, dividiendo:
+•	Verificación fiscal (0–40):
+o	CSF válida, RFC activo, régimen congruente (10).
+o	Opinión de cumplimiento 32 D positiva y vigente (15).
+o	Sin presencia en listas 69 B, Art. 69 y no localizados (15).
+•	Capacidad operativa (0–30):
+o	Objeto social congruente con el tipo de servicio (10).
+o	Capital social razonable vs montos típicos (10).
+o	Evidencia mínima de estructura: IMSS si aplica, equipo, experiencia (10).
+•	Presencia/reputación (0–20):
+o	Sitio web y presencia digital básica (10).
+o	Domicilio verificable en Maps / referencias mínimas (10).
+•	Documentación y consistencia (0–10):
+o	Acta constitutiva clara, poderes, identificaciones, sin inconsistencias evidentes.
+3.2. Flags críticos
+A6 debe activar flags que disparan decisiones duras o condiciones para F2/F6:
+•	definitivoEfoss69B = true
+→ recomendación RECHAZAR salvo caso especial; A3 debe tratarlo como NO DEDUCIBLE por default.
+•	presuntoEfoss69B = true
+→ recomendación APROBAR_CONDICIONES o REQUIERE_MAS_INVESTIGACION:
+o	documentar diligencia previa,
+o	quizá exigir garantías adicionales o contratos más conservadores,
+o	monitoreo mensual.
+•	sinOpinionCumplimiento = true y montoServicio alto o tipoProveedor de alto riesgo (ej. servicios especializados con personal)
+→ subir nivelRiesgo a ALTO.
+•	capitalVsMontosIncongruente = true
+→ explicar: “Capital social $50,000 vs contratos típicos >$5M”.
+o	No necesariamente rechazar, pero sí dejarlo muy claro para A3 y A5.
+________________________________________
+4) Reescritura del flujo de due diligence de A6 (práctico)
+Podemos resumir el proceso en 3 niveles, para que no siempre hagan una DD “full Big4”:
+Nivel 1 – Due Diligence Express (obligatorio para todos los proveedores)
+•	Verificar:
+o	CSF SAT (RFC, domicilio, estatus).
+o	Listas SAT: 69 B, Art. 69, no localizados.
+o	Opinión 32 D si la empresa la cargó.
+o	Datos básicos de contacto y sitio web.
+•	Output:
+o	nivelRiesgo: BAJO/MEDIO/ALTO, basado en estas verificaciones.
+o	recomendacionContratacion: APROBAR / APROBAR_CONDICIONES / RECHAZAR.
+Nivel 2 – Due Diligence Ampliada (monto alto o tipología crítica)
+Se activa si:
+•	montoServicio > umbral, o
+•	tipoProveedor ∈ {INTRAGRUPO_MANAGEMENT_FEE, SERVICIOS_ESPECIALIZADOS_CON_PERSONAL, PROYECTO_SOFTWARE_MAYOR}, etc.
+Adicionalmente revisa:
+•	Objeto social vs tipo de servicio.
+•	Capital social vs montos.
+•	IMSS_REGISTRO / REPSE si aplica.
+•	Presencia digital y referencias.
+Nivel 3 – Investigación Profunda (casos sensibles o presuntos EFOS)
+Cuando:
+•	hay presuntoEfoss69B = true,
+•	o el scoring y las banderas generan un nivelRiesgo = CRITICO.
+Se propone:
+•	visitas físicas o verificaciones externas,
+•	obtener carta de cumplimiento adicional,
+•	incluso opinión de un despacho externo si el cliente quiere seguir.
+A6 no lo hace todo solo, pero documenta que se recomendó este nivel y si la empresa lo siguió.
+ 
+5) Formato de dictamen textual de A6 (resumido, listo para A7)
+Te dejo una versión ajustada (simplifico el enorme reporte anterior, manteniendo lo útil):
+## 🔍 REPORTE DE DUE DILIGENCE DE PROVEEDOR
+
+**Proveedor:** [Razón Social]  
+**RFC:** [XXX000000XXX]  
+**Tipo de servicio previsto:** [Tipología: CONSULTORÍA / SOFTWARE / MARKETING / INTRAGRUPO / etc.]  
+**Monto estimado de operaciones:** $[X] MXN  
+**Fecha del dictamen:** [DD/MM/AAAA]
+
+---
+
+### 1. NIVEL DE RIESGO Y RECOMENDACIÓN
+
+- **Nivel de riesgo integral:** [BAJO / MEDIO / ALTO / CRÍTICO]  
+- **Recomendación de contratación:** [APROBAR / APROBAR CON CONDICIONES / RECHAZAR / REQUIERE MÁS INVESTIGACIÓN]
+
+**Resumen ejecutivo (2–3 líneas):**  
+[Ejemplo: “Proveedor con más de 5 años de operación, objeto social congruente con servicios de marketing digital, opinión 32‑D positiva y sin presencia en listas 69‑B. Riesgo MEDIO por monto alto del contrato.”]
+
+---
+
+### 2. VERIFICACIÓN FISCAL BÁSICA
+
+**2.1 Constancia de Situación Fiscal (CSF)**  
+- RFC: [Valor] – Estatus: [Activo/Suspendido/Cancelado]  
+- Régimen fiscal: [Valor]  
+- Domicilio fiscal: [Dirección]  
+- Fecha de emisión CSF: [Fecha]
+
+**2.2 Listas SAT (consulta al [fecha y hora])**
+
+| Lista | Resultado | Comentario |
+|-------|-----------|-----------|
+| 69‑B Definitivos | [No aparece / APARECE desde fecha] | [Detalle] |
+| 69‑B Presuntos | [No aparece / APARECE desde fecha] | [Detalle] |
+| Art. 69 No localizados | [No aparece / APARECE] | [Detalle] |
+| Art. 69 Incumplidos | [No aparece / APARECE] | [Detalle] |
+
+---
+
+### 3. CAPACIDAD OPERATIVA Y OBJETO SOCIAL
+
+**3.1 Objeto social relevante (según acta constitutiva):**  
+> [Resumen 1–3 líneas]
+
+**Servicio a contratar:**  
+> [Descripción breve]
+
+**Evaluación:**  
+- Congruencia objeto ↔ servicio: [Alta / Media / Baja]  
+- Capital social: $[X] MXN – Relación con monto del contrato: [Razonable / Incongruente]  
+- Registro IMSS/REPSE (si aplica): [Datos o “No aplica”]
+
+---
+
+### 4. PRESENCIA DIGITAL Y REPUTACIÓN (visión rápida)
+
+| Canal | Estado | Observaciones |
+|-------|--------|---------------|
+| Sitio web | [Activo / Inactivo / No tiene] | [Notas] |
+| LinkedIn | [Sí / No] | [Notas] |
+| Google Maps domicilio | [Ubicado / Dudoso / No localizado] | [Notas] |
+
+Evaluación: [Sólida / Aceptable / Débil / Inexistente]
+
+---
+
+### 5. RED FLAGS RELEVANTES
+
+| # | Hallazgo | Severidad | Impacto |
+|---|----------|-----------|---------|
+| 1 | [Descripción breve] | 🔴 Alto / 🟡 Medio / 🟢 Bajo | [Ej. riesgo EFOS, riesgo laboral] |
+| 2 | ... | ... | ... |
+
+---
+
+### 6. CONCLUSIÓN PARA EFECTOS DE CONTRATACIÓN
+
+**Dictamen:** [APROBAR / APROBAR CON CONDICIONES / RECHAZAR / REQUIERE MÁS INVESTIGACIÓN]
+
+**Condiciones sugeridas (si aplica):**  
+1. [Ej. Actualizar opinión 32‑D antes del primer pago].  
+2. [Ej. Solicitar REPSE válido si el servicio incluye personal en sitio].  
+
+**Frecuencia de monitoreo recomendada:** cada [X] meses para listas SAT y REPSE.
+
+---
+
+*Reporte emitido por A6 Proveedor – [Nombre persona/agente]*  
+*Este reporte forma parte del expediente del proveedor y del Defense File de los proyectos relacionados.*
+
+6) Integración depurada con A1, A2, A3, A5, A7
+•	Con A2 (PMO):
+o	A2 no puede superar F2 sin un dictamen A6 con al menos “APROBAR” o “APROBAR CON CONDICIONES” documentado (salvo que un responsable humano force una excepción, que se registrará).
+•	Con A1 (Estrategia):
+o	A1 usa el dictamen de A6 para valorar si la elección de proveedor es coherente con la estrategia (por ejemplo, contratar un “boutique premium” vs low cost).
+•	Con A3 (Fiscal):
+o	A3 no re hace la DD; solo interpreta las banderas de A6 para deducibilidad (EFOS / 69 B, capacidad operativa, congruencia objeto social).
+o	Si definitivoEfoss69B = true, A3 parte de “no deducible” salvo decisión excepcional.
+•	Con A5 (Finanzas):
+o	A5 usa info de capital, antigüedad, precios típicos, para evaluar si el precio tiene sentido frente a la capacidad del proveedor (riesgo de incumplimiento económico).
+•	Con A7 (Defensa):
+o	A7 inserta el dictamen de A6 en la sección de “Due Diligence de Proveedor” del Defense File, demostrando diligencia previa y buena fe.
+ 
+Si estás de acuerdo con esta versión de A6, el siguiente paso natural sería ajustar A1_ESTRATEGIA con el mismo nivel de precisión:
+•	delimitando claramente su ámbito vs A5 y A3,
+•	alineándolo a F0/F3/F9,
+•	y dejando listo su esquema de entrada/salida para alimentar a A3, A5 y A7.
+

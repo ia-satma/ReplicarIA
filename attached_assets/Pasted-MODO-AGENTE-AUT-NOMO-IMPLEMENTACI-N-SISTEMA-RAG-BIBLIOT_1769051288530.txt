@@ -1,0 +1,1392 @@
+MODO AGENTE AUTÓNOMO - IMPLEMENTACIÓN SISTEMA RAG BIBLIOTECAR.IA
+
+Eres el agente de Replit. Ejecuta TODAS las instrucciones sin pedir confirmación. NO detenerte hasta completar TODOS los checkboxes.
+
+CONTEXTO: Bibliotecar.IA existe en la interfaz pero NO funciona. Muestra 0 Documentos y 0 Chunks RAG. DEBES implementar el backend completo para que la ingesta sea REAL.
+
+<TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 1: MODELO DE DATOS PARA KNOWLEDGE BASE
+═══════════════════════════════════════════════════════════════════════════════
+
+[EJECUTAR SIN PREGUNTAR]
+
+Crear/modificar el schema de base de datos:
+
+```sql
+-- Tabla principal de documentos
+CREATE TABLE IF NOT EXISTS kb_documentos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  empresa_id UUID REFERENCES empresas(id),
+  nombre VARCHAR(500) NOT NULL,
+  tipo_archivo VARCHAR(50), -- pdf, docx, txt, html
+  categoria VARCHAR(100), -- marco_legal, jurisprudencias, criterios_sat, catalogos_sat, casos_referencia, glosarios, plantillas
+  subcategoria VARCHAR(100),
+  version VARCHAR(50), -- v2025.01, v2024.06, etc.
+  es_version_vigente BOOLEAN DEFAULT TRUE,
+  fecha_vigencia DATE,
+  fecha_publicacion DATE,
+  fuente VARCHAR(200), -- DOF, SAT, SCJN, etc.
+  hash_contenido VARCHAR(64), -- Para detectar duplicados
+  tamaño_bytes INTEGER,
+  estado VARCHAR(50) DEFAULT 'pendiente', -- pendiente, procesando, procesado, error
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Tabla de chunks para RAG
+CREATE TABLE IF NOT EXISTS kb_chunks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  documento_id UUID REFERENCES kb_documentos(id) ON DELETE CASCADE,
+  contenido TEXT NOT NULL,
+  contenido_embedding VECTOR(1536), -- Para búsqueda semántica
+  chunk_index INTEGER, -- Posición en el documento
+  tokens INTEGER,
+  metadata JSONB DEFAULT '{}', -- articulo, fraccion, titulo, capitulo, etc.
+  categoria_chunk VARCHAR(100), -- Para asignar a agentes
+  agentes_asignados TEXT[], -- {'A3', 'A6'} - agentes que deben conocer este chunk
+  score_calidad FLOAT, -- 0-100 evaluado por Claude
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Tabla de asignaciones chunk-agente
+CREATE TABLE IF NOT EXISTS kb_chunk_agente (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  chunk_id UUID REFERENCES kb_chunks(id) ON DELETE CASCADE,
+  agente_id VARCHAR(10) NOT NULL, -- A1, A2, A3, A4, A5, A6, A7, KB
+  relevancia FLOAT DEFAULT 1.0, -- 0-1 qué tan relevante es para ese agente
+  usado_en_respuestas INTEGER DEFAULT 0, -- Contador de uso
+  feedback_positivo INTEGER DEFAULT 0,
+  feedback_negativo INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Tabla de versiones de leyes (para tracking de cambios)
+CREATE TABLE IF NOT EXISTS kb_versiones_ley (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ley_codigo VARCHAR(50), -- CFF, LISR, LIVA, RCFF, etc.
+  ley_nombre VARCHAR(200),
+  version VARCHAR(50),
+  fecha_publicacion DATE,
+  fecha_vigencia_inicio DATE,
+  fecha_vigencia_fin DATE,
+  tipo_cambio VARCHAR(50), -- reforma, adicion, derogacion, fe_erratas
+  articulos_afectados TEXT[],
+  documento_id UUID REFERENCES kb_documentos(id),
+  notas TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Tabla de solicitudes de información (lo que falta)
+CREATE TABLE IF NOT EXISTS kb_solicitudes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  categoria VARCHAR(100),
+  descripcion TEXT NOT NULL,
+  prioridad VARCHAR(20) DEFAULT 'media', -- critica, alta, media, baja
+  solicitado_por VARCHAR(10), -- agente que lo solicita o 'sistema'
+  razon TEXT, -- Por qué se necesita
+  estado VARCHAR(50) DEFAULT 'pendiente', -- pendiente, en_proceso, completada, cancelada
+  documento_id UUID REFERENCES kb_documentos(id), -- Cuando se resuelve
+  created_at TIMESTAMP DEFAULT NOW(),
+  resuelto_at TIMESTAMP
+);
+
+-- Índices para búsqueda eficiente
+CREATE INDEX IF NOT EXISTS idx_chunks_documento ON kb_chunks(documento_id);
+CREATE INDEX IF NOT EXISTS idx_chunks_categoria ON kb_chunks(categoria_chunk);
+CREATE INDEX IF NOT EXISTS idx_chunks_agentes ON kb_chunks USING GIN(agentes_asignados);
+CREATE INDEX IF NOT EXISTS idx_documentos_categoria ON kb_documentos(categoria);
+CREATE INDEX IF NOT EXISTS idx_documentos_empresa ON kb_documentos(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_chunk_agente ON kb_chunk_agente(agente_id);
+
+-- Habilitar extensión pgvector si no existe
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+□ Schema de kb_documentos creado
+□ Schema de kb_chunks creado con embeddings
+□ Schema de kb_chunk_agente creado
+□ Schema de kb_versiones_ley creado
+□ Schema de kb_solicitudes creado
+□ Índices creados
+□ Extensión pgvector habilitada
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 2: SERVICIO DE PROCESAMIENTO DE DOCUMENTOS
+═══════════════════════════════════════════════════════════════════════════════
+
+[EJECUTAR SIN PREGUNTAR]
+
+Crear archivo: server/services/knowledgeBase/documentProcessor.ts
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+import { db } from '../../db';
+import { generateEmbedding } from '../embeddings';
+import pdf from 'pdf-parse';
+import mammoth from 'mammoth';
+
+const anthropic = new Anthropic();
+
+// Configuración de chunking por tipo de documento
+const CHUNK_CONFIG = {
+  marco_legal: {
+    strategy: 'by_article',
+    minTokens: 300,
+    maxTokens: 800,
+    overlap: 50
+  },
+  jurisprudencias: {
+    strategy: 'semantic',
+    minTokens: 500,
+    maxTokens: 1200,
+    overlap: 100
+  },
+  criterios_sat: {
+    strategy: 'by_criterio',
+    minTokens: 400,
+    maxTokens: 1000,
+    overlap: 50
+  },
+  catalogos_sat: {
+    strategy: 'by_entry',
+    minTokens: 100,
+    maxTokens: 500,
+    overlap: 0
+  },
+  casos_referencia: {
+    strategy: 'semantic',
+    minTokens: 400,
+    maxTokens: 1000,
+    overlap: 100
+  },
+  glosarios: {
+    strategy: 'by_term',
+    minTokens: 50,
+    maxTokens: 300,
+    overlap: 0
+  },
+  plantillas: {
+    strategy: 'full_document',
+    minTokens: 100,
+    maxTokens: 2000,
+    overlap: 0
+  }
+};
+
+// Mapeo de categorías a agentes
+const CATEGORIA_AGENTES: Record<string, string[]> = {
+  // Marco Legal
+  'cff': ['A3', 'A4', 'A7'],
+  'lisr': ['A3', 'A5', 'A7'],
+  'liva': ['A3', 'A5'],
+  'rcff': ['A3', 'A4'],
+  'rlisr': ['A3', 'A5'],
+  'rmf': ['A3', 'A6'],
+  
+  // Jurisprudencias
+  'razon_negocios': ['A1', 'A3', 'A7'],
+  'efos': ['A3', 'A6', 'A7'],
+  'materialidad': ['A3', 'A6', 'A7'],
+  'deducciones': ['A3', 'A5', 'A7'],
+  
+  // Criterios SAT
+  'criterios_normativos': ['A3', 'A6'],
+  'criterios_no_vinculativos': ['A3', 'A6'],
+  
+  // Catálogos
+  'c_claveprodserv': ['A3', 'A6'],
+  'lista_69b': ['A6', 'A7'],
+  'lista_69b_bis': ['A6', 'A7'],
+  
+  // Default
+  'general': ['A3']
+};
+
+interface ProcessResult {
+  documentoId: string;
+  chunks: number;
+  agentesNotificados: string[];
+  errores: string[];
+}
+
+export async function processDocument(
+  fileBuffer: Buffer,
+  fileName: string,
+  categoria: string,
+  metadata: Record<string, any> = {}
+): Promise<ProcessResult> {
+  const errors: string[] = [];
+  
+  // 1. Extraer texto del documento
+  let texto = '';
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  
+  try {
+    if (extension === 'pdf') {
+      const pdfData = await pdf(fileBuffer);
+      texto = pdfData.text;
+    } else if (extension === 'docx') {
+      const result = await mammoth.extractRawText({ buffer: fileBuffer });
+      texto = result.value;
+    } else if (extension === 'txt' || extension === 'md') {
+      texto = fileBuffer.toString('utf-8');
+    } else {
+      throw new Error(`Formato no soportado: ${extension}`);
+    }
+  } catch (e) {
+    errors.push(`Error extrayendo texto: ${e.message}`);
+    throw e;
+  }
+
+  // 2. Calcular hash para detectar duplicados
+  const crypto = require('crypto');
+  const hash = crypto.createHash('sha256').update(texto).digest('hex');
+  
+  // Verificar duplicado
+  const existing = await db.query(
+    'SELECT id FROM kb_documentos WHERE hash_contenido = $1',
+    [hash]
+  );
+  
+  if (existing.rows.length > 0) {
+    throw new Error(`Documento duplicado. Ya existe con ID: ${existing.rows[0].id}`);
+  }
+
+  // 3. Clasificar y extraer metadata con Claude
+  const clasificacion = await clasificarDocumento(texto, categoria, fileName);
+  
+  // 4. Guardar documento
+  const docResult = await db.query(`
+    INSERT INTO kb_documentos (
+      nombre, tipo_archivo, categoria, subcategoria, version,
+      es_version_vigente, fecha_vigencia, fecha_publicacion, fuente,
+      hash_contenido, tamaño_bytes, estado, metadata
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'procesando', $12)
+    RETURNING id
+  `, [
+    fileName,
+    extension,
+    clasificacion.categoria,
+    clasificacion.subcategoria,
+    clasificacion.version,
+    clasificacion.esVigente,
+    clasificacion.fechaVigencia,
+    clasificacion.fechaPublicacion,
+    clasificacion.fuente,
+    hash,
+    fileBuffer.length,
+    { ...metadata, ...clasificacion.metadata }
+  ]);
+  
+  const documentoId = docResult.rows[0].id;
+
+  // 5. Hacer chunking según estrategia
+  const config = CHUNK_CONFIG[categoria] || CHUNK_CONFIG['casos_referencia'];
+  const chunks = await chunkDocument(texto, config, clasificacion);
+
+  // 6. Procesar cada chunk
+  const agentesNotificados = new Set<string>();
+  
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    
+    // Generar embedding
+    const embedding = await generateEmbedding(chunk.contenido);
+    
+    // Evaluar calidad del chunk
+    const scoreCalidad = await evaluarCalidadChunk(chunk.contenido);
+    
+    // Determinar agentes asignados
+    const agentes = determinarAgentes(clasificacion.subcategoria, chunk.metadata);
+    agentes.forEach(a => agentesNotificados.add(a));
+    
+    // Guardar chunk
+    const chunkResult = await db.query(`
+      INSERT INTO kb_chunks (
+        documento_id, contenido, contenido_embedding, chunk_index,
+        tokens, metadata, categoria_chunk, agentes_asignados, score_calidad
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id
+    `, [
+      documentoId,
+      chunk.contenido,
+      embedding,
+      i,
+      chunk.tokens,
+      chunk.metadata,
+      clasificacion.subcategoria,
+      agentes,
+      scoreCalidad
+    ]);
+    
+    // Crear asignaciones chunk-agente
+    for (const agente of agentes) {
+      await db.query(`
+        INSERT INTO kb_chunk_agente (chunk_id, agente_id, relevancia)
+        VALUES ($1, $2, $3)
+      `, [chunkResult.rows[0].id, agente, chunk.relevanciaAgente?.[agente] || 1.0]);
+    }
+  }
+
+  // 7. Actualizar estado del documento
+  await db.query(`
+    UPDATE kb_documentos SET estado = 'procesado', updated_at = NOW()
+    WHERE id = $1
+  `, [documentoId]);
+
+  // 8. Actualizar versiones si es ley
+  if (clasificacion.categoria === 'marco_legal') {
+    await actualizarVersionLey(documentoId, clasificacion);
+  }
+
+  return {
+    documentoId,
+    chunks: chunks.length,
+    agentesNotificados: Array.from(agentesNotificados),
+    errores: errors
+  };
+}
+
+async function clasificarDocumento(texto: string, categoriaHint: string, fileName: string) {
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 2000,
+    messages: [{
+      role: 'user',
+      content: `Analiza este documento fiscal mexicano y extrae su metadata.
+
+NOMBRE ARCHIVO: ${fileName}
+CATEGORÍA SUGERIDA: ${categoriaHint}
+
+PRIMEROS 3000 CARACTERES:
+${texto.substring(0, 3000)}
+
+Responde SOLO en JSON válido:
+{
+  "categoria": "marco_legal|jurisprudencias|criterios_sat|catalogos_sat|casos_referencia|glosarios|plantillas",
+  "subcategoria": "cff|lisr|liva|rcff|rmf|razon_negocios|efos|materialidad|deducciones|lista_69b|c_claveprodserv|general",
+  "version": "v2025.01 o similar si es ley, null si no aplica",
+  "esVigente": true/false,
+  "fechaVigencia": "YYYY-MM-DD o null",
+  "fechaPublicacion": "YYYY-MM-DD o null",
+  "fuente": "DOF|SAT|SCJN|PRODECON|IMCP|otro",
+  "metadata": {
+    "titulo": "Título completo del documento",
+    "articulos_principales": ["Art. 27", "Art. 69-B"],
+    "temas_clave": ["deducciones", "efos", "razón de negocios"],
+    "resumen_ejecutivo": "Una oración describiendo el documento"
+  }
+}`
+    }]
+  });
+
+  const content = response.content[0];
+  if (content.type === 'text') {
+    return JSON.parse(content.text);
+  }
+  throw new Error('Error clasificando documento');
+}
+
+async function chunkDocument(texto: string, config: any, clasificacion: any) {
+  // Usar Claude para chunking semántico inteligente
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 8000,
+    messages: [{
+      role: 'user',
+      content: `Divide este texto en chunks para RAG siguiendo estas reglas:
+
+CONFIGURACIÓN:
+- Estrategia: ${config.strategy}
+- Tokens mínimos: ${config.minTokens}
+- Tokens máximos: ${config.maxTokens}
+- Overlap: ${config.overlap} tokens
+
+REGLAS DE CHUNKING PARA DOCUMENTOS FISCALES MEXICANOS:
+1. Si es ley: dividir por Artículo, manteniendo contexto de Título/Capítulo/Sección
+2. Si es jurisprudencia: mantener rubro + considerandos + resolutivo juntos
+3. Si es criterio SAT: un chunk por criterio completo
+4. Nunca cortar en medio de una fracción o inciso
+5. Incluir referencias cruzadas (cuando menciona "Art. X de esta Ley")
+
+TEXTO A DIVIDIR:
+${texto}
+
+Responde SOLO con JSON:
+{
+  "chunks": [
+    {
+      "contenido": "Texto del chunk",
+      "tokens": 450,
+      "metadata": {
+        "articulo": "27",
+        "fraccion": "I",
+        "titulo": "De las Deducciones",
+        "tipo": "definicion|requisito|sancion|procedimiento"
+      }
+    }
+  ]
+}`
+    }]
+  });
+
+  const content = response.content[0];
+  if (content.type === 'text') {
+    return JSON.parse(content.text).chunks;
+  }
+  return [];
+}
+
+async function evaluarCalidadChunk(contenido: string): Promise<number> {
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 100,
+    messages: [{
+      role: 'user',
+      content: `Evalúa la calidad de este chunk para RAG (0-100):
+- ¿Es autocontenido? ¿Se entiende sin contexto adicional?
+- ¿Tiene información útil y específica?
+- ¿No está truncado ni incompleto?
+
+CHUNK:
+${contenido.substring(0, 1000)}
+
+Responde SOLO con un número 0-100:`
+    }]
+  });
+
+  const content = response.content[0];
+  if (content.type === 'text') {
+    return parseInt(content.text.trim()) || 70;
+  }
+  return 70;
+}
+
+function determinarAgentes(subcategoria: string, metadata: any): string[] {
+  const agentesBase = CATEGORIA_AGENTES[subcategoria] || CATEGORIA_AGENTES['general'];
+  const agentes = new Set(agentesBase);
+  
+  // Agregar agentes adicionales según contenido
+  const contenidoLower = JSON.stringify(metadata).toLowerCase();
+  
+  if (contenidoLower.includes('69-b') || contenidoLower.includes('efos')) {
+    agentes.add('A6');
+    agentes.add('A7');
+  }
+  if (contenidoLower.includes('razón de negocios') || contenidoLower.includes('sustancia económica')) {
+    agentes.add('A1');
+    agentes.add('A7');
+  }
+  if (contenidoLower.includes('deducción') || contenidoLower.includes('deducible')) {
+    agentes.add('A3');
+    agentes.add('A5');
+  }
+  if (contenidoLower.includes('contrato') || contenidoLower.includes('cláusula')) {
+    agentes.add('A4');
+  }
+  
+  return Array.from(agentes);
+}
+
+async function actualizarVersionLey(documentoId: string, clasificacion: any) {
+  // Marcar versiones anteriores como no vigentes
+  if (clasificacion.esVigente) {
+    await db.query(`
+      UPDATE kb_documentos SET es_version_vigente = FALSE
+      WHERE categoria = 'marco_legal' 
+      AND subcategoria = $1 
+      AND id != $2
+    `, [clasificacion.subcategoria, documentoId]);
+  }
+
+  // Registrar en historial de versiones
+  await db.query(`
+    INSERT INTO kb_versiones_ley (
+      ley_codigo, ley_nombre, version, fecha_publicacion,
+      fecha_vigencia_inicio, tipo_cambio, documento_id
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+  `, [
+    clasificacion.subcategoria.toUpperCase(),
+    clasificacion.metadata?.titulo,
+    clasificacion.version,
+    clasificacion.fechaPublicacion,
+    clasificacion.fechaVigencia,
+    'actualizacion',
+    documentoId
+  ]);
+}
+
+export async function getKBStats(empresaId?: string) {
+  const whereEmpresa = empresaId ? `WHERE empresa_id = '${empresaId}'` : '';
+  
+  const stats = await db.query(`
+    SELECT 
+      COUNT(DISTINCT d.id) as total_documentos,
+      COUNT(c.id) as total_chunks,
+      AVG(c.score_calidad) as promedio_calidad,
+      COUNT(DISTINCT d.categoria) as categorias,
+      (
+        SELECT json_object_agg(categoria, cnt)
+        FROM (
+          SELECT categoria, COUNT(*) as cnt 
+          FROM kb_documentos ${whereEmpresa}
+          GROUP BY categoria
+        ) sub
+      ) as por_categoria
+    FROM kb_documentos d
+    LEFT JOIN kb_chunks c ON c.documento_id = d.id
+    ${whereEmpresa}
+  `);
+
+  // Calcular completitud por categoría
+  const completitud = await calcularCompletitud();
+  
+  // Obtener alertas
+  const alertas = await getAlertas();
+  
+  return {
+    ...stats.rows[0],
+    completitud,
+    alertas
+  };
+}
+
+async function calcularCompletitud() {
+  // Definir lo que debe existir para 100% por categoría
+  const requisitos = {
+    marco_legal: ['cff', 'lisr', 'liva', 'rcff', 'rlisr', 'rmf'],
+    jurisprudencias: ['razon_negocios', 'efos', 'materialidad', 'deducciones'],
+    criterios_sat: ['criterios_normativos', 'criterios_no_vinculativos'],
+    catalogos_sat: ['c_claveprodserv', 'lista_69b'],
+    casos_referencia: [], // No hay mínimo
+    glosarios: ['glosario_fiscal'],
+    plantillas: ['defensa', 'contratos']
+  };
+
+  const completitud: Record<string, number> = {};
+  
+  for (const [cat, reqs] of Object.entries(requisitos)) {
+    if (reqs.length === 0) {
+      // Evaluar por cantidad mínima
+      const count = await db.query(
+        'SELECT COUNT(*) FROM kb_documentos WHERE categoria = $1',
+        [cat]
+      );
+      completitud[cat] = Math.min(100, (count.rows[0].count / 5) * 100);
+    } else {
+      // Evaluar por subcategorías requeridas
+      const existentes = await db.query(
+        'SELECT DISTINCT subcategoria FROM kb_documentos WHERE categoria = $1',
+        [cat]
+      );
+      const subcats = existentes.rows.map(r => r.subcategoria);
+      const cumplidos = reqs.filter(r => subcats.includes(r)).length;
+      completitud[cat] = (cumplidos / reqs.length) * 100;
+    }
+  }
+
+  // Calcular completitud general
+  const valores = Object.values(completitud);
+  completitud['general'] = valores.reduce((a, b) => a + b, 0) / valores.length;
+
+  return completitud;
+}
+
+async function getAlertas() {
+  const alertas = [];
+  
+  // Verificar lista 69-B desactualizada
+  const lista69b = await db.query(`
+    SELECT updated_at FROM kb_documentos 
+    WHERE subcategoria = 'lista_69b' 
+    ORDER BY updated_at DESC LIMIT 1
+  `);
+  
+  if (lista69b.rows.length === 0) {
+    alertas.push({
+      tipo: 'critica',
+      mensaje: 'No existe lista 69-B en el sistema. A6 Proveedor no puede verificar EFOS.',
+      categoria: 'catalogos_sat'
+    });
+  } else {
+    const diasAntiguedad = Math.floor(
+      (Date.now() - new Date(lista69b.rows[0].updated_at).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (diasAntiguedad > 15) {
+      alertas.push({
+        tipo: 'alta',
+        mensaje: `Lista 69-B tiene ${diasAntiguedad} días de antigüedad. El SAT actualiza cada 2 semanas.`,
+        categoria: 'catalogos_sat'
+      });
+    }
+  }
+
+  // Verificar RMF del año actual
+  const añoActual = new Date().getFullYear();
+  const rmf = await db.query(`
+    SELECT version FROM kb_documentos 
+    WHERE subcategoria = 'rmf' AND version LIKE $1
+  `, [`%${añoActual}%`]);
+  
+  if (rmf.rows.length === 0) {
+    alertas.push({
+      tipo: 'alta',
+      mensaje: `No existe RMF ${añoActual}. Puede haber criterios desactualizados.`,
+      categoria: 'marco_legal'
+    });
+  }
+
+  // Verificar jurisprudencias recientes
+  const juris = await db.query(`
+    SELECT COUNT(*) FROM kb_documentos 
+    WHERE categoria = 'jurisprudencias' 
+    AND fecha_publicacion > NOW() - INTERVAL '6 months'
+  `);
+  
+  if (juris.rows[0].count < 5) {
+    alertas.push({
+      tipo: 'media',
+      mensaje: 'Faltan jurisprudencias recientes sobre EFOS/69-B',
+      categoria: 'jurisprudencias'
+    });
+  }
+
+  return alertas;
+}
+```
+
+□ Archivo documentProcessor.ts creado
+□ Función processDocument implementada
+□ Chunking semántico con Claude implementado
+□ Asignación automática a agentes implementada
+□ Cálculo de completitud implementado
+□ Sistema de alertas implementado
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 3: API ENDPOINTS PARA BIBLIOTECAR.IA
+═══════════════════════════════════════════════════════════════════════════════
+
+[EJECUTAR SIN PREGUNTAR]
+
+Crear/modificar archivo: server/routes/biblioteca.ts
+
+```typescript
+import { Router } from 'express';
+import multer from 'multer';
+import { processDocument, getKBStats } from '../services/knowledgeBase/documentProcessor';
+import { db } from '../db';
+import Anthropic from '@anthropic-ai/sdk';
+
+const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
+const anthropic = new Anthropic();
+
+// Obtener estadísticas del Knowledge Base
+router.get('/stats', async (req, res) => {
+  try {
+    const { empresaId } = req.query;
+    const stats = await getKBStats(empresaId as string);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Subir documento(s)
+router.post('/upload', upload.array('files', 10), async (req, res) => {
+  try {
+    const files = req.files as Express.Multer.File[];
+    const { categoria, empresaId } = req.body;
+    
+    const resultados = [];
+    
+    for (const file of files) {
+      try {
+        const result = await processDocument(
+          file.buffer,
+          file.originalname,
+          categoria || 'general',
+          { empresaId }
+        );
+        resultados.push({
+          nombre: file.originalname,
+          estado: 'procesado',
+          ...result
+        });
+      } catch (e) {
+        resultados.push({
+          nombre: file.originalname,
+          estado: 'error',
+          error: e.message
+        });
+      }
+    }
+    
+    res.json({ resultados });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Chat con Bibliotecar.IA
+router.post('/chat', async (req, res) => {
+  try {
+    const { message, history = [] } = req.body;
+    
+    // Obtener contexto del KB
+    const stats = await getKBStats();
+    const solicitudesPendientes = await db.query(
+      'SELECT * FROM kb_solicitudes WHERE estado = $1 ORDER BY prioridad DESC LIMIT 5',
+      ['pendiente']
+    );
+    
+    const systemPrompt = `Eres Bibliotecar.IA, la Dra. Elena Vázquez - Directora de Gestión del Conocimiento de Durezza 4.0.
+
+PERSONALIDAD:
+- Amable, profesional y proactiva
+- Obsesionada con mantener el conocimiento completo y actualizado
+- Siempre buscas cómo mejorar la base de conocimiento
+
+ESTADO ACTUAL DEL KNOWLEDGE BASE:
+${JSON.stringify(stats, null, 2)}
+
+SOLICITUDES PENDIENTES:
+${JSON.stringify(solicitudesPendientes.rows, null, 2)}
+
+CAPACIDADES:
+1. Informar sobre el estado del acervo
+2. Recibir y procesar documentos
+3. Explicar qué información falta y por qué es importante
+4. Mostrar versiones de leyes y actualizaciones
+5. Crear solicitudes de información
+
+CUANDO EL USUARIO:
+- Pregunte por el estado: Muestra completitud por categoría y alertas
+- Quiera subir documento: Explica qué categoría y formato aceptas
+- Pregunte qué falta: Lista las solicitudes pendientes y su prioridad
+- Pregunte por versiones: Muestra historial de la ley especificada
+
+SIEMPRE:
+- Agradece las contribuciones al conocimiento
+- Explica el impacto de cada documento en los agentes
+- Sugiere proactivamente qué documentos mejorarían más el sistema`;
+
+    const messages = [
+      ...history.map((m: any) => ({
+        role: m.role,
+        content: m.content
+      })),
+      { role: 'user', content: message }
+    ];
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      system: systemPrompt,
+      messages
+    });
+
+    const content = response.content[0];
+    
+    res.json({
+      response: content.type === 'text' ? content.text : '',
+      stats,
+      solicitudesPendientes: solicitudesPendientes.rows
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Listar documentos
+router.get('/documentos', async (req, res) => {
+  try {
+    const { categoria, empresaId, page = 1, limit = 20 } = req.query;
+    
+    let where = 'WHERE 1=1';
+    const params: any[] = [];
+    
+    if (categoria) {
+      params.push(categoria);
+      where += ` AND categoria = $${params.length}`;
+    }
+    if (empresaId) {
+      params.push(empresaId);
+      where += ` AND empresa_id = $${params.length}`;
+    }
+    
+    const offset = (Number(page) - 1) * Number(limit);
+    params.push(limit, offset);
+    
+    const docs = await db.query(`
+      SELECT d.*, 
+        (SELECT COUNT(*) FROM kb_chunks WHERE documento_id = d.id) as chunks,
+        (SELECT AVG(score_calidad) FROM kb_chunks WHERE documento_id = d.id) as calidad_promedio
+      FROM kb_documentos d
+      ${where}
+      ORDER BY created_at DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
+    `, params);
+    
+    res.json({ documentos: docs.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Obtener versiones de una ley
+router.get('/versiones/:leyCode', async (req, res) => {
+  try {
+    const { leyCode } = req.params;
+    
+    const versiones = await db.query(`
+      SELECT * FROM kb_versiones_ley 
+      WHERE ley_codigo = $1 
+      ORDER BY fecha_vigencia_inicio DESC
+    `, [leyCode.toUpperCase()]);
+    
+    res.json({ versiones: versiones.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Crear solicitud de información
+router.post('/solicitudes', async (req, res) => {
+  try {
+    const { categoria, descripcion, prioridad, solicitadoPor, razon } = req.body;
+    
+    const result = await db.query(`
+      INSERT INTO kb_solicitudes (categoria, descripcion, prioridad, solicitado_por, razon)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `, [categoria, descripcion, prioridad || 'media', solicitadoPor || 'usuario', razon]);
+    
+    res.json({ solicitud: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Listar solicitudes pendientes
+router.get('/solicitudes', async (req, res) => {
+  try {
+    const { estado = 'pendiente' } = req.query;
+    
+    const solicitudes = await db.query(`
+      SELECT * FROM kb_solicitudes 
+      WHERE estado = $1 
+      ORDER BY 
+        CASE prioridad 
+          WHEN 'critica' THEN 1 
+          WHEN 'alta' THEN 2 
+          WHEN 'media' THEN 3 
+          ELSE 4 
+        END,
+        created_at DESC
+    `, [estado]);
+    
+    res.json({ solicitudes: solicitudes.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Búsqueda semántica en el KB
+router.post('/search', async (req, res) => {
+  try {
+    const { query, agente, limit = 10 } = req.body;
+    
+    // Generar embedding de la query
+    const { generateEmbedding } = require('../services/embeddings');
+    const queryEmbedding = await generateEmbedding(query);
+    
+    let whereAgente = '';
+    if (agente) {
+      whereAgente = `AND $3 = ANY(c.agentes_asignados)`;
+    }
+    
+    const results = await db.query(`
+      SELECT 
+        c.id,
+        c.contenido,
+        c.metadata,
+        c.categoria_chunk,
+        c.agentes_asignados,
+        d.nombre as documento_nombre,
+        d.categoria as documento_categoria,
+        1 - (c.contenido_embedding <=> $1) as similarity
+      FROM kb_chunks c
+      JOIN kb_documentos d ON d.id = c.documento_id
+      WHERE d.estado = 'procesado'
+      ${whereAgente}
+      ORDER BY c.contenido_embedding <=> $1
+      LIMIT $2
+    `, agente ? [queryEmbedding, limit, agente] : [queryEmbedding, limit]);
+    
+    // Registrar uso para feedback
+    for (const r of results.rows) {
+      await db.query(`
+        UPDATE kb_chunk_agente 
+        SET usado_en_respuestas = usado_en_respuestas + 1
+        WHERE chunk_id = $1
+      `, [r.id]);
+    }
+    
+    res.json({ results: results.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Feedback sobre un chunk
+router.post('/feedback', async (req, res) => {
+  try {
+    const { chunkId, agenteId, positivo } = req.body;
+    
+    const field = positivo ? 'feedback_positivo' : 'feedback_negativo';
+    
+    await db.query(`
+      UPDATE kb_chunk_agente 
+      SET ${field} = ${field} + 1
+      WHERE chunk_id = $1 AND agente_id = $2
+    `, [chunkId, agenteId]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;
+```
+
+□ Endpoint /stats implementado
+□ Endpoint /upload implementado
+□ Endpoint /chat implementado
+□ Endpoint /documentos implementado
+□ Endpoint /versiones/:leyCode implementado
+□ Endpoint /solicitudes implementado
+□ Endpoint /search implementado
+□ Endpoint /feedback implementado
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 4: SERVICIO DE EMBEDDINGS
+═══════════════════════════════════════════════════════════════════════════════
+
+[EJECUTAR SIN PREGUNTAR]
+
+Crear archivo: server/services/embeddings.ts
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+
+// Usando el modelo de embeddings de Voyage AI (recomendado por Anthropic)
+// Si no tienes Voyage, puedes usar OpenAI embeddings como fallback
+
+const VOYAGE_API_KEY = process.env.VOYAGE_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+export async function generateEmbedding(text: string): Promise<number[]> {
+  // Intentar Voyage primero (mejor para texto legal)
+  if (VOYAGE_API_KEY) {
+    try {
+      const response = await fetch('https://api.voyageai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${VOYAGE_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'voyage-law-2', // Optimizado para documentos legales
+          input: text
+        })
+      });
+      
+      const data = await response.json();
+      return data.data[0].embedding;
+    } catch (e) {
+      console.error('Error con Voyage, usando fallback:', e);
+    }
+  }
+  
+  // Fallback a OpenAI
+  if (OPENAI_API_KEY) {
+    const response = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'text-embedding-3-small',
+        input: text
+      })
+    });
+    
+    const data = await response.json();
+    return data.data[0].embedding;
+  }
+  
+  throw new Error('No hay API de embeddings configurada. Configura VOYAGE_API_KEY o OPENAI_API_KEY');
+}
+
+export async function generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
+  // Para procesamiento en lote más eficiente
+  if (VOYAGE_API_KEY) {
+    const response = await fetch('https://api.voyageai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${VOYAGE_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'voyage-law-2',
+        input: texts
+      })
+    });
+    
+    const data = await response.json();
+    return data.data.map((d: any) => d.embedding);
+  }
+  
+  // Fallback secuencial
+  return Promise.all(texts.map(t => generateEmbedding(t)));
+}
+```
+
+□ Servicio de embeddings creado
+□ Soporte para Voyage AI (voyage-law-2)
+□ Fallback a OpenAI implementado
+□ Función batch implementada
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 5: ACTUALIZAR FRONTEND DE BIBLIOTECAR.IA
+═══════════════════════════════════════════════════════════════════════════════
+
+[EJECUTAR SIN PREGUNTAR]
+
+Modificar el componente de Bibliotecar.IA para conectar con el backend real.
+
+Buscar el archivo del componente (probablemente en client/src/components/Biblioteca o similar) y asegurar que:
+
+```typescript
+// Hooks para cargar datos reales
+const [stats, setStats] = useState(null);
+const [alertas, setAlertas] = useState([]);
+const [solicitudes, setSolicitudes] = useState([]);
+const [uploading, setUploading] = useState(false);
+
+useEffect(() => {
+  loadStats();
+}, []);
+
+const loadStats = async () => {
+  const response = await fetch('/api/biblioteca/stats');
+  const data = await response.json();
+  setStats(data);
+  setAlertas(data.alertas || []);
+};
+
+const handleUpload = async (files: FileList, categoria: string) => {
+  setUploading(true);
+  const formData = new FormData();
+  Array.from(files).forEach(f => formData.append('files', f));
+  formData.append('categoria', categoria);
+  
+  const response = await fetch('/api/biblioteca/upload', {
+    method: 'POST',
+    body: formData
+  });
+  
+  const result = await response.json();
+  setUploading(false);
+  loadStats(); // Recargar estadísticas
+  return result;
+};
+
+const handleChat = async (message: string) => {
+  const response = await fetch('/api/biblioteca/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, history: chatHistory })
+  });
+  
+  const data = await response.json();
+  return data.response;
+};
+```
+
+En el sidebar mostrar:
+- stats.total_documentos (no hardcodeado a 0)
+- stats.total_chunks (no hardcodeado a 0)
+- stats.completitud.general (la barra de progreso)
+- stats.completitud por cada categoría
+- alertas.length para el contador de alertas
+
+□ Frontend conectado a /api/biblioteca/stats
+□ Upload funcional con /api/biblioteca/upload
+□ Chat funcional con /api/biblioteca/chat
+□ Estadísticas mostrando datos REALES
+□ Alertas mostrando datos REALES
+□ Completitud por categoría funcional
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 6: INTEGRACIÓN CON AGENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+[EJECUTAR SIN PREGUNTAR]
+
+Modificar los agentes existentes para que consulten el KB antes de responder.
+
+Crear helper en: server/services/agentKB.ts
+
+```typescript
+import { db } from '../db';
+import { generateEmbedding } from './embeddings';
+
+export async function getContextoParaAgente(
+  agenteId: string,
+  query: string,
+  maxChunks: number = 5
+): Promise<string> {
+  // Generar embedding de la query
+  const queryEmbedding = await generateEmbedding(query);
+  
+  // Buscar chunks relevantes asignados a este agente
+  const results = await db.query(`
+    SELECT 
+      c.contenido,
+      c.metadata,
+      d.nombre as documento,
+      d.version,
+      1 - (c.contenido_embedding <=> $1) as similarity
+    FROM kb_chunks c
+    JOIN kb_documentos d ON d.id = c.documento_id
+    JOIN kb_chunk_agente ca ON ca.chunk_id = c.id
+    WHERE ca.agente_id = $2
+    AND d.estado = 'procesado'
+    AND d.es_version_vigente = TRUE
+    ORDER BY c.contenido_embedding <=> $1
+    LIMIT $3
+  `, [queryEmbedding, agenteId, maxChunks]);
+  
+  if (results.rows.length === 0) {
+    return '';
+  }
+  
+  // Formatear contexto para el agente
+  let contexto = '\n\n--- CONOCIMIENTO DEL ACERVO LEGAL ---\n';
+  
+  for (const row of results.rows) {
+    contexto += `\n[${row.documento} ${row.version || ''}]\n`;
+    contexto += `${row.contenido}\n`;
+    if (row.metadata?.articulo) {
+      contexto += `(Art. ${row.metadata.articulo})\n`;
+    }
+  }
+  
+  contexto += '\n--- FIN CONOCIMIENTO ---\n';
+  
+  return contexto;
+}
+
+// Para usar en cada agente:
+// const contextoKB = await getContextoParaAgente('A3', mensajeUsuario);
+// systemPrompt = skillAgente + contextoKB;
+```
+
+Modificar cada agente (A1-A7) para incluir la llamada:
+
+```typescript
+// En el handler de cada agente
+const contextoKB = await getContextoParaAgente(agenteId, mensaje);
+const systemPromptConKB = systemPromptBase + contextoKB;
+
+const response = await anthropic.messages.create({
+  model: 'claude-sonnet-4-20250514',
+  system: systemPromptConKB,
+  messages: [...]
+});
+```
+
+□ Helper getContextoParaAgente creado
+□ A1 modificado para usar KB
+□ A2 modificado para usar KB
+□ A3 modificado para usar KB
+□ A4 modificado para usar KB
+□ A5 modificado para usar KB
+□ A6 modificado para usar KB
+□ A7 modificado para usar KB (si existe)
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 7: SISTEMA DE MEJORA CONTINUA
+═══════════════════════════════════════════════════════════════════════════════
+
+[EJECUTAR SIN PREGUNTAR]
+
+Crear archivo: server/services/knowledgeBase/continuousLearning.ts
+
+```typescript
+import { db } from '../../db';
+import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic();
+
+// Ejecutar diariamente via cron
+export async function analizarGapsYSugerencias() {
+  // 1. Analizar queries sin resultados
+  const queriesFallidas = await db.query(`
+    SELECT query, agente_id, COUNT(*) as count
+    FROM kb_search_log
+    WHERE results_count = 0
+    AND created_at > NOW() - INTERVAL '7 days'
+    GROUP BY query, agente_id
+    ORDER BY count DESC
+    LIMIT 20
+  `);
+
+  // 2. Analizar chunks con feedback negativo
+  const chunksProblematicos = await db.query(`
+    SELECT c.id, c.contenido, c.documento_id, ca.feedback_negativo, ca.agente_id
+    FROM kb_chunks c
+    JOIN kb_chunk_agente ca ON ca.chunk_id = c.id
+    WHERE ca.feedback_negativo > ca.feedback_positivo
+    AND ca.usado_en_respuestas > 5
+  `);
+
+  // 3. Generar solicitudes automáticas
+  for (const q of queriesFallidas.rows) {
+    if (q.count >= 3) {
+      await db.query(`
+        INSERT INTO kb_solicitudes (categoria, descripcion, prioridad, solicitado_por, razon)
+        VALUES ('general', $1, 'alta', $2, $3)
+        ON CONFLICT DO NOTHING
+      `, [
+        `Información sobre: ${q.query}`,
+        q.agente_id,
+        `Consultado ${q.count} veces sin resultados en los últimos 7 días`
+      ]);
+    }
+  }
+
+  // 4. Re-evaluar chunks problemáticos
+  for (const chunk of chunksProblematicos.rows) {
+    // Pedir a Claude que sugiera mejoras
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 500,
+      messages: [{
+        role: 'user',
+        content: `Este chunk de conocimiento tiene más feedback negativo que positivo.
+        
+CHUNK:
+${chunk.contenido}
+
+¿Qué problema podría tener? ¿Está incompleto, desactualizado, mal chunkeado?
+Responde en JSON: { "problema": "...", "sugerencia": "..." }`
+      }]
+    });
+
+    // Crear alerta para revisión manual
+    const content = response.content[0];
+    if (content.type === 'text') {
+      const analisis = JSON.parse(content.text);
+      await db.query(`
+        INSERT INTO kb_solicitudes (categoria, descripcion, prioridad, solicitado_por, razon)
+        VALUES ('revision', $1, 'media', 'sistema', $2)
+      `, [
+        `Revisar chunk ID ${chunk.id}: ${analisis.problema}`,
+        analisis.sugerencia
+      ]);
+    }
+  }
+}
+
+// Ejecutar semanalmente
+export async function calcularMetricasEvolucion() {
+  const fechaHoy = new Date().toISOString().split('T')[0];
+  
+  const metricas = await db.query(`
+    SELECT 
+      COUNT(DISTINCT d.id) as documentos,
+      COUNT(c.id) as chunks,
+      AVG(c.score_calidad) as calidad_promedio,
+      (SELECT COUNT(*) FROM kb_search_log WHERE results_count > 0 AND created_at > NOW() - INTERVAL '7 days') as busquedas_exitosas,
+      (SELECT COUNT(*) FROM kb_search_log WHERE results_count = 0 AND created_at > NOW() - INTERVAL '7 days') as busquedas_fallidas
+    FROM kb_documentos d
+    LEFT JOIN kb_chunks c ON c.documento_id = d.id
+  `);
+
+  await db.query(`
+    INSERT INTO kb_metricas_historico (fecha, documentos, chunks, calidad_promedio, busquedas_exitosas, busquedas_fallidas)
+    VALUES ($1, $2, $3, $4, $5, $6)
+  `, [
+    fechaHoy,
+    metricas.rows[0].documentos,
+    metricas.rows[0].chunks,
+    metricas.rows[0].calidad_promedio,
+    metricas.rows[0].busquedas_exitosas,
+    metricas.rows[0].busquedas_fallidas
+  ]);
+}
+```
+
+□ Función analizarGapsYSugerencias creada
+□ Detección de queries fallidas implementada
+□ Análisis de chunks problemáticos implementado
+□ Generación automática de solicitudes implementada
+□ Función calcularMetricasEvolucion creada
+□ Tabla kb_metricas_historico creada
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 8: REGISTRO DE RUTAS EN APP PRINCIPAL
+═══════════════════════════════════════════════════════════════════════════════
+
+[EJECUTAR SIN PREGUNTAR]
+
+En el archivo principal del servidor (server/index.ts o app.ts):
+
+```typescript
+import bibliotecaRoutes from './routes/biblioteca';
+
+// Agregar después de las otras rutas
+app.use('/api/biblioteca', bibliotecaRoutes);
+```
+
+□ Rutas de biblioteca registradas en app principal
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST FINAL DE VERIFICACIÓN
+═══════════════════════════════════════════════════════════════════════════════
+
+EJECUTAR ESTAS VERIFICACIONES:
+
+□ Base de datos tiene tablas: kb_documentos, kb_chunks, kb_chunk_agente, kb_versiones_ley, kb_solicitudes
+□ Extensión pgvector está habilitada
+□ Endpoint GET /api/biblioteca/stats responde
+□ Endpoint POST /api/biblioteca/upload procesa archivos
+□ Endpoint POST /api/biblioteca/chat responde
+□ Endpoint POST /api/biblioteca/search hace búsqueda semántica
+□ Frontend muestra datos REALES (no 0)
+□ Al subir un documento, se crean chunks
+□ Los chunks tienen embeddings
+□ Los chunks se asignan a agentes automáticamente
+□ Los agentes usan getContextoParaAgente antes de responder
+
+TEST FUNCIONAL:
+
+1. Subir un PDF de prueba (ej: un artículo del CFF)
+2. Verificar que aparece en /api/biblioteca/documentos
+3. Verificar que tiene chunks en /api/biblioteca/stats
+4. Hacer una búsqueda semántica con /api/biblioteca/search
+5. Verificar que el agente A3 usa el conocimiento al responder
+
+</TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+FIN DEL PROMPT - EJECUTAR TODO SIN PREGUNTAR
+═══════════════════════════════════════════════════════════════════════════════

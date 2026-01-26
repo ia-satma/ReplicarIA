@@ -1,0 +1,1265 @@
+MODO AGENTE AUTÓNOMO - BIBLIOTECAR.IA RAG FUNCIONAL
+
+EL SISTEMA EXTRAE CONTENIDO PERO NO LO INGESTA. ARREGLAR AHORA.
+
+DEBE:
+1. Procesar documentos y crear chunks
+2. Generar embeddings
+3. Asignar chunks a agentes A1-A7
+4. Actualizar métricas de completitud
+5. Guiar al usuario sobre qué documentos faltan
+
+<TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+EL PROBLEMA
+═══════════════════════════════════════════════════════════════════════════════
+
+Bibliotecar.IA muestra:
+- 0 Documentos
+- 0 Chunks RAG  
+- 0% en todas las categorías
+- El CFF.pdf se "analizó" pero NO SE GUARDÓ EN RAG
+
+El backend solo extrae texto pero NO:
+- Crea chunks
+- Genera embeddings
+- Guarda en base de datos
+- Asigna a agentes
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 1: SCHEMA DE BASE DE DATOS PARA RAG
+═══════════════════════════════════════════════════════════════════════════════
+
+EJECUTAR EN BASE DE DATOS:
+
+```sql
+-- Extensión para vectores (embeddings)
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- DOCUMENTOS DEL KNOWLEDGE BASE
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS kb_documentos (
+  id SERIAL PRIMARY KEY,
+  
+  -- Identificación
+  nombre VARCHAR(255) NOT NULL,
+  nombre_original VARCHAR(255),
+  hash_contenido VARCHAR(64) UNIQUE, -- SHA-256 para evitar duplicados
+  
+  -- Clasificación
+  categoria VARCHAR(50) NOT NULL, -- 'marco_legal' | 'jurisprudencias' | 'criterios_sat' | 'catalogos_sat' | 'casos_referencia' | 'glosarios' | 'plantillas'
+  subcategoria VARCHAR(100),
+  tipo_documento VARCHAR(50), -- 'ley' | 'reglamento' | 'tesis' | 'criterio' | 'catalogo' | 'guia'
+  
+  -- Para leyes: identificación específica
+  ley_codigo VARCHAR(20), -- 'CFF' | 'LISR' | 'LIVA' | 'RCFF' | 'RLISR' | 'RMF'
+  
+  -- Vigencia
+  fecha_publicacion DATE,
+  fecha_vigencia_inicio DATE,
+  fecha_vigencia_fin DATE,
+  version VARCHAR(50),
+  es_version_vigente BOOLEAN DEFAULT TRUE,
+  
+  -- Contenido
+  contenido_completo TEXT,
+  total_caracteres INTEGER,
+  total_chunks INTEGER DEFAULT 0,
+  
+  -- Metadatos extraídos
+  metadata JSONB,
+  resumen TEXT,
+  
+  -- Procesamiento
+  procesado BOOLEAN DEFAULT FALSE,
+  fecha_procesamiento TIMESTAMP,
+  error_procesamiento TEXT,
+  
+  -- Auditoría
+  activo BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_kb_docs_categoria ON kb_documentos(categoria);
+CREATE INDEX IF NOT EXISTS idx_kb_docs_ley ON kb_documentos(ley_codigo);
+CREATE INDEX IF NOT EXISTS idx_kb_docs_vigente ON kb_documentos(es_version_vigente);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- CHUNKS CON EMBEDDINGS
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS kb_chunks (
+  id SERIAL PRIMARY KEY,
+  documento_id INTEGER REFERENCES kb_documentos(id) ON DELETE CASCADE,
+  
+  -- Contenido
+  contenido TEXT NOT NULL,
+  total_tokens INTEGER,
+  
+  -- Posición en documento
+  chunk_index INTEGER,
+  pagina INTEGER,
+  
+  -- Metadata estructural (para leyes)
+  titulo VARCHAR(255),
+  capitulo VARCHAR(255),
+  seccion VARCHAR(255),
+  articulo VARCHAR(50),
+  fraccion VARCHAR(20),
+  parrafo INTEGER,
+  
+  -- Tipo de contenido
+  tipo_contenido VARCHAR(50), -- 'definicion' | 'requisito' | 'sancion' | 'procedimiento' | 'plazo' | 'obligacion'
+  
+  -- Embedding
+  embedding vector(1536), -- OpenAI ada-002 o similar
+  
+  -- Calidad
+  score_calidad FLOAT DEFAULT 0, -- 0-100
+  score_relevancia FLOAT DEFAULT 0,
+  
+  -- Referencias cruzadas detectadas
+  referencias_internas TEXT[], -- ["Art. 29", "Art. 31 fracción I"]
+  referencias_externas TEXT[], -- ["LISR Art. 27"]
+  
+  -- Uso
+  veces_recuperado INTEGER DEFAULT 0,
+  ultimo_uso TIMESTAMP,
+  feedback_positivo INTEGER DEFAULT 0,
+  feedback_negativo INTEGER DEFAULT 0,
+  
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_kb_chunks_doc ON kb_chunks(documento_id);
+CREATE INDEX IF NOT EXISTS idx_kb_chunks_articulo ON kb_chunks(articulo);
+CREATE INDEX IF NOT EXISTS idx_kb_chunks_tipo ON kb_chunks(tipo_contenido);
+
+-- Índice para búsqueda vectorial (CRÍTICO para RAG)
+CREATE INDEX IF NOT EXISTS idx_kb_chunks_embedding ON kb_chunks 
+USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ASIGNACIÓN DE CHUNKS A AGENTES
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS kb_chunk_agente (
+  id SERIAL PRIMARY KEY,
+  chunk_id INTEGER REFERENCES kb_chunks(id) ON DELETE CASCADE,
+  agente_id VARCHAR(10) NOT NULL, -- 'A1', 'A2', 'A3', etc.
+  
+  -- Relevancia para este agente
+  score_relevancia FLOAT DEFAULT 0.5, -- 0-1
+  es_conocimiento_core BOOLEAN DEFAULT FALSE, -- Conocimiento esencial para el agente
+  
+  -- Contexto de uso
+  casos_uso TEXT[], -- Cuándo usar este chunk
+  
+  -- Estadísticas
+  veces_usado INTEGER DEFAULT 0,
+  efectividad FLOAT, -- Basado en feedback
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  
+  UNIQUE(chunk_id, agente_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chunk_agente_agente ON kb_chunk_agente(agente_id);
+CREATE INDEX IF NOT EXISTS idx_chunk_agente_relevancia ON kb_chunk_agente(score_relevancia DESC);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- MÉTRICAS DE COMPLETITUD
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS kb_metricas (
+  id SERIAL PRIMARY KEY,
+  fecha DATE DEFAULT CURRENT_DATE UNIQUE,
+  
+  -- Totales
+  total_documentos INTEGER DEFAULT 0,
+  total_chunks INTEGER DEFAULT 0,
+  
+  -- Por categoría (JSONB)
+  por_categoria JSONB,
+  -- {
+  --   "marco_legal": { "documentos": 5, "chunks": 1200, "completitud": 85 },
+  --   "jurisprudencias": { "documentos": 10, "chunks": 500, "completitud": 40 },
+  --   ...
+  -- }
+  
+  -- Por agente
+  por_agente JSONB,
+  -- {
+  --   "A1": { "chunks_asignados": 300, "cobertura": 75 },
+  --   "A3": { "chunks_asignados": 800, "cobertura": 90 },
+  --   ...
+  -- }
+  
+  -- Documentos requeridos vs existentes
+  documentos_requeridos JSONB,
+  documentos_faltantes TEXT[],
+  
+  -- Completitud general
+  completitud_general FLOAT DEFAULT 0,
+  
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 2: SERVICIO DE PROCESAMIENTO DE DOCUMENTOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: server/services/biblioteca/procesadorDocumentos.ts
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+import * as crypto from 'crypto';
+import { db } from '../../db';
+import { embeddingsService } from './embeddings';
+
+const anthropic = new Anthropic();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAPEO DE CATEGORÍAS A AGENTES
+// ═══════════════════════════════════════════════════════════════════════════
+const CATEGORIA_AGENTES: Record<string, string[]> = {
+  // Marco Legal
+  'CFF': ['A1', 'A3', 'A4', 'A7'],      // Código Fiscal
+  'LISR': ['A3', 'A5', 'A7'],           // Ley ISR - Deducciones
+  'LIVA': ['A3', 'A7'],                  // Ley IVA
+  'RCFF': ['A1', 'A4', 'A7'],           // Reglamento CFF
+  'RLISR': ['A3', 'A5', 'A7'],          // Reglamento LISR
+  'RMF': ['A1', 'A3', 'A4', 'A5', 'A7'], // Resolución Miscelánea
+  
+  // Otros
+  'razon_negocios': ['A1', 'A3', 'A7'],
+  'materialidad': ['A2', 'A3', 'A7'],
+  'efos': ['A6', 'A7'],
+  'lista_69b': ['A6', 'A7'],
+  'intangibles': ['A3', 'A5', 'A7'],
+  'jurisprudencias': ['A1', 'A3', 'A7'],
+  'criterios_sat': ['A1', 'A4', 'A7'],
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DOCUMENTOS REQUERIDOS PARA COMPLETITUD
+// ═══════════════════════════════════════════════════════════════════════════
+const DOCUMENTOS_REQUERIDOS = {
+  marco_legal: [
+    { codigo: 'CFF', nombre: 'Código Fiscal de la Federación', critico: true },
+    { codigo: 'LISR', nombre: 'Ley del Impuesto Sobre la Renta', critico: true },
+    { codigo: 'LIVA', nombre: 'Ley del Impuesto al Valor Agregado', critico: true },
+    { codigo: 'RCFF', nombre: 'Reglamento del CFF', critico: true },
+    { codigo: 'RLISR', nombre: 'Reglamento de la LISR', critico: true },
+    { codigo: 'RMF', nombre: 'Resolución Miscelánea Fiscal 2025/2026', critico: true },
+  ],
+  catalogos_sat: [
+    { codigo: 'c_ClaveProdServ', nombre: 'Catálogo de Productos y Servicios', critico: true },
+    { codigo: 'lista_69b', nombre: 'Lista de contribuyentes Art. 69-B (EFOS)', critico: true },
+  ],
+  jurisprudencias: [
+    { codigo: 'juris_razon_negocios', nombre: 'Jurisprudencias sobre razón de negocios', critico: false },
+    { codigo: 'juris_materialidad', nombre: 'Jurisprudencias sobre materialidad', critico: false },
+    { codigo: 'juris_efos', nombre: 'Jurisprudencias sobre EFOS', critico: false },
+    { codigo: 'juris_deducciones', nombre: 'Jurisprudencias sobre deducciones', critico: false },
+  ]
+};
+
+export class ProcesadorDocumentos {
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PROCESAR DOCUMENTO COMPLETO (entrada principal)
+  // ═══════════════════════════════════════════════════════════════════════════
+  async procesarDocumento(params: {
+    contenido: string;
+    nombreArchivo: string;
+    tipoMime?: string;
+  }): Promise<{ success: boolean; documento?: any; error?: string }> {
+    
+    const { contenido, nombreArchivo } = params;
+    
+    console.log(`\n📄 Procesando: ${nombreArchivo}`);
+    console.log(`   Contenido: ${contenido.length} caracteres`);
+
+    try {
+      // 1. Verificar duplicados
+      const hash = crypto.createHash('sha256').update(contenido).digest('hex');
+      const duplicado = await db.query(
+        'SELECT id, nombre FROM kb_documentos WHERE hash_contenido = $1',
+        [hash]
+      );
+      
+      if (duplicado.rows.length > 0) {
+        console.log(`   ⚠️ Documento duplicado: ${duplicado.rows[0].nombre}`);
+        return { 
+          success: false, 
+          error: `Este documento ya existe como "${duplicado.rows[0].nombre}"` 
+        };
+      }
+
+      // 2. Clasificar documento con IA
+      console.log('   🤖 Clasificando documento...');
+      const clasificacion = await this.clasificarDocumento(contenido, nombreArchivo);
+      console.log(`   📂 Clasificado como: ${clasificacion.categoria} - ${clasificacion.ley_codigo || clasificacion.subcategoria}`);
+
+      // 3. Guardar documento
+      const docResult = await db.query(`
+        INSERT INTO kb_documentos (
+          nombre, nombre_original, hash_contenido,
+          categoria, subcategoria, tipo_documento, ley_codigo,
+          fecha_publicacion, version, es_version_vigente,
+          contenido_completo, total_caracteres, metadata, resumen
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        RETURNING *
+      `, [
+        clasificacion.nombre_sugerido || nombreArchivo,
+        nombreArchivo,
+        hash,
+        clasificacion.categoria,
+        clasificacion.subcategoria,
+        clasificacion.tipo_documento,
+        clasificacion.ley_codigo,
+        clasificacion.fecha_publicacion,
+        clasificacion.version,
+        true,
+        contenido,
+        contenido.length,
+        JSON.stringify(clasificacion.metadata || {}),
+        clasificacion.resumen
+      ]);
+
+      const documento = docResult.rows[0];
+      console.log(`   ✅ Documento guardado: ID ${documento.id}`);
+
+      // 4. Crear chunks
+      console.log('   ✂️ Creando chunks...');
+      const chunks = await this.crearChunks(documento.id, contenido, clasificacion);
+      console.log(`   📦 ${chunks.length} chunks creados`);
+
+      // 5. Generar embeddings
+      console.log('   🧮 Generando embeddings...');
+      await this.generarEmbeddings(chunks);
+      console.log(`   ✅ Embeddings generados`);
+
+      // 6. Asignar a agentes
+      console.log('   🤖 Asignando a agentes...');
+      await this.asignarAAgentes(chunks, clasificacion);
+      console.log(`   ✅ Chunks asignados a agentes`);
+
+      // 7. Actualizar métricas
+      await this.actualizarMetricas();
+
+      // 8. Marcar como procesado
+      await db.query(`
+        UPDATE kb_documentos 
+        SET procesado = TRUE, fecha_procesamiento = NOW(), total_chunks = $1
+        WHERE id = $2
+      `, [chunks.length, documento.id]);
+
+      return {
+        success: true,
+        documento: {
+          ...documento,
+          total_chunks: chunks.length,
+          clasificacion
+        }
+      };
+
+    } catch (error: any) {
+      console.error('   ❌ Error procesando documento:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CLASIFICAR DOCUMENTO CON IA
+  // ═══════════════════════════════════════════════════════════════════════════
+  private async clasificarDocumento(contenido: string, nombreArchivo: string): Promise<any> {
+    const muestra = contenido.substring(0, 15000);
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1500,
+      messages: [{
+        role: 'user',
+        content: `Analiza este documento legal/fiscal mexicano y clasifícalo.
+
+NOMBRE ARCHIVO: ${nombreArchivo}
+
+CONTENIDO (muestra):
+${muestra}
+
+Responde en JSON:
+{
+  "nombre_sugerido": "Nombre descriptivo del documento",
+  "categoria": "marco_legal|jurisprudencias|criterios_sat|catalogos_sat|casos_referencia|glosarios|plantillas",
+  "subcategoria": "más específico",
+  "tipo_documento": "ley|reglamento|tesis|criterio|catalogo|guia|otro",
+  "ley_codigo": "CFF|LISR|LIVA|RCFF|RLISR|RMF|null si no aplica",
+  "fecha_publicacion": "YYYY-MM-DD o null",
+  "version": "versión identificada o null",
+  "resumen": "Resumen de 2-3 oraciones del contenido",
+  "metadata": {
+    "ultima_reforma": "fecha si se menciona",
+    "articulos_principales": ["art 1", "art 2"],
+    "temas_clave": ["tema1", "tema2"]
+  }
+}
+
+IMPORTANTE: 
+- Si es el Código Fiscal de la Federación, ley_codigo = "CFF"
+- Si es la Ley del ISR, ley_codigo = "LISR"
+- Detecta la última reforma si se menciona`
+      }]
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') {
+      throw new Error('Respuesta inválida de clasificación');
+    }
+
+    try {
+      // Limpiar respuesta de markdown si existe
+      let jsonText = content.text.trim();
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+      }
+      return JSON.parse(jsonText);
+    } catch {
+      console.error('Error parseando clasificación:', content.text);
+      // Clasificación por defecto
+      return {
+        nombre_sugerido: nombreArchivo,
+        categoria: 'marco_legal',
+        tipo_documento: 'ley',
+        resumen: 'Documento legal mexicano'
+      };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CREAR CHUNKS INTELIGENTES
+  // ═══════════════════════════════════════════════════════════════════════════
+  private async crearChunks(documentoId: number, contenido: string, clasificacion: any): Promise<any[]> {
+    const chunks: any[] = [];
+    
+    // Estrategia según tipo de documento
+    if (clasificacion.ley_codigo) {
+      // Para leyes: chunking por artículos
+      chunks.push(...await this.chunkearPorArticulos(documentoId, contenido, clasificacion));
+    } else if (clasificacion.categoria === 'jurisprudencias') {
+      // Para jurisprudencias: chunking semántico
+      chunks.push(...await this.chunkearSemantico(documentoId, contenido, clasificacion));
+    } else {
+      // Default: chunking por tamaño con overlap
+      chunks.push(...await this.chunkearPorTamanio(documentoId, contenido, clasificacion));
+    }
+
+    return chunks;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CHUNKING POR ARTÍCULOS (para leyes)
+  // ═══════════════════════════════════════════════════════════════════════════
+  private async chunkearPorArticulos(documentoId: number, contenido: string, clasificacion: any): Promise<any[]> {
+    const chunks: any[] = [];
+    
+    // Regex para detectar artículos
+    const articuloRegex = /(?:^|\n)(Art[íi]culo\s+(\d+[A-Z]?(?:\s*(?:Bis|Ter|Quáter|Quinquies))?)[.\-\s]+)/gi;
+    
+    let match;
+    let lastIndex = 0;
+    let lastArticulo = '';
+    let chunkIndex = 0;
+    
+    const matches: { articulo: string; inicio: number }[] = [];
+    
+    while ((match = articuloRegex.exec(contenido)) !== null) {
+      matches.push({
+        articulo: match[2],
+        inicio: match.index
+      });
+    }
+
+    // Crear chunk para cada artículo
+    for (let i = 0; i < matches.length; i++) {
+      const current = matches[i];
+      const next = matches[i + 1];
+      
+      const inicio = current.inicio;
+      const fin = next ? next.inicio : Math.min(inicio + 5000, contenido.length);
+      
+      let textoChunk = contenido.substring(inicio, fin).trim();
+      
+      // Limitar tamaño máximo
+      if (textoChunk.length > 4000) {
+        textoChunk = textoChunk.substring(0, 4000);
+      }
+
+      if (textoChunk.length < 50) continue; // Muy corto
+
+      // Detectar fracciones dentro del artículo
+      const fracciones = textoChunk.match(/(?:^|\n)\s*([IVXLCDM]+|[a-z]\)|\d+\.)\s+/g);
+
+      // Detectar tipo de contenido
+      const tipoContenido = this.detectarTipoContenido(textoChunk);
+
+      // Insertar chunk
+      const result = await db.query(`
+        INSERT INTO kb_chunks (
+          documento_id, contenido, total_tokens, chunk_index,
+          articulo, tipo_contenido, referencias_internas, referencias_externas
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *
+      `, [
+        documentoId,
+        textoChunk,
+        Math.ceil(textoChunk.length / 4), // Aproximación de tokens
+        chunkIndex++,
+        current.articulo,
+        tipoContenido,
+        this.extraerReferenciasInternas(textoChunk),
+        this.extraerReferenciasExternas(textoChunk)
+      ]);
+
+      chunks.push(result.rows[0]);
+    }
+
+    // Si no se encontraron artículos, usar chunking por tamaño
+    if (chunks.length === 0) {
+      return this.chunkearPorTamanio(documentoId, contenido, clasificacion);
+    }
+
+    return chunks;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CHUNKING SEMÁNTICO (para jurisprudencias)
+  // ═══════════════════════════════════════════════════════════════════════════
+  private async chunkearSemantico(documentoId: number, contenido: string, clasificacion: any): Promise<any[]> {
+    const chunks: any[] = [];
+    
+    // Secciones típicas de jurisprudencia
+    const secciones = [
+      { nombre: 'rubro', regex: /RUBRO:\s*([\s\S]*?)(?=TEXTO:|PRECEDENTE:|$)/i },
+      { nombre: 'texto', regex: /TEXTO:\s*([\s\S]*?)(?=PRECEDENTE:|VOTOS:|$)/i },
+      { nombre: 'precedente', regex: /PRECEDENTE[S]?:\s*([\s\S]*?)(?=VOTOS:|$)/i }
+    ];
+
+    let chunkIndex = 0;
+
+    for (const seccion of secciones) {
+      const match = contenido.match(seccion.regex);
+      if (match && match[1]) {
+        let textoSeccion = match[1].trim();
+        
+        // Si es muy largo, subdividir
+        if (textoSeccion.length > 3000) {
+          const subchunks = this.dividirPorParrafos(textoSeccion, 2500);
+          for (const subchunk of subchunks) {
+            const result = await db.query(`
+              INSERT INTO kb_chunks (documento_id, contenido, total_tokens, chunk_index, tipo_contenido)
+              VALUES ($1, $2, $3, $4, $5)
+              RETURNING *
+            `, [documentoId, subchunk, Math.ceil(subchunk.length / 4), chunkIndex++, seccion.nombre]);
+            chunks.push(result.rows[0]);
+          }
+        } else {
+          const result = await db.query(`
+            INSERT INTO kb_chunks (documento_id, contenido, total_tokens, chunk_index, tipo_contenido)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *
+          `, [documentoId, textoSeccion, Math.ceil(textoSeccion.length / 4), chunkIndex++, seccion.nombre]);
+          chunks.push(result.rows[0]);
+        }
+      }
+    }
+
+    // Si no se detectó estructura, usar chunking por tamaño
+    if (chunks.length === 0) {
+      return this.chunkearPorTamanio(documentoId, contenido, clasificacion);
+    }
+
+    return chunks;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CHUNKING POR TAMAÑO (default)
+  // ═══════════════════════════════════════════════════════════════════════════
+  private async chunkearPorTamanio(documentoId: number, contenido: string, clasificacion: any): Promise<any[]> {
+    const chunks: any[] = [];
+    const CHUNK_SIZE = 2000;
+    const OVERLAP = 200;
+    
+    let chunkIndex = 0;
+    let inicio = 0;
+
+    while (inicio < contenido.length) {
+      let fin = inicio + CHUNK_SIZE;
+      
+      // Buscar punto de corte natural (fin de párrafo o punto)
+      if (fin < contenido.length) {
+        const puntoCorte = contenido.lastIndexOf('\n\n', fin);
+        if (puntoCorte > inicio + CHUNK_SIZE / 2) {
+          fin = puntoCorte;
+        } else {
+          const punto = contenido.lastIndexOf('. ', fin);
+          if (punto > inicio + CHUNK_SIZE / 2) {
+            fin = punto + 1;
+          }
+        }
+      }
+
+      const textoChunk = contenido.substring(inicio, fin).trim();
+      
+      if (textoChunk.length > 50) {
+        const result = await db.query(`
+          INSERT INTO kb_chunks (documento_id, contenido, total_tokens, chunk_index)
+          VALUES ($1, $2, $3, $4)
+          RETURNING *
+        `, [documentoId, textoChunk, Math.ceil(textoChunk.length / 4), chunkIndex++]);
+        chunks.push(result.rows[0]);
+      }
+
+      inicio = fin - OVERLAP;
+      if (inicio >= contenido.length - 100) break;
+    }
+
+    return chunks;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GENERAR EMBEDDINGS
+  // ═══════════════════════════════════════════════════════════════════════════
+  private async generarEmbeddings(chunks: any[]): Promise<void> {
+    // Procesar en batches de 20
+    const BATCH_SIZE = 20;
+    
+    for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+      const batch = chunks.slice(i, i + BATCH_SIZE);
+      const textos = batch.map(c => c.contenido);
+      
+      try {
+        const embeddings = await embeddingsService.generarBatch(textos);
+        
+        for (let j = 0; j < batch.length; j++) {
+          await db.query(
+            'UPDATE kb_chunks SET embedding = $1 WHERE id = $2',
+            [`[${embeddings[j].join(',')}]`, batch[j].id]
+          );
+        }
+      } catch (error) {
+        console.error(`Error generando embeddings batch ${i}:`, error);
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ASIGNAR CHUNKS A AGENTES
+  // ═══════════════════════════════════════════════════════════════════════════
+  private async asignarAAgentes(chunks: any[], clasificacion: any): Promise<void> {
+    // Determinar agentes relevantes
+    let agentes: string[] = [];
+    
+    if (clasificacion.ley_codigo && CATEGORIA_AGENTES[clasificacion.ley_codigo]) {
+      agentes = CATEGORIA_AGENTES[clasificacion.ley_codigo];
+    } else if (clasificacion.subcategoria && CATEGORIA_AGENTES[clasificacion.subcategoria]) {
+      agentes = CATEGORIA_AGENTES[clasificacion.subcategoria];
+    } else {
+      // Default: asignar a todos los agentes de auditoría
+      agentes = ['A1', 'A3', 'A7'];
+    }
+
+    for (const chunk of chunks) {
+      for (const agenteId of agentes) {
+        // Calcular relevancia basada en contenido
+        const relevancia = this.calcularRelevanciaParaAgente(chunk, agenteId);
+        
+        await db.query(`
+          INSERT INTO kb_chunk_agente (chunk_id, agente_id, score_relevancia, es_conocimiento_core)
+          VALUES ($1, $2, $3, $4)
+          ON CONFLICT (chunk_id, agente_id) DO UPDATE SET score_relevancia = $3
+        `, [chunk.id, agenteId, relevancia, relevancia > 0.8]);
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ACTUALIZAR MÉTRICAS
+  // ═══════════════════════════════════════════════════════════════════════════
+  async actualizarMetricas(): Promise<any> {
+    // Contar totales
+    const totales = await db.query(`
+      SELECT 
+        COUNT(DISTINCT d.id) as total_documentos,
+        COUNT(c.id) as total_chunks
+      FROM kb_documentos d
+      LEFT JOIN kb_chunks c ON d.id = c.documento_id
+      WHERE d.activo = TRUE
+    `);
+
+    // Por categoría
+    const porCategoria = await db.query(`
+      SELECT 
+        d.categoria,
+        COUNT(DISTINCT d.id) as documentos,
+        COUNT(c.id) as chunks
+      FROM kb_documentos d
+      LEFT JOIN kb_chunks c ON d.id = c.documento_id
+      WHERE d.activo = TRUE
+      GROUP BY d.categoria
+    `);
+
+    // Por agente
+    const porAgente = await db.query(`
+      SELECT 
+        ca.agente_id,
+        COUNT(DISTINCT ca.chunk_id) as chunks_asignados
+      FROM kb_chunk_agente ca
+      GROUP BY ca.agente_id
+    `);
+
+    // Documentos existentes por código
+    const existentes = await db.query(`
+      SELECT ley_codigo FROM kb_documentos 
+      WHERE ley_codigo IS NOT NULL AND activo = TRUE AND es_version_vigente = TRUE
+    `);
+    const codigosExistentes = existentes.rows.map((r: any) => r.ley_codigo);
+
+    // Calcular faltantes
+    const faltantes: string[] = [];
+    for (const cat of Object.values(DOCUMENTOS_REQUERIDOS)) {
+      for (const doc of cat) {
+        if (!codigosExistentes.includes(doc.codigo)) {
+          faltantes.push(doc.nombre);
+        }
+      }
+    }
+
+    // Calcular completitud
+    const totalRequeridos = Object.values(DOCUMENTOS_REQUERIDOS)
+      .flatMap(cat => cat.filter(d => d.critico)).length;
+    const criticosExistentes = Object.values(DOCUMENTOS_REQUERIDOS)
+      .flatMap(cat => cat.filter(d => d.critico && codigosExistentes.includes(d.codigo))).length;
+    const completitud = totalRequeridos > 0 ? (criticosExistentes / totalRequeridos) * 100 : 0;
+
+    // Guardar métricas
+    await db.query(`
+      INSERT INTO kb_metricas (
+        fecha, total_documentos, total_chunks, 
+        por_categoria, por_agente, documentos_faltantes, completitud_general
+      ) VALUES (CURRENT_DATE, $1, $2, $3, $4, $5, $6)
+      ON CONFLICT (fecha) DO UPDATE SET
+        total_documentos = $1,
+        total_chunks = $2,
+        por_categoria = $3,
+        por_agente = $4,
+        documentos_faltantes = $5,
+        completitud_general = $6,
+        updated_at = NOW()
+    `, [
+      totales.rows[0].total_documentos,
+      totales.rows[0].total_chunks,
+      JSON.stringify(Object.fromEntries(porCategoria.rows.map((r: any) => [r.categoria, { documentos: r.documentos, chunks: r.chunks }]))),
+      JSON.stringify(Object.fromEntries(porAgente.rows.map((r: any) => [r.agente_id, { chunks_asignados: r.chunks_asignados }]))),
+      faltantes,
+      completitud
+    ]);
+
+    return {
+      total_documentos: parseInt(totales.rows[0].total_documentos),
+      total_chunks: parseInt(totales.rows[0].total_chunks),
+      completitud_general: completitud,
+      documentos_faltantes: faltantes
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HELPERS
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  private detectarTipoContenido(texto: string): string {
+    const lower = texto.toLowerCase();
+    if (lower.includes('se entenderá') || lower.includes('para efectos de')) return 'definicion';
+    if (lower.includes('requisito') || lower.includes('deberá') || lower.includes('deberán')) return 'requisito';
+    if (lower.includes('sanción') || lower.includes('multa') || lower.includes('pena')) return 'sancion';
+    if (lower.includes('procedimiento') || lower.includes('trámite')) return 'procedimiento';
+    if (lower.includes('plazo') || lower.includes('días') || lower.includes('término')) return 'plazo';
+    if (lower.includes('obligación') || lower.includes('obligado')) return 'obligacion';
+    return 'general';
+  }
+
+  private extraerReferenciasInternas(texto: string): string[] {
+    const refs: string[] = [];
+    const regex = /(?:art[íi]culo|art\.?)\s*(\d+[A-Z]?(?:\s*(?:Bis|Ter))?)/gi;
+    let match;
+    while ((match = regex.exec(texto)) !== null) {
+      refs.push(`Art. ${match[1]}`);
+    }
+    return [...new Set(refs)].slice(0, 10);
+  }
+
+  private extraerReferenciasExternas(texto: string): string[] {
+    const refs: string[] = [];
+    const regex = /(LISR|LIVA|CFF|RCFF|RLISR)\s+(?:art[íi]culo|art\.?)\s*(\d+)/gi;
+    let match;
+    while ((match = regex.exec(texto)) !== null) {
+      refs.push(`${match[1]} Art. ${match[2]}`);
+    }
+    return [...new Set(refs)].slice(0, 10);
+  }
+
+  private dividirPorParrafos(texto: string, maxLength: number): string[] {
+    const parrafos = texto.split(/\n\n+/);
+    const resultado: string[] = [];
+    let actual = '';
+
+    for (const parrafo of parrafos) {
+      if ((actual + parrafo).length < maxLength) {
+        actual += (actual ? '\n\n' : '') + parrafo;
+      } else {
+        if (actual) resultado.push(actual);
+        actual = parrafo;
+      }
+    }
+    if (actual) resultado.push(actual);
+
+    return resultado;
+  }
+
+  private calcularRelevanciaParaAgente(chunk: any, agenteId: string): number {
+    // Lógica de relevancia basada en el agente
+    const texto = chunk.contenido.toLowerCase();
+    
+    switch (agenteId) {
+      case 'A1': // Razón de negocios
+        if (texto.includes('razón de negocios') || texto.includes('propósito comercial')) return 0.95;
+        if (texto.includes('simulación') || texto.includes('acto jurídico')) return 0.8;
+        break;
+      case 'A3': // Deducciones
+        if (texto.includes('deducción') || texto.includes('deducible')) return 0.95;
+        if (texto.includes('requisito') && texto.includes('comprobante')) return 0.85;
+        break;
+      case 'A6': // EFOS
+        if (texto.includes('69-b') || texto.includes('efos') || texto.includes('operaciones inexistentes')) return 0.95;
+        break;
+      case 'A7': // Defensa
+        if (texto.includes('recurso') || texto.includes('impugnación') || texto.includes('juicio')) return 0.9;
+        break;
+    }
+    
+    return 0.5; // Relevancia base
+  }
+}
+
+export const procesadorDocumentos = new ProcesadorDocumentos();
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 3: SERVICIO DE EMBEDDINGS
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: server/services/biblioteca/embeddings.ts
+
+```typescript
+import OpenAI from 'openai';
+
+// OpenAI para embeddings (o Voyage AI si prefieres)
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+export class EmbeddingsService {
+  
+  async generar(texto: string): Promise<number[]> {
+    const response = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: texto.substring(0, 8000) // Límite de tokens
+    });
+    return response.data[0].embedding;
+  }
+
+  async generarBatch(textos: string[]): Promise<number[][]> {
+    const response = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: textos.map(t => t.substring(0, 8000))
+    });
+    return response.data.map(d => d.embedding);
+  }
+}
+
+export const embeddingsService = new EmbeddingsService();
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 4: API ACTUALIZADA DE BIBLIOTECAR.IA
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear/Reemplazar: server/routes/biblioteca.ts
+
+```typescript
+import { Router, Request, Response } from 'express';
+import multer from 'multer';
+import * as pdfParse from 'pdf-parse';
+import { db } from '../db';
+import { procesadorDocumentos } from '../services/biblioteca/procesadorDocumentos';
+import Anthropic from '@anthropic-ai/sdk';
+
+const router = Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+const anthropic = new Anthropic();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OBTENER ESTADÍSTICAS
+// ═══════════════════════════════════════════════════════════════════════════
+router.get('/stats', async (req: Request, res: Response) => {
+  try {
+    const metricas = await procesadorDocumentos.actualizarMetricas();
+    
+    // Obtener métricas por categoría
+    const categorias = await db.query(`
+      SELECT 
+        d.categoria,
+        COUNT(DISTINCT d.id) as documentos,
+        COALESCE(SUM(d.total_chunks), 0) as chunks
+      FROM kb_documentos d
+      WHERE d.activo = TRUE
+      GROUP BY d.categoria
+    `);
+
+    // Alertas
+    const alertas: any[] = [];
+    
+    if (!metricas.documentos_faltantes.includes('Lista de contribuyentes Art. 69-B (EFOS)') === false) {
+      alertas.push({
+        tipo: 'critica',
+        mensaje: 'No existe lista 69-B en el sistema. A6 Proveedor no puede verificar EFOS.'
+      });
+    }
+    
+    if (metricas.documentos_faltantes.some((d: string) => d.includes('RMF'))) {
+      alertas.push({
+        tipo: 'alta',
+        mensaje: 'No existe RMF 2025/2026. Puede haber criterios desactualizados.'
+      });
+    }
+
+    res.json({
+      success: true,
+      total_documentos: metricas.total_documentos,
+      total_chunks: metricas.total_chunks,
+      completitud: {
+        general: Math.round(metricas.completitud_general)
+      },
+      categorias: Object.fromEntries(
+        categorias.rows.map((r: any) => [r.categoria, {
+          documentos: parseInt(r.documentos),
+          chunks: parseInt(r.chunks),
+          completitud: Math.min(100, parseInt(r.documentos) * 20) // Aproximación
+        }])
+      ),
+      alertas,
+      documentos_faltantes: metricas.documentos_faltantes
+    });
+
+  } catch (error: any) {
+    console.error('Error obteniendo stats:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUBIR Y PROCESAR DOCUMENTO
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/upload', upload.single('archivo'), async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No se recibió archivo' });
+    }
+
+    const { originalname, mimetype, buffer } = req.file;
+    console.log(`📥 Archivo recibido: ${originalname} (${mimetype})`);
+
+    // Extraer contenido según tipo
+    let contenido = '';
+    
+    if (mimetype === 'application/pdf') {
+      const pdfData = await pdfParse(buffer);
+      contenido = pdfData.text;
+    } else if (mimetype === 'text/plain' || originalname.endsWith('.txt')) {
+      contenido = buffer.toString('utf8');
+    } else if (mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      // Para DOCX necesitarías mammoth
+      const mammoth = require('mammoth');
+      const result = await mammoth.extractRawText({ buffer });
+      contenido = result.value;
+    } else {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Tipo de archivo no soportado. Use PDF, TXT o DOCX.' 
+      });
+    }
+
+    if (contenido.length < 100) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'El documento parece estar vacío o no se pudo extraer el texto.' 
+      });
+    }
+
+    // Procesar documento
+    const resultado = await procesadorDocumentos.procesarDocumento({
+      contenido,
+      nombreArchivo: originalname,
+      tipoMime: mimetype
+    });
+
+    if (!resultado.success) {
+      return res.status(400).json(resultado);
+    }
+
+    res.json({
+      success: true,
+      message: `Documento procesado: ${resultado.documento.total_chunks} chunks creados`,
+      documento: resultado.documento
+    });
+
+  } catch (error: any) {
+    console.error('Error en upload:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHAT CON BIBLIOTECAR.IA
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/chat', async (req: Request, res: Response) => {
+  try {
+    const { message, history = [] } = req.body;
+
+    // Obtener estadísticas actuales
+    const stats = await db.query(`
+      SELECT * FROM kb_metricas ORDER BY fecha DESC LIMIT 1
+    `);
+    const metricas = stats.rows[0] || { total_documentos: 0, total_chunks: 0 };
+
+    const systemPrompt = `Eres la Dra. Elena Vázquez, bibliotecaria experta de Revisar.IA.
+
+TU ROL:
+- Ayudar a mantener actualizado el knowledge base de Revisar.IA
+- Guiar a los usuarios sobre qué documentos subir
+- Explicar el estado de completitud del sistema
+- Procesar y organizar documentos legales mexicanos
+
+ESTADO ACTUAL DEL KNOWLEDGE BASE:
+- Documentos: ${metricas.total_documentos}
+- Chunks RAG: ${metricas.total_chunks}
+- Completitud: ${metricas.completitud_general || 0}%
+- Documentos faltantes: ${(metricas.documentos_faltantes || []).join(', ') || 'Ninguno crítico'}
+
+DOCUMENTOS PRIORITARIOS QUE NECESITAMOS:
+1. Código Fiscal de la Federación (CFF) - Versión vigente
+2. Ley del Impuesto Sobre la Renta (LISR) - Versión vigente
+3. Resolución Miscelánea Fiscal 2025/2026
+4. Lista de contribuyentes Art. 69-B (EFOS) - Actualizada
+5. Jurisprudencias relevantes sobre deducciones e intangibles
+
+CUANDO EL USUARIO SUBA UN DOCUMENTO:
+1. Analiza el contenido
+2. Clasifícalo correctamente
+3. Confirma que fue procesado
+4. Indica cuántos chunks se crearon
+5. Explica a qué agentes beneficia
+
+Sé proactiva. Si el usuario pregunta "¿qué necesitas?", dile exactamente qué documentos faltan y por qué son importantes.`;
+
+    const messages = [
+      ...history.slice(-10).map((m: any) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content
+      })),
+      { role: 'user' as const, content: message }
+    ];
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1500,
+      system: systemPrompt,
+      messages
+    });
+
+    const content = response.content[0];
+    
+    res.json({
+      success: true,
+      response: content.type === 'text' ? content.text : ''
+    });
+
+  } catch (error: any) {
+    console.error('Error en chat:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BÚSQUEDA SEMÁNTICA (para agentes)
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/search', async (req: Request, res: Response) => {
+  try {
+    const { query, agenteId, limit = 5 } = req.body;
+
+    if (!query) {
+      return res.status(400).json({ success: false, error: 'Query requerida' });
+    }
+
+    // Generar embedding de la query
+    const { embeddingsService } = require('../services/biblioteca/embeddings');
+    const queryEmbedding = await embeddingsService.generar(query);
+
+    // Búsqueda vectorial
+    let searchQuery = `
+      SELECT 
+        c.id, c.contenido, c.articulo, c.tipo_contenido,
+        d.nombre, d.categoria, d.ley_codigo,
+        1 - (c.embedding <=> $1::vector) as similarity
+      FROM kb_chunks c
+      JOIN kb_documentos d ON c.documento_id = d.id
+      WHERE d.activo = TRUE
+    `;
+    
+    const params: any[] = [`[${queryEmbedding.join(',')}]`];
+
+    // Filtrar por agente si se especifica
+    if (agenteId) {
+      searchQuery += `
+        AND c.id IN (
+          SELECT chunk_id FROM kb_chunk_agente WHERE agente_id = $2
+        )
+      `;
+      params.push(agenteId);
+    }
+
+    searchQuery += `
+      ORDER BY similarity DESC
+      LIMIT $${params.length + 1}
+    `;
+    params.push(limit);
+
+    const result = await db.query(searchQuery, params);
+
+    res.json({
+      success: true,
+      results: result.rows.map((r: any) => ({
+        id: r.id,
+        contenido: r.contenido,
+        fuente: r.nombre,
+        articulo: r.articulo,
+        categoria: r.categoria,
+        ley: r.ley_codigo,
+        relevancia: Math.round(r.similarity * 100)
+      }))
+    });
+
+  } catch (error: any) {
+    console.error('Error en búsqueda:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LISTAR DOCUMENTOS
+// ═══════════════════════════════════════════════════════════════════════════
+router.get('/documentos', async (req: Request, res: Response) => {
+  try {
+    const { categoria } = req.query;
+
+    let query = `
+      SELECT id, nombre, categoria, subcategoria, ley_codigo, 
+             version, total_chunks, procesado, created_at
+      FROM kb_documentos
+      WHERE activo = TRUE
+    `;
+    const params: any[] = [];
+
+    if (categoria) {
+      params.push(categoria);
+      query += ` AND categoria = $${params.length}`;
+    }
+
+    query += ` ORDER BY created_at DESC`;
+
+    const result = await db.query(query, params);
+
+    res.json({
+      success: true,
+      documentos: result.rows
+    });
+
+  } catch (error: any) {
+    console.error('Error listando documentos:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+export default router;
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 5: INSTALAR DEPENDENCIAS
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+npm install pdf-parse mammoth openai pgvector
+npm install -D @types/pdf-parse
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 6: REGISTRAR RUTAS
+═══════════════════════════════════════════════════════════════════════════════
+
+En server/index.ts:
+
+```typescript
+import bibliotecaRoutes from './routes/biblioteca';
+
+app.use('/api/biblioteca', bibliotecaRoutes);
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 7: CONFIGURAR OPENAI_API_KEY
+═══════════════════════════════════════════════════════════════════════════════
+
+En Replit Secrets agregar:
+
+```
+OPENAI_API_KEY = sk-...
+```
+
+Esto es necesario para generar los embeddings.
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Extensión pgvector habilitada en PostgreSQL
+□ Tablas kb_documentos, kb_chunks, kb_chunk_agente, kb_metricas creadas
+□ Servicio procesadorDocumentos implementado
+□ Servicio embeddings implementado
+□ API /api/biblioteca actualizada
+□ OPENAI_API_KEY configurada
+□ Dependencias instaladas
+□ Rutas registradas
+□ Deploy ejecutado
+
+RESULTADO ESPERADO:
+- Subir CFF.pdf → Se crean ~200 chunks organizados por artículo
+- Métricas se actualizan: 1 Documento, ~200 Chunks
+- Marco Legal muestra 20% completitud
+- Chunks se asignan a A1, A3, A4, A7 automáticamente
+
+</TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+EJECUTAR TODO - BIBLIOTECAR.IA DEBE INGESTAR DOCUMENTOS REALMENTE
+═══════════════════════════════════════════════════════════════════════════════

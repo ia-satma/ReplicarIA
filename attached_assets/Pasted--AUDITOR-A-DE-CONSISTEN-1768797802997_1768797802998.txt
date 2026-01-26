@@ -1,0 +1,312 @@
+=============================================================================
+AUDITORÍA DE CONSISTENCIA END-TO-END - DUREZZA 4.0
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta esta auditoría completa del sistema. NO hagas cambios.
+Solo REPORTA el estado actual de cada componente y su integración.
+
+OBJETIVO: Verificar que el contexto global, reglas por tipología, y todos
+los flujos están correctamente conectados en: deliberaciones, emails,
+pCloud, inputs, outputs, y generación de archivos.
+
+=============================================================================
+PARTE 1: AUDITORÍA DE FLUJO DE DELIBERACIÓN
+=============================================================================
+
+1.1 Verifica en deliberation_orchestrator.py o agentic_reasoning_service.py:
+
+□ ¿Se llama a construir_contexto_completo_para_agente() antes de cada deliberación?
+□ ¿El contexto incluye contexto_normativo (CFF 5-A, 69-B, LISR 27)?
+□ ¿El contexto incluye las reglas_auditoria de la tipología del proyecto?
+□ ¿El contexto incluye el checklist_fase_actual?
+□ ¿Se genera el system_prompt usando generar_system_prompt_con_contexto()?
+
+Reporta:
+- Archivo donde se orquesta la deliberación: [nombre]
+- Línea donde se construye el contexto: [número o "NO ENCONTRADO"]
+- ¿Usa inyeccion_contexto_service?: [SÍ/NO]
+- ¿Usa contexto_global?: [SÍ/NO]
+- ¿Usa reglas_tipologia?: [SÍ/NO]
+
+1.2 Verifica el payload que recibe el LLM:
+
+□ ¿El system_prompt incluye el marco normativo?
+□ ¿El system_prompt incluye alertas de tipología?
+□ ¿El system_prompt incluye reglas de auditoría específicas?
+□ ¿El user_message incluye datos del proyecto?
+
+Reporta ejemplo de system_prompt generado (primeras 500 chars).
+
+=============================================================================
+PARTE 2: AUDITORÍA DE VALIDACIÓN DE OUTPUTS
+=============================================================================
+
+2.1 Verifica en validation/agent_schemas.py:
+
+□ ¿Existe A3FiscalOutput con checklist_evidencia_exigible min 3?
+□ ¿Existe validación de conclusion_por_pilar con los 4 pilares?
+□ ¿Existe validación de risk_score_calculado?
+
+Reporta schemas existentes:
+- A1SponsorOutput: [SÍ/NO] - campos principales: [lista]
+- A2PMOOutput: [SÍ/NO] - campos principales: [lista]
+- A3FiscalOutput: [SÍ/NO] - campos principales: [lista]
+- A4LegalOutput: [SÍ/NO] - campos principales: [lista]
+- A5FinanzasOutput: [SÍ/NO] - campos principales: [lista]
+- A7DefensaOutput: [SÍ/NO] - campos principales: [lista]
+
+2.2 Verifica en validation/validation_service.py:
+
+□ ¿Existe función validar_output_agente()?
+□ ¿Se llama después de cada deliberación?
+□ ¿Rechaza deliberaciones incompletas?
+
+Reporta:
+- Función de validación existe: [SÍ/NO]
+- Se integra en flujo de deliberación: [SÍ/NO]
+- Ubicación de la integración: [archivo:línea o "NO INTEGRADO"]
+
+=============================================================================
+PARTE 3: AUDITORÍA DE CANDADOS Y BLOQUEOS
+=============================================================================
+
+3.1 Verifica en services/fase_service.py:
+
+□ ¿Existen funciones _verificar_candado_f2, _verificar_candado_f6, _verificar_candado_f8?
+□ ¿F2 verifica: F0+F1 completas, presupuesto, revisión humana?
+□ ¿F6 verifica: materialidad ≥80%, VBC Fiscal, VBC Legal?
+□ ¿F8 verifica: CFDI específico, 3-way match <5%?
+
+Reporta para cada candado:
+- F2: [campos que verifica]
+- F6: [campos que verifica]
+- F8: [campos que verifica]
+
+3.2 Verifica en middleware/candados_middleware.py:
+
+□ ¿Existe CandadoBlockedException?
+□ ¿Existe verificar_candado_antes_de_avanzar()?
+□ ¿Los endpoints de avance de fase usan el middleware?
+
+Reporta:
+- Middleware existe: [SÍ/NO]
+- Endpoints protegidos: [lista de rutas]
+- Handler de excepción registrado en server.py: [SÍ/NO]
+
+3.3 Verifica integración con reglas_tipologia.py:
+
+□ ¿El checklist obligatorio por tipología se verifica antes de avanzar?
+□ ¿validar_checklist_fase() se llama en algún flujo?
+
+Reporta:
+- Función validar_checklist_fase existe: [SÍ/NO]
+- Se integra en flujo de avance: [SÍ/NO]
+- Ubicación: [archivo:línea o "NO INTEGRADO"]
+
+=============================================================================
+PARTE 4: AUDITORÍA DE EMAILS (DreamHost)
+=============================================================================
+
+4.1 Verifica en services/dreamhost_email_service.py:
+
+□ ¿Están configurados los 11 agentes con email @revisar-ia.com?
+□ ¿Cada agente tiene: estrategia@, pmo@, fiscal@, legal@, finanzas@,
+   auditoria@, proveedor@, tipificacion@, materialidad@, riesgos@, defensa@?
+
+Reporta:
+- Agentes con email configurado: [lista]
+- Agentes SIN email: [lista o "NINGUNO"]
+
+4.2 Verifica el contenido de emails enviados:
+
+□ ¿Los emails incluyen el análisis completo del agente?
+□ ¿Los emails incluyen la decisión y justificación?
+□ ¿Los emails incluyen el risk_score?
+□ ¿Los emails a proveedores incluyen los ajustes requeridos?
+
+Reporta:
+- Template de email usado: [ubicación]
+- ¿Incluye contexto normativo en email?: [SÍ/NO]
+- ¿Incluye checklist de documentos faltantes?: [SÍ/NO]
+
+4.3 Verifica registro de emails en Defense File:
+
+□ ¿Cada email enviado se registra en defense_file.emails?
+□ ¿Se guarda: from, to, subject, body, timestamp?
+
+Reporta:
+- Función que registra emails: [nombre o "NO ENCONTRADA"]
+- Ubicación: [archivo:línea]
+
+=============================================================================
+PARTE 5: AUDITORÍA DE PCLOUD
+=============================================================================
+
+5.1 Verifica en services/pcloud_service.py:
+
+□ ¿Existen las 11 carpetas de agentes + DEFENSE_FILES + PROYECTOS?
+□ ¿Los permisos de escritura están correctos según AGENT_WRITE_PERMISSIONS?
+
+Reporta:
+- Carpetas configuradas: [lista]
+- Carpetas faltantes: [lista o "NINGUNA"]
+
+5.2 Verifica subida de archivos:
+
+□ ¿Los PDFs de deliberación se suben a la carpeta del agente?
+□ ¿El Defense File se sube a DEFENSE_FILES?
+□ ¿Se genera link compartido después de subir?
+
+Reporta:
+- Función de upload: [nombre]
+- ¿Genera link compartido?: [SÍ/NO]
+- ¿Registra en defense_file.pcloud_documents?: [SÍ/NO]
+
+5.3 Verifica consistencia de nombres:
+
+□ ¿Los archivos usan nomenclatura consistente?
+□ Formato esperado: {FOLIO}_{AGENTE}_{TIPO}_{FECHA}.pdf
+
+Reporta ejemplo de nombre de archivo generado.
+
+=============================================================================
+PARTE 6: AUDITORÍA DE DEFENSE FILE
+=============================================================================
+
+6.1 Verifica en services/defense_file_service.py o defense_file_generator.py:
+
+□ ¿El Defense File incluye todas las deliberaciones?
+□ ¿Incluye la matriz de materialidad?
+□ ¿Incluye el risk_score desglosado por pilar?
+□ ¿Incluye los VBC (Fiscal y Legal)?
+□ ¿Incluye la bitácora de comunicaciones?
+□ ¿Incluye links a documentos en pCloud?
+
+Reporta campos del Defense File:
+- deliberaciones: [SÍ/NO]
+- matriz_materialidad: [SÍ/NO]
+- risk_score_total: [SÍ/NO]
+- risk_score_por_pilar: [SÍ/NO]
+- vbc_fiscal: [SÍ/NO]
+- vbc_legal: [SÍ/NO]
+- emails: [SÍ/NO]
+- pcloud_links: [SÍ/NO]
+- bitacora: [SÍ/NO]
+
+6.2 Verifica generación de PDF:
+
+□ ¿Se genera PDF del Defense File?
+□ ¿El PDF incluye índice de contenidos?
+□ ¿El PDF incluye el marco normativo aplicado?
+□ ¿El PDF incluye argumentos de defensa?
+
+Reporta:
+- Función generadora de PDF: [nombre]
+- Ubicación: [archivo]
+- Secciones del PDF: [lista]
+
+=============================================================================
+PARTE 7: AUDITORÍA DE CONSISTENCIA DE DATOS
+=============================================================================
+
+7.1 Verifica que el risk_score sea consistente:
+
+□ ¿El risk_score en Project coincide con el calculado en deliberaciones?
+□ ¿El desglose por pilar suma el total?
+□ ¿El risk_score se actualiza después de cada deliberación?
+
+Reporta:
+- Campo risk_score_total en Project: [SÍ/NO]
+- Campos risk_score_razon_negocios, _beneficio_economico, _materialidad, _trazabilidad: [SÍ/NO]
+- Función que actualiza risk_score: [nombre o "NO ENCONTRADA"]
+
+7.2 Verifica que la tipología sea consistente:
+
+□ ¿La tipología asignada por SUB_TIPIFICACION se guarda en Project?
+□ ¿Los agentes reciben la tipología correcta en su contexto?
+□ ¿El checklist corresponde a la tipología del proyecto?
+
+Reporta:
+- Campo tipologia en Project: [SÍ/NO]
+- ¿SUB_TIPIFICACION actualiza Project.tipologia?: [SÍ/NO]
+- ¿Agentes reciben tipología en contexto?: [SÍ/NO]
+
+7.3 Verifica que la fase sea consistente:
+
+□ ¿La fase_actual se actualiza correctamente?
+□ ¿Las fases_completadas se registran?
+□ ¿El avance de fase respeta los candados?
+
+Reporta:
+- Campo fase_actual en Project: [SÍ/NO]
+- Campo fases_completadas: [SÍ/NO]
+- Función de avance de fase: [nombre]
+
+=============================================================================
+PARTE 8: AUDITORÍA DE INPUTS/OUTPUTS DE AGENTES
+=============================================================================
+
+8.1 Para cada agente, verifica que recibe el contexto correcto:
+
+| Agente | contexto_normativo | reglas_tipologia | checklist_fase | proyecto | proveedor |
+|--------|-------------------|------------------|----------------|----------|-----------|
+| A1_SPONSOR | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] |
+| A2_PMO | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] |
+| A3_FISCAL | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] |
+| A4_LEGAL | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] |
+| A5_FINANZAS | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] |
+| A7_DEFENSA | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] |
+
+8.2 Para cada agente, verifica que su output se valida:
+
+| Agente | Schema existe | Se valida | Se registra en DB |
+|--------|--------------|-----------|-------------------|
+| A1_SPONSOR | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] |
+| A2_PMO | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] |
+| A3_FISCAL | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] |
+| A4_LEGAL | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] |
+| A5_FINANZAS | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] |
+| A7_DEFENSA | [SÍ/NO] | [SÍ/NO] | [SÍ/NO] |
+
+=============================================================================
+PARTE 9: IDENTIFICACIÓN DE BRECHAS
+=============================================================================
+
+Basándote en la auditoría anterior, lista:
+
+9.1 BRECHAS CRÍTICAS (bloquean funcionalidad):
+1. [descripción]
+2. [descripción]
+...
+
+9.2 BRECHAS MEDIAS (funciona pero incompleto):
+1. [descripción]
+2. [descripción]
+...
+
+9.3 BRECHAS MENORES (mejoras deseables):
+1. [descripción]
+2. [descripción]
+...
+
+9.4 INTEGRACIONES FALTANTES:
+Lista conexiones que deberían existir pero no están:
+1. [componente A] → [componente B]: [descripción]
+2. [componente A] → [componente B]: [descripción]
+...
+
+=============================================================================
+PARTE 10: RECOMENDACIONES PRIORIZADAS
+=============================================================================
+
+Lista las 5 acciones más importantes para lograr consistencia end-to-end:
+
+1. [PRIORIDAD ALTA] [descripción] - Archivo(s) a modificar: [lista]
+2. [PRIORIDAD ALTA] [descripción] - Archivo(s) a modificar: [lista]
+3. [PRIORIDAD MEDIA] [descripción] - Archivo(s) a modificar: [lista]
+4. [PRIORIDAD MEDIA] [descripción] - Archivo(s) a modificar: [lista]
+5. [PRIORIDAD BAJA] [descripción] - Archivo(s) a modificar: [lista]
+
+=============================================================================
+FIN DE AUDITORÍA
+=============================================================================

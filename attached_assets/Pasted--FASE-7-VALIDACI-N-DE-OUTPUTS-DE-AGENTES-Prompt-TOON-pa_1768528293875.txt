@@ -1,0 +1,749 @@
+# FASE 7: VALIDACIÓN DE OUTPUTS DE AGENTES
+## Prompt TOON para Replit
+
+```
+=============================================================================
+TOON FASE 7: SCHEMAS JSON Y VALIDACIÓN DE RESPUESTAS DE AGENTES
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta todas las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. SOLO EJECUTA.
+
+PRERREQUISITO: Las Fases 1-6 deben estar completadas.
+
+CONTEXTO: Una brecha crítica identificada es que las respuestas de los agentes
+no se validan - pueden producir outputs incompletos, con campos faltantes,
+o en formatos incorrectos. Esta fase implementa validación robusta de JSON
+para asegurar que cada agente produzca outputs estructurados y completos.
+
+=============================================================================
+PASO 1: INSTALAR DEPENDENCIAS DE VALIDACIÓN
+=============================================================================
+
+Instala las librerías necesarias:
+
+npm install zod ajv
+# o si usas otro validador, instálalo aquí
+
+=============================================================================
+PASO 2: CREAR SCHEMAS DE VALIDACIÓN CON ZOD
+=============================================================================
+
+Crea archivo "validation/agentSchemas.js":
+
+const { z } = require('zod');
+
+// =========================================================================
+// ENUMS COMPARTIDOS
+// =========================================================================
+
+const DecisionEnum = z.enum([
+  'APROBAR', 
+  'APROBAR_CONDICIONES', 
+  'SOLICITAR_AJUSTES', 
+  'RECHAZAR', 
+  'PENDIENTE'
+]);
+
+const StatusPilarEnum = z.enum([
+  'CONFORME', 
+  'CONDICIONADO', 
+  'NO_CONFORME',
+  'EN_RIESGO',
+  'FALLA_CRITICA'
+]);
+
+const EstadoChecklistEnum = z.enum([
+  'PENDIENTE', 
+  'ENTREGADO', 
+  'INCONSISTENTE'
+]);
+
+const SeveridadEnum = z.enum([
+  'BAJA', 
+  'MEDIA', 
+  'ALTA', 
+  'CRITICA'
+]);
+
+const TipoAlertaEnum = z.enum([
+  'EFOS', 
+  'PARTE_RELACIONADA', 
+  'ESQUEMA_REPORTABLE', 
+  'TP_PENDIENTE', 
+  'MONTO_ALTO',
+  'OTRO'
+]);
+
+// =========================================================================
+// SCHEMA PARA A1_SPONSOR
+// =========================================================================
+
+const A1SponsorOutputSchema = z.object({
+  decision: DecisionEnum,
+  
+  analisis_razon_negocios: z.object({
+    vinculacion_con_giro: z.string().min(30, 'Debe tener al menos 30 caracteres'),
+    objetivo_economico: z.string().min(50, 'Debe tener al menos 50 caracteres'),
+    conclusion: z.enum(['CONFORME', 'CONDICIONADO', 'NO_CONFORME'])
+  }),
+  
+  analisis_bee: z.object({
+    objetivo_especifico: z.string().min(50, 'Debe tener al menos 50 caracteres'),
+    roi_esperado: z.number().nullable(),
+    horizonte_meses: z.number().int().positive().nullable(),
+    indicadores_exito: z.array(z.string()).min(1, 'Debe tener al menos 1 indicador'),
+    evaluacion: z.enum(['CONFORME', 'CONDICIONADO', 'NO_CONFORME'])
+  }),
+  
+  condiciones_estrategicas_avance: z.array(z.string()),
+  
+  requisitos_para_sow: z.array(z.string()),
+  
+  riesgo_puntos_razon_negocios: z.number().int().min(0).max(25),
+  
+  riesgo_puntos_beneficio_economico: z.number().int().min(0).max(25)
+});
+
+// =========================================================================
+// SCHEMA PARA A2_PMO
+// =========================================================================
+
+const A2PMOOutputSchema = z.object({
+  estado_global_proyecto: z.enum([
+    'PENDIENTE', 
+    'APROBADO_ESTRATEGICO', 
+    'APROBADO_CONDICIONAL', 
+    'APROBADO_OPERATIVO', 
+    'RECHAZADO', 
+    'BLOQUEADO'
+  ]),
+  
+  fase_actual: z.string(),
+  
+  checklist_estado: z.array(z.object({
+    item: z.string(),
+    estado: z.enum(['CUMPLIDO', 'PENDIENTE', 'NO_APLICA'])
+  })),
+  
+  decisiones_agentes_resumen: z.object({
+    A1: z.string().optional(),
+    A3: z.string().optional(),
+    A4: z.string().optional(),
+    A5: z.string().optional()
+  }),
+  
+  bloqueos_activos: z.array(z.string()),
+  
+  requiere_revision_humana: z.boolean(),
+  razon_revision_humana: z.string().nullable().optional(),
+  
+  siguiente_accion: z.string(),
+  
+  puede_avanzar_fase: z.boolean()
+});
+
+// =========================================================================
+// SCHEMA PARA A3_FISCAL (EL MÁS CRÍTICO)
+// =========================================================================
+
+const ConclusionPilarSchema = z.object({
+  status: StatusPilarEnum,
+  detalle: z.string().min(50, 'El detalle debe tener al menos 50 caracteres'),
+  riesgo_puntos: z.number().int().min(0).max(25)
+});
+
+const ChecklistEvidenciaItemSchema = z.object({
+  item: z.string(),
+  obligatorio: z.boolean(),
+  estado: EstadoChecklistEnum,
+  fase_requerida: z.string()
+});
+
+const AlertaRiesgoSchema = z.object({
+  tipo_alerta: TipoAlertaEnum,
+  descripcion: z.string(),
+  severidad: SeveridadEnum
+});
+
+const A3FiscalOutputSchema = z.object({
+  decision: DecisionEnum,
+  
+  conclusion_por_pilar: z.object({
+    razon_negocios: ConclusionPilarSchema,
+    beneficio_economico: ConclusionPilarSchema,
+    materialidad: ConclusionPilarSchema,
+    trazabilidad: ConclusionPilarSchema
+  }),
+  
+  risk_score_total: z.number().int().min(0).max(100),
+  
+  checklist_evidencia_exigible: z.array(ChecklistEvidenciaItemSchema)
+    .min(3, 'Debe haber al menos 3 items en el checklist'),
+  
+  alertas_riesgo_especial: z.array(AlertaRiesgoSchema),
+  
+  condiciones_para_vbc: z.array(z.string()),
+  
+  riesgos_subsistentes: z.array(z.string()),
+  
+  requiere_validacion_humana: z.boolean(),
+  justificacion_validacion_humana: z.string().nullable().optional()
+});
+
+// =========================================================================
+// SCHEMA PARA A4_LEGAL
+// =========================================================================
+
+const ChecklistContractualItemSchema = z.object({
+  item: z.string(),
+  status: z.enum(['CUMPLIDO', 'PENDIENTE', 'NO_APLICA']),
+  accion_requerida: z.string().nullable().optional()
+});
+
+const AjusteRequeridoSchema = z.object({
+  descripcion: z.string(),
+  fase_bloquea: z.string(),
+  criticidad: z.enum(['BLOQUEANTE', 'IMPORTANTE', 'MENOR'])
+});
+
+const A4LegalOutputSchema = z.object({
+  decision: z.enum(['APROBAR', 'SOLICITAR_AJUSTES', 'RECHAZAR']),
+  
+  checklist_contractual: z.array(ChecklistContractualItemSchema)
+    .min(5, 'Debe haber al menos 5 items en el checklist'),
+  
+  ajustes_requeridos: z.array(AjusteRequeridoSchema),
+  
+  clausulas_obligatorias_faltantes: z.array(z.string()),
+  
+  riesgo_puntos_trazabilidad: z.number().int().min(0).max(25)
+});
+
+// =========================================================================
+// SCHEMA PARA A5_FINANZAS
+// =========================================================================
+
+const A5FinanzasOutputSchema = z.object({
+  decision: z.enum(['APROBAR', 'SOLICITAR_AJUSTES', 'RECHAZAR']),
+  
+  analisis_proporcion: z.object({
+    costo_vs_ventas_porcentaje: z.number(),
+    evaluacion_proporcion: z.enum(['RAZONABLE', 'ALTO_PERO_JUSTIFICABLE', 'DESPROPORCIONADO']),
+    presupuesto_disponible: z.boolean(),
+    centro_costo: z.string()
+  }),
+  
+  evaluacion_bee: z.object({
+    roi_evaluacion: z.string(),
+    horizonte_evaluacion: z.string(),
+    conclusion: z.enum(['CONFORME', 'CONDICIONADO', 'NO_CONFORME'])
+  }),
+  
+  condiciones_financieras: z.array(z.object({
+    condicion: z.string(),
+    cumplido: z.boolean()
+  })),
+  
+  impacto_no_deducibilidad: z.string(),
+  
+  requiere_evaluacion_f9: z.boolean()
+});
+
+// =========================================================================
+// SCHEMA PARA A6_PROVEEDOR
+// =========================================================================
+
+const EntregableSchema = z.object({
+  nombre: z.string(),
+  tipo: z.string(),
+  version: z.string(),
+  fecha_carga: z.string(), // ISO timestamp
+  ruta_archivo: z.string()
+});
+
+const A6ProveedorOutputSchema = z.object({
+  entregables_cargados: z.array(EntregableSchema),
+  minutas_sesiones: z.array(z.string()),
+  estado_avance: z.string(),
+  pendientes: z.array(z.string())
+});
+
+// =========================================================================
+// MAPA DE SCHEMAS POR AGENTE
+// =========================================================================
+
+const AGENT_OUTPUT_SCHEMAS = {
+  A1_SPONSOR: A1SponsorOutputSchema,
+  A2_PMO: A2PMOOutputSchema,
+  A3_FISCAL: A3FiscalOutputSchema,
+  A4_LEGAL: A4LegalOutputSchema,
+  A5_FINANZAS: A5FinanzasOutputSchema,
+  A6_PROVEEDOR: A6ProveedorOutputSchema
+};
+
+module.exports = {
+  A1SponsorOutputSchema,
+  A2PMOOutputSchema,
+  A3FiscalOutputSchema,
+  A4LegalOutputSchema,
+  A5FinanzasOutputSchema,
+  A6ProveedorOutputSchema,
+  AGENT_OUTPUT_SCHEMAS,
+  // Enums para uso externo
+  DecisionEnum,
+  StatusPilarEnum,
+  EstadoChecklistEnum,
+  SeveridadEnum,
+  TipoAlertaEnum
+};
+
+=============================================================================
+PASO 3: CREAR SERVICIO DE VALIDACIÓN
+=============================================================================
+
+Crea archivo "validation/validationService.js":
+
+const { AGENT_OUTPUT_SCHEMAS } = require('./agentSchemas');
+
+// =========================================================================
+// FUNCIÓN PRINCIPAL: Validar output de agente
+// =========================================================================
+
+function validarOutputAgente(agenteId, output) {
+  const schema = AGENT_OUTPUT_SCHEMAS[agenteId];
+  
+  if (!schema) {
+    return {
+      valido: false,
+      errores: [`No existe schema de validación para agente ${agenteId}`],
+      output_original: output
+    };
+  }
+  
+  try {
+    // Intentar parsear si es string
+    const datos = typeof output === 'string' ? JSON.parse(output) : output;
+    
+    // Validar con Zod
+    const resultado = schema.safeParse(datos);
+    
+    if (resultado.success) {
+      return {
+        valido: true,
+        errores: [],
+        output_validado: resultado.data
+      };
+    } else {
+      // Formatear errores de Zod
+      const errores = resultado.error.errors.map(err => {
+        const path = err.path.join('.');
+        return `${path}: ${err.message}`;
+      });
+      
+      return {
+        valido: false,
+        errores: errores,
+        output_original: datos
+      };
+    }
+  } catch (parseError) {
+    return {
+      valido: false,
+      errores: [`Error parsing JSON: ${parseError.message}`],
+      output_original: output
+    };
+  }
+}
+
+// =========================================================================
+// FUNCIÓN: Validar y corregir automáticamente (si es posible)
+// =========================================================================
+
+function validarYCorregir(agenteId, output) {
+  const resultado = validarOutputAgente(agenteId, output);
+  
+  if (resultado.valido) {
+    return resultado;
+  }
+  
+  // Intentar correcciones automáticas para errores comunes
+  let datos = typeof output === 'string' ? JSON.parse(output) : output;
+  let correcionesAplicadas = [];
+  
+  // Corrección 1: Arrays vacíos donde se requieren items mínimos
+  const camposArray = [
+    'checklist_evidencia_exigible',
+    'condiciones_para_vbc',
+    'riesgos_subsistentes',
+    'condiciones_estrategicas_avance',
+    'checklist_contractual'
+  ];
+  
+  for (const campo of camposArray) {
+    if (datos[campo] && !Array.isArray(datos[campo])) {
+      datos[campo] = [];
+      correcionesAplicadas.push(`Convertido ${campo} a array vacío`);
+    }
+  }
+  
+  // Corrección 2: Valores numéricos como strings
+  const camposNumericos = [
+    'risk_score_total',
+    'riesgo_puntos_razon_negocios',
+    'riesgo_puntos_beneficio_economico',
+    'riesgo_puntos_trazabilidad'
+  ];
+  
+  for (const campo of camposNumericos) {
+    if (datos[campo] && typeof datos[campo] === 'string') {
+      datos[campo] = parseInt(datos[campo], 10);
+      correcionesAplicadas.push(`Convertido ${campo} de string a número`);
+    }
+  }
+  
+  // Corrección 3: Booleanos como strings
+  const camposBooleanos = [
+    'requiere_validacion_humana',
+    'requiere_revision_humana',
+    'puede_avanzar_fase',
+    'presupuesto_disponible'
+  ];
+  
+  for (const campo of camposBooleanos) {
+    if (datos[campo] && typeof datos[campo] === 'string') {
+      datos[campo] = datos[campo].toLowerCase() === 'true';
+      correcionesAplicadas.push(`Convertido ${campo} de string a boolean`);
+    }
+  }
+  
+  // Re-validar después de correcciones
+  const resultadoFinal = validarOutputAgente(agenteId, datos);
+  
+  return {
+    ...resultadoFinal,
+    correcciones_aplicadas: correcionesAplicadas
+  };
+}
+
+// =========================================================================
+// FUNCIÓN: Generar template vacío para un agente
+// =========================================================================
+
+function generarTemplateVacio(agenteId) {
+  const templates = {
+    A1_SPONSOR: {
+      decision: 'PENDIENTE',
+      analisis_razon_negocios: {
+        vinculacion_con_giro: '',
+        objetivo_economico: '',
+        conclusion: 'PENDIENTE'
+      },
+      analisis_bee: {
+        objetivo_especifico: '',
+        roi_esperado: null,
+        horizonte_meses: null,
+        indicadores_exito: [],
+        evaluacion: 'PENDIENTE'
+      },
+      condiciones_estrategicas_avance: [],
+      requisitos_para_sow: [],
+      riesgo_puntos_razon_negocios: 0,
+      riesgo_puntos_beneficio_economico: 0
+    },
+    
+    A3_FISCAL: {
+      decision: 'PENDIENTE',
+      conclusion_por_pilar: {
+        razon_negocios: { status: 'PENDIENTE', detalle: '', riesgo_puntos: 0 },
+        beneficio_economico: { status: 'PENDIENTE', detalle: '', riesgo_puntos: 0 },
+        materialidad: { status: 'PENDIENTE', detalle: '', riesgo_puntos: 0 },
+        trazabilidad: { status: 'PENDIENTE', detalle: '', riesgo_puntos: 0 }
+      },
+      risk_score_total: 0,
+      checklist_evidencia_exigible: [],
+      alertas_riesgo_especial: [],
+      condiciones_para_vbc: [],
+      riesgos_subsistentes: [],
+      requiere_validacion_humana: false,
+      justificacion_validacion_humana: null
+    },
+    
+    A4_LEGAL: {
+      decision: 'PENDIENTE',
+      checklist_contractual: [],
+      ajustes_requeridos: [],
+      clausulas_obligatorias_faltantes: [],
+      riesgo_puntos_trazabilidad: 0
+    },
+    
+    A5_FINANZAS: {
+      decision: 'PENDIENTE',
+      analisis_proporcion: {
+        costo_vs_ventas_porcentaje: 0,
+        evaluacion_proporcion: 'RAZONABLE',
+        presupuesto_disponible: false,
+        centro_costo: ''
+      },
+      evaluacion_bee: {
+        roi_evaluacion: '',
+        horizonte_evaluacion: '',
+        conclusion: 'PENDIENTE'
+      },
+      condiciones_financieras: [],
+      impacto_no_deducibilidad: '',
+      requiere_evaluacion_f9: false
+    }
+  };
+  
+  return templates[agenteId] || null;
+}
+
+// =========================================================================
+// FUNCIÓN: Calcular completitud del output
+// =========================================================================
+
+function calcularCompletitud(agenteId, output) {
+  const datos = typeof output === 'string' ? JSON.parse(output) : output;
+  
+  let camposTotales = 0;
+  let camposLlenos = 0;
+  
+  function contarCampos(obj, prefix = '') {
+    for (const [key, value] of Object.entries(obj)) {
+      camposTotales++;
+      
+      if (value === null || value === undefined || value === '') {
+        // Campo vacío
+      } else if (Array.isArray(value)) {
+        if (value.length > 0) camposLlenos++;
+      } else if (typeof value === 'object') {
+        contarCampos(value, `${prefix}${key}.`);
+      } else {
+        camposLlenos++;
+      }
+    }
+  }
+  
+  contarCampos(datos);
+  
+  return {
+    campos_totales: camposTotales,
+    campos_llenos: camposLlenos,
+    porcentaje_completitud: Math.round((camposLlenos / camposTotales) * 100)
+  };
+}
+
+module.exports = {
+  validarOutputAgente,
+  validarYCorregir,
+  generarTemplateVacio,
+  calcularCompletitud
+};
+
+=============================================================================
+PASO 4: CREAR MIDDLEWARE DE VALIDACIÓN PARA DELIBERACIONES
+=============================================================================
+
+Crea archivo "middleware/validacionDeliberacion.js":
+
+const { validarYCorregir, calcularCompletitud } = require('../validation/validationService');
+
+async function validarAntesDeGuardarDeliberacion(req, res, next) {
+  const { agente, analisis_estructurado } = req.body;
+  
+  if (!analisis_estructurado) {
+    return res.status(400).json({
+      error: 'Falta el campo analisis_estructurado',
+      mensaje: 'Todas las deliberaciones deben incluir análisis estructurado en JSON'
+    });
+  }
+  
+  // Validar el output
+  const validacion = validarYCorregir(agente, analisis_estructurado);
+  
+  if (!validacion.valido) {
+    return res.status(400).json({
+      error: 'Output de agente inválido',
+      errores: validacion.errores,
+      sugerencia: 'Revisa el schema esperado para el agente ' + agente,
+      output_recibido: validacion.output_original
+    });
+  }
+  
+  // Calcular completitud
+  const completitud = calcularCompletitud(agente, validacion.output_validado);
+  
+  if (completitud.porcentaje_completitud < 50) {
+    return res.status(400).json({
+      error: 'Output de agente incompleto',
+      completitud: completitud,
+      mensaje: 'El análisis debe tener al menos 50% de campos completados'
+    });
+  }
+  
+  // Adjuntar datos validados al request
+  req.outputValidado = validacion.output_validado;
+  req.completitud = completitud;
+  
+  if (validacion.correcciones_aplicadas && validacion.correcciones_aplicadas.length > 0) {
+    req.correcionesAplicadas = validacion.correcciones_aplicadas;
+  }
+  
+  next();
+}
+
+module.exports = { validarAntesDeGuardarDeliberacion };
+
+=============================================================================
+PASO 5: ACTUALIZAR RUTA DE DELIBERACIONES PARA USAR VALIDACIÓN
+=============================================================================
+
+Crea o actualiza archivo "routes/deliberacionesRoutes.js":
+
+const express = require('express');
+const router = express.Router();
+const { validarAntesDeGuardarDeliberacion } = require('../middleware/validacionDeliberacion');
+const { calcularRiskScore } = require('../ejemplosYScoring');
+
+// POST /api/deliberaciones
+// Crea una nueva deliberación de agente
+router.post('/deliberaciones', validarAntesDeGuardarDeliberacion, async (req, res) => {
+  try {
+    const {
+      proyecto_id,
+      fase,
+      agente,
+      decision,
+      analisis_completo // Texto narrativo
+    } = req.body;
+    
+    // req.outputValidado viene del middleware de validación
+    const analisis_estructurado = req.outputValidado;
+    
+    // Calcular risk_score si es A3_FISCAL
+    let risk_score_calculado = null;
+    if (agente === 'A3_FISCAL' && analisis_estructurado.conclusion_por_pilar) {
+      risk_score_calculado = analisis_estructurado.risk_score_total;
+      
+      // Actualizar risk_score del proyecto
+      await req.db.update('Project', proyecto_id, {
+        risk_score_total: risk_score_calculado,
+        risk_score_razon_negocios: analisis_estructurado.conclusion_por_pilar.razon_negocios.riesgo_puntos,
+        risk_score_beneficio_economico: analisis_estructurado.conclusion_por_pilar.beneficio_economico.riesgo_puntos,
+        risk_score_materialidad: analisis_estructurado.conclusion_por_pilar.materialidad.riesgo_puntos,
+        risk_score_trazabilidad: analisis_estructurado.conclusion_por_pilar.trazabilidad.riesgo_puntos,
+        updated_at: new Date()
+      });
+    }
+    
+    // Determinar si requiere validación humana
+    let requiere_validacion_humana = false;
+    let justificacion = null;
+    
+    if (analisis_estructurado.requiere_validacion_humana) {
+      requiere_validacion_humana = true;
+      justificacion = analisis_estructurado.justificacion_validacion_humana;
+    }
+    
+    // Crear la deliberación
+    const deliberacion = await req.db.create('AgentDeliberation', {
+      proyecto_id,
+      fase,
+      agente,
+      decision,
+      analisis_completo,
+      analisis_estructurado: JSON.stringify(analisis_estructurado),
+      risk_score_calculado,
+      requiere_validacion_humana,
+      justificacion_validacion_humana: justificacion,
+      created_at: new Date()
+    });
+    
+    // Registrar en log
+    await req.db.create('AuditLog', {
+      proyecto_id,
+      accion: 'AGENTE_DELIBERACION',
+      entidad_tipo: 'AgentDeliberation',
+      entidad_id: deliberacion.id,
+      descripcion: `${agente} emitió dictamen: ${decision}`,
+      datos_despues: {
+        decision,
+        risk_score: risk_score_calculado,
+        completitud: req.completitud
+      },
+      created_at: new Date()
+    });
+    
+    res.json({
+      success: true,
+      deliberacion_id: deliberacion.id,
+      decision,
+      risk_score: risk_score_calculado,
+      completitud: req.completitud,
+      correcciones_aplicadas: req.correcionesAplicadas || []
+    });
+    
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/deliberaciones/:proyectoId
+// Obtiene todas las deliberaciones de un proyecto
+router.get('/deliberaciones/:proyectoId', async (req, res) => {
+  try {
+    const deliberaciones = await req.db.findMany('AgentDeliberation', {
+      proyecto_id: req.params.proyectoId
+    });
+    
+    res.json(deliberaciones);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+module.exports = router;
+
+=============================================================================
+PASO 6: VERIFICACIÓN
+=============================================================================
+
+Al terminar, verifica:
+
+1. Los schemas Zod se crearon correctamente para cada agente
+2. La validación rechaza outputs incompletos:
+
+   // Esto debe fallar:
+   validarOutputAgente('A3_FISCAL', { decision: 'APROBAR' })
+   // Porque le faltan los demás campos obligatorios
+
+3. La validación acepta outputs completos:
+
+   // Esto debe pasar:
+   validarOutputAgente('A3_FISCAL', {
+     decision: 'APROBAR',
+     conclusion_por_pilar: { ... completo ... },
+     risk_score_total: 25,
+     checklist_evidencia_exigible: [ ... al menos 3 items ... ],
+     // ... etc
+   })
+
+4. El middleware previene guardar deliberaciones inválidas
+5. Las correcciones automáticas funcionan (strings a números, etc.)
+
+Si algo falla, corregirlo antes de continuar a Fase 8.
+
+=============================================================================
+FIN FASE 7
+=============================================================================
+```
+
+## Verificación Post-Implementación
+
+Esta fase es crítica para la calidad del sistema. Sin validación:
+- Los agentes pueden producir respuestas incompletas
+- No hay garantía de que los campos obligatorios estén presentes
+- El risk_score podría calcularse mal por datos faltantes
+
+Después de implementar, prueba enviando deliberaciones con datos faltantes - deben rechazarse.

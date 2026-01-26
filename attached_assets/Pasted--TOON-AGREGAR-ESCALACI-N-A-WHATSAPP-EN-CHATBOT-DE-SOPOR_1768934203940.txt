@@ -1,0 +1,772 @@
+```
+TOON: AGREGAR ESCALACIÓN A WHATSAPP EN CHATBOT DE SOPORTE
+
+OBJETIVO:
+- Detectar cuando el usuario quiere hablar con humano
+- Mostrar botón de WhatsApp
+- Abrir chat de WhatsApp con mensaje predefinido
+
+================================================================================
+PASO 1: ACTUALIZAR KNOWLEDGE BASE CON ESCALACIÓN
+================================================================================
+
+MODIFICAR: server/services/support/knowledgeBase.ts
+
+AGREGAR al final del knowledge base:
+
+```typescript
+// Agregar esto al final del string SOPORTE_KNOWLEDGE_BASE
+
+## ESCALACIÓN A SOPORTE HUMANO
+
+Cuando el usuario:
+- Pide hablar con una persona/humano
+- Dice que no le ayudaste
+- Tiene un problema muy complejo
+- Menciona urgencia extrema
+- Está frustrado o molesto
+- Pide contacto directo
+
+Debes responder:
+
+"Entiendo que necesitas atención personalizada. 👤
+
+Te conecto con nuestro equipo de soporte humano por WhatsApp:
+
+[WHATSAPP_BUTTON]
+
+Un asesor te atenderá lo antes posible. 
+
+¿Hay algo más que pueda ayudarte mientras tanto?"
+
+IMPORTANTE: Siempre incluye [WHATSAPP_BUTTON] cuando detectes que el usuario quiere hablar con un humano.
+`;
+```
+
+================================================================================
+PASO 2: ACTUALIZAR SYSTEM PROMPT DEL AGENTE
+================================================================================
+
+MODIFICAR: server/services/support/supportAgent.ts
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+import { SOPORTE_KNOWLEDGE_BASE } from './knowledgeBase';
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY
+});
+
+const WHATSAPP_NUMBER = '528123997852';
+
+const SYSTEM_PROMPT = `
+Eres el Agente de Soporte de Revisar.IA, una plataforma de auditoría fiscal inteligente.
+
+## TU PERSONALIDAD
+- Nombre: Asistente de Revisar.IA
+- Tono: Profesional, amable y servicial
+- Idioma: Español (México)
+- Estilo: Claro, conciso, usa emojis ocasionalmente para ser amigable
+
+## TUS CAPACIDADES
+- Responder preguntas sobre el funcionamiento de la plataforma
+- Guiar a los usuarios en el uso de las funcionalidades
+- Explicar conceptos fiscales básicos relacionados con la plataforma
+- Resolver dudas sobre errores comunes
+- Escalar a soporte humano por WhatsApp cuando sea necesario
+
+## REGLAS
+1. SIEMPRE responde en español
+2. Si no sabes algo, admítelo y ofrece conectar con soporte humano
+3. No inventes información sobre la plataforma
+4. Sé conciso pero completo
+5. No compartas información confidencial de otros usuarios
+6. Si preguntan por precios o planes, indica que contacten a ventas por WhatsApp
+
+## ESCALACIÓN A WHATSAPP
+IMPORTANTE: Cuando el usuario quiera hablar con un humano, esté frustrado, tenga un problema complejo que no puedas resolver, o pida contacto directo, DEBES incluir el marcador [WHATSAPP_BUTTON] en tu respuesta.
+
+Frases que indican necesidad de humano:
+- "quiero hablar con alguien"
+- "necesito un humano"
+- "esto no me sirve"
+- "pásenme con soporte"
+- "quiero contactar"
+- "necesito ayuda urgente"
+- "no entiendes"
+- "estoy frustrado"
+- "llévame con una persona"
+- "contacto directo"
+- "teléfono"
+- "llamar"
+
+Cuando detectes estas frases, responde amablemente y agrega [WHATSAPP_BUTTON] para que el sistema muestre el botón de WhatsApp.
+
+Ejemplo de respuesta con escalación:
+"Entiendo que prefieres hablar con una persona. 👤
+
+Te conecto con nuestro equipo de soporte:
+
+[WHATSAPP_BUTTON]
+
+Te atenderán a la brevedad. ¿Hay algo más en lo que pueda ayudarte?"
+
+## CONOCIMIENTO DE LA PLATAFORMA
+${SOPORTE_KNOWLEDGE_BASE}
+
+## FORMATO DE RESPUESTAS
+- Usa párrafos cortos
+- Usa listas cuando sea apropiado
+- Incluye emojis relevantes (📋 ✅ 💡 ⚠️ 📧 👤)
+- Si hay pasos, númeralos
+- Ofrece ayuda adicional al final
+- SIEMPRE incluye [WHATSAPP_BUTTON] cuando detectes necesidad de humano
+`;
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+interface SupportResponse {
+  text: string;
+  showWhatsApp: boolean;
+  whatsappNumber: string;
+  whatsappMessage: string;
+}
+
+export async function getSupportResponse(
+  userMessage: string,
+  conversationHistory: Message[] = [],
+  context?: { userName?: string; userEmail?: string }
+): Promise<SupportResponse> {
+  
+  // Detectar si el usuario quiere hablar con humano (fallback rápido)
+  const wantsHuman = detectWantsHuman(userMessage);
+  
+  // Si no hay API key, respuesta simulada
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return getSimulatedResponse(userMessage, wantsHuman, context);
+  }
+
+  try {
+    const messages = [
+      ...conversationHistory.map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content
+      })),
+      { role: 'user' as const, content: userMessage }
+    ];
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: SYSTEM_PROMPT,
+      messages
+    });
+
+    const textContent = response.content.find(c => c.type === 'text');
+    let responseText = textContent?.text || 'Lo siento, no pude procesar tu mensaje. ¿Podrías reformularlo?';
+
+    // Verificar si la respuesta incluye el marcador de WhatsApp
+    const showWhatsApp = responseText.includes('[WHATSAPP_BUTTON]') || wantsHuman;
+    
+    // Limpiar el marcador del texto
+    responseText = responseText.replace(/\[WHATSAPP_BUTTON\]/g, '').trim();
+
+    // Construir mensaje de WhatsApp
+    const whatsappMessage = buildWhatsAppMessage(userMessage, context);
+
+    return {
+      text: responseText,
+      showWhatsApp,
+      whatsappNumber: WHATSAPP_NUMBER,
+      whatsappMessage
+    };
+
+  } catch (error: any) {
+    console.error('Error en agente de soporte:', error);
+    return {
+      text: '⚠️ Tuve un problema técnico. Te conecto con soporte humano:',
+      showWhatsApp: true,
+      whatsappNumber: WHATSAPP_NUMBER,
+      whatsappMessage: buildWhatsAppMessage(userMessage, context)
+    };
+  }
+}
+
+// Detectar si el usuario quiere hablar con humano
+function detectWantsHuman(message: string): boolean {
+  const msgLower = message.toLowerCase();
+  
+  const humanKeywords = [
+    'humano', 'persona', 'alguien', 'agente', 'asesor',
+    'hablar con', 'contactar', 'contacto', 'directo',
+    'teléfono', 'telefono', 'llamar', 'llamada',
+    'whatsapp', 'whats', 'wsp',
+    'no sirve', 'no funciona', 'no entiendes', 'no me ayudas',
+    'frustrado', 'molesto', 'urgente', 'emergencia',
+    'soporte real', 'persona real', 'humano real',
+    'pásenme', 'pasenme', 'pásame', 'pasame',
+    'conecta con', 'conectame', 'conéctame'
+  ];
+  
+  return humanKeywords.some(keyword => msgLower.includes(keyword));
+}
+
+// Construir mensaje predefinido para WhatsApp
+function buildWhatsAppMessage(lastMessage: string, context?: { userName?: string; userEmail?: string }): string {
+  let msg = '¡Hola! Vengo del chatbot de Revisar.IA y necesito ayuda.\n\n';
+  
+  if (context?.userName) {
+    msg += `👤 Nombre: ${context.userName}\n`;
+  }
+  if (context?.userEmail) {
+    msg += `📧 Email: ${context.userEmail}\n`;
+  }
+  
+  msg += `\n💬 Mi consulta:\n${lastMessage.substring(0, 200)}`;
+  
+  if (lastMessage.length > 200) {
+    msg += '...';
+  }
+  
+  return encodeURIComponent(msg);
+}
+
+// Respuestas simuladas cuando no hay API key
+function getSimulatedResponse(
+  message: string, 
+  wantsHuman: boolean,
+  context?: { userName?: string; userEmail?: string }
+): SupportResponse {
+  const msgLower = message.toLowerCase();
+
+  if (wantsHuman) {
+    return {
+      text: '👤 Entiendo que prefieres hablar con una persona.\n\nTe conecto con nuestro equipo de soporte humano. Un asesor te atenderá a la brevedad.',
+      showWhatsApp: true,
+      whatsappNumber: WHATSAPP_NUMBER,
+      whatsappMessage: buildWhatsAppMessage(message, context)
+    };
+  }
+
+  if (msgLower.includes('hola') || msgLower.includes('buenos')) {
+    return {
+      text: '¡Hola! 👋 Soy el asistente de Revisar.IA. ¿En qué puedo ayudarte hoy?\n\nSi en cualquier momento prefieres hablar con una persona, solo dímelo.',
+      showWhatsApp: false,
+      whatsappNumber: WHATSAPP_NUMBER,
+      whatsappMessage: ''
+    };
+  }
+
+  if (msgLower.includes('precio') || msgLower.includes('costo') || msgLower.includes('plan')) {
+    return {
+      text: '💰 Para información sobre precios y planes, te conecto con nuestro equipo de ventas que podrá darte información detallada y personalizada.',
+      showWhatsApp: true,
+      whatsappNumber: WHATSAPP_NUMBER,
+      whatsappMessage: buildWhatsAppMessage('Consulta sobre precios y planes', context)
+    };
+  }
+
+  // Respuesta genérica
+  return {
+    text: '🤔 Entiendo tu consulta. Para darte la mejor respuesta, ¿podrías darme más detalles?\n\nSi prefieres, puedo conectarte con un asesor humano.',
+    showWhatsApp: false,
+    whatsappNumber: WHATSAPP_NUMBER,
+    whatsappMessage: buildWhatsAppMessage(message, context)
+  };
+}
+
+export { WHATSAPP_NUMBER };
+```
+
+================================================================================
+PASO 3: ACTUALIZAR RUTA DE API
+================================================================================
+
+MODIFICAR: server/routes/support.ts
+
+```typescript
+import { Router } from 'express';
+import { getSupportResponse, WHATSAPP_NUMBER } from '../services/support/supportAgent';
+import { v4 as uuidv4 } from 'uuid';
+
+const router = Router();
+
+const conversations = new Map<string, Array<{ role: string; content: string; timestamp: Date }>>();
+
+// POST /api/support/message
+router.post('/message', async (req, res) => {
+  try {
+    const { message, sessionId, userId, userName, userEmail } = req.body;
+
+    if (!message?.trim()) {
+      return res.status(400).json({ error: 'Mensaje requerido' });
+    }
+
+    const convId = sessionId || uuidv4();
+    let history = conversations.get(convId) || [];
+
+    // Obtener respuesta del agente con contexto del usuario
+    const response = await getSupportResponse(
+      message,
+      history.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+      { userName, userEmail }
+    );
+
+    // Guardar en historial
+    history.push({ role: 'user', content: message, timestamp: new Date() });
+    history.push({ role: 'assistant', content: response.text, timestamp: new Date() });
+    
+    if (history.length > 20) {
+      history = history.slice(-20);
+    }
+    
+    conversations.set(convId, history);
+
+    res.json({
+      success: true,
+      sessionId: convId,
+      response: response.text,
+      showWhatsApp: response.showWhatsApp,
+      whatsapp: response.showWhatsApp ? {
+        number: response.whatsappNumber,
+        message: response.whatsappMessage,
+        url: `https://wa.me/${response.whatsappNumber}?text=${response.whatsappMessage}`
+      } : null,
+      timestamp: new Date()
+    });
+
+  } catch (error: any) {
+    console.error('Error en soporte:', error);
+    res.status(500).json({ 
+      error: 'Error procesando mensaje',
+      response: '⚠️ Tuve un problema técnico.',
+      showWhatsApp: true,
+      whatsapp: {
+        number: WHATSAPP_NUMBER,
+        message: encodeURIComponent('Hola, tuve un error en el chatbot y necesito ayuda.'),
+        url: `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Hola, tuve un error en el chatbot y necesito ayuda.')}`
+      }
+    });
+  }
+});
+
+// GET /api/support/whatsapp - Obtener link de WhatsApp
+router.get('/whatsapp', (req, res) => {
+  const message = req.query.message as string || 'Hola, necesito ayuda con Revisar.IA';
+  
+  res.json({
+    number: WHATSAPP_NUMBER,
+    url: `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
+  });
+});
+
+export default router;
+```
+
+================================================================================
+PASO 4: ACTUALIZAR COMPONENTE DEL WIDGET
+================================================================================
+
+MODIFICAR: client/components/SupportChat/SupportChatWidget.tsx
+
+```tsx
+import { useState, useEffect, useRef } from 'react';
+import { 
+  MessageCircle, X, Send, Paperclip, Smile, 
+  Loader2, User, Bot, ChevronDown, Phone
+} from 'lucide-react';
+
+// Ícono de WhatsApp SVG
+const WhatsAppIcon = () => (
+  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+  </svg>
+);
+
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  showWhatsApp?: boolean;
+  whatsappUrl?: string;
+}
+
+export function SupportChatWidget() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Obtener datos del usuario logueado (si existe)
+  const getUserData = () => {
+    try {
+      const userData = localStorage.getItem('revisar_usuario');
+      if (userData) {
+        return JSON.parse(userData);
+      }
+    } catch (e) {}
+    return null;
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      setUnreadCount(0);
+    }
+  }, [messages, isOpen]);
+
+  useEffect(() => {
+    const savedSession = localStorage.getItem('support_session');
+    const savedTerms = localStorage.getItem('support_terms_accepted');
+    
+    if (savedSession) setSessionId(savedSession);
+    if (savedTerms === 'true') setHasAcceptedTerms(true);
+  }, []);
+
+  const handleAcceptTerms = () => {
+    setHasAcceptedTerms(true);
+    localStorage.setItem('support_terms_accepted', 'true');
+    
+    const user = getUserData();
+    const welcomeMsg: Message = {
+      id: 'welcome',
+      role: 'assistant',
+      content: user 
+        ? `¡Hola ${user.nombre}! 👋 Soy el asistente de Revisar.IA. ¿En qué puedo ayudarte hoy?\n\nSi prefieres hablar con una persona, solo dímelo.`
+        : '¡Hola! 👋 Soy el asistente de Revisar.IA. Estoy aquí para ayudarte con cualquier duda.\n\nSi prefieres hablar con una persona, solo dímelo.',
+      timestamp: new Date()
+    };
+    setMessages([welcomeMsg]);
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: input.trim(),
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setLoading(true);
+
+    try {
+      const user = getUserData();
+      
+      const response = await fetch('/api/support/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessage.content,
+          sessionId,
+          userName: user?.nombre,
+          userEmail: user?.email
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.sessionId && !sessionId) {
+        setSessionId(data.sessionId);
+        localStorage.setItem('support_session', data.sessionId);
+      }
+
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: data.response,
+        timestamp: new Date(),
+        showWhatsApp: data.showWhatsApp,
+        whatsappUrl: data.whatsapp?.url
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+
+      if (!isOpen) {
+        setUnreadCount(prev => prev + 1);
+      }
+
+    } catch (error) {
+      console.error('Error:', error);
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: '⚠️ Tuve un problema. Te conecto con soporte humano:',
+        timestamp: new Date(),
+        showWhatsApp: true,
+        whatsappUrl: `https://wa.me/528123997852?text=${encodeURIComponent('Hola, tuve un error en el chatbot de Revisar.IA')}`
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleWhatsAppClick = (url: string) => {
+    window.open(url, '_blank');
+  };
+
+  const handleQuickWhatsApp = () => {
+    const user = getUserData();
+    let msg = 'Hola, necesito ayuda con Revisar.IA';
+    if (user?.nombre) msg += `\n\nSoy ${user.nombre}`;
+    if (user?.email) msg += ` (${user.email})`;
+    
+    window.open(`https://wa.me/528123997852?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  const formatContent = (content: string) => {
+    return content.split('\n').map((line, i) => {
+      const formatted = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      return (
+        <span key={i}>
+          <span dangerouslySetInnerHTML={{ __html: formatted }} />
+          {i < content.split('\n').length - 1 && <br />}
+        </span>
+      );
+    });
+  };
+
+  return (
+    <>
+      {/* Botón flotante */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 ${
+          isOpen 
+            ? 'bg-gray-600 hover:bg-gray-700' 
+            : 'bg-purple-600 hover:bg-purple-700 hover:scale-110'
+        }`}
+      >
+        {isOpen ? (
+          <X className="w-6 h-6 text-white" />
+        ) : (
+          <>
+            <MessageCircle className="w-6 h-6 text-white" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                {unreadCount}
+              </span>
+            )}
+          </>
+        )}
+      </button>
+
+      {/* Ventana de chat */}
+      {isOpen && (
+        <div className="fixed bottom-24 right-6 z-50 w-96 h-[520px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200">
+          
+          {/* Header */}
+          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <Bot className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-white font-semibold">Revisar.IA</h3>
+                <p className="text-purple-200 text-xs">Soporte • En línea</p>
+              </div>
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="text-white/80 hover:text-white p-1"
+              >
+                <ChevronDown className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Botón rápido de WhatsApp en header */}
+            {hasAcceptedTerms && (
+              <button
+                onClick={handleQuickWhatsApp}
+                className="mt-3 w-full flex items-center justify-center gap-2 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition"
+              >
+                <WhatsAppIcon />
+                Hablar con un asesor
+              </button>
+            )}
+          </div>
+
+          {/* Contenido */}
+          {!hasAcceptedTerms ? (
+            <div className="flex-1 p-4 flex flex-col">
+              <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                <h4 className="font-semibold text-gray-800 mb-2">
+                  ¡Hola! Soy el asistente de IA de Revisar.IA.
+                </h4>
+                <p className="text-gray-600 text-sm leading-relaxed">
+                  Al usar este chatbot, aceptas que tus conversaciones puedan ser 
+                  almacenadas por <strong>Revisar.IA</strong> para mejorar nuestros 
+                  servicios, en línea con nuestra política de privacidad.
+                </p>
+                <p className="text-gray-600 text-sm mt-3">
+                  Por favor, acepta o rechaza para continuar.
+                </p>
+              </div>
+              
+              <div className="mt-auto space-y-2">
+                <button
+                  onClick={handleAcceptTerms}
+                  className="w-full py-3 bg-purple-600 text-white font-medium rounded-xl hover:bg-purple-700 transition"
+                >
+                  Aceptar
+                </button>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="w-full py-3 bg-gray-100 text-gray-600 font-medium rounded-xl hover:bg-gray-200 transition"
+                >
+                  Rechazar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Mensajes */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {messages.map((msg) => (
+                  <div key={msg.id}>
+                    <div className={`flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                      {/* Avatar */}
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        msg.role === 'user' 
+                          ? 'bg-purple-100' 
+                          : 'bg-gradient-to-br from-purple-500 to-indigo-500'
+                      }`}>
+                        {msg.role === 'user' ? (
+                          <User className="w-4 h-4 text-purple-600" />
+                        ) : (
+                          <Bot className="w-4 h-4 text-white" />
+                        )}
+                      </div>
+                      
+                      {/* Mensaje */}
+                      <div className={`max-w-[75%] ${msg.role === 'user' ? 'text-right' : ''}`}>
+                        <div className={`rounded-2xl px-4 py-2 ${
+                          msg.role === 'user'
+                            ? 'bg-purple-600 text-white rounded-tr-sm'
+                            : 'bg-gray-100 text-gray-800 rounded-tl-sm'
+                        }`}>
+                          <div className="text-sm leading-relaxed">
+                            {formatContent(msg.content)}
+                          </div>
+                        </div>
+                        <span className="text-xs text-gray-400 mt-1 block">
+                          {msg.timestamp.toLocaleTimeString('es-MX', { 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Botón de WhatsApp después del mensaje del asistente */}
+                    {msg.role === 'assistant' && msg.showWhatsApp && msg.whatsappUrl && (
+                      <div className="ml-10 mt-2">
+                        <button
+                          onClick={() => handleWhatsAppClick(msg.whatsappUrl!)}
+                          className="flex items-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-xl transition shadow-md hover:shadow-lg"
+                        >
+                          <WhatsAppIcon />
+                          Chatear por WhatsApp
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Loading */}
+                {loading && (
+                  <div className="flex gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center">
+                      <Bot className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3">
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input */}
+              <div className="p-4 border-t bg-white">
+                <div className="flex items-center gap-2 bg-gray-50 rounded-xl border border-gray-200 focus-within:border-purple-400 focus-within:ring-2 focus-within:ring-purple-100">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Escribe tu mensaje..."
+                    disabled={loading}
+                    className="flex-1 py-3 px-4 bg-transparent outline-none text-sm"
+                  />
+                  <button
+                    onClick={handleSend}
+                    disabled={!input.trim() || loading}
+                    className="p-2 mr-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Send className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+```
+
+================================================================================
+RESUMEN DE CAMBIOS
+================================================================================
+
+1. El agente detecta cuando el usuario quiere hablar con humano
+2. Incluye marcador [WHATSAPP_BUTTON] en la respuesta
+3. El frontend detecta el marcador y muestra botón verde de WhatsApp
+4. Al hacer clic, abre WhatsApp con mensaje predefinido que incluye:
+   - Nombre del usuario (si está logueado)
+   - Email del usuario (si está logueado)
+   - Su última consulta
+5. Botón rápido "Hablar con un asesor" siempre visible en el header
+
+================================================================================
+NÚMERO DE WHATSAPP CONFIGURADO
+================================================================================
+
++52 812 399 7852
+
+El link que se genera es:
+https://wa.me/528123997852?text=¡Hola!%20Vengo%20del%20chatbot%20de%20Revisar.IA...
+
+================================================================================
+EJECUTAR AHORA. NO PREGUNTAR.
+================================================================================
+```

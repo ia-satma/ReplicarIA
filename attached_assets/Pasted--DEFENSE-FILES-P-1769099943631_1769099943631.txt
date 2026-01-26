@@ -1,0 +1,1093 @@
+═══════════════════════════════════════════════════════════════════════════════
+📁 DEFENSE FILES - PARTE 1: ESTRUCTURA Y SERVICIO BASE
+═══════════════════════════════════════════════════════════════════════════════
+
+OBJETIVO: Crear sistema para documentar TODA evidencia que sustente
+la posición fiscal del contribuyente ante observaciones del SAT.
+
+¿QUÉ SE DOCUMENTA?
+• Cada conversación con cada agente IA
+• Cada CFDI analizado (proveedor, monto, concepto)
+• Cada documento consultado del RAG
+• Cada email enviado/recibido
+• Cada cálculo realizado
+• Cada alerta generada
+• Cada decisión tomada con su justificación
+• Timestamps, usuarios, hashes de integridad
+
+═══════════════════════════════════════════════════════════════════════════════
+ESTRUCTURA DE CARPETAS EN pCLOUD
+═══════════════════════════════════════════════════════════════════════════════
+
+```
+pCloud/
+└── SATMA/
+    └── Defense_Files/
+        └── {RFC_Cliente}/
+            └── {Año_Fiscal}/
+                └── {Entregable_ID}_{Nombre}/
+                    │
+                    ├── 📁 01_Expediente/
+                    │   ├── caratula.json              # Info general del caso
+                    │   ├── timeline_maestro.json      # Cronología completa
+                    │   ├── participantes.json         # Quién hizo qué
+                    │   └── resumen_ejecutivo.md       # Para humanos
+                    │
+                    ├── 📁 02_Proveedores/
+                    │   ├── {RFC_Proveedor}/
+                    │   │   ├── perfil.json            # Datos del proveedor
+                    │   │   ├── verificacion_69b.json  # Status lista negra
+                    │   │   ├── verificacion_efos.json # EFOS check
+                    │   │   ├── cfdis/
+                    │   │   │   └── {UUID}.json        # Cada factura
+                    │   │   └── evidencia_comercial/   # Contratos, pagos, etc.
+                    │   └── resumen_proveedores.json
+                    │
+                    ├── 📁 03_CFDIs/
+                    │   ├── recibidos/
+                    │   │   └── {UUID}.json
+                    │   ├── emitidos/
+                    │   │   └── {UUID}.json
+                    │   ├── analisis_global.json
+                    │   └── inconsistencias.json
+                    │
+                    ├── 📁 04_Deducciones/
+                    │   ├── {Concepto}/
+                    │   │   ├── calculo.json
+                    │   │   ├── fundamento_legal.json
+                    │   │   ├── documentos_soporte/
+                    │   │   └── justificacion_ia.json
+                    │   └── resumen_deducciones.json
+                    │
+                    ├── 📁 05_Agentes_IA/
+                    │   ├── A1_Facturar/
+                    │   │   ├── conversaciones/
+                    │   │   ├── analisis/
+                    │   │   └── bitacora.json
+                    │   ├── A2_Bibliotecar/
+                    │   │   ├── consultas_rag/
+                    │   │   ├── documentos_citados/
+                    │   │   └── bitacora.json
+                    │   ├── A3_Revisar/
+                    │   │   ├── revisiones/
+                    │   │   ├── hallazgos/
+                    │   │   └── bitacora.json
+                    │   └── ... (demás agentes)
+                    │
+                    ├── 📁 06_Comunicaciones/
+                    │   ├── emails_enviados/
+                    │   ├── emails_recibidos/
+                    │   ├── notificaciones_sat/
+                    │   └── bitacora_comunicaciones.json
+                    │
+                    ├── 📁 07_Calculos/
+                    │   ├── isr/
+                    │   ├── iva/
+                    │   ├── ajustes/
+                    │   └── conciliaciones/
+                    │
+                    ├── 📁 08_Marco_Legal/
+                    │   ├── articulos_aplicables/
+                    │   ├── jurisprudencias_citadas/
+                    │   ├── criterios_sat/
+                    │   └── fundamentos.json
+                    │
+                    ├── 📁 09_Evidencia_Soporte/
+                    │   ├── contratos/
+                    │   ├── estados_cuenta/
+                    │   ├── comprobantes_pago/
+                    │   ├── acuses/
+                    │   └── otros/
+                    │
+                    └── 📁 10_Defense_File_Final/
+                        ├── indice_evidencias.xlsx
+                        ├── defense_file_v{N}.pdf
+                        ├── anexos/
+                        └── checksums.sha256
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 1: TABLAS DE BASE DE DATOS
+═══════════════════════════════════════════════════════════════════════════════
+
+```sql
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TABLA PRINCIPAL: DEFENSE FILES (EXPEDIENTES)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS defense_files (
+    id SERIAL PRIMARY KEY,
+    
+    -- Identificación
+    cliente_id INTEGER REFERENCES clientes(id),
+    entregable_id INTEGER,  -- Referencia al proyecto/entregable
+    
+    -- Datos del caso
+    nombre VARCHAR(255) NOT NULL,
+    descripcion TEXT,
+    año_fiscal INTEGER NOT NULL,
+    periodo_inicio DATE,
+    periodo_fin DATE,
+    
+    -- Status
+    estado VARCHAR(50) DEFAULT 'en_proceso',  -- en_proceso, revision, cerrado
+    
+    -- pCloud
+    pcloud_path TEXT,  -- Ruta en pCloud
+    pcloud_folder_id BIGINT,
+    
+    -- Metadata
+    created_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    cerrado_at TIMESTAMP,
+    
+    -- Integridad
+    hash_contenido VARCHAR(64)  -- SHA256 del contenido al cerrar
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TABLA: EVENTOS DEL DEFENSE FILE (BITÁCORA MAESTRA)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS df_eventos (
+    id SERIAL PRIMARY KEY,
+    defense_file_id INTEGER REFERENCES defense_files(id) ON DELETE CASCADE,
+    
+    -- Identificación del evento
+    tipo VARCHAR(50) NOT NULL,  -- conversacion, analisis_cfdi, consulta_rag, email, calculo, alerta
+    subtipo VARCHAR(50),        -- específico según tipo
+    agente VARCHAR(20),         -- A1, A2, A3, etc.
+    
+    -- Quién y cuándo
+    usuario_id INTEGER REFERENCES users(id),
+    usuario_email VARCHAR(255),
+    timestamp TIMESTAMP DEFAULT NOW(),
+    
+    -- Contenido
+    titulo VARCHAR(255),
+    descripcion TEXT,
+    datos JSONB NOT NULL DEFAULT '{}',
+    
+    -- Archivos asociados
+    archivos JSONB DEFAULT '[]',  -- [{nombre, path, hash, size}]
+    
+    -- Integridad
+    hash_evento VARCHAR(64),  -- SHA256 del evento
+    evento_anterior_hash VARCHAR(64),  -- Para cadena de integridad
+    
+    -- Índices para búsqueda
+    tags TEXT[],
+    
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_df_eventos_defense_file ON df_eventos(defense_file_id);
+CREATE INDEX idx_df_eventos_tipo ON df_eventos(tipo);
+CREATE INDEX idx_df_eventos_agente ON df_eventos(agente);
+CREATE INDEX idx_df_eventos_timestamp ON df_eventos(timestamp);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TABLA: PROVEEDORES DEL DEFENSE FILE
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS df_proveedores (
+    id SERIAL PRIMARY KEY,
+    defense_file_id INTEGER REFERENCES defense_files(id) ON DELETE CASCADE,
+    
+    -- Datos del proveedor
+    rfc VARCHAR(13) NOT NULL,
+    razon_social VARCHAR(255),
+    nombre_comercial VARCHAR(255),
+    
+    -- Verificaciones
+    lista_69b_status VARCHAR(20),  -- limpio, publicado, presunto, definitivo
+    lista_69b_fecha DATE,
+    efos_status VARCHAR(20),
+    efos_fecha DATE,
+    opinion_cumplimiento VARCHAR(20),  -- positiva, negativa, sin_opinion
+    opinion_fecha DATE,
+    
+    -- Totales
+    total_cfdis INTEGER DEFAULT 0,
+    monto_total DECIMAL(15,2) DEFAULT 0,
+    iva_total DECIMAL(15,2) DEFAULT 0,
+    
+    -- Riesgo
+    nivel_riesgo VARCHAR(20),  -- bajo, medio, alto, critico
+    notas_riesgo TEXT,
+    
+    -- pCloud path
+    pcloud_path TEXT,
+    
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    
+    UNIQUE(defense_file_id, rfc)
+);
+
+CREATE INDEX idx_df_proveedores_rfc ON df_proveedores(rfc);
+CREATE INDEX idx_df_proveedores_riesgo ON df_proveedores(nivel_riesgo);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TABLA: CFDIs DEL DEFENSE FILE
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS df_cfdis (
+    id SERIAL PRIMARY KEY,
+    defense_file_id INTEGER REFERENCES defense_files(id) ON DELETE CASCADE,
+    proveedor_id INTEGER REFERENCES df_proveedores(id),
+    
+    -- Identificación CFDI
+    uuid VARCHAR(36) UNIQUE NOT NULL,
+    serie VARCHAR(25),
+    folio VARCHAR(40),
+    
+    -- Datos fiscales
+    emisor_rfc VARCHAR(13),
+    emisor_nombre VARCHAR(255),
+    receptor_rfc VARCHAR(13),
+    receptor_nombre VARCHAR(255),
+    
+    -- Montos
+    subtotal DECIMAL(15,2),
+    descuento DECIMAL(15,2) DEFAULT 0,
+    iva DECIMAL(15,2) DEFAULT 0,
+    isr_retenido DECIMAL(15,2) DEFAULT 0,
+    iva_retenido DECIMAL(15,2) DEFAULT 0,
+    total DECIMAL(15,2),
+    
+    -- Fechas
+    fecha_emision TIMESTAMP,
+    fecha_timbrado TIMESTAMP,
+    fecha_pago DATE,
+    
+    -- Tipo
+    tipo_comprobante VARCHAR(10),  -- I=Ingreso, E=Egreso, T=Traslado, P=Pago, N=Nómina
+    metodo_pago VARCHAR(3),
+    forma_pago VARCHAR(2),
+    uso_cfdi VARCHAR(10),
+    
+    -- Validación
+    status_sat VARCHAR(20),  -- vigente, cancelado, no_encontrado
+    fecha_validacion TIMESTAMP,
+    
+    -- Análisis IA
+    categoria_deduccion VARCHAR(100),
+    es_deducible BOOLEAN,
+    justificacion_deduccion TEXT,
+    
+    -- Riesgo
+    alertas JSONB DEFAULT '[]',
+    nivel_riesgo VARCHAR(20),
+    
+    -- Archivos
+    xml_path TEXT,
+    pdf_path TEXT,
+    
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_df_cfdis_uuid ON df_cfdis(uuid);
+CREATE INDEX idx_df_cfdis_emisor ON df_cfdis(emisor_rfc);
+CREATE INDEX idx_df_cfdis_fecha ON df_cfdis(fecha_emision);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TABLA: DOCUMENTOS LEGALES CITADOS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS df_fundamentos (
+    id SERIAL PRIMARY KEY,
+    defense_file_id INTEGER REFERENCES defense_files(id) ON DELETE CASCADE,
+    
+    -- Tipo de fundamento
+    tipo VARCHAR(50),  -- ley, reglamento, rmf, jurisprudencia, criterio_sat
+    
+    -- Identificación
+    documento VARCHAR(255),  -- CFF, LISR, RMF 2024, etc.
+    articulo VARCHAR(50),
+    fraccion VARCHAR(20),
+    parrafo VARCHAR(20),
+    
+    -- Contenido
+    titulo VARCHAR(255),
+    texto_relevante TEXT,
+    
+    -- Aplicación
+    aplicacion TEXT,  -- Cómo aplica al caso
+    usado_en_eventos INTEGER[],  -- IDs de eventos donde se citó
+    
+    -- Fuente
+    kb_documento_id INTEGER REFERENCES kb_documentos(id),
+    kb_chunk_ids INTEGER[],
+    
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TABLA: CÁLCULOS Y DETERMINACIONES
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS df_calculos (
+    id SERIAL PRIMARY KEY,
+    defense_file_id INTEGER REFERENCES defense_files(id) ON DELETE CASCADE,
+    
+    -- Tipo de cálculo
+    tipo VARCHAR(50),  -- isr_mensual, iva_mensual, ajuste_anual, etc.
+    periodo VARCHAR(20),  -- 2024-01, 2024-Q1, 2024-ANUAL
+    
+    -- Valores
+    concepto VARCHAR(255),
+    base_gravable DECIMAL(15,2),
+    tasa DECIMAL(5,4),
+    impuesto_calculado DECIMAL(15,2),
+    
+    -- Detalles
+    formula_aplicada TEXT,
+    datos_entrada JSONB,
+    resultado JSONB,
+    
+    -- Justificación
+    fundamento_legal TEXT,
+    notas TEXT,
+    
+    -- Quién lo hizo
+    calculado_por VARCHAR(50),  -- agente o usuario
+    revisado_por INTEGER REFERENCES users(id),
+    
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- VISTA: TIMELINE COMPLETO
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE VIEW v_defense_timeline AS
+SELECT 
+    df.id as defense_file_id,
+    df.nombre as caso,
+    e.id as evento_id,
+    e.timestamp,
+    e.tipo,
+    e.subtipo,
+    e.agente,
+    e.usuario_email,
+    e.titulo,
+    e.descripcion,
+    e.hash_evento
+FROM defense_files df
+JOIN df_eventos e ON e.defense_file_id = df.id
+ORDER BY df.id, e.timestamp;
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 2: SERVICIO BASE DE DEFENSE FILES
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/services/defense_files/defense_service.py
+
+```python
+"""
+═══════════════════════════════════════════════════════════════════════════════
+DEFENSE FILES - SERVICIO PRINCIPAL
+Gestiona la creación y documentación de expedientes de defensa fiscal
+═══════════════════════════════════════════════════════════════════════════════
+"""
+
+import os
+import json
+import hashlib
+from datetime import datetime
+from typing import Dict, Any, Optional, List
+from dataclasses import dataclass, asdict
+from enum import Enum
+
+from extensions import db
+from sqlalchemy import text
+
+
+class TipoEvento(Enum):
+    # Interacciones con agentes
+    CONVERSACION = 'conversacion'
+    CONSULTA_RAG = 'consulta_rag'
+    ANALISIS_IA = 'analisis_ia'
+    
+    # CFDIs y proveedores
+    CFDI_REGISTRADO = 'cfdi_registrado'
+    CFDI_VALIDADO = 'cfdi_validado'
+    PROVEEDOR_VERIFICADO = 'proveedor_verificado'
+    
+    # Comunicaciones
+    EMAIL_ENVIADO = 'email_enviado'
+    EMAIL_RECIBIDO = 'email_recibido'
+    NOTIFICACION = 'notificacion'
+    
+    # Cálculos y análisis
+    CALCULO_REALIZADO = 'calculo_realizado'
+    DEDUCCION_ANALIZADA = 'deduccion_analizada'
+    
+    # Documentos
+    DOCUMENTO_SUBIDO = 'documento_subido'
+    DOCUMENTO_CITADO = 'documento_citado'
+    
+    # Sistema
+    ALERTA_GENERADA = 'alerta_generada'
+    REVISION_COMPLETADA = 'revision_completada'
+
+
+class Agente(Enum):
+    A1_FACTURAR = 'A1'
+    A2_BIBLIOTECAR = 'A2'
+    A3_REVISAR = 'A3'
+    A4_TRAFICO = 'A4'
+    A5_DISENAR = 'A5'
+    A6_ONBOARDING = 'A6'
+    A7_DIAGNOSTICO = 'A7'
+    SISTEMA = 'SYS'
+    USUARIO = 'USR'
+
+
+@dataclass
+class Evento:
+    tipo: TipoEvento
+    agente: Agente
+    titulo: str
+    descripcion: str
+    datos: Dict[str, Any]
+    usuario_email: Optional[str] = None
+    subtipo: Optional[str] = None
+    archivos: List[Dict] = None
+    tags: List[str] = None
+
+
+class DefenseFileService:
+    """Servicio principal para gestión de Defense Files"""
+    
+    def __init__(self):
+        self.pcloud = None  # Se inicializa si hay credenciales
+        self._init_pcloud()
+    
+    def _init_pcloud(self):
+        """Inicializa conexión a pCloud si hay credenciales"""
+        token = os.environ.get('PCLOUD_ACCESS_TOKEN')
+        if token:
+            from services.defense_files.pcloud_service import PCloudService
+            self.pcloud = PCloudService()
+            print("✅ pCloud conectado para Defense Files")
+        else:
+            print("⚠️ PCLOUD_ACCESS_TOKEN no configurado - Defense Files solo en BD")
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # GESTIÓN DE DEFENSE FILES
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def crear_defense_file(self, 
+                           cliente_id: int,
+                           nombre: str,
+                           año_fiscal: int,
+                           descripcion: str = None,
+                           entregable_id: int = None,
+                           periodo_inicio: str = None,
+                           periodo_fin: str = None,
+                           usuario_id: int = None) -> Dict:
+        """Crea un nuevo Defense File"""
+        
+        try:
+            # Obtener datos del cliente
+            cliente = db.session.execute(text(
+                "SELECT rfc, nombre FROM clientes WHERE id = :id"
+            ), {'id': cliente_id}).fetchone()
+            
+            if not cliente:
+                return {'success': False, 'error': 'Cliente no encontrado'}
+            
+            # Crear registro en BD
+            result = db.session.execute(text("""
+                INSERT INTO defense_files 
+                (cliente_id, entregable_id, nombre, descripcion, año_fiscal,
+                 periodo_inicio, periodo_fin, estado, created_by, created_at)
+                VALUES 
+                (:cliente_id, :entregable_id, :nombre, :descripcion, :año,
+                 :inicio, :fin, 'en_proceso', :usuario, NOW())
+                RETURNING id
+            """), {
+                'cliente_id': cliente_id,
+                'entregable_id': entregable_id,
+                'nombre': nombre,
+                'descripcion': descripcion,
+                'año': año_fiscal,
+                'inicio': periodo_inicio,
+                'fin': periodo_fin,
+                'usuario': usuario_id
+            })
+            
+            df_id = result.fetchone()[0]
+            db.session.commit()
+            
+            # Crear estructura en pCloud
+            pcloud_path = None
+            if self.pcloud:
+                pcloud_path = f"/SATMA/Defense_Files/{cliente.rfc}/{año_fiscal}/{df_id}_{self._sanitizar(nombre)}"
+                self.pcloud.crear_estructura_defense_file(pcloud_path)
+                
+                # Actualizar path en BD
+                db.session.execute(text(
+                    "UPDATE defense_files SET pcloud_path = :path WHERE id = :id"
+                ), {'path': pcloud_path, 'id': df_id})
+                db.session.commit()
+            
+            # Registrar evento de creación
+            self.registrar_evento(
+                defense_file_id=df_id,
+                evento=Evento(
+                    tipo=TipoEvento.NOTIFICACION,
+                    agente=Agente.SISTEMA,
+                    titulo="Defense File creado",
+                    descripcion=f"Se creó el expediente de defensa '{nombre}' para el ejercicio {año_fiscal}",
+                    datos={
+                        'cliente_rfc': cliente.rfc,
+                        'cliente_nombre': cliente.nombre,
+                        'año_fiscal': año_fiscal
+                    },
+                    usuario_email=self._get_user_email(usuario_id)
+                )
+            )
+            
+            return {
+                'success': True,
+                'defense_file_id': df_id,
+                'pcloud_path': pcloud_path,
+                'mensaje': f'Defense File creado exitosamente'
+            }
+            
+        except Exception as e:
+            db.session.rollback()
+            return {'success': False, 'error': str(e)}
+    
+    def obtener_defense_file(self, df_id: int) -> Optional[Dict]:
+        """Obtiene un Defense File con su resumen"""
+        
+        try:
+            # Datos principales
+            df = db.session.execute(text("""
+                SELECT 
+                    df.*,
+                    c.rfc as cliente_rfc,
+                    c.nombre as cliente_nombre,
+                    u.email as creado_por_email
+                FROM defense_files df
+                JOIN clientes c ON df.cliente_id = c.id
+                LEFT JOIN users u ON df.created_by = u.id
+                WHERE df.id = :id
+            """), {'id': df_id}).fetchone()
+            
+            if not df:
+                return None
+            
+            # Contar elementos
+            stats = db.session.execute(text("""
+                SELECT
+                    (SELECT COUNT(*) FROM df_eventos WHERE defense_file_id = :id) as total_eventos,
+                    (SELECT COUNT(*) FROM df_proveedores WHERE defense_file_id = :id) as total_proveedores,
+                    (SELECT COUNT(*) FROM df_cfdis WHERE defense_file_id = :id) as total_cfdis,
+                    (SELECT COUNT(*) FROM df_fundamentos WHERE defense_file_id = :id) as total_fundamentos,
+                    (SELECT COUNT(*) FROM df_calculos WHERE defense_file_id = :id) as total_calculos
+            """), {'id': df_id}).fetchone()
+            
+            return {
+                'id': df.id,
+                'nombre': df.nombre,
+                'descripcion': df.descripcion,
+                'año_fiscal': df.año_fiscal,
+                'estado': df.estado,
+                'cliente': {
+                    'id': df.cliente_id,
+                    'rfc': df.cliente_rfc,
+                    'nombre': df.cliente_nombre
+                },
+                'periodo': {
+                    'inicio': df.periodo_inicio.isoformat() if df.periodo_inicio else None,
+                    'fin': df.periodo_fin.isoformat() if df.periodo_fin else None
+                },
+                'pcloud_path': df.pcloud_path,
+                'estadisticas': {
+                    'eventos': stats.total_eventos,
+                    'proveedores': stats.total_proveedores,
+                    'cfdis': stats.total_cfdis,
+                    'fundamentos': stats.total_fundamentos,
+                    'calculos': stats.total_calculos
+                },
+                'created_at': df.created_at.isoformat() if df.created_at else None,
+                'creado_por': df.creado_por_email
+            }
+            
+        except Exception as e:
+            print(f"Error obteniendo Defense File: {e}")
+            return None
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # REGISTRO DE EVENTOS (BITÁCORA)
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def registrar_evento(self, defense_file_id: int, evento: Evento) -> Dict:
+        """Registra un evento en la bitácora del Defense File"""
+        
+        try:
+            # Obtener hash del evento anterior para cadena de integridad
+            ultimo = db.session.execute(text("""
+                SELECT hash_evento FROM df_eventos 
+                WHERE defense_file_id = :df_id 
+                ORDER BY id DESC LIMIT 1
+            """), {'df_id': defense_file_id}).fetchone()
+            
+            hash_anterior = ultimo.hash_evento if ultimo else 'GENESIS'
+            
+            # Calcular hash del evento actual
+            contenido_hash = json.dumps({
+                'timestamp': datetime.now().isoformat(),
+                'tipo': evento.tipo.value,
+                'datos': evento.datos,
+                'anterior': hash_anterior
+            }, sort_keys=True)
+            hash_evento = hashlib.sha256(contenido_hash.encode()).hexdigest()
+            
+            # Insertar evento
+            result = db.session.execute(text("""
+                INSERT INTO df_eventos
+                (defense_file_id, tipo, subtipo, agente, usuario_email, 
+                 titulo, descripcion, datos, archivos, hash_evento, 
+                 evento_anterior_hash, tags, timestamp)
+                VALUES
+                (:df_id, :tipo, :subtipo, :agente, :email,
+                 :titulo, :descripcion, :datos, :archivos, :hash,
+                 :hash_anterior, :tags, NOW())
+                RETURNING id
+            """), {
+                'df_id': defense_file_id,
+                'tipo': evento.tipo.value,
+                'subtipo': evento.subtipo,
+                'agente': evento.agente.value,
+                'email': evento.usuario_email,
+                'titulo': evento.titulo,
+                'descripcion': evento.descripcion,
+                'datos': json.dumps(evento.datos, default=str),
+                'archivos': json.dumps(evento.archivos or []),
+                'hash': hash_evento,
+                'hash_anterior': hash_anterior,
+                'tags': evento.tags
+            })
+            
+            evento_id = result.fetchone()[0]
+            db.session.commit()
+            
+            # Sincronizar con pCloud si está disponible
+            if self.pcloud:
+                self._sync_evento_pcloud(defense_file_id, evento_id, evento)
+            
+            return {
+                'success': True,
+                'evento_id': evento_id,
+                'hash': hash_evento
+            }
+            
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error registrando evento: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def obtener_timeline(self, defense_file_id: int, 
+                         limite: int = 100,
+                         tipo: str = None,
+                         agente: str = None) -> List[Dict]:
+        """Obtiene el timeline de eventos de un Defense File"""
+        
+        try:
+            query = """
+                SELECT * FROM df_eventos 
+                WHERE defense_file_id = :df_id
+            """
+            params = {'df_id': defense_file_id}
+            
+            if tipo:
+                query += " AND tipo = :tipo"
+                params['tipo'] = tipo
+            
+            if agente:
+                query += " AND agente = :agente"
+                params['agente'] = agente
+            
+            query += " ORDER BY timestamp DESC LIMIT :limite"
+            params['limite'] = limite
+            
+            result = db.session.execute(text(query), params)
+            
+            eventos = []
+            for row in result:
+                eventos.append({
+                    'id': row.id,
+                    'timestamp': row.timestamp.isoformat(),
+                    'tipo': row.tipo,
+                    'subtipo': row.subtipo,
+                    'agente': row.agente,
+                    'usuario': row.usuario_email,
+                    'titulo': row.titulo,
+                    'descripcion': row.descripcion,
+                    'datos': json.loads(row.datos) if row.datos else {},
+                    'archivos': json.loads(row.archivos) if row.archivos else [],
+                    'hash': row.hash_evento
+                })
+            
+            return eventos
+            
+        except Exception as e:
+            print(f"Error obteniendo timeline: {e}")
+            return []
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # UTILIDADES
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def _sanitizar(self, texto: str) -> str:
+        """Sanitiza texto para usar en rutas"""
+        import re
+        texto = re.sub(r'[<>:"/\\|?*]', '', texto)
+        texto = texto.replace(' ', '_')
+        return texto[:50]
+    
+    def _get_user_email(self, user_id: int) -> Optional[str]:
+        """Obtiene email de usuario por ID"""
+        if not user_id:
+            return None
+        result = db.session.execute(text(
+            "SELECT email FROM users WHERE id = :id"
+        ), {'id': user_id}).fetchone()
+        return result.email if result else None
+    
+    def _sync_evento_pcloud(self, df_id: int, evento_id: int, evento: Evento):
+        """Sincroniza evento con pCloud"""
+        try:
+            # Obtener path del Defense File
+            df = db.session.execute(text(
+                "SELECT pcloud_path FROM defense_files WHERE id = :id"
+            ), {'id': df_id}).fetchone()
+            
+            if not df or not df.pcloud_path:
+                return
+            
+            # Determinar carpeta según agente
+            agente_folder = f"05_Agentes_IA/{evento.agente.value}"
+            if evento.tipo == TipoEvento.EMAIL_ENVIADO:
+                agente_folder = "06_Comunicaciones/emails_enviados"
+            elif evento.tipo == TipoEvento.CFDI_REGISTRADO:
+                agente_folder = "03_CFDIs"
+            
+            # Subir JSON del evento
+            path = f"{df.pcloud_path}/{agente_folder}"
+            filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{evento.tipo.value}.json"
+            
+            self.pcloud.subir_json(path, filename, {
+                'evento_id': evento_id,
+                'timestamp': datetime.now().isoformat(),
+                'tipo': evento.tipo.value,
+                'agente': evento.agente.value,
+                'titulo': evento.titulo,
+                'descripcion': evento.descripcion,
+                'datos': evento.datos,
+                'usuario': evento.usuario_email
+            })
+            
+        except Exception as e:
+            print(f"Error sincronizando con pCloud: {e}")
+
+
+# Instancia global
+defense_service = DefenseFileService()
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 3: SERVICIO DE pCLOUD
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/services/defense_files/pcloud_service.py
+
+```python
+"""
+═══════════════════════════════════════════════════════════════════════════════
+PCLOUD SERVICE - Integración con pCloud para Defense Files
+═══════════════════════════════════════════════════════════════════════════════
+"""
+
+import os
+import json
+import requests
+from datetime import datetime
+from typing import Dict, Any, Optional, List
+
+
+class PCloudService:
+    """Servicio de integración con pCloud API"""
+    
+    def __init__(self):
+        self.token = os.environ.get('PCLOUD_ACCESS_TOKEN')
+        self.api_base = 'https://api.pcloud.com'
+        
+        if not self.token:
+            raise ValueError("PCLOUD_ACCESS_TOKEN no configurado")
+    
+    def _request(self, endpoint: str, params: dict = None, files: dict = None) -> dict:
+        """Realiza request a pCloud API"""
+        url = f"{self.api_base}/{endpoint}"
+        params = params or {}
+        params['access_token'] = self.token
+        
+        try:
+            if files:
+                response = requests.post(url, params=params, files=files, timeout=60)
+            else:
+                response = requests.get(url, params=params, timeout=30)
+            
+            return response.json()
+        except Exception as e:
+            return {'error': str(e)}
+    
+    def crear_carpeta(self, path: str) -> dict:
+        """Crea carpeta (y todas las intermedias)"""
+        return self._request('createfolderifnotexists', {'path': path})
+    
+    def subir_archivo(self, path: str, contenido: bytes, filename: str) -> dict:
+        """Sube archivo a pCloud"""
+        self.crear_carpeta(path)
+        files = {'file': (filename, contenido)}
+        return self._request('uploadfile', {'path': path}, files=files)
+    
+    def subir_json(self, path: str, filename: str, data: dict) -> dict:
+        """Sube archivo JSON"""
+        contenido = json.dumps(data, indent=2, ensure_ascii=False, default=str)
+        return self.subir_archivo(path, contenido.encode('utf-8'), filename)
+    
+    def crear_estructura_defense_file(self, base_path: str) -> dict:
+        """Crea toda la estructura de carpetas para un Defense File"""
+        
+        carpetas = [
+            "01_Expediente",
+            "02_Proveedores",
+            "03_CFDIs/recibidos",
+            "03_CFDIs/emitidos",
+            "04_Deducciones",
+            "05_Agentes_IA/A1_Facturar/conversaciones",
+            "05_Agentes_IA/A1_Facturar/analisis",
+            "05_Agentes_IA/A2_Bibliotecar/consultas_rag",
+            "05_Agentes_IA/A2_Bibliotecar/documentos_citados",
+            "05_Agentes_IA/A3_Revisar/revisiones",
+            "05_Agentes_IA/A3_Revisar/hallazgos",
+            "05_Agentes_IA/A4_Trafico",
+            "05_Agentes_IA/A5_Disenar",
+            "05_Agentes_IA/A6_Onboarding",
+            "05_Agentes_IA/A7_Diagnostico",
+            "06_Comunicaciones/emails_enviados",
+            "06_Comunicaciones/emails_recibidos",
+            "06_Comunicaciones/notificaciones_sat",
+            "07_Calculos/isr",
+            "07_Calculos/iva",
+            "07_Calculos/ajustes",
+            "08_Marco_Legal/articulos_aplicables",
+            "08_Marco_Legal/jurisprudencias_citadas",
+            "08_Marco_Legal/criterios_sat",
+            "09_Evidencia_Soporte/contratos",
+            "09_Evidencia_Soporte/estados_cuenta",
+            "09_Evidencia_Soporte/comprobantes_pago",
+            "09_Evidencia_Soporte/acuses",
+            "10_Defense_File_Final/anexos"
+        ]
+        
+        resultados = []
+        for carpeta in carpetas:
+            path = f"{base_path}/{carpeta}"
+            result = self.crear_carpeta(path)
+            resultados.append({'path': path, 'result': result})
+        
+        # Crear archivo de carátula inicial
+        caratula = {
+            'defense_file_path': base_path,
+            'created_at': datetime.now().isoformat(),
+            'estructura_version': '2.0',
+            'estado': 'en_proceso'
+        }
+        self.subir_json(f"{base_path}/01_Expediente", "caratula.json", caratula)
+        
+        # Inicializar timeline
+        timeline = {
+            'eventos': [],
+            'created_at': datetime.now().isoformat()
+        }
+        self.subir_json(f"{base_path}/01_Expediente", "timeline_maestro.json", timeline)
+        
+        return {
+            'success': True,
+            'base_path': base_path,
+            'carpetas_creadas': len(carpetas)
+        }
+
+
+# Función para obtener instancia (lazy loading)
+_pcloud_instance = None
+
+def get_pcloud() -> Optional[PCloudService]:
+    global _pcloud_instance
+    if _pcloud_instance is None:
+        try:
+            _pcloud_instance = PCloudService()
+        except ValueError:
+            return None
+    return _pcloud_instance
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 4: API ENDPOINTS PARA DEFENSE FILES
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/routes/defense_routes.py
+
+```python
+"""
+═══════════════════════════════════════════════════════════════════════════════
+RUTAS API - DEFENSE FILES
+═══════════════════════════════════════════════════════════════════════════════
+"""
+
+from flask import Blueprint, jsonify, request
+from services.defense_files.defense_service import defense_service, TipoEvento, Agente, Evento
+
+defense_bp = Blueprint('defense', __name__)
+
+
+@defense_bp.route('', methods=['POST'])
+def crear_defense_file():
+    """Crea un nuevo Defense File"""
+    data = request.get_json(force=True, silent=True) or {}
+    
+    required = ['cliente_id', 'nombre', 'año_fiscal']
+    for field in required:
+        if field not in data:
+            return jsonify({'error': f'Campo requerido: {field}'}), 400
+    
+    resultado = defense_service.crear_defense_file(
+        cliente_id=data['cliente_id'],
+        nombre=data['nombre'],
+        año_fiscal=data['año_fiscal'],
+        descripcion=data.get('descripcion'),
+        entregable_id=data.get('entregable_id'),
+        periodo_inicio=data.get('periodo_inicio'),
+        periodo_fin=data.get('periodo_fin'),
+        usuario_id=data.get('usuario_id')
+    )
+    
+    if resultado['success']:
+        return jsonify(resultado), 201
+    else:
+        return jsonify(resultado), 400
+
+
+@defense_bp.route('/<int:df_id>', methods=['GET'])
+def obtener_defense_file(df_id):
+    """Obtiene un Defense File con su resumen"""
+    df = defense_service.obtener_defense_file(df_id)
+    
+    if df:
+        return jsonify({'success': True, 'defense_file': df})
+    else:
+        return jsonify({'error': 'Defense File no encontrado'}), 404
+
+
+@defense_bp.route('/<int:df_id>/timeline', methods=['GET'])
+def obtener_timeline(df_id):
+    """Obtiene timeline de eventos"""
+    limite = request.args.get('limite', 100, type=int)
+    tipo = request.args.get('tipo')
+    agente = request.args.get('agente')
+    
+    eventos = defense_service.obtener_timeline(df_id, limite, tipo, agente)
+    
+    return jsonify({
+        'success': True,
+        'eventos': eventos,
+        'total': len(eventos)
+    })
+
+
+@defense_bp.route('/<int:df_id>/evento', methods=['POST'])
+def registrar_evento(df_id):
+    """Registra un evento manualmente"""
+    data = request.get_json(force=True, silent=True) or {}
+    
+    try:
+        evento = Evento(
+            tipo=TipoEvento(data.get('tipo', 'notificacion')),
+            agente=Agente(data.get('agente', 'USR')),
+            titulo=data.get('titulo', 'Evento manual'),
+            descripcion=data.get('descripcion', ''),
+            datos=data.get('datos', {}),
+            usuario_email=data.get('usuario_email'),
+            subtipo=data.get('subtipo'),
+            tags=data.get('tags')
+        )
+        
+        resultado = defense_service.registrar_evento(df_id, evento)
+        return jsonify(resultado)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@defense_bp.route('/cliente/<int:cliente_id>', methods=['GET'])
+def listar_por_cliente(cliente_id):
+    """Lista Defense Files de un cliente"""
+    from extensions import db
+    from sqlalchemy import text
+    
+    result = db.session.execute(text("""
+        SELECT id, nombre, año_fiscal, estado, created_at
+        FROM defense_files
+        WHERE cliente_id = :cliente_id
+        ORDER BY created_at DESC
+    """), {'cliente_id': cliente_id})
+    
+    defense_files = [{
+        'id': row.id,
+        'nombre': row.nombre,
+        'año_fiscal': row.año_fiscal,
+        'estado': row.estado,
+        'created_at': row.created_at.isoformat() if row.created_at else None
+    } for row in result]
+    
+    return jsonify({
+        'success': True,
+        'defense_files': defense_files,
+        'total': len(defense_files)
+    })
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST PARTE 1
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Ejecutar SQL para crear tablas
+□ Crear backend/services/defense_files/__init__.py (vacío)
+□ Crear backend/services/defense_files/defense_service.py
+□ Crear backend/services/defense_files/pcloud_service.py
+□ Crear backend/routes/defense_routes.py
+□ Registrar blueprint en main.py:
+  
+  from routes.defense_routes import defense_bp
+  app.register_blueprint(defense_bp, url_prefix='/api/defense')
+
+□ Probar crear Defense File:
+  
+  curl -X POST http://localhost:5000/api/defense \
+    -H "Content-Type: application/json" \
+    -d '{"cliente_id": 1, "nombre": "Auditoria 2024", "año_fiscal": 2024}'
+
+═══════════════════════════════════════════════════════════════════════════════
+CONTINÚA EN PARTE 2: Integración con Agentes y CFDIs
+═══════════════════════════════════════════════════════════════════════════════

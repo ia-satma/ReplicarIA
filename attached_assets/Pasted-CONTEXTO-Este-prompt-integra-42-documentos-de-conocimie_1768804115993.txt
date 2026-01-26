@@ -1,0 +1,152 @@
+CONTEXTO:
+=========
+Este prompt integra 42 documentos de conocimiento estructurados para los 11 agentes 
+de revisar.ia. Debe implementarse SOBRE la arquitectura multi-tenant ya en desarrollo.
+
+Los documentos sirven como PLANTILLAS que cada empresa (tenant) puede personalizar.
+
+ESTRUCTURA DE CARPETAS RAG:
+===========================
+
+backend/rag/
+├── templates/                           # Plantillas base (ejemplos para todos los tenants)
+│   ├── A1_ESTRATEGIA/
+│   │   ├── 001_vision_pilares.md
+│   │   ├── 002_planeacion_okrs.md
+│   │   ├── 003_panorama_industria.md
+│   │   ├── 004_plan_estrategico_anual.md
+│   │   ├── 005_matriz_alineacion_bee.md
+│   │   └── _metadata.json
+│   │
+│   ├── A2_PMO/
+│   │   ├── 001_poe_f0_f9_manual.md
+│   │   ├── 002_plantillas_po_consolidation.md
+│   │   ├── 003_guia_coordinacion_multiagente.md
+│   │   ├── 004_checklist_tipologia.md
+│   │   └── _metadata.json
+│   │
+│   ├── A3_FISCAL/
+│   │   ├── 001_guia_razon_negocios_5a.md
+│   │   ├── 002_guia_materialidad_69b.md
+│   │   ├── 003_estricta_indispensabilidad_27.md
+│   │   ├── 004_cff_extracto.md
+│   │   ├── 005_lisr_extracto.md
+│   │   ├── 006_casos_auditoria_sat.md
+│   │   ├── 007_lista_69b_politica.md
+│   │   ├── 008_criterios_efos.md
+│   │   └── _metadata.json
+│   │
+│   ├── A4_LEGAL/
+│   │   ├── 001_plantilla_contrato.md
+│   │   ├── 002_guia_nom151_trazabilidad.md
+│   │   ├── 003_clausulas_materialidad.md
+│   │   ├── 004_guia_revision_sow.md
+│   │   ├── 005_terminos_pago_penalizaciones.md
+│   │   ├── 006_proteccion_datos_confidencialidad.md
+│   │   └── _metadata.json
+│   │
+│   ├── A5_FINANZAS/
+│   │   ├── 001_politicas_presupuestales.md
+│   │   ├── 002_benchmarks_roi_sector.md
+│   │   ├── 003_guia_3way_match.md
+│   │   ├── 004_analisis_financieros_previos.md
+│   │   ├── 005_limites_autorizacion_monto.md
+│   │   └── _metadata.json
+│   │
+│   ├── A6_PROVEEDOR/
+│   │   ├── 001_guia_entregables_tipologia.md
+│   │   ├── 002_plantilla_acta_aceptacion.md
+│   │   ├── 003_checklist_evidencia_ejecucion.md
+│   │   ├── 004_formato_minutas_trabajo.md
+│   │   └── _metadata.json
+│   │
+│   ├── A7_DEFENSA/
+│   │   ├── 001_guia_defense_file.md
+│   │   ├── 002_criterios_defendibilidad_tfja.md
+│   │   ├── 003_checklist_documentos_criticos.md
+│   │   ├── 004_precedentes_tfja.md
+│   │   ├── 005_guia_refuerzo_probatorio.md
+│   │   └── _metadata.json
+│   │
+│   └── KNOWLEDGE_BASE/                  # Conocimiento UNIVERSAL (igual para todos)
+│       ├── 001_cff_extracto_completo.md
+│       ├── 002_lisr_extracto_completo.md
+│       ├── 003_tipologias_servicio.md
+│       ├── 004_umbrales_riesgo.md
+│       ├── 005_politica_anti_efos.md
+│       └── _metadata.json
+│
+└── tenants/                             # Documentos personalizados por empresa
+    └── {empresa_id}/
+        ├── A1_ESTRATEGIA/
+        │   └── [docs personalizados de ESA empresa]
+        ├── A2_PMO/
+        ├── ...
+        └── KNOWLEDGE_BASE/
+
+
+TAREA 1: Crear estructura de carpetas y archivos _metadata.json
+===============================================================
+
+Para cada carpeta de agente, crear _metadata.json con:
+
+```json
+// backend/rag/templates/A1_ESTRATEGIA/_metadata.json
+{
+  "agente_id": "A1_ESTRATEGIA",
+  "nombre": "Estrategia y Razón de Negocios",
+  "descripcion": "Documentos para evaluar alineación estratégica y BEE",
+  "documentos": [
+    {
+      "id": "001_vision_pilares",
+      "titulo": "Visión y Pilares Estratégicos 2026-2030",
+      "tipo": "plantilla",
+      "uso": "Marco de referencia para evaluar alineación de proyectos",
+      "personalizable": true,
+      "campos_clave": ["vision", "pilares_estrategicos", "mercados_clave"]
+    },
+    {
+      "id": "002_planeacion_okrs",
+      "titulo": "Planeación Estratégica OKRs",
+      "tipo": "plantilla",
+      "uso": "Vincular proyectos con objetivos medibles",
+      "personalizable": true,
+      "campos_clave": ["objetivos_corporativos", "key_results", "okrs_por_area"]
+    },
+    {
+      "id": "003_panorama_industria",
+      "titulo": "Análisis Panorama Industria",
+      "tipo": "plantilla",
+      "uso": "Contexto macro para justificar razón de negocios",
+      "personalizable": true,
+      "campos_clave": ["entorno_macro", "tendencias_sector", "riesgos_oportunidades"]
+    },
+    {
+      "id": "004_plan_estrategico_anual",
+      "titulo": "Plan Estratégico Anual",
+      "tipo": "plantilla",
+      "uso": "Prioridades concretas del ejercicio",
+      "personalizable": true,
+      "campos_clave": ["prioridades", "proyectos_estrategicos", "presupuesto"]
+    },
+    {
+      "id": "005_matriz_alineacion_bee",
+      "titulo": "Matriz de Alineación BEE",
+      "tipo": "metodologia",
+      "uso": "Metodología para cuantificar beneficio económico",
+      "personalizable": false,
+      "campos_clave": ["definicion_bee", "estructura_bee", "criterios_evaluacion"]
+    }
+  ],
+  "contexto_requerido": {
+    "obligatorio": [
+      "plan_estrategico_vigente",
+      "okrs_periodo_actual",
+      "tipologia_proyecto"
+    ],
+    "deseable": [
+      "panorama_industria",
+      "proyectos_anteriores_similares"
+    ]
+  }
+}

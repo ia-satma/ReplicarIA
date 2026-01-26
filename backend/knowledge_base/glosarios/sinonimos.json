@@ -1,0 +1,27 @@
+{
+  "metadata": {
+    "nombre": "Mapeo de Sinónimos para Búsqueda",
+    "version": "1.0",
+    "descripcion": "Sinónimos y términos equivalentes para mejorar búsquedas en el KB"
+  },
+  "sinonimos": {
+    "razon de negocios": ["razón de negocios", "business purpose", "propósito empresarial", "motivo de negocio", "justificación comercial", "RN"],
+    "beneficio economico esperado": ["BEE", "beneficio esperado", "retorno esperado", "valor esperado"],
+    "efos": ["EFOS", "empresas fantasma", "factureras", "operaciones simuladas", "empresas que facturan operaciones simuladas"],
+    "deduccion": ["deducción", "gasto deducible", "deducibilidad", "deducciones autorizadas"],
+    "cfdi": ["CFDI", "factura electrónica", "comprobante fiscal", "factura digital"],
+    "defense file": ["defense file", "expediente de defensa", "carpeta de defensa", "archivo de defensa"],
+    "due diligence": ["due diligence", "debida diligencia", "diligencia debida", "investigación previa", "DD"],
+    "materialidad": ["materialidad", "evidencia material", "prueba material", "sustancia"],
+    "trazabilidad": ["trazabilidad", "rastreabilidad", "seguimiento documental", "cadena de custodia"],
+    "estricta indispensabilidad": ["estricta indispensabilidad", "indispensable", "necesario", "razonablemente necesario"],
+    "acta de aceptacion": ["acta de aceptación", "acta de recepción", "acta de entrega", "documento de aceptación"],
+    "sow": ["SOW", "statement of work", "alcance de trabajo", "propuesta de servicios"],
+    "sib": ["SIB", "service initiation brief", "brief de inicio", "documento de inicio"],
+    "opinion 32d": ["opinión 32-D", "32D", "opinión de cumplimiento", "constancia de cumplimiento"],
+    "lista 69b": ["lista 69-B", "lista de contribuyentes", "lista negra SAT", "lista de presuntos", "lista de definitivos"],
+    "repse": ["REPSE", "registro de prestadoras", "subcontratación especializada"],
+    "contrato": ["contrato", "acuerdo", "convenio", "documento contractual"],
+    "proveedor": ["proveedor", "prestador de servicios", "supplier", "contratista", "tercero"]
+  }
+}

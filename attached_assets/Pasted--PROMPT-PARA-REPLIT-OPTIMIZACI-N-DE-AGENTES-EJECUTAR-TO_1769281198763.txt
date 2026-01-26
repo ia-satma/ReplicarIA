@@ -1,0 +1,776 @@
+# 🎯 PROMPT PARA REPLIT - OPTIMIZACIÓN DE AGENTES
+
+## EJECUTAR TODO EN ORDEN - NO SALTAR PASOS
+
+---
+
+## FASE 1: CREAR SERVICIOS DE AGENTES (5 min)
+
+### 1.1 Crear AgentOrchestrator
+
+Crea el archivo `backend/services/agent_orchestrator.py` con el siguiente contenido:
+
+```python
+"""
+agent_orchestrator.py - Orquestador de Agentes Optimizado
+"""
+
+import asyncio
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, field
+from datetime import datetime
+from uuid import uuid4
+import json
+import os
+
+# Configuración de los 10 Agentes
+AGENTS_CONFIG = {
+    "A1_RECEPCION": {
+        "name": "Agente de Recepción",
+        "role": "Recibir y clasificar documentos del contribuyente",
+        "capabilities": ["clasificación", "extracción_datos", "validación_inicial"],
+        "system_prompt": """Eres el Agente de Recepción de REVISAR.IA. Tu función es:
+1. Recibir documentos fiscales del contribuyente
+2. Clasificar el tipo de documento (CFDI, contrato, póliza de pago, etc.)
+3. Extraer datos clave (RFC, monto, fecha, concepto)
+4. Validar completitud inicial
+Siempre responde en español con formato estructurado."""
+    },
+    "A2_ANALISIS": {
+        "name": "Agente de Análisis Fiscal",
+        "role": "Analizar implicaciones fiscales de operaciones",
+        "capabilities": ["análisis_fiscal", "deducibilidad", "ISR", "IVA"],
+        "system_prompt": """Eres el Agente de Análisis Fiscal de REVISAR.IA. Tu función es:
+1. Analizar la naturaleza fiscal de las operaciones
+2. Evaluar deducibilidad conforme al Art. 27 LISR
+3. Identificar requisitos fiscales aplicables
+4. Detectar riesgos de rechazo de deducciones
+Cita siempre los artículos de ley aplicables."""
+    },
+    "A3_NORMATIVO": {
+        "name": "Agente Normativo",
+        "role": "Verificar cumplimiento de normatividad fiscal",
+        "capabilities": ["CFF", "LISR", "LIVA", "criterios_SAT"],
+        "system_prompt": """Eres el Agente Normativo de REVISAR.IA. Tu función es:
+1. Verificar cumplimiento del CFF
+2. Validar requisitos de LISR y LIVA
+3. Consultar criterios no vinculativos del SAT
+4. Identificar riesgos normativos
+Fundamenta cada conclusión con artículos específicos."""
+    },
+    "A4_CONTABLE": {
+        "name": "Agente Contable",
+        "role": "Validar registro y soporte contable",
+        "capabilities": ["NIF", "registro_contable", "pólizas", "conciliaciones"],
+        "system_prompt": """Eres el Agente Contable de REVISAR.IA. Tu función es:
+1. Validar registro contable conforme a NIF
+2. Verificar pólizas contables
+3. Revisar conciliaciones
+4. Evaluar soporte documental contable
+Indica las NIF aplicables en cada caso."""
+    },
+    "A5_OPERATIVO": {
+        "name": "Agente Operativo",
+        "role": "Validar materialidad y sustancia operativa",
+        "capabilities": ["materialidad", "sustancia", "evidencia_operativa"],
+        "system_prompt": """Eres el Agente Operativo de REVISAR.IA. Tu función es:
+1. Validar la materialidad de las operaciones
+2. Verificar evidencia de sustancia económica
+3. Revisar entregables y evidencia de servicios
+4. Evaluar capacidad operativa del proveedor
+Detalla qué evidencia específica se requiere."""
+    },
+    "A6_FINANCIERO": {
+        "name": "Agente Financiero",
+        "role": "Analizar flujos financieros y bancarización",
+        "capabilities": ["bancarización", "flujos", "pagos", "rastreo"],
+        "system_prompt": """Eres el Agente Financiero de REVISAR.IA. Tu función es:
+1. Validar bancarización de pagos >$2,000
+2. Verificar flujos financieros
+3. Rastrear origen y destino de fondos
+4. Evaluar cumplimiento de requisitos de pago
+Indica montos y fechas específicas."""
+    },
+    "A7_LEGAL": {
+        "name": "Agente Legal",
+        "role": "Revisar aspectos contractuales y legales",
+        "capabilities": ["contratos", "obligaciones", "disputas", "representación"],
+        "system_prompt": """Eres el Agente Legal de REVISAR.IA. Tu función es:
+1. Revisar contratos y obligaciones
+2. Validar poderes y representación legal
+3. Identificar riesgos contractuales
+4. Evaluar cláusulas relevantes para defensa fiscal
+Señala cláusulas específicas del contrato."""
+    },
+    "A8_REDTEAM": {
+        "name": "Agente Red Team",
+        "role": "Simular objeciones del SAT",
+        "capabilities": ["objeciones", "simulación_SAT", "contraargumentos"],
+        "system_prompt": """Eres el Agente Red Team de REVISAR.IA. Tu función es:
+1. Simular objeciones que haría el SAT
+2. Identificar debilidades en el expediente
+3. Proponer contraargumentos
+4. Evaluar probabilidad de éxito en defensa
+Actúa como un auditor fiscal del SAT."""
+    },
+    "A9_SINTESIS": {
+        "name": "Agente de Síntesis",
+        "role": "Consolidar análisis y generar reporte final",
+        "capabilities": ["síntesis", "reporte", "conclusiones", "recomendaciones"],
+        "system_prompt": """Eres el Agente de Síntesis de REVISAR.IA. Tu función es:
+1. Consolidar análisis de todos los agentes
+2. Generar conclusiones ponderadas
+3. Calcular score de riesgo/compliance
+4. Emitir dictamen final con recomendaciones
+Estructura tu respuesta para el Defense File."""
+    },
+    "A10_ARCHIVO": {
+        "name": "Agente de Archivo",
+        "role": "Organizar y catalogar el expediente",
+        "capabilities": ["catalogación", "índice", "trazabilidad", "exportación"],
+        "system_prompt": """Eres el Agente de Archivo de REVISAR.IA. Tu función es:
+1. Organizar documentos del expediente
+2. Generar índice y tabla de contenido
+3. Asegurar trazabilidad de evidencia
+4. Preparar expediente para exportación PDF
+Lista los documentos y su ubicación."""
+    },
+}
+
+
+@dataclass
+class AgentContext:
+    """Contexto de ejecución del agente."""
+    empresa_id: str
+    project_id: str
+    user_id: str
+    agent_id: str
+    conversation_history: List[dict] = field(default_factory=list)
+    rag_context: str = ""
+    related_deliberations: List[dict] = field(default_factory=list)
+
+
+class AgentOrchestrator:
+    """Orquestador de Agentes Multi-Tenant."""
+    
+    def __init__(self):
+        self.agents = AGENTS_CONFIG
+        self._claude = None
+        self._vector_search = None
+        self._cache = None
+    
+    @property
+    def claude(self):
+        if self._claude is None:
+            from anthropic import Anthropic
+            self._claude = Anthropic()
+        return self._claude
+    
+    @property
+    def vector_search(self):
+        if self._vector_search is None:
+            try:
+                from services.vector_search_service import VectorSearchService
+                self._vector_search = VectorSearchService()
+            except:
+                self._vector_search = None
+        return self._vector_search
+    
+    @property
+    def cache(self):
+        if self._cache is None:
+            try:
+                from services.cache_service import get_cache
+                self._cache = get_cache()
+            except:
+                self._cache = None
+        return self._cache
+    
+    async def process_request(
+        self,
+        empresa_id: str,
+        project_id: str,
+        user_id: str,
+        user_message: str,
+        target_agents: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Procesa una solicitud usando los agentes apropiados."""
+        trace_id = str(uuid4())[:8]
+        start_time = datetime.utcnow()
+        
+        # 1. Determinar agentes a invocar
+        if target_agents:
+            agents_to_invoke = target_agents
+        else:
+            agents_to_invoke = self._select_agents(user_message)
+        
+        # 2. Obtener contexto RAG
+        rag_context = await self._get_rag_context(empresa_id, user_message)
+        
+        # 3. Crear contexto
+        context = AgentContext(
+            empresa_id=empresa_id,
+            project_id=project_id,
+            user_id=user_id,
+            agent_id="orchestrator",
+            rag_context=rag_context,
+        )
+        
+        # 4. Ejecutar agentes
+        results = await self._execute_agents_parallel(
+            agents=agents_to_invoke,
+            user_message=user_message,
+            context=context,
+            trace_id=trace_id,
+        )
+        
+        # 5. Sintetizar si hay múltiples
+        if len(results) > 1:
+            final_response = await self._synthesize_responses(results, context)
+        else:
+            final_response = results[0] if results else {"error": "No agent response"}
+        
+        elapsed_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        
+        return {
+            "trace_id": trace_id,
+            "agents_invoked": agents_to_invoke,
+            "response": final_response,
+            "rag_context_used": bool(rag_context),
+            "elapsed_ms": elapsed_ms,
+        }
+    
+    def _select_agents(self, user_message: str) -> List[str]:
+        """Selecciona automáticamente los agentes apropiados."""
+        agent_keywords = {
+            "A1_RECEPCION": ["documento", "subir", "cargar", "archivo", "cfdi"],
+            "A2_ANALISIS": ["deducible", "deducción", "impuesto", "fiscal", "ISR", "requisitos"],
+            "A3_NORMATIVO": ["ley", "artículo", "CFF", "LISR", "norma", "SAT"],
+            "A4_CONTABLE": ["contable", "póliza", "NIF", "registro", "cuenta"],
+            "A5_OPERATIVO": ["materialidad", "operación", "servicio", "entregable"],
+            "A6_FINANCIERO": ["pago", "banco", "transferencia", "flujo", "dinero"],
+            "A7_LEGAL": ["contrato", "legal", "cláusula", "obligación"],
+            "A8_REDTEAM": ["objeción", "SAT", "auditoría", "riesgo", "defensa"],
+            "A9_SINTESIS": ["resumen", "conclusión", "reporte", "dictamen"],
+            "A10_ARCHIVO": ["expediente", "documento", "índice", "archivo"],
+        }
+        
+        message_lower = user_message.lower()
+        selected = []
+        
+        for agent_id, keywords in agent_keywords.items():
+            if any(kw in message_lower for kw in keywords):
+                selected.append(agent_id)
+        
+        return selected if selected else ["A2_ANALISIS"]
+    
+    async def _get_rag_context(self, empresa_id: str, query: str) -> str:
+        """Obtiene contexto RAG del knowledge base."""
+        if not self.vector_search:
+            return ""
+        
+        try:
+            results = await self.vector_search.hybrid_search(
+                empresa_id=empresa_id,
+                query=query,
+                limit=5,
+            )
+            
+            if not results:
+                return ""
+            
+            context_parts = []
+            for i, result in enumerate(results, 1):
+                context_parts.append(
+                    f"[Doc {i}: {result.get('filename', 'N/A')}]\n"
+                    f"{result.get('contenido', '')}\n"
+                )
+            
+            return "\n---\n".join(context_parts)
+        except:
+            return ""
+    
+    async def _execute_agents_parallel(
+        self,
+        agents: List[str],
+        user_message: str,
+        context: AgentContext,
+        trace_id: str,
+    ) -> List[dict]:
+        """Ejecuta múltiples agentes en paralelo."""
+        tasks = [
+            self._invoke_agent(agent_id, user_message, context, trace_id)
+            for agent_id in agents
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        return [r for r in results if not isinstance(r, Exception)]
+    
+    async def _invoke_agent(
+        self,
+        agent_id: str,
+        user_message: str,
+        context: AgentContext,
+        trace_id: str,
+    ) -> dict:
+        """Invoca un agente individual."""
+        agent_config = self.agents.get(agent_id)
+        if not agent_config:
+            raise ValueError(f"Agente no encontrado: {agent_id}")
+        
+        # Construir prompts
+        system_prompt = f"""{agent_config['system_prompt']}
+
+CONTEXTO DEL TENANT:
+- Empresa ID: {context.empresa_id}
+- Proyecto ID: {context.project_id}
+
+Responde SOLO con información relevante para este tenant."""
+        
+        user_prompt = f"CONSULTA: {user_message}"
+        if context.rag_context:
+            user_prompt += f"\n\nDOCUMENTOS RELEVANTES:\n{context.rag_context}"
+        
+        # Llamar a Claude
+        start_time = datetime.utcnow()
+        
+        response = await asyncio.to_thread(
+            self.claude.messages.create,
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            temperature=0.3,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        
+        elapsed_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        
+        return {
+            "agent_id": agent_id,
+            "agent_name": agent_config["name"],
+            "response": response.content[0].text,
+            "usage": {
+                "input_tokens": response.usage.input_tokens,
+                "output_tokens": response.usage.output_tokens,
+            },
+            "elapsed_ms": elapsed_ms,
+            "trace_id": trace_id,
+        }
+    
+    async def _synthesize_responses(
+        self,
+        results: List[dict],
+        context: AgentContext,
+    ) -> dict:
+        """Sintetiza respuestas de múltiples agentes."""
+        agent_responses = "\n\n".join([
+            f"## {r['agent_name']}\n{r['response']}"
+            for r in results
+        ])
+        
+        synthesis_prompt = f"""Consolida las siguientes respuestas de los agentes en una respuesta coherente:
+
+{agent_responses}
+
+INSTRUCCIONES:
+1. Identifica los puntos clave
+2. Genera una conclusión consolidada
+3. Incluye un score de riesgo/compliance (0-100)
+4. Lista las recomendaciones principales"""
+        
+        response = await asyncio.to_thread(
+            self.claude.messages.create,
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            temperature=0.2,
+            system="Eres el Agente de Síntesis de REVISAR.IA.",
+            messages=[{"role": "user", "content": synthesis_prompt}],
+        )
+        
+        return {
+            "synthesized": True,
+            "response": response.content[0].text,
+            "individual_responses": results,
+        }
+
+
+# Singleton
+_orchestrator: Optional[AgentOrchestrator] = None
+
+def get_orchestrator() -> AgentOrchestrator:
+    global _orchestrator
+    if _orchestrator is None:
+        _orchestrator = AgentOrchestrator()
+    return _orchestrator
+```
+
+Confirma cuando esté creado.
+
+---
+
+### 1.2 Crear Rutas de Agentes
+
+Crea o actualiza el archivo `backend/routes/agents_routes.py`:
+
+```python
+"""
+agents_routes.py - Endpoints para Agentes IA
+"""
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from typing import List, Optional
+
+router = APIRouter(prefix="/api/agents", tags=["Agents"])
+
+
+class ChatRequest(BaseModel):
+    message: str
+    project_id: Optional[str] = None
+    target_agents: Optional[List[str]] = None
+
+
+@router.get("/list")
+async def list_agents():
+    """Lista todos los agentes disponibles."""
+    from services.agent_orchestrator import AGENTS_CONFIG
+    
+    return {
+        "agents": [
+            {
+                "id": agent_id,
+                "name": config["name"],
+                "role": config["role"],
+                "capabilities": config["capabilities"],
+            }
+            for agent_id, config in AGENTS_CONFIG.items()
+        ],
+        "total": len(AGENTS_CONFIG),
+    }
+
+
+@router.post("/chat")
+async def chat_with_agents(request: ChatRequest):
+    """Envía un mensaje a los agentes."""
+    from services.agent_orchestrator import get_orchestrator
+    
+    orchestrator = get_orchestrator()
+    
+    # Usar tenant de prueba si no hay auth
+    result = await orchestrator.process_request(
+        empresa_id="demo_tenant",
+        project_id=request.project_id or "general",
+        user_id="demo_user",
+        user_message=request.message,
+        target_agents=request.target_agents,
+    )
+    
+    return result
+
+
+@router.get("/health")
+async def agents_health():
+    """Health check de agentes."""
+    from services.agent_orchestrator import get_orchestrator, AGENTS_CONFIG
+    
+    return {
+        "status": "healthy",
+        "agents_configured": len(AGENTS_CONFIG),
+        "orchestrator": "ready",
+    }
+```
+
+Confirma cuando esté creado.
+
+---
+
+### 1.3 Registrar Rutas en server.py
+
+Busca en `backend/server.py` donde se registran los routers y agrega:
+
+```python
+from routes.agents_routes import router as agents_router
+app.include_router(agents_router)
+```
+
+Confirma cuando esté agregado.
+
+---
+
+## FASE 2: CREAR SCRIPT DE DIAGNÓSTICO (2 min)
+
+Crea el archivo `backend/scripts/diagnose_agents.py`:
+
+```python
+#!/usr/bin/env python3
+"""
+diagnose_agents.py - Diagnóstico del sistema de agentes
+"""
+
+import asyncio
+import json
+import time
+import sys
+import os
+from datetime import datetime
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+RESULTS = {
+    "timestamp": datetime.utcnow().isoformat(),
+    "checks": {},
+    "metrics": {},
+    "errors": [],
+}
+
+
+async def check_database():
+    """Verifica conexión a base de datos."""
+    print("📊 Verificando base de datos...")
+    
+    try:
+        import asyncpg
+        conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
+        
+        # Contar tablas
+        tables = ["deliberations", "knowledge_chunks", "projects", "empresas"]
+        for table in tables:
+            try:
+                count = await conn.fetchval(f"SELECT COUNT(*) FROM {table}")
+                print(f"   ✅ {table}: {count} registros")
+                RESULTS["metrics"][f"table_{table}"] = count
+            except Exception as e:
+                print(f"   ⚠️ {table}: {e}")
+        
+        await conn.close()
+        RESULTS["checks"]["database"] = True
+        return True
+    except Exception as e:
+        RESULTS["errors"].append(f"Database: {e}")
+        RESULTS["checks"]["database"] = False
+        print(f"   ❌ Error: {e}")
+        return False
+
+
+async def check_orchestrator():
+    """Verifica el orquestador de agentes."""
+    print("\n🤖 Verificando orquestador...")
+    
+    try:
+        from services.agent_orchestrator import get_orchestrator, AGENTS_CONFIG
+        
+        orchestrator = get_orchestrator()
+        agent_count = len(AGENTS_CONFIG)
+        
+        print(f"   ✅ Agentes configurados: {agent_count}")
+        RESULTS["metrics"]["agents"] = agent_count
+        
+        for agent_id, config in AGENTS_CONFIG.items():
+            print(f"      - {agent_id}: {config['name']}")
+        
+        RESULTS["checks"]["orchestrator"] = True
+        return True
+    except Exception as e:
+        RESULTS["errors"].append(f"Orchestrator: {e}")
+        RESULTS["checks"]["orchestrator"] = False
+        print(f"   ❌ Error: {e}")
+        return False
+
+
+async def check_claude():
+    """Verifica conexión a Claude API."""
+    print("\n🧠 Verificando Claude API...")
+    
+    try:
+        from anthropic import Anthropic
+        
+        client = Anthropic()
+        
+        start = time.perf_counter()
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=50,
+            messages=[{"role": "user", "content": "Di 'OK'"}],
+        )
+        elapsed = (time.perf_counter() - start) * 1000
+        
+        print(f"   ✅ Claude API: OK ({elapsed:.0f}ms)")
+        RESULTS["metrics"]["claude_latency_ms"] = elapsed
+        RESULTS["checks"]["claude"] = True
+        return True
+    except Exception as e:
+        RESULTS["errors"].append(f"Claude: {e}")
+        RESULTS["checks"]["claude"] = False
+        print(f"   ❌ Error: {e}")
+        return False
+
+
+async def test_agent_invocation():
+    """Prueba invocación de agente."""
+    print("\n🧪 Probando invocación de agente...")
+    
+    try:
+        from services.agent_orchestrator import get_orchestrator
+        
+        orchestrator = get_orchestrator()
+        
+        start = time.perf_counter()
+        result = await orchestrator.process_request(
+            empresa_id="test_tenant",
+            project_id="test_project",
+            user_id="test_user",
+            user_message="¿Qué requisitos tiene el artículo 27 LISR?",
+            target_agents=["A2_ANALISIS"],
+        )
+        elapsed = (time.perf_counter() - start) * 1000
+        
+        has_response = bool(result.get("response"))
+        print(f"   ✅ Invocación: {'OK' if has_response else 'FAIL'} ({elapsed:.0f}ms)")
+        print(f"   ✅ Agentes: {result.get('agents_invoked', [])}")
+        
+        RESULTS["metrics"]["e2e_latency_ms"] = elapsed
+        RESULTS["checks"]["e2e"] = has_response
+        return has_response
+    except Exception as e:
+        RESULTS["errors"].append(f"E2E: {e}")
+        RESULTS["checks"]["e2e"] = False
+        print(f"   ❌ Error: {e}")
+        return False
+
+
+def calculate_percentages():
+    """Calcula porcentajes finales."""
+    checks = RESULTS["checks"]
+    
+    impl_tasks = ["database", "orchestrator"]
+    impl_done = sum(1 for t in impl_tasks if checks.get(t, False))
+    impl_pct = (impl_done / len(impl_tasks)) * 100
+    
+    func_tasks = ["database", "claude", "e2e"]
+    func_done = sum(1 for t in func_tasks if checks.get(t, False))
+    func_pct = (func_done / len(func_tasks)) * 100
+    
+    fe_tasks = ["database", "orchestrator", "claude"]
+    fe_done = sum(1 for t in fe_tasks if checks.get(t, False))
+    fe_pct = (fe_done / len(fe_tasks)) * 100
+    
+    return {"implementation": impl_pct, "functionality": func_pct, "frontend": fe_pct}
+
+
+async def main():
+    print("=" * 60)
+    print("🔬 DIAGNÓSTICO DE AGENTES - REVISAR.IA")
+    print("=" * 60)
+    
+    await check_database()
+    await check_orchestrator()
+    await check_claude()
+    await test_agent_invocation()
+    
+    pcts = calculate_percentages()
+    RESULTS["percentages"] = pcts
+    
+    print("\n" + "=" * 60)
+    print("📊 RESULTADOS")
+    print("=" * 60)
+    print(f"""
+    ┌────────────────────────────────────────┐
+    │  IMPLEMENTACIÓN:        {pcts['implementation']:>6.1f}%       │
+    │  FUNCIONAMIENTO:        {pcts['functionality']:>6.1f}%       │
+    │  CONEXIÓN FRONTEND:     {pcts['frontend']:>6.1f}%       │
+    └────────────────────────────────────────┘
+    """)
+    
+    if RESULTS["errors"]:
+        print("❌ ERRORES:")
+        for e in RESULTS["errors"]:
+            print(f"   - {e}")
+    
+    with open("diagnosis_agents.json", "w") as f:
+        json.dump(RESULTS, f, indent=2)
+    
+    print("\n✅ Resultados guardados en diagnosis_agents.json")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+Confirma cuando esté creado.
+
+---
+
+## FASE 3: EJECUTAR Y VERIFICAR (2 min)
+
+### 3.1 Reiniciar el servidor
+
+```bash
+# El servidor debería reiniciarse automáticamente
+# Si no, ejecutar:
+pkill -f uvicorn
+python backend/server.py &
+```
+
+### 3.2 Ejecutar diagnóstico
+
+```bash
+cd backend
+python scripts/diagnose_agents.py
+```
+
+### 3.3 Probar endpoints
+
+```bash
+# Listar agentes
+curl http://localhost:5000/api/agents/list | python -m json.tool
+
+# Health check de agentes
+curl http://localhost:5000/api/agents/health | python -m json.tool
+
+# Probar chat (requiere Claude API)
+curl -X POST http://localhost:5000/api/agents/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "¿Qué requisitos fiscales necesito para deducir un gasto?"}' \
+  | python -m json.tool
+```
+
+---
+
+## FASE 4: VERIFICACIÓN FINAL
+
+Ejecuta estos comandos y dame los resultados:
+
+```bash
+echo "=== VERIFICACIÓN FINAL DE AGENTES ==="
+
+echo -e "\n1. Agentes configurados:"
+curl -s http://localhost:5000/api/agents/list | python -c "import sys,json; d=json.load(sys.stdin); print(f'   Total: {d[\"total\"]} agentes')"
+
+echo -e "\n2. Health check:"
+curl -s http://localhost:5000/api/agents/health | python -m json.tool
+
+echo -e "\n3. Diagnóstico completo:"
+python backend/scripts/diagnose_agents.py
+
+echo -e "\n=== FIN VERIFICACIÓN ==="
+```
+
+---
+
+## RESUMEN DE TAREAS
+
+| # | Tarea | Tiempo |
+|---|-------|--------|
+| 1.1 | Crear agent_orchestrator.py | 1 min |
+| 1.2 | Crear agents_routes.py | 1 min |
+| 1.3 | Registrar rutas en server.py | 30 seg |
+| 2 | Crear diagnose_agents.py | 1 min |
+| 3 | Ejecutar y verificar | 2 min |
+| 4 | Verificación final | 1 min |
+
+**TIEMPO TOTAL: ~5-7 minutos**
+
+---
+
+Dame el reporte de cada paso completado.

@@ -1,0 +1,451 @@
+═══════════════════════════════════════════════════════════════════════════════
+🔴 ERROR CRÍTICO: "Body is disturbed or locked" 
+═══════════════════════════════════════════════════════════════════════════════
+
+SÍNTOMA: 
+- La investigación de empresa FUNCIONA (encontró todos los datos de Fortezza)
+- Al dar clic en "Confirmar y Crear Cliente" → ERROR
+- Mensaje: "Body is disturbed or locked"
+
+CAUSA:
+Este error ocurre en Flask cuando el body del request se lee más de una vez,
+o cuando hay un middleware/decorador que consume el body antes del handler.
+
+═══════════════════════════════════════════════════════════════════════════════
+DIAGNÓSTICO - EJECUTAR ESTO PRIMERO
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+# 1. Buscar dónde se consume el body múltiples veces
+grep -rn "request.get_json" server/routes/
+grep -rn "request.data" server/routes/
+grep -rn "request.json" server/routes/
+
+# 2. Buscar middlewares que puedan consumir el body
+grep -rn "@app.before_request" server/
+grep -rn "request.get_data" server/
+
+# 3. Ver el archivo de clientes específicamente
+cat server/routes/clientes_routes.py
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+SOLUCIÓN 1: ARREGLAR EL ENDPOINT DE CREAR CLIENTE
+═══════════════════════════════════════════════════════════════════════════════
+
+El problema más común es que `request.get_json()` se llama múltiples veces.
+
+BUSCAR en server/routes/clientes_routes.py o donde esté el endpoint:
+
+```python
+# ❌ CÓDIGO PROBLEMÁTICO - Llama get_json() múltiples veces
+@clientes_bp.route('', methods=['POST'])
+def crear_cliente():
+    # Algún middleware o validación que ya llamó get_json()
+    data = request.get_json()  # Segunda llamada = ERROR
+    ...
+```
+
+CAMBIAR A:
+
+```python
+# ✅ CÓDIGO CORRECTO - Usar force=True y silent=True
+@clientes_bp.route('', methods=['POST'])
+def crear_cliente():
+    try:
+        # force=True: parsea aunque Content-Type no sea application/json
+        # silent=True: retorna None en vez de error si falla
+        data = request.get_json(force=True, silent=True)
+        
+        if not data:
+            # Intentar leer de form data si JSON falló
+            data = request.form.to_dict() if request.form else {}
+        
+        if not data:
+            return jsonify({
+                'success': False, 
+                'error': 'No se recibieron datos'
+            }), 400
+        
+        # Continuar con la creación...
+        nombre = data.get('nombre')
+        if not nombre:
+            return jsonify({
+                'success': False,
+                'error': 'El nombre es requerido'
+            }), 400
+        
+        # ... resto del código
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+SOLUCIÓN 2: VERIFICAR SI HAY MIDDLEWARE CONSUMIENDO EL BODY
+═══════════════════════════════════════════════════════════════════════════════
+
+BUSCAR en server/main.py o app.py:
+
+```python
+# ❌ PROBLEMÁTICO - Middleware que consume el body
+@app.before_request
+def log_request():
+    print(request.get_json())  # Esto consume el body!
+
+# ❌ PROBLEMÁTICO - Logging que consume el body
+@app.before_request
+def log_all():
+    data = request.data  # Esto también consume el body!
+    print(f"Request: {data}")
+```
+
+CAMBIAR A:
+
+```python
+# ✅ CORRECTO - No consumir el body en middleware
+@app.before_request
+def log_request():
+    # Solo loguear metadata, NO el body
+    print(f"Request: {request.method} {request.path}")
+    # Si necesitas loguear el body, hazlo DESPUÉS de procesarlo
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+SOLUCIÓN 3: SI EL PROBLEMA ES EN ONBOARDING
+═══════════════════════════════════════════════════════════════════════════════
+
+Si el error ocurre específicamente al crear cliente desde el onboarding,
+el problema puede estar en cómo se hace la llamada desde el frontend.
+
+VERIFICAR en el frontend (probablemente en el componente de onboarding):
+
+```javascript
+// ❌ PROBLEMÁTICO - Puede causar body locked
+const handleConfirmar = async () => {
+    const response = await fetch('/api/clientes', {
+        method: 'POST',
+        body: JSON.stringify(datos)  // Sin headers!
+    });
+};
+```
+
+CAMBIAR A:
+
+```javascript
+// ✅ CORRECTO - Headers explícitos
+const handleConfirmar = async () => {
+    try {
+        const response = await fetch('/api/clientes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(datos)
+        });
+        
+        // Verificar respuesta
+        const text = await response.text();
+        let result;
+        try {
+            result = JSON.parse(text);
+        } catch {
+            throw new Error(`Respuesta inválida: ${text.substring(0, 100)}`);
+        }
+        
+        if (!response.ok || !result.success) {
+            throw new Error(result.error || 'Error desconocido');
+        }
+        
+        // Éxito
+        alert('Cliente creado!');
+        
+    } catch (error) {
+        console.error('Error:', error);
+        alert(`Error: ${error.message}`);
+    }
+};
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+SOLUCIÓN 4: ARREGLO COMPLETO DEL ENDPOINT DE CLIENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+Reemplazar COMPLETAMENTE el endpoint de crear cliente:
+
+```python
+from flask import Blueprint, request, jsonify
+from extensions import db
+from sqlalchemy import text
+import traceback
+
+clientes_bp = Blueprint('clientes', __name__)
+
+@clientes_bp.route('', methods=['POST'])
+def crear_cliente():
+    """
+    Crear un nuevo cliente
+    Acepta JSON con campos: nombre, rfc, razon_social, direccion, email, telefono, giro, sitio_web
+    """
+    try:
+        # ═══════════════════════════════════════════════════════════════════
+        # OBTENER DATOS DE FORMA SEGURA
+        # ═══════════════════════════════════════════════════════════════════
+        data = None
+        
+        # Intentar obtener JSON
+        try:
+            data = request.get_json(force=True, silent=True)
+        except Exception:
+            pass
+        
+        # Si JSON falló, intentar form data
+        if not data:
+            try:
+                data = request.form.to_dict()
+            except Exception:
+                pass
+        
+        # Si todo falló, intentar parsear el body raw
+        if not data:
+            try:
+                import json
+                raw = request.data.decode('utf-8') if request.data else ''
+                if raw:
+                    data = json.loads(raw)
+            except Exception:
+                pass
+        
+        # Validar que hay datos
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No se recibieron datos. Envía JSON con Content-Type: application/json'
+            }), 400
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # VALIDAR CAMPOS
+        # ═══════════════════════════════════════════════════════════════════
+        nombre = data.get('nombre', '').strip()
+        
+        if not nombre:
+            return jsonify({
+                'success': False,
+                'error': 'El campo "nombre" es requerido'
+            }), 400
+        
+        # Campos opcionales con defaults
+        rfc = data.get('rfc', '').strip().upper() or None
+        razon_social = data.get('razon_social', '').strip() or nombre
+        direccion = data.get('direccion', '').strip() or None
+        email = data.get('email', '').strip().lower() or None
+        telefono = data.get('telefono', '').strip() or None
+        giro = data.get('giro', '').strip() or None
+        sitio_web = data.get('sitio_web', '').strip() or None
+        ciudad = data.get('ciudad', '').strip() or None
+        estado = data.get('estado', '').strip() or None
+        codigo_postal = data.get('codigo_postal', '').strip() or None
+        regimen_fiscal = data.get('regimen_fiscal', '').strip() or None
+        tipo_persona = data.get('tipo_persona', '').strip() or None
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # INSERTAR EN BASE DE DATOS
+        # ═══════════════════════════════════════════════════════════════════
+        result = db.session.execute(text("""
+            INSERT INTO clientes (
+                nombre, rfc, razon_social, direccion, email, telefono, 
+                giro, sitio_web, ciudad, estado, codigo_postal,
+                regimen_fiscal, tipo_persona, activo, created_at
+            ) VALUES (
+                :nombre, :rfc, :razon_social, :direccion, :email, :telefono,
+                :giro, :sitio_web, :ciudad, :estado, :codigo_postal,
+                :regimen_fiscal, :tipo_persona, TRUE, NOW()
+            )
+            RETURNING id, nombre, rfc, razon_social, created_at
+        """), {
+            'nombre': nombre,
+            'rfc': rfc,
+            'razon_social': razon_social,
+            'direccion': direccion,
+            'email': email,
+            'telefono': telefono,
+            'giro': giro,
+            'sitio_web': sitio_web,
+            'ciudad': ciudad,
+            'estado': estado,
+            'codigo_postal': codigo_postal,
+            'regimen_fiscal': regimen_fiscal,
+            'tipo_persona': tipo_persona
+        })
+        
+        db.session.commit()
+        
+        row = result.fetchone()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cliente creado exitosamente',
+            'cliente': {
+                'id': row.id,
+                'nombre': row.nombre,
+                'rfc': row.rfc,
+                'razon_social': row.razon_social,
+                'created_at': row.created_at.isoformat() if row.created_at else None
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creando cliente: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': f'Error interno: {str(e)}'
+        }), 500
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+SOLUCIÓN 5: SI USA MODELO/ORM
+═══════════════════════════════════════════════════════════════════════════════
+
+Si el proyecto usa modelos SQLAlchemy en vez de queries raw:
+
+```python
+from models import Cliente  # Ajustar import según tu estructura
+
+@clientes_bp.route('', methods=['POST'])
+def crear_cliente():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        
+        if not data.get('nombre'):
+            return jsonify({'success': False, 'error': 'Nombre requerido'}), 400
+        
+        cliente = Cliente(
+            nombre=data.get('nombre'),
+            rfc=data.get('rfc'),
+            razon_social=data.get('razon_social') or data.get('nombre'),
+            direccion=data.get('direccion'),
+            email=data.get('email'),
+            telefono=data.get('telefono'),
+            giro=data.get('giro'),
+            sitio_web=data.get('sitio_web')
+        )
+        
+        db.session.add(cliente)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'cliente': cliente.to_dict()  # Asumiendo que el modelo tiene to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+VERIFICACIÓN INMEDIATA
+═══════════════════════════════════════════════════════════════════════════════
+
+Después de aplicar el arreglo, probar:
+
+```bash
+# Test 1: Crear cliente con curl
+curl -X POST http://localhost:5000/api/clientes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nombre": "Test desde curl",
+    "rfc": "TEST010101000",
+    "razon_social": "Test S.A. de C.V.",
+    "email": "test@test.com"
+  }'
+
+# Debe retornar:
+# {"success": true, "cliente": {"id": X, "nombre": "Test desde curl", ...}}
+
+# Test 2: Sin Content-Type (para probar force=True)
+curl -X POST http://localhost:5000/api/clientes \
+  -d '{"nombre": "Test sin header"}'
+
+# Debe funcionar también
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+SI EL PROBLEMA PERSISTE
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Verificar que no hay otro middleware procesando requests:
+```bash
+grep -rn "before_request" server/
+grep -rn "@app.after_request" server/
+grep -rn "request.data" server/
+```
+
+2. Agregar logging detallado:
+```python
+@clientes_bp.route('', methods=['POST'])
+def crear_cliente():
+    print("="*50)
+    print(f"Content-Type: {request.content_type}")
+    print(f"Content-Length: {request.content_length}")
+    print(f"Headers: {dict(request.headers)}")
+    
+    try:
+        raw_data = request.data
+        print(f"Raw data: {raw_data}")
+    except Exception as e:
+        print(f"Error leyendo raw data: {e}")
+    
+    # ... resto del código
+```
+
+3. Verificar si hay proxy/middleware de Replit:
+   El error también puede ocurrir si Replit tiene algún middleware
+   que procesa el body antes. En ese caso, usar `force=True` debería
+   resolver el problema.
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Buscar dónde se usa request.get_json() múltiples veces
+□ Cambiar a request.get_json(force=True, silent=True)
+□ Verificar que no hay middleware consumiendo el body
+□ Agregar headers Content-Type en el frontend
+□ Probar con curl
+□ Probar desde la UI
+
+═══════════════════════════════════════════════════════════════════════════════
+ERROR ESPECÍFICO "Body is disturbed or locked"
+═══════════════════════════════════════════════════════════════════════════════
+
+Este error específicamente indica que:
+1. El stream del body ya fue leído
+2. Flask/Werkzeug no permite re-leer el body
+
+La solución definitiva es:
+1. Leer el body UNA SOLA VEZ
+2. Guardarlo en una variable
+3. Usar esa variable en todo el handler
+
+```python
+@clientes_bp.route('', methods=['POST'])
+def crear_cliente():
+    # Leer UNA sola vez al inicio
+    try:
+        data = request.get_json(force=True, silent=True)
+    except:
+        data = {}
+    
+    # NUNCA volver a llamar request.get_json() o request.data después de esto
+    # Usar solo la variable 'data'
+    
+    nombre = data.get('nombre')  # ✅ Correcto
+    # NO hacer: otra_cosa = request.get_json()  # ❌ Esto causa el error
+```

@@ -1,0 +1,149 @@
+"""
+GENERADOR DE REPORTES NARRATIVOS HUMANIZADOS
+
+Transforma datos crudos de los agentes en reportes profesionales
+con narrativa, contexto y recomendaciones accionables.
+"""
+
+from datetime import datetime
+from typing import Dict, List, Any, Optional
+from dataclasses import dataclass
+from enum import Enum
+
+from .personas import (
+    PersonaProfesional, 
+    obtener_persona,
+    TonoComunicacion,
+    PERSONA_VALIDADOR_DOCUMENTAL,
+    PERSONA_AUDITOR_SAT,
+    PERSONA_ANALISTA_RIESGO,
+    PERSONA_ESPECIALISTA_MATERIALIDAD,
+    PERSONA_DEFENSOR_FISCAL
+)
+
+
+class NivelSeveridad(Enum):
+    CRITICO = "crítico"
+    ALTO = "alto"
+    MEDIO = "medio"
+    BAJO = "bajo"
+    INFORMATIVO = "informativo"
+
+
+@dataclass
+class SeccionReporte:
+    """Una sección del reporte narrativo"""
+    titulo: str
+    contenido: str
+    nivel_importancia: int = 1  # 1-5, siendo 5 el más importante
+    icono: str = "📋"
+
+
+class ReporteNarrativo:
+    """Genera reportes narrativos humanizados"""
+    
+    def __init__(self, persona: PersonaProfesional):
+        self.persona = persona
+        self.secciones: List[SeccionReporte] = []
+        self.fecha = datetime.now()
+    
+    def agregar_seccion(self, seccion: SeccionReporte):
+        self.secciones.append(seccion)
+    
+    def _humanizar_severidad(self, severidad: str) -> str:
+        """Convierte severidad técnica a lenguaje profesional"""
+        mapeo = {
+            'CRITICAL': 'requiere atención inmediata',
+            'HIGH': 'representa un riesgo significativo',
+            'MEDIUM': 'merece consideración',
+            'LOW': 'es un punto menor a monitorear',
+            'INFO': 'se documenta para referencia',
+        }
+        return mapeo.get(severidad.upper(), 'ha sido identificado')
+    
+    def _humanizar_porcentaje(self, valor: float, contexto: str = "confianza") -> str:
+        """Convierte porcentajes a descripciones narrativas"""
+        if valor >= 0.95:
+            return f"un nivel de {contexto} muy alto ({valor*100:.0f}%)"
+        elif valor >= 0.85:
+            return f"un nivel de {contexto} alto ({valor*100:.0f}%)"
+        elif valor >= 0.70:
+            return f"un nivel de {contexto} aceptable ({valor*100:.0f}%)"
+        elif valor >= 0.50:
+            return f"un nivel de {contexto} que requiere atención ({valor*100:.0f}%)"
+        else:
+            return f"un nivel de {contexto} insuficiente ({valor*100:.0f}%)"
+    
+    def _formatear_lista_narrativa(self, items: List[str], max_items: int = 5) -> str:
+        """Convierte lista a texto narrativo"""
+        if not items:
+            return "ninguno identificado"
+        
+        items = items[:max_items]
+        
+        if len(items) == 1:
+            return items[0]
+        elif len(items) == 2:
+            return f"{items[0]} y {items[1]}"
+        else:
+            return ", ".join(items[:-1]) + f", y {items[-1]}"
+    
+    def generar_markdown(self) -> str:
+        """Genera el reporte completo en formato Markdown"""
+        partes = []
+        
+        # Encabezado con fecha
+        partes.append(f"# Reporte de {self.persona.titulo}")
+        partes.append(f"**Fecha:** {self.fecha.strftime('%d de %B de %Y, %H:%M hrs')}")
+        partes.append(f"**Elaborado por:** {self.persona.nombre}")
+        partes.append("")
+        partes.append("---")
+        partes.append("")
+        
+        # Introducción
+        partes.append(self.persona.saludo_formal)
+        partes.append("")
+        
+        # Secciones ordenadas por importancia
+        secciones_ordenadas = sorted(
+            self.secciones, 
+            key=lambda s: s.nivel_importancia, 
+            reverse=True
+        )
+        
+        for seccion in secciones_ordenadas:
+            partes.append(f"## {seccion.icono} {seccion.titulo}")
+            partes.append("")
+            partes.append(seccion.contenido)
+            partes.append("")
+        
+        # Cierre
+        partes.append("---")
+        partes.append("")
+        partes.append(self.persona.generar_cierre())
+        
+        return "\n".join(partes)
+    
+    def generar_html(self) -> str:
+        """Genera el reporte en formato HTML estilizado"""
+        # Convertir markdown a HTML básico
+        import re
+        
+        md = self.generar_markdown()
+        
+        # Conversiones básicas
+        html = md
+        html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
+        html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
+        html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
+        html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
+        html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', html)
+        html = re.sub(r'^- (.+)$', r'<li>\1</li>', html, flags=re.MULTILINE)
+        html = re.sub(r'---', r'<hr>', html)
+        html = re.sub(r'\n\n', r'</p><p>', html)
+        
+        # Envolver en estructura HTML
+        return f"""
+        <div class="reporte-narrativo" style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6;">
+            <style>
+                .reporte-narrativo h1 {{ color: #1​​​​​​​​​​​​​​​​

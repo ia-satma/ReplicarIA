@@ -1,0 +1,56 @@
+# ACT AS: SENIOR PYTHON ARCHITECT (AGENTIC RAG SPECIALIST)
+
+**CONTEXT:**
+I am building an Agentic RAG system in this Replit project.
+I have a `PMOAgent` that orchestrates the project and talks to the human user.
+I have cloned the `karpathy/llm-council` repository into this workspace.
+
+**OBJECTIVE:**
+I need you to create a new autonomous agent class called **`StrategyAgent`**.
+This agent will act as a "Quality Assurance Council" using the multi-perspective debate logic found in the `llm-council` repo. Its goal is to filter hallucinations and validate strategy before the `PMOAgent` responds to the human.
+
+---
+
+## ACTION PLAN
+
+### 1. ANALYZE EXISTING LOGIC
+Examine the cloned `llm-council` repository (specifically `backend/` or `main.py`) to understand how it orchestrates multiple model calls to reach a consensus. Extract this algorithmic pattern.
+
+### 2. IMPLEMENT `agents/strategy_agent.py`
+Create a robust Python class `StrategyAgent` based on the following **Strict Specification Manifest**:
+
+```json
+{
+  "agent_profile": {
+    "name": "StrategyAgent",
+    "role": "Council & Quality Auditor",
+    "core_task": "Intercept PMO drafts, critique them via multi-persona simulation, and rewrite for factual accuracy."
+  },
+  "method_signature": "async def review_and_strategize(self, context_data: dict, proposed_draft: str) -> dict",
+  "logic_flow": [
+    "1. Receive 'rag_context' and 'pmo_draft'.",
+    "2. THE CRITICS PHASE: Simulating 3 specific personas (Auditor de Hechos, Estratega de Negocio, Abogado del Diablo) to critique the draft against the context.",
+    "3. THE CHAIRMAN PHASE: Synthesize critiques. If 'Auditor' finds a hallucination (data in draft NOT in context), it MUST be removed.",
+    "4. FINAL OUTPUT: Generate a JSON response with the consolidated answer."
+  ],
+  "output_schema_requirement": {
+    "format": "STRICT JSON",
+    "structure": {
+      "strategy_evaluation": {
+        "critiques": [
+            {"perspective": "Auditor de Hechos", "observations": "String..."},
+            {"perspective": "Estratega de Negocio", "observations": "String..."},
+            {"perspective": "Abogado del Diablo", "observations": "String..."}
+        ],
+        "consensus": "Summary of resolution",
+        "final_strategy": "THE FINAL VALIDATED RESPONSE FOR USER",
+        "risk_score": "Integer 0-100"
+      }
+    }
+  },
+  "error_handling": [
+    "If input JSON parsing fails, return error_code dictionary.",
+    "If hallucination is detected, prioritize RAG Context over LLM creativity.",
+    "Never add information not present in the source documents."
+  ]
+}

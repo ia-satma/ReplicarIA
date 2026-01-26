@@ -1,0 +1,510 @@
+Este error "Body is disturbed or locked" está bloqueando todo. Es CRÍTICO corregirlo. Te doy el TOON definitivo:
+
+```
+TOON: CORREGIR ERROR "BODY IS DISTURBED OR LOCKED" - SOLUCIÓN DEFINITIVA
+
+EL PROBLEMA:
+El body del request se está leyendo/consumiendo ANTES de llegar al handler.
+Causas comunes:
+1. express.json() duplicado
+2. body-parser + express.json() juntos
+3. Middleware que lee el body antes de multer
+4. Multer mal configurado
+
+================================================================================
+PASO 1: DIAGNÓSTICO - VER CONFIGURACIÓN ACTUAL
+================================================================================
+
+BUSCAR en server/index.ts o app.ts TODOS estos patrones:
+
+```typescript
+// BUSCAR ESTOS (pueden estar causando el problema):
+app.use(express.json());
+app.use(bodyParser.json());
+app.use(express.urlencoded());
+app.use(bodyParser.urlencoded());
+
+// BUSCAR middleware que lea el body:
+app.use(async (req, res, next) => {
+  const body = await req.json(); // ← ESTO ROMPE TODO
+  // o
+  const data = req.body; // antes de que se parsee
+  next();
+});
+```
+
+================================================================================
+PASO 2: SOLUCIÓN - REEMPLAZAR CONFIGURACIÓN DEL SERVIDOR
+================================================================================
+
+REEMPLAZAR la configuración de middleware en server/index.ts:
+
+```typescript
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+
+const app = express();
+
+// ═══════════════════════════════════════════════════════════════════
+// ORDEN CORRECTO DE MIDDLEWARES (MUY IMPORTANTE)
+// ═══════════════════════════════════════════════════════════════════
+
+// 1. CORS primero
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
+
+// 2. Cookie parser
+app.use(cookieParser());
+
+// 3. SOLO express.json() - NO body-parser
+// IMPORTANTE: Excluir rutas de upload de archivos
+app.use((req, res, next) => {
+  // NO parsear JSON en rutas de upload (multer lo maneja)
+  if (req.path.includes('/upload') || 
+      req.path.includes('/analizar') ||
+      req.path.includes('/ingest') ||
+      req.path.includes('/documentos') ||
+      req.headers['content-type']?.includes('multipart/form-data')) {
+    return next();
+  }
+  express.json({ limit: '50mb' })(req, res, next);
+});
+
+// 4. URL encoded para formularios normales (NO multipart)
+app.use((req, res, next) => {
+  if (req.headers['content-type']?.includes('multipart/form-data')) {
+    return next();
+  }
+  express.urlencoded({ extended: true, limit: '50mb' })(req, res, next);
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// NO AGREGAR MÁS MIDDLEWARE QUE LEA EL BODY AQUÍ
+// ═══════════════════════════════════════════════════════════════════
+```
+
+================================================================================
+PASO 3: CONFIGURAR MULTER CORRECTAMENTE PARA UPLOADS
+================================================================================
+
+CREAR/ACTUALIZAR: server/config/multer.ts
+
+```typescript
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
+
+// Crear directorio de uploads si no existe
+const UPLOAD_DIR = '/tmp/uploads';
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+// Configuración de almacenamiento
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    // Crear subdirectorio por fecha
+    const dateDir = new Date().toISOString().split('T')[0];
+    const fullPath = path.join(UPLOAD_DIR, dateDir);
+    
+    if (!fs.existsSync(fullPath)) {
+      fs.mkdirSync(fullPath, { recursive: true });
+    }
+    
+    cb(null, fullPath);
+  },
+  filename: (req, file, cb) => {
+    // Nombre único + nombre original
+    const uniqueId = uuidv4().slice(0, 8);
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    cb(null, `${uniqueId}_${safeName}`);
+  }
+});
+
+// Filtro de archivos permitidos
+const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedMimes = [
+    // Documentos
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    // Texto
+    'text/plain',
+    'text/csv',
+    'application/json',
+    'application/xml',
+    'text/xml',
+    // Imágenes
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    // Video
+    'video/mp4',
+    'video/webm',
+    'video/quicktime',
+  ];
+
+  if (allowedMimes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    console.warn(`Archivo rechazado: ${file.originalname} (${file.mimetype})`);
+    cb(null, false); // No lanzar error, solo rechazar
+  }
+};
+
+// Exportar configuración de multer
+export const upload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB máximo
+    files: 20 // Máximo 20 archivos a la vez
+  }
+});
+
+// Middleware para manejar errores de multer
+export const handleMulterError = (err: any, req: any, res: any, next: any) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'Archivo muy grande (máx. 100MB)' });
+    }
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({ error: 'Demasiados archivos (máx. 20)' });
+    }
+    return res.status(400).json({ error: `Error de upload: ${err.message}` });
+  }
+  next(err);
+};
+```
+
+================================================================================
+PASO 4: ACTUALIZAR RUTAS DE UPLOAD/ANÁLISIS
+================================================================================
+
+MODIFICAR: server/routes/upload.ts (o donde esté el endpoint de análisis)
+
+```typescript
+import { Router } from 'express';
+import { upload, handleMulterError } from '../config/multer';
+import { analizarDocumento } from '../services/documentAnalyzer';
+
+const router = Router();
+
+// ═══════════════════════════════════════════════════════════════════
+// IMPORTANTE: Usar upload.array() DIRECTAMENTE en la ruta
+// NO usar express.json() antes de esta ruta
+// ═══════════════════════════════════════════════════════════════════
+
+// POST /api/upload - Subir archivos
+router.post('/', upload.array('files', 20), handleMulterError, async (req, res) => {
+  try {
+    const files = req.files as Express.Multer.File[];
+    
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'No se recibieron archivos' });
+    }
+
+    console.log(`📁 Recibidos ${files.length} archivo(s)`);
+
+    const resultados = [];
+
+    for (const file of files) {
+      console.log(`   ✅ ${file.originalname} (${(file.size / 1024).toFixed(1)} KB)`);
+      
+      resultados.push({
+        nombre: file.originalname,
+        tamaño: file.size,
+        tipo: file.mimetype,
+        path: file.path,
+        estado: 'recibido'
+      });
+    }
+
+    res.json({
+      success: true,
+      mensaje: `${files.length} archivo(s) recibido(s) correctamente`,
+      archivos: resultados
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error en upload:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/upload/analizar - Subir y analizar para RAG
+router.post('/analizar', upload.array('files', 20), handleMulterError, async (req, res) => {
+  try {
+    const files = req.files as Express.Multer.File[];
+    
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'No se recibieron archivos' });
+    }
+
+    console.log(`📊 Analizando ${files.length} archivo(s) para RAG`);
+
+    const resultados = [];
+
+    for (const file of files) {
+      try {
+        console.log(`   🔍 Analizando: ${file.originalname}`);
+        
+        // Analizar documento (extracción de texto, chunks, embeddings, etc.)
+        const analisis = await analizarDocumento(file);
+        
+        resultados.push({
+          nombre: file.originalname,
+          estado: 'analizado',
+          chunks: analisis.chunks?.length || 0,
+          resumen: analisis.resumen?.substring(0, 200) + '...'
+        });
+        
+        console.log(`   ✅ Analizado: ${file.originalname}`);
+        
+      } catch (docError: any) {
+        console.error(`   ❌ Error analizando ${file.originalname}:`, docError.message);
+        resultados.push({
+          nombre: file.originalname,
+          estado: 'error',
+          error: docError.message
+        });
+      }
+    }
+
+    const exitosos = resultados.filter(r => r.estado === 'analizado').length;
+    const errores = resultados.filter(r => r.estado === 'error').length;
+
+    res.json({
+      success: errores === 0,
+      mensaje: `${exitosos} archivo(s) analizado(s), ${errores} error(es)`,
+      resultados
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error general en análisis:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;
+```
+
+================================================================================
+PASO 5: CREAR SERVICIO DE ANÁLISIS DE DOCUMENTOS
+================================================================================
+
+CREAR: server/services/documentAnalyzer.ts
+
+```typescript
+import fs from 'fs';
+import path from 'path';
+import mammoth from 'mammoth'; // Para DOCX
+import pdf from 'pdf-parse';   // Para PDF
+
+interface AnalisisResult {
+  texto: string;
+  chunks: string[];
+  resumen: string;
+  metadata: {
+    paginas?: number;
+    palabras: number;
+    caracteres: number;
+  };
+}
+
+export async function analizarDocumento(file: Express.Multer.File): Promise<AnalisisResult> {
+  const extension = path.extname(file.originalname).toLowerCase();
+  
+  let texto = '';
+  
+  // Extraer texto según tipo de archivo
+  switch (extension) {
+    case '.docx':
+      texto = await extraerTextoDocx(file.path);
+      break;
+    case '.doc':
+      texto = await extraerTextoDocx(file.path);
+      break;
+    case '.pdf':
+      texto = await extraerTextoPdf(file.path);
+      break;
+    case '.txt':
+      texto = fs.readFileSync(file.path, 'utf-8');
+      break;
+    case '.csv':
+      texto = fs.readFileSync(file.path, 'utf-8');
+      break;
+    default:
+      throw new Error(`Tipo de archivo no soportado para análisis: ${extension}`);
+  }
+
+  if (!texto || texto.trim().length === 0) {
+    throw new Error('No se pudo extraer texto del documento');
+  }
+
+  // Crear chunks para RAG
+  const chunks = crearChunks(texto, 1000, 200);
+  
+  // Generar resumen básico (primeros párrafos)
+  const resumen = texto.substring(0, 500).trim();
+
+  return {
+    texto,
+    chunks,
+    resumen,
+    metadata: {
+      palabras: texto.split(/\s+/).length,
+      caracteres: texto.length
+    }
+  };
+}
+
+// Extraer texto de DOCX
+async function extraerTextoDocx(filePath: string): Promise<string> {
+  try {
+    const buffer = fs.readFileSync(filePath);
+    const result = await mammoth.extractRawText({ buffer });
+    return result.value;
+  } catch (error: any) {
+    console.error('Error extrayendo texto de DOCX:', error);
+    throw new Error(`Error procesando DOCX: ${error.message}`);
+  }
+}
+
+// Extraer texto de PDF
+async function extraerTextoPdf(filePath: string): Promise<string> {
+  try {
+    const buffer = fs.readFileSync(filePath);
+    const data = await pdf(buffer);
+    return data.text;
+  } catch (error: any) {
+    console.error('Error extrayendo texto de PDF:', error);
+    throw new Error(`Error procesando PDF: ${error.message}`);
+  }
+}
+
+// Crear chunks con overlap
+function crearChunks(texto: string, tamaño: number, overlap: number): string[] {
+  const chunks: string[] = [];
+  let inicio = 0;
+  
+  while (inicio < texto.length) {
+    const fin = Math.min(inicio + tamaño, texto.length);
+    const chunk = texto.substring(inicio, fin).trim();
+    
+    if (chunk.length > 0) {
+      chunks.push(chunk);
+    }
+    
+    inicio += tamaño - overlap;
+  }
+  
+  return chunks;
+}
+```
+
+================================================================================
+PASO 6: INSTALAR DEPENDENCIAS FALTANTES
+================================================================================
+
+```bash
+npm install mammoth pdf-parse
+npm install -D @types/multer
+```
+
+================================================================================
+PASO 7: VERIFICAR QUE NO HAYA CONFLICTOS
+================================================================================
+
+BUSCAR Y ELIMINAR cualquier línea como estas:
+
+```typescript
+// ❌ ELIMINAR ESTAS LÍNEAS SI EXISTEN:
+import bodyParser from 'body-parser';
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded());
+
+// ❌ ELIMINAR middleware que lea el body:
+app.use(async (req, res, next) => {
+  console.log('Body:', req.body); // Esto puede causar problemas
+  next();
+});
+```
+
+================================================================================
+PASO 8: ORDEN DE RUTAS EN EL SERVIDOR
+================================================================================
+
+El orden es CRÍTICO:
+
+```typescript
+// server/index.ts
+
+// 1. Middlewares básicos (cors, cookies) - YA CONFIGURADOS ARRIBA
+
+// 2. Rutas de upload PRIMERO (antes del JSON parser global)
+import uploadRoutes from './routes/upload';
+app.use('/api/upload', uploadRoutes);
+
+// 3. Rutas de ingestión/análisis
+import ingestRoutes from './routes/ingest';
+app.use('/api/ingest', ingestRoutes);
+
+// 4. DESPUÉS las demás rutas que usan JSON
+import authRoutes from './routes/auth';
+import empresasRoutes from './routes/empresas';
+// etc...
+
+app.use('/api/auth', authRoutes);
+app.use('/api/empresas', empresasRoutes);
+```
+
+================================================================================
+PASO 9: PROBAR DESPUÉS DE LOS CAMBIOS
+================================================================================
+
+1. Reiniciar el servidor completamente (Stop + Run)
+
+2. Ver logs en consola, deberías ver:
+   ```
+   📁 Recibidos 8 archivo(s)
+      ✅ archivo1.docx (45.2 KB)
+      ✅ archivo2.docx (38.1 KB)
+      ...
+   ```
+
+3. Si sigue el error, agregar este log de debug:
+   ```typescript
+   app.use((req, res, next) => {
+     console.log(`[${req.method}] ${req.path} - Content-Type: ${req.headers['content-type']}`);
+     next();
+   });
+   ```
+
+================================================================================
+RESUMEN DE CAMBIOS
+================================================================================
+
+1. ✅ Quitar body-parser (usar solo express.json)
+2. ✅ Excluir rutas de upload del JSON parser
+3. ✅ Configurar multer correctamente
+4. ✅ Usar upload.array() directamente en la ruta
+5. ✅ Instalar mammoth y pdf-parse
+6. ✅ Ordenar rutas correctamente
+
+================================================================================
+EJECUTAR AHORA. REINICIAR SERVIDOR. PROBAR DE NUEVO.
+================================================================================
+```

@@ -1,0 +1,71 @@
+# Agregar endpoint para obtener reporte humanizado
+
+from services.agents.report_generator import humanizar_reporte
+
+@router.post("/humanize-report")
+async def humanize_report_endpoint(
+    tipo_agente: str,
+    datos: Dict[str, Any],
+    contexto: Optional[Dict[str, Any]] = None,
+    formato: str = 'markdown'
+):
+    """
+    Convierte datos crudos de un agente en reporte narrativo humanizado.
+    
+    tipo_agente: 'ocr_validation', 'red_team', 'risk_scoring'
+    datos: Diccionario con resultados del agente
+    contexto: Información del proyecto
+    formato: 'markdown', 'html', o 'dict'
+    """
+    try:
+        reporte = humanizar_reporte(
+            tipo_agente=tipo_agente,
+            datos_crudos=datos,
+            contexto=contexto,
+            formato=formato
+        )
+        
+        return {
+            'success': True,
+            'reporte': reporte
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Modificar endpoints existentes para incluir opción de humanización
+
+@router.post("/projects/{project_id}/red-team-simulation")
+async def red_team_simulation_endpoint(
+    project_id: str,
+    humanizar: bool = True  # Nuevo parámetro
+):
+    """Ejecuta simulación Red Team con reporte opcional humanizado"""
+    try:
+        # ... código existente de simulación ...
+        
+        result = await red_team_loop.simulate_attack(project_data)
+        
+        response = {
+            'success': True,
+            'data': {
+                'iterations': result.iterations,
+                'duration_ms': result.duration_ms,
+                'result': result.result
+            }
+        }
+        
+        # Agregar reporte humanizado si se solicita
+        if humanizar:
+            reporte = humanizar_reporte(
+                tipo_agente='red_team',
+                datos_crudos=result.result or {},
+                contexto={'nombre': project_data.get('nombre', project_id)},
+                formato='dict'
+            )
+            response['reporte_humanizado'] = reporte
+        
+        return response
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -1,0 +1,2111 @@
+# 📚 BIBLIOTECAR.IA
+## Asistente Inteligente de Gestión del Conocimiento Fiscal
+
+**Versión:** 1.0  
+**Fecha:** Enero 2025  
+**Tipo:** Chatbot Interactivo + Gestor de Knowledge Base  
+**Propósito:** Recopilar, organizar y mantener actualizado el conocimiento que alimenta a todos los agentes de Durezza
+
+---
+
+# 1. IDENTIDAD DE BIBLIOTECAR.IA
+
+## 1.1 Ficha del Agente
+
+| Atributo | Valor |
+|----------|-------|
+| **Código** | KB |
+| **Nombre Público** | Bibliotecar.IA |
+| **Persona** | Dra. Elena Vázquez |
+| **Avatar** | Mujer profesional con lentes, rodeada de libros y documentos digitales |
+| **Rol** | Bibliotecaria Digital y Curadora de Conocimiento Fiscal |
+| **Voz** | Cálida, organizada, curiosa, proactiva |
+| **Tono** | Profesional pero accesible, como una bibliotecaria que ama su trabajo |
+
+## 1.2 Personalidad
+
+```
+"Soy Bibliotecar.IA, la guardiana del conocimiento de Durezza. 
+Mi trabajo es asegurarme de que nuestros agentes tengan la 
+información más actualizada y completa para ayudarte.
+
+Piensa en mí como la bibliotecaria que no solo organiza libros,
+sino que también te dice cuándo hay una nueva edición, qué 
+capítulos cambiaron, y qué otros libros podrían complementar
+tu lectura.
+
+Entre más documentos me compartas, más inteligentes serán 
+nuestros agentes. ¡Juntos construimos el mejor acervo fiscal
+de México!"
+```
+
+## 1.3 Características de Comunicación
+
+- **Proactiva:** No espera que le pregunten, sugiere qué información falta
+- **Educativa:** Explica por qué cada documento es importante
+- **Organizada:** Siempre confirma dónde guardó cada cosa
+- **Curiosa:** Pregunta detalles para clasificar mejor
+- **Celebratoria:** Reconoce cuando el usuario aporta información valiosa
+- **Transparente:** Muestra el estado actual del conocimiento
+
+---
+
+# 2. INTERFAZ DE USUARIO
+
+## 2.1 Componente de Chat Principal
+
+```tsx
+// client/components/bibliotecaria/BibliotecaChat.tsx
+
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  BookOpen, Upload, Search, TrendingUp, AlertCircle, 
+  CheckCircle, Clock, FileText, Scale, Gavel, Building,
+  Send, Paperclip, Sparkles, Library, Brain
+} from 'lucide-react';
+
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  type?: 'text' | 'card' | 'request' | 'upload_success' | 'version_info';
+  data?: any;
+  timestamp: Date;
+}
+
+interface KnowledgeStats {
+  totalDocuments: number;
+  totalChunks: number;
+  lastUpdate: Date;
+  completeness: number;
+  pendingRequests: number;
+}
+
+export function BibliotecaChat() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [stats, setStats] = useState<KnowledgeStats | null>(null);
+  const [showStats, setShowStats] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Mensaje de bienvenida
+  useEffect(() => {
+    const welcomeMessage: Message = {
+      id: '1',
+      role: 'assistant',
+      content: `¡Hola! Soy **Bibliotecar.IA** 📚, la guardiana del conocimiento de Durezza.
+
+Mi trabajo es mantener actualizada la base de conocimiento que alimenta a todos nuestros agentes especializados.
+
+**¿Qué puedo hacer por ti?**
+• 📄 Recibir documentos (leyes, jurisprudencias, criterios, contratos)
+• 🔍 Mostrarte qué información tenemos y qué nos falta
+• 📊 Informarte sobre versiones y actualizaciones de leyes
+• 💡 Sugerirte qué documentos agregarían más valor
+
+¿En qué te puedo ayudar hoy?`,
+      type: 'text',
+      timestamp: new Date()
+    };
+    setMessages([welcomeMessage]);
+    loadStats();
+  }, []);
+
+  const loadStats = async () => {
+    const response = await fetch('/api/biblioteca/stats');
+    const data = await response.json();
+    setStats(data);
+  };
+
+  const handleSend = async () => {
+    if (!input.trim()) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: input,
+      type: 'text',
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('/api/biblioteca/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          message: input,
+          history: messages.slice(-10)
+        })
+      });
+
+      const data = await response.json();
+      
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: data.response,
+        type: data.type || 'text',
+        data: data.data,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+      
+      // Recargar stats si hubo cambios
+      if (data.statsChanged) {
+        loadStats();
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (files: FileList) => {
+    const formData = new FormData();
+    Array.from(files).forEach(file => {
+      formData.append('files', file);
+    });
+
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('/api/biblioteca/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      const uploadMessage: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: data.response,
+        type: 'upload_success',
+        data: data.results,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, uploadMessage]);
+      loadStats();
+    } catch (error) {
+      console.error('Error uploading:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar con estadísticas */}
+      <div className="w-80 bg-white border-r flex flex-col">
+        <div className="p-4 border-b bg-gradient-to-r from-purple-600 to-indigo-600">
+          <div className="flex items-center gap-3 text-white">
+            <Library className="w-8 h-8" />
+            <div>
+              <h1 className="font-bold text-lg">Bibliotecar.IA</h1>
+              <p className="text-purple-200 text-sm">Knowledge Manager</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Dashboard */}
+        {stats && (
+          <div className="p-4 space-y-4">
+            <h2 className="font-semibold text-gray-700 flex items-center gap-2">
+              <Brain className="w-4 h-4" />
+              Estado del Conocimiento
+            </h2>
+
+            {/* Completeness Meter */}
+            <div className="bg-gray-100 rounded-lg p-3">
+              <div className="flex justify-between text-sm mb-1">
+                <span>Completitud</span>
+                <span className="font-semibold">{stats.completeness}%</span>
+              </div>
+              <div className="w-full bg-gray-300 rounded-full h-2">
+                <div 
+                  className="bg-gradient-to-r from-purple-500 to-indigo-500 h-2 rounded-full transition-all"
+                  style={{ width: `${stats.completeness}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-blue-50 rounded-lg p-3 text-center">
+                <FileText className="w-5 h-5 mx-auto text-blue-600 mb-1" />
+                <div className="text-xl font-bold text-blue-700">{stats.totalDocuments}</div>
+                <div className="text-xs text-blue-600">Documentos</div>
+              </div>
+              <div className="bg-green-50 rounded-lg p-3 text-center">
+                <Sparkles className="w-5 h-5 mx-auto text-green-600 mb-1" />
+                <div className="text-xl font-bold text-green-700">{stats.totalChunks}</div>
+                <div className="text-xs text-green-600">Fragmentos</div>
+              </div>
+            </div>
+
+            {/* Pending Requests */}
+            {stats.pendingRequests > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-amber-700">
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="text-sm font-medium">
+                    {stats.pendingRequests} documentos sugeridos
+                  </span>
+                </div>
+                <button className="mt-2 text-xs text-amber-600 hover:underline">
+                  Ver qué información nos falta →
+                </button>
+              </div>
+            )}
+
+            {/* Last Update */}
+            <div className="text-xs text-gray-500 flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              Última actualización: {new Date(stats.lastUpdate).toLocaleDateString()}
+            </div>
+          </div>
+        )}
+
+        {/* Quick Actions */}
+        <div className="mt-auto p-4 border-t space-y-2">
+          <button 
+            onClick={() => setInput('¿Qué información te falta?')}
+            className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 text-sm flex items-center gap-2"
+          >
+            <Search className="w-4 h-4 text-gray-500" />
+            Ver información faltante
+          </button>
+          <button 
+            onClick={() => setInput('Muéstrame las versiones de leyes')}
+            className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 text-sm flex items-center gap-2"
+          >
+            <TrendingUp className="w-4 h-4 text-gray-500" />
+            Ver versiones de leyes
+          </button>
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 text-sm flex items-center gap-2"
+          >
+            <Upload className="w-4 h-4 text-gray-500" />
+            Subir documento
+          </button>
+        </div>
+      </div>
+
+      {/* Chat Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.map((message) => (
+            <ChatMessage key={message.id} message={message} />
+          ))}
+          
+          {isLoading && (
+            <div className="flex gap-2 items-center text-gray-500">
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-purple-500 border-t-transparent" />
+              <span className="text-sm">Bibliotecar.IA está procesando...</span>
+            </div>
+          )}
+        </div>
+
+        {/* Input Area */}
+        <div className="border-t bg-white p-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+              title="Subir documento"
+            >
+              <Paperclip className="w-5 h-5" />
+            </button>
+            
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+              placeholder="Pregúntame sobre el conocimiento o sube un documento..."
+              className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+            
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || isLoading}
+              className="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.docx,.xlsx,.json,.csv,.txt"
+            onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+            className="hidden"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Componente de mensaje individual
+function ChatMessage({ message }: { message: Message }) {
+  if (message.role === 'user') {
+    return (
+      <div className="flex justify-end">
+        <div className="bg-purple-600 text-white rounded-2xl rounded-br-md px-4 py-2 max-w-lg">
+          {message.content}
+        </div>
+      </div>
+    );
+  }
+
+  // Mensajes del asistente
+  return (
+    <div className="flex gap-3">
+      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center flex-shrink-0">
+        <BookOpen className="w-4 h-4 text-white" />
+      </div>
+      
+      <div className="flex-1 space-y-2">
+        {message.type === 'upload_success' && message.data ? (
+          <UploadSuccessCard data={message.data} />
+        ) : message.type === 'version_info' && message.data ? (
+          <VersionInfoCard data={message.data} />
+        ) : message.type === 'request' && message.data ? (
+          <RequestCard data={message.data} />
+        ) : (
+          <div className="bg-white border rounded-2xl rounded-bl-md px-4 py-3 max-w-2xl prose prose-sm">
+            <ReactMarkdown>{message.content}</ReactMarkdown>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Card de éxito de carga
+function UploadSuccessCard({ data }: { data: any }) {
+  return (
+    <div className="bg-green-50 border border-green-200 rounded-xl p-4 max-w-lg">
+      <div className="flex items-center gap-2 text-green-700 mb-3">
+        <CheckCircle className="w-5 h-5" />
+        <span className="font-semibold">¡Documento procesado!</span>
+      </div>
+      
+      <div className="space-y-2 text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-600">Tipo detectado:</span>
+          <span className="font-medium">{data.documentType}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-600">Fragmentos creados:</span>
+          <span className="font-medium">{data.chunksCreated}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-600">Calidad:</span>
+          <span className="font-medium text-green-600">{data.qualityScore}/100</span>
+        </div>
+        {data.newConcepts && data.newConcepts.length > 0 && (
+          <div className="mt-2 pt-2 border-t">
+            <span className="text-gray-600 text-xs">Conceptos nuevos detectados:</span>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {data.newConcepts.map((concept: string, i: number) => (
+                <span key={i} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs">
+                  {concept}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Card de información de versiones
+function VersionInfoCard({ data }: { data: any }) {
+  return (
+    <div className="bg-white border rounded-xl p-4 max-w-lg">
+      <div className="flex items-center gap-2 text-gray-700 mb-3">
+        <Scale className="w-5 h-5" />
+        <span className="font-semibold">{data.ordenamiento}</span>
+      </div>
+      
+      <div className="space-y-3">
+        {data.versions.map((version: any, i: number) => (
+          <div 
+            key={i} 
+            className={`p-3 rounded-lg ${version.isCurrent ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <span className="font-medium text-sm">{version.description}</span>
+                {version.isCurrent && (
+                  <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs rounded-full">
+                    Vigente
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-gray-500">{version.date}</span>
+            </div>
+            {version.changes && (
+              <p className="text-xs text-gray-600 mt-1">{version.changes}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Card de solicitud de información
+function RequestCard({ data }: { data: any }) {
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 max-w-lg">
+      <div className="flex items-center gap-2 text-amber-700 mb-3">
+        <AlertCircle className="w-5 h-5" />
+        <span className="font-semibold">Información sugerida</span>
+      </div>
+      
+      <p className="text-sm text-gray-700 mb-3">{data.reason}</p>
+      
+      <div className="space-y-2">
+        {data.suggestions.map((suggestion: any, i: number) => (
+          <div key={i} className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="rounded text-amber-500" />
+            <span>{suggestion.description}</span>
+            <span className={`px-2 py-0.5 rounded text-xs ${
+              suggestion.priority === 'alta' ? 'bg-red-100 text-red-700' :
+              suggestion.priority === 'media' ? 'bg-amber-100 text-amber-700' :
+              'bg-gray-100 text-gray-700'
+            }`}>
+              {suggestion.priority}
+            </span>
+          </div>
+        ))}
+      </div>
+      
+      <button className="mt-3 text-sm text-amber-600 hover:underline">
+        ¿Tienes alguno de estos? Súbelo aquí
+      </button>
+    </div>
+  );
+}
+```
+
+---
+
+# 3. SISTEMA DE VERSIONES DE DOCUMENTOS
+
+## 3.1 Modelo de Versiones
+
+```typescript
+// server/models/documentVersion.ts
+
+interface DocumentVersion {
+  id: string;
+  documentId: string;           // ID del documento padre
+  version: string;              // "2024-01-01", "reforma-2023", etc.
+  
+  // Metadata de la versión
+  ordenamiento: string;         // CFF, LISR, etc.
+  fechaPublicacion: Date;       // Fecha de publicación en DOF
+  fechaVigencia: Date;          // Fecha de inicio de vigencia
+  fechaFinVigencia?: Date;      // null si es vigente
+  
+  // Tipo de cambio
+  tipoActualizacion: 
+    | 'original'                // Versión original
+    | 'reforma'                 // Reforma de artículos
+    | 'adicion'                 // Adición de artículos
+    | 'derogacion'              // Derogación de artículos
+    | 'fe_de_erratas'           // Corrección de errores
+    | 'criterio_interpretativo' // Nueva interpretación
+    | 'jurisprudencia'          // Nueva jurisprudencia relacionada
+    | 'criterio_sat';           // Nuevo criterio del SAT
+  
+  // Detalles del cambio
+  articulosAfectados: string[]; // ["27", "27-I", "28-XXIX"]
+  descripcionCambio: string;    // Resumen del cambio
+  fundamentoDOF: string;        // "DOF 12/11/2021"
+  
+  // Estado
+  esVigente: boolean;
+  reemplazadaPor?: string;      // ID de la versión que la reemplaza
+  
+  // Indexación
+  chunksIds: string[];          // Chunks asociados a esta versión
+  
+  // Auditoría
+  creadoPor: string;
+  fechaCreacion: Date;
+  validadoPor?: string;
+  fechaValidacion?: Date;
+}
+
+interface VersionTimeline {
+  ordenamiento: string;
+  versions: DocumentVersion[];
+  currentVersion: DocumentVersion;
+  upcomingChanges?: {
+    fecha: Date;
+    descripcion: string;
+    fuente: string;
+  }[];
+}
+```
+
+## 3.2 Servicio de Gestión de Versiones
+
+```typescript
+// server/services/biblioteca/versionManager.ts
+
+export class VersionManager {
+  
+  /**
+   * Registra una nueva versión de un documento legal
+   */
+  async registerNewVersion(
+    ordenamiento: string,
+    newVersionData: Partial<DocumentVersion>,
+    file?: Express.Multer.File
+  ): Promise<VersionRegistrationResult> {
+    
+    // 1. Obtener versión actual
+    const currentVersion = await this.getCurrentVersion(ordenamiento);
+    
+    // 2. Marcar versión anterior como no vigente
+    if (currentVersion) {
+      await this.markAsSuperseded(currentVersion.id, newVersionData.id!);
+    }
+    
+    // 3. Procesar el archivo si se proporciona
+    let chunks: any[] = [];
+    if (file) {
+      chunks = await this.ingestPipeline.processDocument(file.path, {
+        ordenamiento,
+        version: newVersionData.version,
+        tipoActualizacion: newVersionData.tipoActualizacion
+      });
+    }
+    
+    // 4. Crear nueva versión
+    const newVersion: DocumentVersion = {
+      ...newVersionData,
+      esVigente: true,
+      chunksIds: chunks.map(c => c.id),
+      fechaCreacion: new Date()
+    } as DocumentVersion;
+    
+    await this.db.documentVersions.insert(newVersion);
+    
+    // 5. Actualizar relaciones
+    await this.updateRelatedDocuments(ordenamiento, newVersion);
+    
+    // 6. Notificar a usuarios interesados
+    await this.notifySubscribers(ordenamiento, newVersion);
+    
+    return {
+      success: true,
+      versionId: newVersion.id,
+      chunksCreated: chunks.length,
+      articulosActualizados: newVersionData.articulosAfectados?.length || 0
+    };
+  }
+  
+  /**
+   * Obtiene la línea de tiempo de versiones de un ordenamiento
+   */
+  async getVersionTimeline(ordenamiento: string): Promise<VersionTimeline> {
+    const versions = await this.db.documentVersions
+      .find({ ordenamiento })
+      .sort({ fechaVigencia: -1 });
+    
+    const currentVersion = versions.find(v => v.esVigente);
+    
+    // Buscar cambios próximos (reformas publicadas pero no vigentes)
+    const upcomingChanges = await this.findUpcomingChanges(ordenamiento);
+    
+    return {
+      ordenamiento,
+      versions,
+      currentVersion: currentVersion!,
+      upcomingChanges
+    };
+  }
+  
+  /**
+   * Compara dos versiones y muestra las diferencias
+   */
+  async compareVersions(
+    versionId1: string, 
+    versionId2: string
+  ): Promise<VersionComparison> {
+    const v1 = await this.getVersionById(versionId1);
+    const v2 = await this.getVersionById(versionId2);
+    
+    // Obtener chunks de cada versión
+    const chunks1 = await this.getChunksByVersion(versionId1);
+    const chunks2 = await this.getChunksByVersion(versionId2);
+    
+    // Comparar artículo por artículo
+    const comparison = this.compareArticles(chunks1, chunks2);
+    
+    return {
+      version1: v1,
+      version2: v2,
+      articlesAdded: comparison.added,
+      articlesRemoved: comparison.removed,
+      articlesModified: comparison.modified,
+      summary: this.generateComparisonSummary(comparison)
+    };
+  }
+}
+```
+
+## 3.3 Dashboard de Versiones en UI
+
+```tsx
+// client/components/biblioteca/VersionDashboard.tsx
+
+export function VersionDashboard() {
+  const [ordenamientos, setOrdenamientos] = useState<string[]>([
+    'CFF', 'LISR', 'LIVA', 'RCFF', 'RLISR', 'RMF'
+  ]);
+  const [selectedOrdenamiento, setSelectedOrdenamiento] = useState('CFF');
+  const [timeline, setTimeline] = useState<VersionTimeline | null>(null);
+
+  return (
+    <div className="p-6">
+      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+        <Scale className="w-6 h-6" />
+        Control de Versiones Legales
+      </h2>
+
+      {/* Selector de ordenamiento */}
+      <div className="flex gap-2 mb-6">
+        {ordenamientos.map(ord => (
+          <button
+            key={ord}
+            onClick={() => setSelectedOrdenamiento(ord)}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              selectedOrdenamiento === ord
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 hover:bg-gray-200'
+            }`}
+          >
+            {ord}
+          </button>
+        ))}
+      </div>
+
+      {/* Timeline de versiones */}
+      {timeline && (
+        <div className="space-y-4">
+          {/* Versión vigente destacada */}
+          <div className="bg-green-50 border-2 border-green-500 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-green-700 flex items-center gap-2">
+                <CheckCircle className="w-5 h-5" />
+                Versión Vigente
+              </h3>
+              <span className="text-sm text-green-600">
+                Desde: {formatDate(timeline.currentVersion.fechaVigencia)}
+              </span>
+            </div>
+            <p className="text-sm text-gray-700">
+              {timeline.currentVersion.descripcionCambio}
+            </p>
+            <div className="mt-2 text-xs text-gray-500">
+              {timeline.currentVersion.fundamentoDOF}
+            </div>
+          </div>
+
+          {/* Cambios próximos */}
+          {timeline.upcomingChanges && timeline.upcomingChanges.length > 0 && (
+            <div className="bg-amber-50 border border-amber-300 rounded-xl p-4">
+              <h3 className="font-semibold text-amber-700 flex items-center gap-2 mb-2">
+                <Clock className="w-5 h-5" />
+                Cambios Próximos
+              </h3>
+              {timeline.upcomingChanges.map((change, i) => (
+                <div key={i} className="text-sm">
+                  <span className="font-medium">{formatDate(change.fecha)}:</span>
+                  <span className="ml-2">{change.descripcion}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Historial de versiones */}
+          <div className="bg-white border rounded-xl p-4">
+            <h3 className="font-semibold mb-4">Historial de Versiones</h3>
+            <div className="relative">
+              {/* Línea de tiempo vertical */}
+              <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" />
+              
+              <div className="space-y-4">
+                {timeline.versions.map((version, i) => (
+                  <div key={version.id} className="relative pl-10">
+                    {/* Punto en la línea de tiempo */}
+                    <div className={`absolute left-2.5 w-3 h-3 rounded-full ${
+                      version.esVigente ? 'bg-green-500' : 'bg-gray-400'
+                    }`} />
+                    
+                    <div className={`p-3 rounded-lg ${
+                      version.esVigente ? 'bg-green-50' : 'bg-gray-50'
+                    }`}>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            version.tipoActualizacion === 'reforma' 
+                              ? 'bg-blue-100 text-blue-700'
+                              : version.tipoActualizacion === 'adicion'
+                              ? 'bg-green-100 text-green-700'
+                              : version.tipoActualizacion === 'derogacion'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-gray-100 text-gray-700'
+                          }`}>
+                            {version.tipoActualizacion}
+                          </span>
+                          <p className="font-medium mt-1">
+                            {version.descripcionCambio}
+                          </p>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {formatDate(version.fechaVigencia)}
+                        </span>
+                      </div>
+                      
+                      {version.articulosAfectados.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {version.articulosAfectados.slice(0, 5).map(art => (
+                            <span key={art} className="text-xs bg-white px-2 py-0.5 rounded border">
+                              Art. {art}
+                            </span>
+                          ))}
+                          {version.articulosAfectados.length > 5 && (
+                            <span className="text-xs text-gray-500">
+                              +{version.articulosAfectados.length - 5} más
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+# 4. SISTEMA DE SOLICITUD DE INFORMACIÓN
+
+## 4.1 Motor de Detección de Gaps
+
+```typescript
+// server/services/biblioteca/gapDetector.ts
+
+interface KnowledgeGap {
+  id: string;
+  category: 'legal' | 'jurisprudencia' | 'criterio' | 'empresa' | 'otro';
+  priority: 'critica' | 'alta' | 'media' | 'baja';
+  
+  title: string;
+  description: string;
+  reason: string;                    // Por qué se necesita
+  requestedBy: string[];             // Qué agentes lo han solicitado
+  
+  suggestions: {
+    type: string;
+    description: string;
+    source?: string;                 // Dónde obtenerlo
+    url?: string;
+  }[];
+  
+  impact: {
+    agentsAffected: string[];
+    functionalityLimited: string;
+    estimatedImprovement: string;
+  };
+  
+  status: 'pending' | 'in_progress' | 'resolved' | 'deferred';
+  createdAt: Date;
+  resolvedAt?: Date;
+}
+
+export class GapDetector {
+  
+  /**
+   * Analiza el estado actual del KB y detecta información faltante
+   */
+  async detectGaps(): Promise<KnowledgeGap[]> {
+    const gaps: KnowledgeGap[] = [];
+    
+    // 1. Verificar completitud del marco legal
+    const legalGaps = await this.checkLegalCompleteness();
+    gaps.push(...legalGaps);
+    
+    // 2. Verificar jurisprudencias recientes
+    const jurisprudenceGaps = await this.checkJurisprudenceRecency();
+    gaps.push(...jurisprudenceGaps);
+    
+    // 3. Verificar criterios del SAT actualizados
+    const criteriaGaps = await this.checkSATCriteria();
+    gaps.push(...criteriaGaps);
+    
+    // 4. Verificar catálogos SAT
+    const catalogGaps = await this.checkCatalogUpdates();
+    gaps.push(...catalogGaps);
+    
+    // 5. Analizar consultas fallidas de agentes
+    const queryGaps = await this.analyzeFailedQueries();
+    gaps.push(...queryGaps);
+    
+    return this.prioritizeGaps(gaps);
+  }
+  
+  /**
+   * Verifica completitud del marco legal
+   */
+  private async checkLegalCompleteness(): Promise<KnowledgeGap[]> {
+    const gaps: KnowledgeGap[] = [];
+    
+    // Leyes que DEBEN estar completas
+    const requiredLaws = [
+      { name: 'CFF', requiredArticles: ['1-196'] },
+      { name: 'LISR', requiredArticles: ['1-215'] },
+      { name: 'LIVA', requiredArticles: ['1-43'] },
+    ];
+    
+    for (const law of requiredLaws) {
+      const existingArticles = await this.getIndexedArticles(law.name);
+      const missingArticles = this.findMissingArticles(
+        law.requiredArticles, 
+        existingArticles
+      );
+      
+      if (missingArticles.length > 0) {
+        gaps.push({
+          id: `legal-${law.name}-incomplete`,
+          category: 'legal',
+          priority: 'alta',
+          title: `${law.name} incompleto`,
+          description: `Faltan ${missingArticles.length} artículos del ${law.name}`,
+          reason: `Los agentes A3 Fiscal y A1 Estrategia necesitan el texto completo para fundamentar sus análisis`,
+          requestedBy: ['A3', 'A1', 'A7'],
+          suggestions: [{
+            type: 'documento',
+            description: `Versión completa del ${law.name} vigente`,
+            source: 'Cámara de Diputados o DOF',
+            url: `https://www.diputados.gob.mx/LeyesBiblio/`
+          }],
+          impact: {
+            agentsAffected: ['A3', 'A1', 'A7'],
+            functionalityLimited: 'Análisis fiscal incompleto',
+            estimatedImprovement: '+15% precisión en dictámenes'
+          },
+          status: 'pending',
+          createdAt: new Date()
+        });
+      }
+    }
+    
+    // Verificar si hay reformas recientes no indexadas
+    const lastLegalUpdate = await this.getLastLegalUpdate();
+    const recentReforms = await this.checkDOFForReforms(lastLegalUpdate);
+    
+    for (const reform of recentReforms) {
+      gaps.push({
+        id: `legal-reform-${reform.dofDate}`,
+        category: 'legal',
+        priority: 'critica',
+        title: `Reforma no indexada: ${reform.ordenamiento}`,
+        description: `Publicada en DOF ${reform.dofDate}`,
+        reason: 'El sistema puede estar dando información desactualizada',
+        requestedBy: ['sistema'],
+        suggestions: [{
+          type: 'reforma',
+          description: reform.description,
+          source: 'DOF',
+          url: reform.dofUrl
+        }],
+        impact: {
+          agentsAffected: ['A1', 'A3', 'A4', 'A5', 'A6', 'A7'],
+          functionalityLimited: 'Posibles errores por información desactualizada',
+          estimatedImprovement: 'Crítico para precisión legal'
+        },
+        status: 'pending',
+        createdAt: new Date()
+      });
+    }
+    
+    return gaps;
+  }
+  
+  /**
+   * Verifica jurisprudencias recientes
+   */
+  private async checkJurisprudenceRecency(): Promise<KnowledgeGap[]> {
+    const gaps: KnowledgeGap[] = [];
+    
+    // Temas críticos que deben tener jurisprudencia actualizada
+    const criticalTopics = [
+      'razón de negocios',
+      'operaciones simuladas',
+      'materialidad',
+      'EFOS',
+      'deducciones rechazadas',
+      'precios de transferencia'
+    ];
+    
+    for (const topic of criticalTopics) {
+      const latestJurisprudence = await this.getLatestJurisprudenceForTopic(topic);
+      
+      // Si la jurisprudencia más reciente tiene más de 1 año
+      if (!latestJurisprudence || 
+          this.isOlderThan(latestJurisprudence.fecha, 365)) {
+        gaps.push({
+          id: `jurisprudence-${topic.replace(/\s/g, '-')}`,
+          category: 'jurisprudencia',
+          priority: 'media',
+          title: `Jurisprudencias sobre "${topic}" desactualizadas`,
+          description: `La última jurisprudencia indexada es de ${
+            latestJurisprudence?.fecha || 'fecha desconocida'
+          }`,
+          reason: 'Puede haber nuevos criterios judiciales relevantes',
+          requestedBy: ['A3', 'A7'],
+          suggestions: [{
+            type: 'jurisprudencia',
+            description: `Buscar tesis recientes sobre ${topic}`,
+            source: 'Semanario Judicial de la Federación',
+            url: 'https://sjf.scjn.gob.mx/'
+          }],
+          impact: {
+            agentsAffected: ['A3', 'A7'],
+            functionalityLimited: 'Argumentación de defensa puede estar incompleta',
+            estimatedImprovement: '+10% solidez en Defense Files'
+          },
+          status: 'pending',
+          createdAt: new Date()
+        });
+      }
+    }
+    
+    return gaps;
+  }
+  
+  /**
+   * Analiza consultas que los agentes no pudieron responder bien
+   */
+  private async analyzeFailedQueries(): Promise<KnowledgeGap[]> {
+    const gaps: KnowledgeGap[] = [];
+    
+    // Obtener queries con baja confianza o sin resultados
+    const failedQueries = await this.db.queryLogs
+      .find({
+        $or: [
+          { resultsCount: 0 },
+          { confidenceScore: { $lt: 0.5 } }
+        ],
+        timestamp: { $gte: this.daysAgo(30) }
+      })
+      .sort({ count: -1 })
+      .limit(20);
+    
+    // Agrupar por tema
+    const groupedQueries = this.groupQueriesByTopic(failedQueries);
+    
+    for (const [topic, queries] of Object.entries(groupedQueries)) {
+      if (queries.length >= 3) { // Si el mismo tema falla 3+ veces
+        gaps.push({
+          id: `query-gap-${topic}`,
+          category: 'otro',
+          priority: 'media',
+          title: `Información faltante: ${topic}`,
+          description: `${queries.length} consultas sobre este tema no encontraron información adecuada`,
+          reason: 'Los usuarios están preguntando sobre algo que no tenemos bien documentado',
+          requestedBy: queries.map(q => q.agentId).filter(Boolean),
+          suggestions: [{
+            type: 'contenido',
+            description: `Agregar información sobre ${topic}`,
+            source: 'Por determinar'
+          }],
+          impact: {
+            agentsAffected: [...new Set(queries.map(q => q.agentId).filter(Boolean))],
+            functionalityLimited: 'Consultas sin respuesta adecuada',
+            estimatedImprovement: 'Mejor cobertura de temas'
+          },
+          status: 'pending',
+          createdAt: new Date()
+        });
+      }
+    }
+    
+    return gaps;
+  }
+}
+```
+
+## 4.2 Conversaciones Proactivas
+
+```typescript
+// server/services/biblioteca/proactiveConversation.ts
+
+export class ProactiveConversation {
+  
+  /**
+   * Genera mensaje proactivo sobre información faltante
+   */
+  async generateInfoRequest(gap: KnowledgeGap): Promise<string> {
+    const templates = {
+      legal: this.generateLegalRequest,
+      jurisprudencia: this.generateJurisprudenceRequest,
+      criterio: this.generateCriteriaRequest,
+      empresa: this.generateEnterpriseRequest,
+      otro: this.generateGenericRequest
+    };
+    
+    const generator = templates[gap.category] || templates.otro;
+    return generator.call(this, gap);
+  }
+  
+  private generateLegalRequest(gap: KnowledgeGap): string {
+    return `📚 **Actualización de Marco Legal**
+
+¡Hola! He detectado que necesitamos actualizar nuestra base legal.
+
+**${gap.title}**
+
+${gap.description}
+
+**¿Por qué es importante?**
+${gap.reason}
+
+**Lo que necesito:**
+${gap.suggestions.map(s => `• ${s.description}${s.url ? ` ([fuente](${s.url}))` : ''}`).join('\n')}
+
+**Impacto si lo agregamos:**
+${gap.impact.estimatedImprovement}
+
+¿Tienes acceso a este documento? Puedes subirlo directamente o indicarme dónde conseguirlo.`;
+  }
+  
+  private generateJurisprudenceRequest(gap: KnowledgeGap): string {
+    return `⚖️ **Actualización de Jurisprudencias**
+
+Necesito tu ayuda para mantener actualizado nuestro acervo jurisprudencial.
+
+**${gap.title}**
+
+${gap.description}
+
+${gap.reason}
+
+**Te sugiero buscar:**
+${gap.suggestions.map(s => `• ${s.description}`).join('\n')}
+
+Puedes encontrar jurisprudencias en el [Semanario Judicial de la Federación](https://sjf.scjn.gob.mx/).
+
+Si encuentras tesis relevantes, súbelas y yo las proceso automáticamente. 🙂`;
+  }
+  
+  /**
+   * Genera resumen diario de estado del KB para el usuario
+   */
+  async generateDailySummary(userId: string): Promise<string> {
+    const stats = await this.getKBStats();
+    const gaps = await this.gapDetector.detectGaps();
+    const criticalGaps = gaps.filter(g => g.priority === 'critica');
+    const recentAdditions = await this.getRecentAdditions(7);
+    
+    let summary = `📊 **Resumen Semanal de Bibliotecar.IA**
+
+**Estado actual del conocimiento:**
+• 📄 ${stats.totalDocuments} documentos indexados
+• 🧩 ${stats.totalChunks} fragmentos de información
+• 📈 Completitud: ${stats.completeness}%
+
+`;
+
+    if (recentAdditions.length > 0) {
+      summary += `**Agregado esta semana:**
+${recentAdditions.map(a => `• ${a.type}: ${a.description}`).join('\n')}
+
+`;
+    }
+
+    if (criticalGaps.length > 0) {
+      summary += `**⚠️ Atención requerida:**
+${criticalGaps.map(g => `• ${g.title}`).join('\n')}
+
+`;
+    }
+
+    if (gaps.length > 0) {
+      summary += `Tengo **${gaps.length} sugerencias** de información que podría mejorar a los agentes. ¿Te muestro los detalles?`;
+    } else {
+      summary += `¡El conocimiento está al día! 🎉`;
+    }
+
+    return summary;
+  }
+}
+```
+
+---
+
+# 5. SYSTEM PROMPT DE BIBLIOTECAR.IA
+
+## 5.1 Prompt Completo para Chat
+
+```markdown
+# IDENTIDAD
+
+Soy Bibliotecar.IA, la guardiana del conocimiento de Durezza. Mi nombre real es Dra. Elena Vázquez, pero todos me conocen como Bibliotecar.IA.
+
+Soy una bibliotecaria digital especializada en derecho fiscal mexicano. Mi pasión es organizar información para que sea fácil de encontrar y usar.
+
+# PERSONALIDAD
+
+- **Cálida y accesible**: Hago que los temas técnicos se sientan manejables
+- **Organizada**: Todo tiene su lugar, y me aseguro de que esté ahí
+- **Proactiva**: No espero a que me pregunten, sugiero lo que hace falta
+- **Curiosa**: Siempre quiero saber más sobre los documentos que recibo
+- **Celebratoria**: Reconozco cuando el usuario aporta algo valioso
+- **Educativa**: Explico por qué cada documento importa
+
+# MI MISIÓN
+
+Mantener la base de conocimiento de Durezza completa, actualizada y bien organizada para que los agentes especializados (A1 Estrategia, A3 Fiscal, A5 Finanzas, A6 Proveedor, A7 Defensa, A8 Voz) puedan dar las mejores respuestas.
+
+# LO QUE PUEDO HACER
+
+1. **Recibir documentos**
+   - Leyes y códigos fiscales
+   - Jurisprudencias y tesis
+   - Criterios del SAT
+   - Contratos y documentos empresariales
+   - Catálogos del SAT
+   - Conferencias, artículos, opiniones técnicas
+
+2. **Informar sobre el estado del conocimiento**
+   - Qué documentos tenemos
+   - Qué versiones están vigentes
+   - Qué información nos falta
+   - Cómo ha crecido el acervo
+
+3. **Gestionar versiones**
+   - Trackear reformas a leyes
+   - Marcar qué está vigente y qué no
+   - Alertar sobre cambios próximos
+
+4. **Solicitar información proactivamente**
+   - Detectar gaps en el conocimiento
+   - Sugerir documentos que mejorarían a los agentes
+   - Priorizar qué agregar primero
+
+# CÓMO PROCESO DOCUMENTOS
+
+Cuando recibo un documento:
+
+1. **Identifico qué es**: Ley, jurisprudencia, contrato, criterio, etc.
+2. **Extraigo metadata**: Fechas, artículos, temas, conceptos clave
+3. **Lo divido inteligentemente**: En fragmentos que tengan sentido solos
+4. **Lo enriquezco**: Agrego sinónimos, definiciones, relaciones
+5. **Lo indexo**: Para que los agentes lo encuentren cuando lo necesiten
+6. **Confirmo al usuario**: Qué procesé, dónde lo guardé, qué encontré
+
+# FORMATO DE MIS RESPUESTAS
+
+## Para documentos recibidos:
+
+```
+✅ **¡Documento procesado!**
+
+**Tipo:** [Ley/Jurisprudencia/Contrato/etc.]
+**Nombre:** [Nombre del documento]
+**Versión:** [Si aplica]
+
+**Lo que encontré:**
+• [X] artículos/cláusulas/secciones
+• Temas principales: [lista]
+• Conceptos clave: [lista]
+
+**Dónde lo guardé:** [Colección]
+
+**Agentes beneficiados:** [A1, A3, etc.]
+
+[Alguna observación relevante o pregunta de seguimiento]
+```
+
+## Para solicitudes de información:
+
+```
+📚 **Sugerencia de Bibliotecar.IA**
+
+He notado que nos falta información sobre [tema].
+
+**¿Por qué lo necesitamos?**
+[Explicación]
+
+**Lo que sugiero agregar:**
+• [Documento 1]
+• [Documento 2]
+
+**Impacto esperado:**
+[Cómo mejorará a los agentes]
+
+¿Tienes acceso a alguno de estos documentos?
+```
+
+## Para consultas sobre el estado del KB:
+
+```
+📊 **Estado del Conocimiento**
+
+**[Categoría consultada]**
+
+✅ Completo:
+• [Lista de lo que tenemos]
+
+⚠️ Pendiente:
+• [Lista de lo que falta]
+
+📅 Última actualización: [Fecha]
+
+[Recomendación si aplica]
+```
+
+# REGLAS DE INTERACCIÓN
+
+1. **Siempre confirmo lo que recibo**: Nunca asumo, siempre verifico
+2. **Pregunto cuando tengo dudas**: Mejor preguntar que clasificar mal
+3. **Celebro las contribuciones**: Cada documento que sube el usuario hace más inteligentes a los agentes
+4. **Soy transparente sobre limitaciones**: Si algo no lo tenemos, lo digo
+5. **Priorizo lo importante**: No todo es urgente, pero algunas cosas sí
+6. **Mantengo contexto**: Recuerdo lo que hemos hablado en la conversación
+
+# EJEMPLOS DE CONVERSACIONES
+
+## Usuario sube un documento:
+
+**Usuario:** [Sube "LISR_2024.pdf"]
+
+**Bibliotecar.IA:** 
+¡Excelente! Recibí el documento "LISR_2024.pdf". Dame un momento para procesarlo...
+
+✅ **¡Procesado exitosamente!**
+
+**Tipo detectado:** Ley del Impuesto Sobre la Renta
+**Versión:** Vigente al 1 de enero de 2024
+**Artículos indexados:** 215
+
+**Actualización detectada:**
+Esta versión incluye las reformas publicadas en el DOF del 12/11/2023. Encontré cambios en los artículos 27, 28 y 76 respecto a la versión anterior.
+
+**Conceptos clave detectados:**
+• Deducciones autorizadas
+• Requisitos de deducciones
+• Gastos no deducibles
+• Obligaciones de personas morales
+
+Los agentes A1, A3, A5 y A7 ahora tienen acceso a esta información actualizada. 🎉
+
+¿Tienes también el Reglamento de la LISR actualizado?
+
+---
+
+## Usuario pregunta qué falta:
+
+**Usuario:** ¿Qué información te falta?
+
+**Bibliotecar.IA:**
+¡Buena pregunta! Déjame revisar el estado actual del conocimiento...
+
+📊 **Análisis de Información Faltante**
+
+**🔴 Prioridad Crítica:**
+1. **Resolución Miscelánea Fiscal 2025** - Aún tenemos la de 2024
+   - Impacto: Todos los agentes pueden dar información desactualizada
+   
+2. **Lista 69-B actualizada** - Nuestra lista tiene 2 semanas de antigüedad
+   - Impacto: A6 Proveedor podría no detectar nuevos EFOS
+
+**🟡 Prioridad Alta:**
+3. **Jurisprudencias sobre razón de negocios (2024)**
+   - Impacto: A1 y A7 necesitan criterios judiciales recientes
+
+4. **Criterios normativos del SAT 2024**
+   - Impacto: A3 Fiscal necesita interpretaciones oficiales
+
+**🟢 Prioridad Media:**
+5. **Tesis aisladas sobre materialidad**
+6. **Conferencias de PRODECON recientes**
+
+¿Tienes acceso a alguno de estos? Los más urgentes son la RMF 2025 y la lista 69-B actualizada.
+
+---
+
+## Usuario pregunta sobre versiones:
+
+**Usuario:** ¿Qué versión del CFF tenemos?
+
+**Bibliotecar.IA:**
+📜 **Código Fiscal de la Federación - Control de Versiones**
+
+**Versión vigente en el sistema:**
+✅ CFF con reformas hasta el 12/11/2023 (DOF)
+
+**Historial de versiones indexadas:**
+| Versión | Fecha DOF | Cambios principales |
+|---------|-----------|---------------------|
+| 2023-11 | 12/11/2023 | Reformas Arts. 5-A, 69-B, 69-B Bis |
+| 2022-11 | 12/11/2022 | Adiciones esquemas reportables |
+| 2021-11 | 12/11/2021 | Reformas razón de negocios |
+
+**Artículos con cambios recientes:**
+• Art. 5-A (Razón de negocios) - Reforma 2023
+• Art. 69-B (EFOS) - Reforma 2023
+• Art. 69-B Bis (Transmisión de pérdidas) - Adición 2023
+
+**⚠️ Alerta:**
+Detecté que el 1 de enero de 2025 podría haber nuevas reformas. Te avisaré cuando se publiquen para que las subas.
+
+¿Necesitas ver el texto de algún artículo específico?
+
+# HERRAMIENTAS QUE USO
+
+1. **process_document**: Procesar documento subido
+2. **get_kb_stats**: Obtener estadísticas del KB
+3. **detect_gaps**: Detectar información faltante
+4. **get_version_timeline**: Obtener historial de versiones
+5. **search_kb**: Buscar en el conocimiento existente
+6. **update_version**: Registrar nueva versión de documento
+7. **notify_agents**: Notificar a agentes sobre nuevo contenido
+
+# NOTAS IMPORTANTES
+
+- Siempre proceso los documentos antes de confirmar
+- Detecto automáticamente el tipo de documento cuando es posible
+- Pregunto cuando no estoy segura de la clasificación
+- Mantengo un log de todo lo que proceso
+- Notifico cuando hay actualizaciones relevantes
+- Celebro los hitos (100 documentos, KB 80% completo, etc.)
+```
+
+---
+
+# 6. INDICADORES DE CRECIMIENTO
+
+## 6.1 Dashboard de Métricas
+
+```tsx
+// client/components/biblioteca/GrowthDashboard.tsx
+
+export function GrowthDashboard() {
+  const [metrics, setMetrics] = useState<GrowthMetrics | null>(null);
+
+  return (
+    <div className="p-6 space-y-6">
+      <h2 className="text-xl font-bold">📈 Crecimiento del Conocimiento</h2>
+
+      {/* Indicador principal de completitud */}
+      <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-2xl p-6 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg opacity-80">Nivel de Conocimiento</h3>
+            <div className="text-5xl font-bold mt-2">
+              {metrics?.completeness}%
+            </div>
+            <p className="text-sm opacity-70 mt-1">
+              {metrics?.completenessLabel}
+            </p>
+          </div>
+          <div className="text-8xl opacity-20">
+            {metrics?.completeness >= 90 ? '🧠' : 
+             metrics?.completeness >= 70 ? '📚' :
+             metrics?.completeness >= 50 ? '📖' : '📄'}
+          </div>
+        </div>
+        
+        {/* Barra de progreso por categoría */}
+        <div className="mt-6 space-y-2">
+          {metrics?.categories.map(cat => (
+            <div key={cat.name} className="flex items-center gap-3">
+              <span className="w-24 text-sm opacity-80">{cat.name}</span>
+              <div className="flex-1 bg-white/20 rounded-full h-2">
+                <div 
+                  className="bg-white rounded-full h-2 transition-all"
+                  style={{ width: `${cat.completeness}%` }}
+                />
+              </div>
+              <span className="text-sm w-12">{cat.completeness}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Gráfica de crecimiento temporal */}
+      <div className="bg-white rounded-xl p-4 border">
+        <h3 className="font-semibold mb-4">Crecimiento Mensual</h3>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={metrics?.growthHistory}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Area 
+                type="monotone" 
+                dataKey="documents" 
+                stroke="#8b5cf6" 
+                fill="#c4b5fd" 
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Logros desbloqueados */}
+      <div className="bg-white rounded-xl p-4 border">
+        <h3 className="font-semibold mb-4">🏆 Logros del Conocimiento</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {metrics?.achievements.map(achievement => (
+            <div 
+              key={achievement.id}
+              className={`p-3 rounded-lg text-center ${
+                achievement.unlocked 
+                  ? 'bg-gradient-to-br from-amber-100 to-amber-200 border-amber-300' 
+                  : 'bg-gray-100 opacity-50'
+              } border`}
+            >
+              <div className="text-2xl mb-1">{achievement.icon}</div>
+              <div className="text-sm font-medium">{achievement.name}</div>
+              <div className="text-xs text-gray-600">{achievement.description}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Próximos hitos */}
+      <div className="bg-white rounded-xl p-4 border">
+        <h3 className="font-semibold mb-4">🎯 Próximos Hitos</h3>
+        <div className="space-y-3">
+          {metrics?.nextMilestones.map(milestone => (
+            <div key={milestone.id} className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <span className="text-xl">{milestone.icon}</span>
+              </div>
+              <div className="flex-1">
+                <div className="font-medium">{milestone.name}</div>
+                <div className="text-sm text-gray-500">{milestone.description}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-purple-600">
+                  {milestone.progress}%
+                </div>
+                <div className="text-xs text-gray-500">
+                  {milestone.remaining} restantes
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Impacto en agentes */}
+      <div className="bg-white rounded-xl p-4 border">
+        <h3 className="font-semibold mb-4">🤖 Impacto en Agentes</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {metrics?.agentImpact.map(agent => (
+            <div key={agent.id} className="p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">{agent.icon}</span>
+                <span className="font-medium">{agent.name}</span>
+              </div>
+              <div className="text-2xl font-bold text-green-600">
+                +{agent.improvementPercent}%
+              </div>
+              <div className="text-xs text-gray-500">
+                precisión vs hace 30 días
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+## 6.2 Sistema de Logros
+
+```typescript
+// server/services/biblioteca/achievements.ts
+
+interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  condition: (stats: KBStats) => boolean;
+  unlockedAt?: Date;
+}
+
+export const ACHIEVEMENTS: Achievement[] = [
+  // Logros de cantidad
+  {
+    id: 'first_document',
+    name: 'Primer Paso',
+    description: 'Subiste tu primer documento',
+    icon: '📄',
+    condition: (stats) => stats.totalDocuments >= 1
+  },
+  {
+    id: '100_documents',
+    name: 'Centenario',
+    description: '100 documentos en el acervo',
+    icon: '💯',
+    condition: (stats) => stats.totalDocuments >= 100
+  },
+  {
+    id: '1000_chunks',
+    name: 'Fragmentador',
+    description: '1,000 fragmentos de conocimiento',
+    icon: '🧩',
+    condition: (stats) => stats.totalChunks >= 1000
+  },
+  
+  // Logros de completitud
+  {
+    id: 'legal_complete',
+    name: 'Marco Legal Completo',
+    description: 'CFF, LISR y LIVA completos',
+    icon: '⚖️',
+    condition: (stats) => stats.legalCompleteness >= 100
+  },
+  {
+    id: 'jurisprudence_100',
+    name: 'Jurisprudente',
+    description: '100 jurisprudencias indexadas',
+    icon: '🔨',
+    condition: (stats) => stats.jurisprudenceCount >= 100
+  },
+  {
+    id: 'criteria_updated',
+    name: 'Al Día con el SAT',
+    description: 'Criterios del SAT actualizados',
+    icon: '📋',
+    condition: (stats) => stats.satCriteriaUpToDate
+  },
+  
+  // Logros especiales
+  {
+    id: 'no_gaps',
+    name: 'Sin Huecos',
+    description: '0 gaps de información detectados',
+    icon: '🎯',
+    condition: (stats) => stats.gapsCount === 0
+  },
+  {
+    id: 'streak_7',
+    name: 'Consistente',
+    description: '7 días seguidos agregando información',
+    icon: '🔥',
+    condition: (stats) => stats.uploadStreak >= 7
+  },
+  {
+    id: 'kb_90',
+    name: 'Casi Perfecto',
+    description: 'Knowledge Base al 90%',
+    icon: '🏆',
+    condition: (stats) => stats.completeness >= 90
+  }
+];
+
+export class AchievementManager {
+  async checkAndUnlock(userId: string): Promise<Achievement[]> {
+    const stats = await this.getKBStats();
+    const userAchievements = await this.getUserAchievements(userId);
+    const newUnlocks: Achievement[] = [];
+    
+    for (const achievement of ACHIEVEMENTS) {
+      if (!userAchievements.includes(achievement.id)) {
+        if (achievement.condition(stats)) {
+          await this.unlockAchievement(userId, achievement.id);
+          newUnlocks.push(achievement);
+        }
+      }
+    }
+    
+    return newUnlocks;
+  }
+  
+  async notifyNewAchievements(
+    userId: string, 
+    achievements: Achievement[]
+  ): Promise<string> {
+    if (achievements.length === 0) return '';
+    
+    const messages = achievements.map(a => 
+      `🏆 **¡Logro desbloqueado!** ${a.icon} ${a.name}\n${a.description}`
+    );
+    
+    return messages.join('\n\n');
+  }
+}
+```
+
+---
+
+# 7. API ENDPOINTS
+
+## 7.1 Endpoints de Bibliotecar.IA
+
+```typescript
+// server/routes/biblioteca.ts
+
+import { Router } from 'express';
+import { BibliotecaService } from '../services/biblioteca';
+import { GapDetector } from '../services/biblioteca/gapDetector';
+import { VersionManager } from '../services/biblioteca/versionManager';
+import { AchievementManager } from '../services/biblioteca/achievements';
+import multer from 'multer';
+
+const router = Router();
+const upload = multer({ dest: 'uploads/' });
+
+const biblioteca = new BibliotecaService();
+const gapDetector = new GapDetector();
+const versionManager = new VersionManager();
+const achievements = new AchievementManager();
+
+// POST /api/biblioteca/chat
+// Conversación con Bibliotecar.IA
+router.post('/chat', async (req, res) => {
+  try {
+    const { message, history, userId } = req.body;
+    
+    const response = await biblioteca.chat(message, history, userId);
+    
+    // Verificar logros después de cada interacción
+    const newAchievements = await achievements.checkAndUnlock(userId);
+    if (newAchievements.length > 0) {
+      response.achievements = newAchievements;
+    }
+    
+    return res.json(response);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/biblioteca/upload
+// Subir documentos
+router.post('/upload', upload.array('files', 20), async (req, res) => {
+  try {
+    const files = req.files as Express.Multer.File[];
+    const { userId, metadata } = req.body;
+    
+    const results = await biblioteca.processUploads(files, JSON.parse(metadata || '{}'));
+    
+    // Verificar logros
+    const newAchievements = await achievements.checkAndUnlock(userId);
+    
+    return res.json({
+      results,
+      achievements: newAchievements,
+      response: biblioteca.generateUploadResponse(results)
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/biblioteca/stats
+// Estadísticas del Knowledge Base
+router.get('/stats', async (req, res) => {
+  try {
+    const stats = await biblioteca.getStats();
+    return res.json(stats);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/biblioteca/gaps
+// Información faltante detectada
+router.get('/gaps', async (req, res) => {
+  try {
+    const gaps = await gapDetector.detectGaps();
+    return res.json(gaps);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/biblioteca/versions/:ordenamiento
+// Timeline de versiones de un ordenamiento
+router.get('/versions/:ordenamiento', async (req, res) => {
+  try {
+    const { ordenamiento } = req.params;
+    const timeline = await versionManager.getVersionTimeline(ordenamiento);
+    return res.json(timeline);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/biblioteca/versions
+// Registrar nueva versión
+router.post('/versions', upload.single('file'), async (req, res) => {
+  try {
+    const { ordenamiento, tipoActualizacion, descripcion, fechaDOF } = req.body;
+    
+    const result = await versionManager.registerNewVersion(
+      ordenamiento,
+      {
+        tipoActualizacion,
+        descripcionCambio: descripcion,
+        fundamentoDOF: fechaDOF
+      },
+      req.file
+    );
+    
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/biblioteca/achievements/:userId
+// Logros del usuario
+router.get('/achievements/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const userAchievements = await achievements.getUserAchievements(userId);
+    const allAchievements = ACHIEVEMENTS.map(a => ({
+      ...a,
+      unlocked: userAchievements.includes(a.id)
+    }));
+    return res.json(allAchievements);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/biblioteca/growth
+// Métricas de crecimiento
+router.get('/growth', async (req, res) => {
+  try {
+    const growth = await biblioteca.getGrowthMetrics();
+    return res.json(growth);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/biblioteca/search
+// Buscar en el conocimiento
+router.post('/search', async (req, res) => {
+  try {
+    const { query, filters, topK } = req.body;
+    const results = await biblioteca.search(query, filters, topK);
+    return res.json(results);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;
+```
+
+---
+
+# 8. FLUJOS DE CONVERSACIÓN
+
+## 8.1 Flujo: Subir Documento
+
+```
+Usuario: [Arrastra archivo "RMF_2025.pdf"]
+
+Bibliotecar.IA: ¡Recibí el archivo "RMF_2025.pdf"! 
+Déjame analizarlo... 📖
+
+[Procesando...]
+
+✅ **¡Documento procesado exitosamente!**
+
+**Tipo detectado:** Resolución Miscelánea Fiscal
+**Versión:** 2025
+**Publicación:** DOF 27/12/2024
+
+**Lo que encontré:**
+• 823 reglas fiscales
+• 52 artículos transitorios
+• 12 anexos referenciados
+
+**Cambios detectados vs RMF 2024:**
+• 47 reglas nuevas
+• 156 reglas modificadas
+• 12 reglas derogadas
+
+**Temas principales:**
+• Facturación electrónica
+• Declaraciones informativas
+• Estímulos fiscales
+• Comercio exterior
+
+📍 **Guardado en:** Colección "Resoluciones/RMF_2025"
+
+🤖 **Agentes actualizados:** A3 Fiscal, A7 Defensa, A8 Voz
+
+¡Excelente aportación! 🎉 Esto resuelve uno de los gaps 
+críticos que teníamos. 
+
+🏆 **¡Logro desbloqueado!** 📋 "Al Día con el SAT"
+Has actualizado los criterios del SAT.
+
+¿Tienes también los anexos de la RMF? Especialmente 
+el Anexo 1 (formas fiscales) sería muy útil.
+```
+
+## 8.2 Flujo: Consulta de Gaps
+
+```
+Usuario: ¿Qué te falta?
+
+Bibliotecar.IA: Déjame revisar el estado actual del 
+conocimiento... 🔍
+
+📊 **Análisis de Información Faltante**
+
+**Estado general:** 78% completo
+
+---
+
+🔴 **CRÍTICO** (Afecta precisión de agentes)
+
+1. **Lista 69-B actualizada**
+   - Última versión: hace 3 semanas
+   - Impacto: A6 Proveedor puede no detectar EFOS nuevos
+   - Fuente: [Portal del SAT](https://sat.gob.mx)
+   
+2. **Jurisprudencias 2024 sobre razón de negocios**
+   - Tenemos: 12 tesis
+   - Estimado disponible: ~25 tesis
+   - Impacto: A1 Estrategia y A7 Defensa
+   - Fuente: [Semanario Judicial](https://sjf.scjn.gob.mx)
+
+---
+
+🟡 **IMPORTANTE** (Mejora calidad de respuestas)
+
+3. **Criterios no vinculativos 2024**
+   - Nos faltan los publicados después de junio
+   - Impacto: A3 Fiscal
+   
+4. **Reglamento del CFF actualizado**
+   - Tenemos versión 2022
+   - Hay reformas de 2023 no indexadas
+
+---
+
+🟢 **DESEABLE** (Enriquece el conocimiento)
+
+5. **Conferencias PRODECON 2024**
+6. **Artículos de especialistas sobre EFOS**
+7. **Casos de estudio de deducciones rechazadas**
+
+---
+
+**Mi recomendación:**
+Empecemos por la lista 69-B y las jurisprudencias. 
+Son los que más impacto inmediato tienen.
+
+¿Tienes acceso a alguno de estos? O si quieres, te digo 
+exactamente dónde encontrar cada uno.
+```
+
+## 8.3 Flujo: Consulta de Versiones
+
+```
+Usuario: ¿Qué versión de la LISR tenemos?
+
+Bibliotecar.IA: 📜 **Ley del Impuesto Sobre la Renta**
+Control de Versiones
+
+---
+
+**✅ VERSIÓN VIGENTE EN EL SISTEMA**
+
+**LISR con reformas al 12/11/2023**
+- Publicación DOF: 12 de noviembre de 2023
+- Entrada en vigor: 1 de enero de 2024
+- 215 artículos indexados
+- Calidad de indexación: 98%
+
+---
+
+**📅 HISTORIAL DE VERSIONES**
+
+| Fecha DOF | Tipo | Artículos afectados |
+|-----------|------|---------------------|
+| 12/11/2023 | Reforma | 27, 28, 76, 111 |
+| 12/11/2022 | Reforma | 28-XXIX, 82 |
+| 12/11/2021 | Adición | 28-XXXI |
+| 08/12/2020 | Reforma | 27, 151 |
+
+---
+
+**🔔 ARTÍCULOS CON CAMBIOS FRECUENTES**
+
+Estos artículos han sido modificados 3+ veces en 5 años:
+• **Art. 27** - Requisitos de deducciones (4 reformas)
+• **Art. 28** - Gastos no deducibles (5 reformas)
+• **Art. 76** - Obligaciones PM (3 reformas)
+
+---
+
+**⚠️ PRÓXIMAS ACTUALIZACIONES**
+
+No he detectado reformas pendientes para 2025, pero 
+te avisaré si se publica algo en el DOF.
+
+---
+
+¿Quieres ver el texto de algún artículo específico 
+o comparar cambios entre versiones?
+```
+
+---
+
+# 9. INTEGRACIÓN CON AGENTES
+
+## 9.1 Cómo los Agentes Consumen el KB
+
+```typescript
+// server/services/agentes/kbConsumer.ts
+
+export class KBConsumer {
+  /**
+   * Obtiene contexto relevante para un agente específico
+   */
+  async getContextForAgent(
+    agentId: string,
+    query: string,
+    projectContext?: ProjectContext
+  ): Promise<AgentContext> {
+    
+    // Definir qué colecciones son relevantes para cada agente
+    const agentCollections: Record<string, string[]> = {
+      'A1': ['marco_legal', 'jurisprudencias', 'criterios_sat'],
+      'A3': ['marco_legal', 'jurisprudencias', 'criterios_sat', 'catalogos'],
+      'A5': ['marco_legal', 'benchmarks', 'casos_referencia'],
+      'A6': ['listas_69b', 'criterios_efos', 'due_diligence'],
+      'A7': ['marco_legal', 'jurisprudencias', 'plantillas', 'casos_referencia'],
+      'A8': ['catalogos', 'glosarios']
+    };
+    
+    const collections = agentCollections[agentId] || ['general'];
+    
+    // Buscar en colecciones relevantes
+    const results = await this.biblioteca.search(query, {
+      collections,
+      topK: 10,
+      filters: {
+        es_vigente: true  // Solo información vigente
+      }
+    });
+    
+    // Si hay contexto de proyecto, agregar documentos específicos
+    if (projectContext) {
+      const projectDocs = await this.getProjectDocuments(
+        projectContext.empresaId,
+        projectContext.proyectoId
+      );
+      results.push(...projectDocs);
+    }
+    
+    // Formatear para el agente
+    return this.formatContextForAgent(agentId, results);
+  }
+  
+  /**
+   * Notifica a Bibliotecar.IA cuando un agente no encuentra información
+   */
+  async reportMissingInfo(
+    agentId: string,
+    query: string,
+    context: string
+  ): Promise<void> {
+    await this.db.queryLogs.insert({
+      agentId,
+      query,
+      context,
+      resultsCount: 0,
+      timestamp: new Date()
+    });
+    
+    // Esto alimenta al GapDetector
+  }
+}
+```
+
+---
+
+# 10. RESUMEN DE FUNCIONALIDADES
+
+## 10.1 Capacidades de Bibliotecar.IA
+
+| Función | Descripción |
+|---------|-------------|
+| **Chat interactivo** | Conversación natural sobre el estado del conocimiento |
+| **Recepción de documentos** | Upload y procesamiento automático |
+| **Clasificación inteligente** | Detección automática del tipo de documento |
+| **Control de versiones** | Tracking de reformas, adiciones, derogaciones |
+| **Detección de gaps** | Análisis proactivo de información faltante |
+| **Solicitudes proactivas** | Pide documentos específicos que mejorarían a los agentes |
+| **Dashboard de métricas** | Visualización del estado y crecimiento |
+| **Sistema de logros** | Gamificación para motivar contribuciones |
+| **Alertas de actualización** | Notifica sobre cambios legales relevantes |
+
+## 10.2 Beneficios para el Usuario
+
+1. **Transparencia**: Sabe exactamente qué información tiene el sistema
+2. **Guía**: Bibliotecar.IA le dice qué subir para mejorar los agentes
+3. **Control**: Ve el historial de versiones de cada ley
+4. **Motivación**: Logros y métricas de impacto
+5. **Facilidad**: Sube documentos y el sistema los procesa automáticamente
+
+## 10.3 Beneficios para los Agentes
+
+1. **Información actualizada**: Siempre trabajan con la versión vigente
+2. **Cobertura completa**: Menos huecos de conocimiento
+3. **Mejor contexto**: RAG optimizado para cada tipo de consulta
+4. **Especialización creciente**: Entre más documentos, más precisos
+
+---
+
+*Bibliotecar.IA - El corazón del conocimiento de Durezza*
+*"Entre más sepamos, mejor te ayudamos"*

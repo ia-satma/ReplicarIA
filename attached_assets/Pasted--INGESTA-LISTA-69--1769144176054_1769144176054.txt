@@ -1,0 +1,873 @@
+═══════════════════════════════════════════════════════════════════════════════
+📋 INGESTA LISTA 69-B DEL SAT - VERIFICACIÓN AUTOMÁTICA DE PROVEEDORES
+═══════════════════════════════════════════════════════════════════════════════
+
+CONTEXTO:
+─────────
+El listado 69-B del SAT contiene 14,234 contribuyentes:
+• Definitivos: 11,270 (79%) → EFOS confirmados, NO operar
+• Presuntos: 986 (7%) → En proceso, alto riesgo
+• Sentencia Favorable: 1,638 (12%) → Ganaron juicio, OK
+• Desvirtuados: 340 (2%) → Demostraron materialidad, OK
+
+OBJETIVO:
+─────────
+Que A6 (Tráfico.IA) verifique AUTOMÁTICAMENTE si un proveedor está en lista 69-B
+al momento de darlo de alta o al analizar un CFDI.
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 1: CREAR TABLA EN POSTGRESQL
+═══════════════════════════════════════════════════════════════════════════════
+
+```sql
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TABLA: LISTA 69-B DEL SAT (EFOS/EDOS)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS sat_lista_69b (
+    id SERIAL PRIMARY KEY,
+    
+    -- Identificación
+    numero INTEGER,
+    rfc VARCHAR(13) NOT NULL,
+    nombre_contribuyente TEXT,
+    
+    -- Estado actual (CRÍTICO)
+    situacion VARCHAR(30) NOT NULL,  -- Definitivo, Presunto, Desvirtuado, Sentencia Favorable
+    
+    -- Fechas de presunción
+    oficio_presuncion_sat TEXT,
+    fecha_publicacion_sat_presuntos DATE,
+    oficio_presuncion_dof TEXT,
+    fecha_publicacion_dof_presuntos DATE,
+    
+    -- Fechas de desvirtuación (si aplica)
+    oficio_desvirtuacion_sat TEXT,
+    fecha_publicacion_sat_desvirtuados DATE,
+    oficio_desvirtuacion_dof TEXT,
+    fecha_publicacion_dof_desvirtuados DATE,
+    
+    -- Fechas de definitivos (si aplica)
+    oficio_definitivos_sat TEXT,
+    fecha_publicacion_sat_definitivos DATE,
+    oficio_definitivos_dof TEXT,
+    fecha_publicacion_dof_definitivos DATE,
+    
+    -- Fechas de sentencia favorable (si aplica)
+    oficio_sentencia_sat TEXT,
+    fecha_publicacion_sat_sentencia DATE,
+    oficio_sentencia_dof TEXT,
+    fecha_publicacion_dof_sentencia DATE,
+    
+    -- Metadata de ingesta
+    fuente VARCHAR(100) DEFAULT 'SAT Portal',
+    fecha_ingesta TIMESTAMP DEFAULT NOW(),
+    fecha_actualizacion TIMESTAMP DEFAULT NOW(),
+    
+    -- Índices
+    CONSTRAINT unique_rfc_69b UNIQUE (rfc)
+);
+
+-- Índices para búsqueda rápida
+CREATE INDEX idx_69b_rfc ON sat_lista_69b(rfc);
+CREATE INDEX idx_69b_situacion ON sat_lista_69b(situacion);
+CREATE INDEX idx_69b_nombre ON sat_lista_69b USING gin(to_tsvector('spanish', nombre_contribuyente));
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TABLA: HISTORIAL DE CONSULTAS 69-B
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS sat_69b_consultas (
+    id SERIAL PRIMARY KEY,
+    
+    rfc_consultado VARCHAR(13) NOT NULL,
+    encontrado BOOLEAN,
+    situacion_encontrada VARCHAR(30),
+    
+    -- Quién consultó
+    empresa_id INTEGER,
+    usuario_id INTEGER,
+    proveedor_id INTEGER REFERENCES proveedores(id),
+    
+    -- Contexto
+    contexto VARCHAR(50),  -- alta_proveedor, verificacion_cfdi, dd_proveedor
+    
+    consultado_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_69b_consultas_rfc ON sat_69b_consultas(rfc_consultado);
+CREATE INDEX idx_69b_consultas_fecha ON sat_69b_consultas(consultado_at);
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 2: SCRIPT DE INGESTA (PYTHON)
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/scripts/ingestar_lista_69b.py
+
+```python
+"""
+Script para ingestar el listado 69-B del SAT en la base de datos.
+Uso: python ingestar_lista_69b.py /ruta/al/Listado_Completo_69-B.xls
+"""
+
+import pandas as pd
+import sys
+from datetime import datetime
+from sqlalchemy import create_engine, text
+import os
+
+# Configuración de BD (ajustar según tu proyecto)
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://user:pass@localhost/revisar_ia')
+
+
+def limpiar_fecha(valor):
+    """Convierte fechas del Excel a formato date o None"""
+    if pd.isna(valor):
+        return None
+    if isinstance(valor, datetime):
+        return valor.date()
+    if isinstance(valor, str):
+        try:
+            # Intentar parsear fechas en formato texto
+            for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%Y-%m-%d %H:%M:%S']:
+                try:
+                    return datetime.strptime(valor.strip(), fmt).date()
+                except:
+                    continue
+        except:
+            pass
+    return None
+
+
+def normalizar_situacion(situacion):
+    """Normaliza el campo situación eliminando caracteres especiales"""
+    if pd.isna(situacion):
+        return 'Desconocido'
+    
+    situacion = str(situacion).strip()
+    
+    # Mapeo de variantes con caracteres especiales
+    mapeo = {
+        'Definitivo': 'Definitivo',
+        'Presunto': 'Presunto',
+        'Desvirtuado': 'Desvirtuado',
+        'Sentencia Favorable': 'Sentencia Favorable',
+    }
+    
+    for key, value in mapeo.items():
+        if key.lower() in situacion.lower():
+            return value
+    
+    return situacion
+
+
+def ingestar_lista_69b(archivo_excel: str):
+    """
+    Ingesta el archivo Excel del listado 69-B en la base de datos.
+    """
+    print(f"📋 Iniciando ingesta de {archivo_excel}")
+    
+    # Leer Excel
+    df = pd.read_excel(archivo_excel)
+    print(f"   Registros encontrados: {len(df):,}")
+    
+    # Mapeo de columnas (del Excel a la BD)
+    mapeo_columnas = {
+        'No': 'numero',
+        'RFC': 'rfc',
+        'Nombre del Contribuyente': 'nombre_contribuyente',
+        'Situación del contribuyente': 'situacion',
+        'Número y fecha de oficio global de presunción SAT': 'oficio_presuncion_sat',
+        'Publicación página SAT presuntos': 'fecha_publicacion_sat_presuntos',
+        'Número y fecha de oficio global de presunción DOF': 'oficio_presuncion_dof',
+        'Publicación DOF presuntos': 'fecha_publicacion_dof_presuntos',
+        'Número y fecha de oficio global de contribuyentes que desvirtuaron SAT': 'oficio_desvirtuacion_sat',
+        'Publicación página SAT desvirtuados': 'fecha_publicacion_sat_desvirtuados',
+        'Número y fecha de oficio global de contribuyentes que desvirtuaron DOF': 'oficio_desvirtuacion_dof',
+        'Publicación DOF desvirtuados': 'fecha_publicacion_dof_desvirtuados',
+        'Número y fecha de oficio global de definitivos SAT': 'oficio_definitivos_sat',
+        'Publicación página SAT definitivos': 'fecha_publicacion_sat_definitivos',
+        'Número y fecha de oficio global de definitivos DOF': 'oficio_definitivos_dof',
+        'Publicación DOF definitivos': 'fecha_publicacion_dof_definitivos',
+        'Número y fecha de oficio global de sentencia favorable SAT': 'oficio_sentencia_sat',
+        'Publicación página SAT sentencia favorable': 'fecha_publicacion_sat_sentencia',
+        'Número y fecha de oficio global de sentencia favorable DOF': 'oficio_sentencia_dof',
+        'Publicación DOF sentencia favorable': 'fecha_publicacion_dof_sentencia',
+    }
+    
+    # Renombrar columnas (ignorando caracteres especiales)
+    nuevos_nombres = {}
+    for col_excel in df.columns:
+        # Normalizar nombre de columna para comparar
+        col_normalizado = col_excel.encode('ascii', 'ignore').decode('ascii')
+        for key, value in mapeo_columnas.items():
+            key_normalizado = key.encode('ascii', 'ignore').decode('ascii')
+            if col_normalizado.lower().startswith(key_normalizado.lower()[:20]):
+                nuevos_nombres[col_excel] = value
+                break
+    
+    # Renombrar las columnas que pudimos mapear
+    df = df.rename(columns=nuevos_nombres)
+    
+    # Asegurarnos de tener las columnas mínimas
+    if 'rfc' not in df.columns:
+        # Buscar columna RFC por posición (usualmente es la segunda)
+        df.columns = ['numero', 'rfc', 'nombre_contribuyente', 'situacion'] + list(df.columns[4:])
+    
+    # Normalizar situación
+    df['situacion'] = df['situacion'].apply(normalizar_situacion)
+    
+    # Limpiar RFC
+    df['rfc'] = df['rfc'].str.strip().str.upper()
+    
+    # Eliminar duplicados por RFC (quedarse con el más reciente)
+    df = df.drop_duplicates(subset=['rfc'], keep='last')
+    
+    print(f"   Registros únicos por RFC: {len(df):,}")
+    print(f"   Distribución por situación:")
+    print(df['situacion'].value_counts().to_string())
+    
+    # Conectar a BD
+    engine = create_engine(DATABASE_URL)
+    
+    # Insertar en BD
+    print("\n📥 Insertando en base de datos...")
+    
+    with engine.connect() as conn:
+        # Truncar tabla existente (para actualización completa)
+        conn.execute(text("TRUNCATE TABLE sat_lista_69b RESTART IDENTITY"))
+        conn.commit()
+        
+        # Insertar por lotes
+        batch_size = 1000
+        total = len(df)
+        insertados = 0
+        errores = 0
+        
+        for i in range(0, total, batch_size):
+            batch = df.iloc[i:i+batch_size]
+            
+            for _, row in batch.iterrows():
+                try:
+                    conn.execute(text("""
+                        INSERT INTO sat_lista_69b (
+                            numero, rfc, nombre_contribuyente, situacion,
+                            oficio_presuncion_sat, fecha_publicacion_sat_presuntos,
+                            oficio_presuncion_dof, fecha_publicacion_dof_presuntos,
+                            oficio_desvirtuacion_sat, fecha_publicacion_sat_desvirtuados,
+                            oficio_desvirtuacion_dof, fecha_publicacion_dof_desvirtuados,
+                            oficio_definitivos_sat, fecha_publicacion_sat_definitivos,
+                            oficio_definitivos_dof, fecha_publicacion_dof_definitivos,
+                            oficio_sentencia_sat, fecha_publicacion_sat_sentencia,
+                            oficio_sentencia_dof, fecha_publicacion_dof_sentencia
+                        ) VALUES (
+                            :numero, :rfc, :nombre, :situacion,
+                            :of_pres_sat, :fecha_pres_sat,
+                            :of_pres_dof, :fecha_pres_dof,
+                            :of_desv_sat, :fecha_desv_sat,
+                            :of_desv_dof, :fecha_desv_dof,
+                            :of_def_sat, :fecha_def_sat,
+                            :of_def_dof, :fecha_def_dof,
+                            :of_sent_sat, :fecha_sent_sat,
+                            :of_sent_dof, :fecha_sent_dof
+                        )
+                        ON CONFLICT (rfc) DO UPDATE SET
+                            nombre_contribuyente = EXCLUDED.nombre_contribuyente,
+                            situacion = EXCLUDED.situacion,
+                            fecha_actualizacion = NOW()
+                    """), {
+                        'numero': int(row.get('numero', 0)) if pd.notna(row.get('numero')) else None,
+                        'rfc': row['rfc'],
+                        'nombre': row.get('nombre_contribuyente', ''),
+                        'situacion': row['situacion'],
+                        'of_pres_sat': row.get('oficio_presuncion_sat') if pd.notna(row.get('oficio_presuncion_sat')) else None,
+                        'fecha_pres_sat': limpiar_fecha(row.get('fecha_publicacion_sat_presuntos')),
+                        'of_pres_dof': row.get('oficio_presuncion_dof') if pd.notna(row.get('oficio_presuncion_dof')) else None,
+                        'fecha_pres_dof': limpiar_fecha(row.get('fecha_publicacion_dof_presuntos')),
+                        'of_desv_sat': row.get('oficio_desvirtuacion_sat') if pd.notna(row.get('oficio_desvirtuacion_sat')) else None,
+                        'fecha_desv_sat': limpiar_fecha(row.get('fecha_publicacion_sat_desvirtuados')),
+                        'of_desv_dof': row.get('oficio_desvirtuacion_dof') if pd.notna(row.get('oficio_desvirtuacion_dof')) else None,
+                        'fecha_desv_dof': limpiar_fecha(row.get('fecha_publicacion_dof_desvirtuados')),
+                        'of_def_sat': row.get('oficio_definitivos_sat') if pd.notna(row.get('oficio_definitivos_sat')) else None,
+                        'fecha_def_sat': limpiar_fecha(row.get('fecha_publicacion_sat_definitivos')),
+                        'of_def_dof': row.get('oficio_definitivos_dof') if pd.notna(row.get('oficio_definitivos_dof')) else None,
+                        'fecha_def_dof': limpiar_fecha(row.get('fecha_publicacion_dof_definitivos')),
+                        'of_sent_sat': row.get('oficio_sentencia_sat') if pd.notna(row.get('oficio_sentencia_sat')) else None,
+                        'fecha_sent_sat': limpiar_fecha(row.get('fecha_publicacion_sat_sentencia')),
+                        'of_sent_dof': row.get('oficio_sentencia_dof') if pd.notna(row.get('oficio_sentencia_dof')) else None,
+                        'fecha_sent_dof': limpiar_fecha(row.get('fecha_publicacion_dof_sentencia')),
+                    })
+                    insertados += 1
+                except Exception as e:
+                    errores += 1
+                    if errores < 5:
+                        print(f"   ⚠️ Error en RFC {row['rfc']}: {e}")
+            
+            conn.commit()
+            print(f"   Progreso: {min(i+batch_size, total):,}/{total:,} ({(min(i+batch_size, total)/total*100):.1f}%)")
+    
+    print(f"\n✅ Ingesta completada:")
+    print(f"   Insertados: {insertados:,}")
+    print(f"   Errores: {errores:,}")
+    
+    return insertados, errores
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Uso: python ingestar_lista_69b.py /ruta/al/archivo.xls")
+        sys.exit(1)
+    
+    archivo = sys.argv[1]
+    ingestar_lista_69b(archivo)
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 3: SERVICIO DE VERIFICACIÓN 69-B
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/services/verificacion_69b.py
+
+```python
+"""
+Servicio para verificar proveedores contra la lista 69-B del SAT.
+"""
+
+from sqlalchemy import text
+from typing import Dict, Optional, List
+from datetime import datetime
+
+# Ajustar import según tu proyecto
+try:
+    from database import db
+except:
+    from extensions import db
+
+
+class Verificador69B:
+    """Verifica contribuyentes contra la lista 69-B del SAT"""
+    
+    # Niveles de riesgo por situación
+    RIESGO_POR_SITUACION = {
+        'Definitivo': {
+            'nivel': 'CRITICO',
+            'score': 100,
+            'color': 'red',
+            'accion': 'NO OPERAR - EFOS confirmado',
+            'descripcion': 'El contribuyente está en la lista DEFINITIVA del Art. 69-B. Las operaciones con este proveedor NO SON DEDUCIBLES.'
+        },
+        'Presunto': {
+            'nivel': 'ALTO',
+            'score': 80,
+            'color': 'orange',
+            'accion': 'PRECAUCIÓN - En proceso de presunción',
+            'descripcion': 'El contribuyente está en la lista de PRESUNTOS del Art. 69-B. Tiene 15 días para desvirtuar. Alto riesgo de pasar a definitivo.'
+        },
+        'Desvirtuado': {
+            'nivel': 'BAJO',
+            'score': 10,
+            'color': 'green',
+            'accion': 'PROCEDER con precaución',
+            'descripcion': 'El contribuyente DESVIRTUÓ la presunción. Documentar materialidad de operaciones.'
+        },
+        'Sentencia Favorable': {
+            'nivel': 'BAJO',
+            'score': 5,
+            'color': 'green',
+            'accion': 'PROCEDER - Sentencia favorable',
+            'descripcion': 'El contribuyente obtuvo SENTENCIA FAVORABLE. Conservar copia de la sentencia como respaldo.'
+        },
+        'No encontrado': {
+            'nivel': 'OK',
+            'score': 0,
+            'color': 'green',
+            'accion': 'PROCEDER - No en lista 69-B',
+            'descripcion': 'El contribuyente NO aparece en la lista 69-B del SAT.'
+        }
+    }
+    
+    @staticmethod
+    def verificar_rfc(rfc: str, registrar_consulta: bool = True, 
+                      contexto: str = None, empresa_id: int = None,
+                      usuario_id: int = None, proveedor_id: int = None) -> Dict:
+        """
+        Verifica un RFC contra la lista 69-B.
+        
+        Args:
+            rfc: RFC a verificar (12 o 13 caracteres)
+            registrar_consulta: Si True, registra la consulta en historial
+            contexto: Contexto de la consulta (alta_proveedor, verificacion_cfdi, etc)
+            empresa_id, usuario_id, proveedor_id: IDs para trazabilidad
+            
+        Returns:
+            Dict con resultado de la verificación
+        """
+        
+        rfc = rfc.strip().upper()
+        
+        # Buscar en la lista 69-B
+        resultado = db.session.execute(text("""
+            SELECT 
+                rfc,
+                nombre_contribuyente,
+                situacion,
+                fecha_publicacion_sat_presuntos,
+                fecha_publicacion_sat_definitivos,
+                fecha_publicacion_sat_desvirtuados,
+                fecha_publicacion_sat_sentencia,
+                oficio_definitivos_sat,
+                fecha_actualizacion
+            FROM sat_lista_69b
+            WHERE rfc = :rfc
+        """), {'rfc': rfc}).fetchone()
+        
+        if resultado:
+            situacion = resultado.situacion
+            config_riesgo = Verificador69B.RIESGO_POR_SITUACION.get(
+                situacion, 
+                Verificador69B.RIESGO_POR_SITUACION['Presunto']
+            )
+            
+            respuesta = {
+                'encontrado': True,
+                'rfc': resultado.rfc,
+                'nombre': resultado.nombre_contribuyente,
+                'situacion': situacion,
+                'nivel_riesgo': config_riesgo['nivel'],
+                'score_riesgo': config_riesgo['score'],
+                'color': config_riesgo['color'],
+                'accion_recomendada': config_riesgo['accion'],
+                'descripcion': config_riesgo['descripcion'],
+                'fecha_presuncion': str(resultado.fecha_publicacion_sat_presuntos) if resultado.fecha_publicacion_sat_presuntos else None,
+                'fecha_definitivo': str(resultado.fecha_publicacion_sat_definitivos) if resultado.fecha_publicacion_sat_definitivos else None,
+                'fecha_desvirtuacion': str(resultado.fecha_publicacion_sat_desvirtuados) if resultado.fecha_publicacion_sat_desvirtuados else None,
+                'fecha_sentencia': str(resultado.fecha_publicacion_sat_sentencia) if resultado.fecha_publicacion_sat_sentencia else None,
+                'oficio_referencia': resultado.oficio_definitivos_sat,
+                'ultima_actualizacion': str(resultado.fecha_actualizacion) if resultado.fecha_actualizacion else None,
+                'consultado_at': datetime.now().isoformat()
+            }
+        else:
+            config_riesgo = Verificador69B.RIESGO_POR_SITUACION['No encontrado']
+            respuesta = {
+                'encontrado': False,
+                'rfc': rfc,
+                'nombre': None,
+                'situacion': 'No encontrado',
+                'nivel_riesgo': config_riesgo['nivel'],
+                'score_riesgo': config_riesgo['score'],
+                'color': config_riesgo['color'],
+                'accion_recomendada': config_riesgo['accion'],
+                'descripcion': config_riesgo['descripcion'],
+                'consultado_at': datetime.now().isoformat()
+            }
+        
+        # Registrar consulta en historial
+        if registrar_consulta:
+            try:
+                db.session.execute(text("""
+                    INSERT INTO sat_69b_consultas 
+                    (rfc_consultado, encontrado, situacion_encontrada, 
+                     empresa_id, usuario_id, proveedor_id, contexto)
+                    VALUES 
+                    (:rfc, :encontrado, :situacion, :empresa, :usuario, :proveedor, :contexto)
+                """), {
+                    'rfc': rfc,
+                    'encontrado': respuesta['encontrado'],
+                    'situacion': respuesta['situacion'],
+                    'empresa': empresa_id,
+                    'usuario': usuario_id,
+                    'proveedor': proveedor_id,
+                    'contexto': contexto
+                })
+                db.session.commit()
+            except Exception as e:
+                print(f"Error registrando consulta 69-B: {e}")
+        
+        return respuesta
+    
+    @staticmethod
+    def verificar_multiples(rfcs: List[str]) -> Dict[str, Dict]:
+        """
+        Verifica múltiples RFCs a la vez (optimizado).
+        
+        Args:
+            rfcs: Lista de RFCs a verificar
+            
+        Returns:
+            Dict con RFC como key y resultado como value
+        """
+        
+        rfcs_limpios = [rfc.strip().upper() for rfc in rfcs]
+        
+        # Buscar todos de una vez
+        resultados = db.session.execute(text("""
+            SELECT 
+                rfc, nombre_contribuyente, situacion,
+                fecha_publicacion_sat_definitivos
+            FROM sat_lista_69b
+            WHERE rfc = ANY(:rfcs)
+        """), {'rfcs': rfcs_limpios}).fetchall()
+        
+        # Crear diccionario de encontrados
+        encontrados = {r.rfc: r for r in resultados}
+        
+        # Construir respuesta para cada RFC
+        respuestas = {}
+        for rfc in rfcs_limpios:
+            if rfc in encontrados:
+                r = encontrados[rfc]
+                config = Verificador69B.RIESGO_POR_SITUACION.get(
+                    r.situacion,
+                    Verificador69B.RIESGO_POR_SITUACION['Presunto']
+                )
+                respuestas[rfc] = {
+                    'encontrado': True,
+                    'situacion': r.situacion,
+                    'nombre': r.nombre_contribuyente,
+                    'nivel_riesgo': config['nivel'],
+                    'score_riesgo': config['score'],
+                    'color': config['color']
+                }
+            else:
+                respuestas[rfc] = {
+                    'encontrado': False,
+                    'situacion': 'No encontrado',
+                    'nivel_riesgo': 'OK',
+                    'score_riesgo': 0,
+                    'color': 'green'
+                }
+        
+        return respuestas
+    
+    @staticmethod
+    def obtener_estadisticas() -> Dict:
+        """Obtiene estadísticas de la lista 69-B cargada."""
+        
+        stats = db.session.execute(text("""
+            SELECT 
+                situacion,
+                COUNT(*) as total
+            FROM sat_lista_69b
+            GROUP BY situacion
+            ORDER BY total DESC
+        """)).fetchall()
+        
+        total = db.session.execute(text(
+            "SELECT COUNT(*) FROM sat_lista_69b"
+        )).scalar()
+        
+        ultima_actualizacion = db.session.execute(text("""
+            SELECT MAX(fecha_ingesta) FROM sat_lista_69b
+        """)).scalar()
+        
+        return {
+            'total_registros': total,
+            'por_situacion': {s.situacion: s.total for s in stats},
+            'ultima_actualizacion': str(ultima_actualizacion) if ultima_actualizacion else None
+        }
+
+
+# Función helper para uso rápido
+def verificar_69b(rfc: str) -> Dict:
+    """Función helper para verificar un RFC rápidamente."""
+    return Verificador69B.verificar_rfc(rfc, registrar_consulta=False)
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 4: ENDPOINTS API
+═══════════════════════════════════════════════════════════════════════════════
+
+Agregar a: backend/routes/verificacion_sat_routes.py
+
+```python
+from fastapi import APIRouter, HTTPException, Query
+from typing import List
+from pydantic import BaseModel
+from services.verificacion_69b import Verificador69B
+
+router = APIRouter(prefix="/api/sat", tags=["Verificación SAT"])
+
+
+class VerificacionRequest(BaseModel):
+    rfc: str
+    contexto: str = None
+
+
+class VerificacionMultipleRequest(BaseModel):
+    rfcs: List[str]
+
+
+@router.get("/69b/verificar/{rfc}")
+async def verificar_rfc_69b(rfc: str, contexto: str = Query(None)):
+    """
+    Verifica un RFC contra la lista 69-B del SAT.
+    
+    Returns:
+        - encontrado: bool
+        - situacion: Definitivo/Presunto/Desvirtuado/Sentencia Favorable/No encontrado
+        - nivel_riesgo: CRITICO/ALTO/BAJO/OK
+        - accion_recomendada: Qué hacer
+    """
+    
+    if len(rfc) < 12 or len(rfc) > 13:
+        raise HTTPException(status_code=400, detail="RFC debe tener 12 o 13 caracteres")
+    
+    resultado = Verificador69B.verificar_rfc(rfc, contexto=contexto)
+    
+    return resultado
+
+
+@router.post("/69b/verificar-multiples")
+async def verificar_multiples_69b(request: VerificacionMultipleRequest):
+    """
+    Verifica múltiples RFCs contra la lista 69-B (optimizado).
+    """
+    
+    if len(request.rfcs) > 100:
+        raise HTTPException(status_code=400, detail="Máximo 100 RFCs por consulta")
+    
+    resultados = Verificador69B.verificar_multiples(request.rfcs)
+    
+    # Resumen
+    criticos = sum(1 for r in resultados.values() if r['nivel_riesgo'] == 'CRITICO')
+    altos = sum(1 for r in resultados.values() if r['nivel_riesgo'] == 'ALTO')
+    
+    return {
+        "resultados": resultados,
+        "resumen": {
+            "total_verificados": len(request.rfcs),
+            "criticos": criticos,
+            "altos": altos,
+            "limpios": len(request.rfcs) - criticos - altos
+        }
+    }
+
+
+@router.get("/69b/estadisticas")
+async def estadisticas_69b():
+    """
+    Obtiene estadísticas de la lista 69-B cargada.
+    """
+    
+    return Verificador69B.obtener_estadisticas()
+
+
+@router.get("/69b/buscar")
+async def buscar_69b(
+    nombre: str = Query(None, min_length=3),
+    situacion: str = Query(None)
+):
+    """
+    Busca contribuyentes en la lista 69-B por nombre o situación.
+    """
+    
+    from sqlalchemy import text
+    from database import db
+    
+    query = "SELECT rfc, nombre_contribuyente, situacion FROM sat_lista_69b WHERE 1=1"
+    params = {}
+    
+    if nombre:
+        query += " AND nombre_contribuyente ILIKE :nombre"
+        params['nombre'] = f"%{nombre}%"
+    
+    if situacion:
+        query += " AND situacion = :situacion"
+        params['situacion'] = situacion
+    
+    query += " LIMIT 50"
+    
+    resultados = db.session.execute(text(query), params).fetchall()
+    
+    return {
+        "resultados": [
+            {
+                "rfc": r.rfc,
+                "nombre": r.nombre_contribuyente,
+                "situacion": r.situacion
+            }
+            for r in resultados
+        ],
+        "total": len(resultados)
+    }
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 5: INTEGRACIÓN CON PROVEEDORES (FRONTEND)
+═══════════════════════════════════════════════════════════════════════════════
+
+En el formulario de alta de proveedor, agregar verificación automática:
+
+```javascript
+// En el componente de NuevoProveedor o AltaProveedor
+
+const verificar69B = async (rfc) => {
+  try {
+    const response = await fetch(`/api/sat/69b/verificar/${rfc}`);
+    const data = await response.json();
+    
+    setVerificacion69B(data);
+    
+    // Mostrar alerta según resultado
+    if (data.nivel_riesgo === 'CRITICO') {
+      showAlert({
+        type: 'error',
+        title: '🚨 PROVEEDOR EN LISTA 69-B DEFINITIVOS',
+        message: `${data.nombre} está en la lista definitiva de EFOS. Las operaciones con este proveedor NO son deducibles.`,
+        action: 'No se recomienda operar con este proveedor.'
+      });
+    } else if (data.nivel_riesgo === 'ALTO') {
+      showAlert({
+        type: 'warning',
+        title: '⚠️ PROVEEDOR EN LISTA 69-B PRESUNTOS',
+        message: `${data.nombre} está en proceso de presunción. Alto riesgo.`,
+        action: 'Proceder con extrema precaución y documentar exhaustivamente.'
+      });
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error verificando 69-B:', error);
+  }
+};
+
+// Llamar al perder foco del campo RFC
+<input 
+  name="rfc"
+  onBlur={(e) => verificar69B(e.target.value)}
+/>
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 6: INTEGRACIÓN CON A6 (TRÁFICO.IA)
+═══════════════════════════════════════════════════════════════════════════════
+
+En el agente A6, agregar la verificación como herramienta:
+
+```python
+# En el sistema de A6 (Tráfico.IA)
+
+TOOLS_A6 = [
+    {
+        "name": "verificar_lista_69b",
+        "description": "Verifica si un RFC está en la lista 69-B del SAT (EFOS/EDOS)",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "rfc": {
+                    "type": "string",
+                    "description": "RFC del proveedor a verificar"
+                }
+            },
+            "required": ["rfc"]
+        }
+    }
+]
+
+async def ejecutar_herramienta_a6(nombre: str, params: dict):
+    if nombre == "verificar_lista_69b":
+        from services.verificacion_69b import verificar_69b
+        return verificar_69b(params['rfc'])
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 7: CRON JOB PARA ACTUALIZACIÓN PERIÓDICA
+═══════════════════════════════════════════════════════════════════════════════
+
+El SAT actualiza la lista periódicamente. Crear tarea programada:
+
+```python
+# backend/tasks/actualizar_69b.py
+
+from apscheduler.schedulers.background import BackgroundScheduler
+import requests
+import os
+
+def descargar_y_actualizar_69b():
+    """
+    Descarga la lista 69-B más reciente del SAT y actualiza la BD.
+    Ejecutar semanalmente.
+    """
+    
+    # URL del SAT (puede cambiar, verificar periódicamente)
+    # Por ahora la carga es manual, pero se puede automatizar
+    
+    print("🔄 Verificando actualizaciones de lista 69-B...")
+    
+    # TODO: Implementar descarga automática cuando el SAT lo permita
+    # Por ahora, alertar si la lista tiene más de 7 días
+    
+    from services.verificacion_69b import Verificador69B
+    stats = Verificador69B.obtener_estadisticas()
+    
+    if stats['ultima_actualizacion']:
+        from datetime import datetime, timedelta
+        ultima = datetime.fromisoformat(stats['ultima_actualizacion'])
+        if datetime.now() - ultima > timedelta(days=7):
+            print("⚠️ Lista 69-B tiene más de 7 días. Considerar actualizar.")
+            # Enviar notificación a admin
+
+
+# Programar ejecución semanal
+scheduler = BackgroundScheduler()
+scheduler.add_job(descargar_y_actualizar_69b, 'cron', day_of_week='mon', hour=6)
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+RESUMEN DE IMPLEMENTACIÓN
+═══════════════════════════════════════════════════════════════════════════════
+
+ARCHIVOS A CREAR:
+□ backend/scripts/ingestar_lista_69b.py
+□ backend/services/verificacion_69b.py
+□ backend/routes/verificacion_sat_routes.py
+
+SQL A EJECUTAR:
+□ CREATE TABLE sat_lista_69b
+□ CREATE TABLE sat_69b_consultas
+□ CREATE INDEX idx_69b_rfc
+
+INTEGRACIONES:
+□ Formulario de alta de proveedor → verificación automática al escribir RFC
+□ A6 (Tráfico.IA) → herramienta verificar_lista_69b
+□ A3 (Revisar.IA) → incluir verificación en análisis de CFDI
+
+MANTENIMIENTO:
+□ Descargar lista actualizada del SAT mensualmente
+□ Ejecutar script de ingesta
+□ Verificar estadísticas post-ingesta
+
+═══════════════════════════════════════════════════════════════════════════════
+INSTRUCCIÓN PARA REPLIT
+═══════════════════════════════════════════════════════════════════════════════
+
+```
+IMPLEMENTA LA VERIFICACIÓN AUTOMÁTICA CONTRA LISTA 69-B:
+
+1. Ejecuta el SQL para crear las tablas sat_lista_69b y sat_69b_consultas
+
+2. Crea el script backend/scripts/ingestar_lista_69b.py
+
+3. Sube el archivo Listado_Completo_69-B.xls al servidor
+
+4. Ejecuta: python scripts/ingestar_lista_69b.py /ruta/al/archivo.xls
+
+5. Crea el servicio backend/services/verificacion_69b.py
+
+6. Crea las rutas backend/routes/verificacion_sat_routes.py
+
+7. Registra las rutas en server.py:
+   from routes.verificacion_sat_routes import router as sat_router
+   app.include_router(sat_router)
+
+8. En el frontend de Proveedores, agrega verificación automática al campo RFC
+
+9. PRUEBA:
+   - GET /api/sat/69b/estadisticas (debe mostrar 14,234 registros)
+   - GET /api/sat/69b/verificar/AAA120730823 (debe retornar Definitivo)
+
+MUÉSTRAME que funciona antes de decir que está listo.
+```
+
+═══════════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,1647 @@
+TOUR #3: CONSOLIDAR BASES DE DATOS (MongoDB → PostgreSQL)
+Vamos a eliminar MongoDB y usar solo PostgreSQL con JSONB para datos flexibles.
+
+PASO 1: Crear las nuevas tablas en PostgreSQL
+Ejecutá este SQL en tu consola de Neon:
+sql-- =====================================================
+-- MIGRACIÓN MONGODB → POSTGRESQL
+-- =====================================================
+
+-- 1. PROYECTOS (antes en MongoDB)
+CREATE TABLE IF NOT EXISTS projects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id UUID NOT NULL,
+    
+    -- Datos básicos
+    nombre VARCHAR(500) NOT NULL,
+    descripcion TEXT,
+    tipo VARCHAR(100), -- 'sib', 'auditoria', etc.
+    
+    -- Estado y fases
+    fase_actual INTEGER DEFAULT 0,
+    estado VARCHAR(50) DEFAULT 'activo', -- activo, pausado, completado, cancelado
+    
+    -- Proveedor asociado
+    proveedor_id UUID,
+    proveedor_rfc VARCHAR(20),
+    proveedor_nombre VARCHAR(500),
+    
+    -- Montos
+    monto_total DECIMAL(18,2),
+    moneda VARCHAR(10) DEFAULT 'MXN',
+    
+    -- Datos flexibles (todo lo demás)
+    metadata JSONB DEFAULT '{}',
+    configuracion JSONB DEFAULT '{}',
+    datos_sib JSONB DEFAULT '{}', -- Datos del SIB original
+    
+    -- Scores y riesgos
+    risk_score INTEGER,
+    compliance_score INTEGER,
+    scores_detalle JSONB DEFAULT '{}',
+    
+    -- Timestamps
+    fecha_inicio TIMESTAMPTZ,
+    fecha_fin_estimada TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by UUID,
+    
+    -- Constraints
+    CONSTRAINT fk_projects_empresa FOREIGN KEY (empresa_id) 
+        REFERENCES empresas(id) ON DELETE CASCADE
+);
+
+-- Índices para projects
+CREATE INDEX IF NOT EXISTS idx_projects_empresa ON projects(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_projects_estado ON projects(empresa_id, estado);
+CREATE INDEX IF NOT EXISTS idx_projects_fase ON projects(empresa_id, fase_actual);
+CREATE INDEX IF NOT EXISTS idx_projects_proveedor ON projects(proveedor_rfc);
+CREATE INDEX IF NOT EXISTS idx_projects_metadata ON projects USING GIN (metadata);
+CREATE INDEX IF NOT EXISTS idx_projects_created ON projects(created_at DESC);
+
+
+-- 2. DELIBERACIONES DE AGENTES (antes en MongoDB)
+CREATE TABLE IF NOT EXISTS deliberations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID NOT NULL,
+    empresa_id UUID NOT NULL,
+    
+    -- Contexto
+    fase INTEGER NOT NULL,
+    agente_id VARCHAR(50) NOT NULL, -- A1_ESTRATEGIA, A3_FISCAL, etc.
+    
+    -- Contenido
+    tipo VARCHAR(50) NOT NULL, -- 'opinion', 'decision', 'escalation', 'analysis'
+    contenido TEXT NOT NULL,
+    resumen VARCHAR(1000), -- Resumen corto para listados
+    
+    -- Decisión estructurada
+    decision JSONB, -- {"aprobado": true, "condiciones": [...], "score": 85}
+    
+    -- Referencias
+    referencias JSONB DEFAULT '[]', -- [{"agente": "A3", "deliberation_id": "..."}]
+    documentos_referenciados JSONB DEFAULT '[]', -- IDs de documentos del KB usados
+    
+    -- Metadata
+    tokens_usados INTEGER,
+    modelo_usado VARCHAR(100),
+    duracion_ms INTEGER,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT fk_deliberations_project FOREIGN KEY (project_id) 
+        REFERENCES projects(id) ON DELETE CASCADE
+);
+
+-- Índices para deliberations
+CREATE INDEX IF NOT EXISTS idx_deliberations_project ON deliberations(project_id);
+CREATE INDEX IF NOT EXISTS idx_deliberations_empresa ON deliberations(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_deliberations_fase ON deliberations(project_id, fase);
+CREATE INDEX IF NOT EXISTS idx_deliberations_agente ON deliberations(project_id, agente_id);
+CREATE INDEX IF NOT EXISTS idx_deliberations_created ON deliberations(created_at DESC);
+
+
+-- 3. INTERACCIONES DE AGENTES / CHAT HISTORY (antes en MongoDB)
+CREATE TABLE IF NOT EXISTS agent_interactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- Contexto
+    project_id UUID, -- Opcional, puede ser chat general
+    empresa_id UUID NOT NULL,
+    user_id UUID,
+    session_id VARCHAR(100), -- Para agrupar conversaciones
+    
+    -- Agente
+    agente_id VARCHAR(50) NOT NULL,
+    
+    -- Mensajes
+    user_message TEXT,
+    agent_response TEXT,
+    
+    -- Metadata de la llamada
+    tokens_in INTEGER,
+    tokens_out INTEGER,
+    latency_ms INTEGER,
+    modelo_usado VARCHAR(100),
+    
+    -- Contexto RAG
+    rag_chunks_used JSONB DEFAULT '[]', -- IDs y scores de chunks usados
+    rag_query VARCHAR(1000), -- Query usada para RAG
+    
+    -- Extras
+    metadata JSONB DEFAULT '{}',
+    error_message TEXT, -- Si hubo error
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT fk_interactions_project FOREIGN KEY (project_id) 
+        REFERENCES projects(id) ON DELETE SET NULL
+);
+
+-- Índices para agent_interactions
+CREATE INDEX IF NOT EXISTS idx_interactions_empresa ON agent_interactions(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_interactions_project ON agent_interactions(project_id);
+CREATE INDEX IF NOT EXISTS idx_interactions_session ON agent_interactions(session_id);
+CREATE INDEX IF NOT EXISTS idx_interactions_created ON agent_interactions(created_at DESC);
+-- Particionar por fecha si crece mucho (opcional)
+
+
+-- 4. ESTADO DE FASES POR PROYECTO
+CREATE TABLE IF NOT EXISTS project_phases (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID NOT NULL,
+    empresa_id UUID NOT NULL,
+    
+    fase INTEGER NOT NULL,
+    nombre VARCHAR(100),
+    
+    -- Estado
+    estado VARCHAR(50) DEFAULT 'pendiente', -- pendiente, en_progreso, aprobado, rechazado, bloqueado
+    
+    -- Aprobaciones
+    aprobado_por JSONB DEFAULT '[]', -- [{"agente": "A3", "fecha": "...", "comentario": "..."}]
+    rechazado_por JSONB DEFAULT '[]',
+    
+    -- Candados/Checkpoints
+    candados JSONB DEFAULT '{}', -- {"documentos_requeridos": true, "aprobacion_fiscal": false}
+    
+    -- Fechas
+    fecha_inicio TIMESTAMPTZ,
+    fecha_completado TIMESTAMPTZ,
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Constraints
+    CONSTRAINT fk_phases_project FOREIGN KEY (project_id) 
+        REFERENCES projects(id) ON DELETE CASCADE,
+    CONSTRAINT uq_project_fase UNIQUE (project_id, fase)
+);
+
+CREATE INDEX IF NOT EXISTS idx_phases_project ON project_phases(project_id);
+
+
+-- 5. PROVEEDORES CON SCORING (antes Durezza en MongoDB)
+CREATE TABLE IF NOT EXISTS proveedores_scoring (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id UUID NOT NULL,
+    
+    -- Datos del proveedor
+    proveedor_rfc VARCHAR(20) NOT NULL,
+    proveedor_nombre VARCHAR(500),
+    
+    -- Verificación EFOS
+    efos_status VARCHAR(50), -- 'limpio', 'presunto', 'definitivo', 'desvirtuado'
+    efos_verificado_at TIMESTAMPTZ,
+    efos_detalle JSONB,
+    
+    -- Scoring general
+    score_total INTEGER, -- 0-100
+    score_fiscal INTEGER,
+    score_financiero INTEGER,
+    score_operativo INTEGER,
+    score_legal INTEGER,
+    
+    -- Detalle de scores
+    scores_detalle JSONB DEFAULT '{}',
+    
+    -- Historial
+    historial_proyectos INTEGER DEFAULT 0,
+    monto_total_historico DECIMAL(18,2),
+    
+    -- Alertas activas
+    alertas JSONB DEFAULT '[]',
+    
+    -- Metadata
+    metadata JSONB DEFAULT '{}',
+    
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    CONSTRAINT uq_proveedor_empresa UNIQUE (empresa_id, proveedor_rfc)
+);
+
+CREATE INDEX IF NOT EXISTS idx_proveedores_empresa ON proveedores_scoring(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_proveedores_rfc ON proveedores_scoring(proveedor_rfc);
+CREATE INDEX IF NOT EXISTS idx_proveedores_efos ON proveedores_scoring(efos_status);
+
+
+-- 6. FUNCIÓN PARA ACTUALIZAR updated_at AUTOMÁTICAMENTE
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Triggers para updated_at
+DROP TRIGGER IF EXISTS update_projects_updated_at ON projects;
+CREATE TRIGGER update_projects_updated_at
+    BEFORE UPDATE ON projects
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_phases_updated_at ON project_phases;
+CREATE TRIGGER update_phases_updated_at
+    BEFORE UPDATE ON project_phases
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_proveedores_updated_at ON proveedores_scoring;
+CREATE TRIGGER update_proveedores_updated_at
+    BEFORE UPDATE ON proveedores_scoring
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+
+-- 7. VISTAS ÚTILES
+
+-- Vista de proyectos con última deliberación
+CREATE OR REPLACE VIEW v_projects_summary AS
+SELECT 
+    p.id,
+    p.empresa_id,
+    p.nombre,
+    p.estado,
+    p.fase_actual,
+    p.risk_score,
+    p.proveedor_nombre,
+    p.proveedor_rfc,
+    p.monto_total,
+    p.created_at,
+    p.updated_at,
+    (SELECT COUNT(*) FROM deliberations d WHERE d.project_id = p.id) as total_deliberaciones,
+    (SELECT d.contenido FROM deliberations d WHERE d.project_id = p.id ORDER BY d.created_at DESC LIMIT 1) as ultima_deliberacion
+FROM projects p;
+
+-- Vista de actividad reciente por empresa
+CREATE OR REPLACE VIEW v_actividad_reciente AS
+SELECT 
+    empresa_id,
+    'deliberation' as tipo,
+    id as item_id,
+    agente_id as actor,
+    resumen as descripcion,
+    created_at
+FROM deliberations
+UNION ALL
+SELECT 
+    empresa_id,
+    'interaction' as tipo,
+    id as item_id,
+    agente_id as actor,
+    LEFT(user_message, 100) as descripcion,
+    created_at
+FROM agent_interactions
+ORDER BY created_at DESC;
+
+PASO 2: Script de migración de datos
+Creá este archivo:
+backend/scripts/migrate_mongo_to_postgres.py:
+python"""
+Script de migración MongoDB → PostgreSQL.
+Ejecutar una sola vez después de crear las tablas.
+
+Uso:
+    python -m scripts.migrate_mongo_to_postgres
+    
+    # Dry run (solo muestra qué se migraría):
+    python -m scripts.migrate_mongo_to_postgres --dry-run
+    
+    # Solo una colección:
+    python -m scripts.migrate_mongo_to_postgres --collection projects
+"""
+
+import asyncio
+import asyncpg
+import os
+import sys
+import argparse
+from datetime import datetime
+from typing import Optional, Dict, Any
+import json
+
+# Agregar path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    from motor.motor_asyncio import AsyncIOMotorClient
+    MOTOR_AVAILABLE = True
+except ImportError:
+    MOTOR_AVAILABLE = False
+    print("⚠️  Motor no instalado. Instala con: pip install motor")
+
+# Configuración
+DATABASE_URL = os.getenv("DATABASE_URL")
+MONGO_URI = os.getenv("MONGO_URI") or os.getenv("MONGODB_URI")
+
+
+class MigrationStats:
+    def __init__(self):
+        self.collections = {}
+    
+    def add(self, collection: str, success: bool):
+        if collection not in self.collections:
+            self.collections[collection] = {"success": 0, "failed": 0}
+        
+        if success:
+            self.collections[collection]["success"] += 1
+        else:
+            self.collections[collection]["failed"] += 1
+    
+    def print_summary(self):
+        print("\n" + "=" * 60)
+        print("📊 RESUMEN DE MIGRACIÓN")
+        print("=" * 60)
+        
+        total_success = 0
+        total_failed = 0
+        
+        for collection, counts in self.collections.items():
+            print(f"  {collection}:")
+            print(f"    ✅ Migrados: {counts['success']}")
+            print(f"    ❌ Fallidos: {counts['failed']}")
+            total_success += counts["success"]
+            total_failed += counts["failed"]
+        
+        print("-" * 60)
+        print(f"  TOTAL: {total_success} migrados, {total_failed} fallidos")
+
+
+def convert_objectid(obj: Any) -> Any:
+    """Convierte ObjectId de MongoDB a string."""
+    if obj is None:
+        return None
+    if hasattr(obj, '__str__') and type(obj).__name__ == 'ObjectId':
+        return str(obj)
+    if isinstance(obj, dict):
+        return {k: convert_objectid(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [convert_objectid(i) for i in obj]
+    return obj
+
+
+def safe_json(obj: Any) -> str:
+    """Convierte a JSON de forma segura."""
+    try:
+        converted = convert_objectid(obj)
+        return json.dumps(converted, default=str)
+    except:
+        return '{}'
+
+
+async def migrate_projects(mongo_db, pg_conn, stats: MigrationStats, dry_run: bool):
+    """Migrar colección projects."""
+    print("\n📦 Migrando projects...")
+    
+    cursor = mongo_db.projects.find({})
+    count = 0
+    
+    async for doc in cursor:
+        count += 1
+        
+        if dry_run:
+            print(f"  [DRY] Proyecto: {doc.get('nombre', 'Sin nombre')}")
+            stats.add("projects", True)
+            continue
+        
+        try:
+            # Mapear campos
+            project_id = str(doc.get("_id"))
+            empresa_id = doc.get("empresa_id")
+            
+            if not empresa_id:
+                print(f"  ⚠️  Proyecto sin empresa_id: {project_id}")
+                stats.add("projects", False)
+                continue
+            
+            await pg_conn.execute("""
+                INSERT INTO projects (
+                    id, empresa_id, nombre, descripcion, tipo,
+                    fase_actual, estado, proveedor_rfc, proveedor_nombre,
+                    monto_total, moneda, metadata, datos_sib,
+                    risk_score, created_at, updated_at
+                ) VALUES (
+                    $1::uuid, $2::uuid, $3, $4, $5,
+                    $6, $7, $8, $9,
+                    $10, $11, $12::jsonb, $13::jsonb,
+                    $14, $15, $16
+                )
+                ON CONFLICT (id) DO UPDATE SET
+                    nombre = EXCLUDED.nombre,
+                    fase_actual = EXCLUDED.fase_actual,
+                    estado = EXCLUDED.estado,
+                    updated_at = NOW()
+            """,
+                project_id,
+                empresa_id,
+                doc.get("nombre", "Sin nombre"),
+                doc.get("descripcion"),
+                doc.get("tipo"),
+                doc.get("fase_actual", 0),
+                doc.get("estado", "activo"),
+                doc.get("proveedor_rfc"),
+                doc.get("proveedor_nombre"),
+                doc.get("monto_total"),
+                doc.get("moneda", "MXN"),
+                safe_json(doc.get("metadata", {})),
+                safe_json(doc.get("datos_sib", {})),
+                doc.get("risk_score"),
+                doc.get("created_at", datetime.utcnow()),
+                doc.get("updated_at", datetime.utcnow())
+            )
+            
+            stats.add("projects", True)
+            
+        except Exception as e:
+            print(f"  ❌ Error en proyecto {doc.get('_id')}: {e}")
+            stats.add("projects", False)
+    
+    print(f"  Procesados: {count} proyectos")
+
+
+async def migrate_deliberations(mongo_db, pg_conn, stats: MigrationStats, dry_run: bool):
+    """Migrar colección deliberations."""
+    print("\n💬 Migrando deliberations...")
+    
+    cursor = mongo_db.deliberations.find({})
+    count = 0
+    
+    async for doc in cursor:
+        count += 1
+        
+        if dry_run:
+            print(f"  [DRY] Deliberación: {doc.get('agente_id')} - Fase {doc.get('fase')}")
+            stats.add("deliberations", True)
+            continue
+        
+        try:
+            await pg_conn.execute("""
+                INSERT INTO deliberations (
+                    id, project_id, empresa_id, fase, agente_id,
+                    tipo, contenido, resumen, decision,
+                    referencias, tokens_usados, created_at
+                ) VALUES (
+                    $1::uuid, $2::uuid, $3::uuid, $4, $5,
+                    $6, $7, $8, $9::jsonb,
+                    $10::jsonb, $11, $12
+                )
+                ON CONFLICT (id) DO NOTHING
+            """,
+                str(doc.get("_id")),
+                str(doc.get("project_id")) if doc.get("project_id") else None,
+                doc.get("empresa_id"),
+                doc.get("fase", 0),
+                doc.get("agente_id", "UNKNOWN"),
+                doc.get("tipo", "opinion"),
+                doc.get("contenido", ""),
+                doc.get("resumen"),
+                safe_json(doc.get("decision", {})),
+                safe_json(doc.get("referencias", [])),
+                doc.get("tokens_usados"),
+                doc.get("created_at", datetime.utcnow())
+            )
+            
+            stats.add("deliberations", True)
+            
+        except Exception as e:
+            print(f"  ❌ Error en deliberación {doc.get('_id')}: {e}")
+            stats.add("deliberations", False)
+    
+    print(f"  Procesadas: {count} deliberaciones")
+
+
+async def migrate_interactions(mongo_db, pg_conn, stats: MigrationStats, dry_run: bool):
+    """Migrar colección agent_interactions."""
+    print("\n🤖 Migrando agent_interactions...")
+    
+    cursor = mongo_db.agent_interactions.find({})
+    count = 0
+    
+    async for doc in cursor:
+        count += 1
+        
+        if dry_run:
+            stats.add("agent_interactions", True)
+            continue
+        
+        try:
+            await pg_conn.execute("""
+                INSERT INTO agent_interactions (
+                    id, project_id, empresa_id, user_id, session_id,
+                    agente_id, user_message, agent_response,
+                    tokens_in, tokens_out, latency_ms, modelo_usado,
+                    rag_chunks_used, metadata, created_at
+                ) VALUES (
+                    $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5,
+                    $6, $7, $8,
+                    $9, $10, $11, $12,
+                    $13::jsonb, $14::jsonb, $15
+                )
+                ON CONFLICT (id) DO NOTHING
+            """,
+                str(doc.get("_id")),
+                str(doc.get("project_id")) if doc.get("project_id") else None,
+                doc.get("empresa_id"),
+                doc.get("user_id"),
+                doc.get("session_id"),
+                doc.get("agente_id", "UNKNOWN"),
+                doc.get("user_message"),
+                doc.get("agent_response"),
+                doc.get("tokens_in"),
+                doc.get("tokens_out"),
+                doc.get("latency_ms"),
+                doc.get("modelo_usado"),
+                safe_json(doc.get("rag_chunks_used", [])),
+                safe_json(doc.get("metadata", {})),
+                doc.get("created_at", datetime.utcnow())
+            )
+            
+            stats.add("agent_interactions", True)
+            
+        except Exception as e:
+            print(f"  ❌ Error en interaction {doc.get('_id')}: {e}")
+            stats.add("agent_interactions", False)
+    
+    print(f"  Procesadas: {count} interacciones")
+
+
+async def migrate_durezza_suppliers(mongo_db, pg_conn, stats: MigrationStats, dry_run: bool):
+    """Migrar colección durezza_suppliers a proveedores_scoring."""
+    print("\n📊 Migrando durezza_suppliers → proveedores_scoring...")
+    
+    cursor = mongo_db.durezza_suppliers.find({})
+    count = 0
+    
+    async for doc in cursor:
+        count += 1
+        
+        if dry_run:
+            print(f"  [DRY] Proveedor: {doc.get('rfc')}")
+            stats.add("durezza_suppliers", True)
+            continue
+        
+        try:
+            await pg_conn.execute("""
+                INSERT INTO proveedores_scoring (
+                    id, empresa_id, proveedor_rfc, proveedor_nombre,
+                    efos_status, efos_verificado_at, efos_detalle,
+                    score_total, score_fiscal, score_financiero,
+                    scores_detalle, alertas, metadata,
+                    created_at, updated_at
+                ) VALUES (
+                    $1::uuid, $2::uuid, $3, $4,
+                    $5, $6, $7::jsonb,
+                    $8, $9, $10,
+                    $11::jsonb, $12::jsonb, $13::jsonb,
+                    $14, $15
+                )
+                ON CONFLICT (empresa_id, proveedor_rfc) DO UPDATE SET
+                    score_total = EXCLUDED.score_total,
+                    efos_status = EXCLUDED.efos_status,
+                    updated_at = NOW()
+            """,
+                str(doc.get("_id")),
+                doc.get("empresa_id"),
+                doc.get("rfc"),
+                doc.get("nombre"),
+                doc.get("efos_status"),
+                doc.get("efos_verificado_at"),
+                safe_json(doc.get("efos_detalle", {})),
+                doc.get("score_total"),
+                doc.get("score_fiscal"),
+                doc.get("score_financiero"),
+                safe_json(doc.get("scores_detalle", {})),
+                safe_json(doc.get("alertas", [])),
+                safe_json(doc.get("metadata", {})),
+                doc.get("created_at", datetime.utcnow()),
+                doc.get("updated_at", datetime.utcnow())
+            )
+            
+            stats.add("durezza_suppliers", True)
+            
+        except Exception as e:
+            print(f"  ❌ Error en proveedor {doc.get('rfc')}: {e}")
+            stats.add("durezza_suppliers", False)
+    
+    print(f"  Procesados: {count} proveedores")
+
+
+async def run_migration(
+    dry_run: bool = False,
+    collection: Optional[str] = None
+):
+    """Ejecuta la migración completa."""
+    
+    print("=" * 60)
+    print("🚀 MIGRACIÓN MONGODB → POSTGRESQL")
+    print("=" * 60)
+    
+    if dry_run:
+        print("⚠️  MODO DRY RUN - No se guardarán cambios")
+    
+    if not MOTOR_AVAILABLE:
+        print("❌ Motor no disponible. Instala con: pip install motor")
+        return
+    
+    if not MONGO_URI:
+        print("❌ MONGO_URI no configurada")
+        return
+    
+    if not DATABASE_URL:
+        print("❌ DATABASE_URL no configurada")
+        return
+    
+    # Conectar a MongoDB
+    print("\n📡 Conectando a MongoDB...")
+    mongo_client = AsyncIOMotorClient(MONGO_URI)
+    mongo_db = mongo_client.get_default_database() or mongo_client.revisar_ia
+    print(f"   Base de datos: {mongo_db.name}")
+    
+    # Conectar a PostgreSQL
+    print("📡 Conectando a PostgreSQL...")
+    pg_conn = await asyncpg.connect(DATABASE_URL)
+    print("   Conectado ✓")
+    
+    stats = MigrationStats()
+    
+    # Migrar colecciones
+    collections_to_migrate = {
+        "projects": migrate_projects,
+        "deliberations": migrate_deliberations,
+        "agent_interactions": migrate_interactions,
+        "durezza_suppliers": migrate_durezza_suppliers,
+    }
+    
+    if collection:
+        if collection in collections_to_migrate:
+            await collections_to_migrate[collection](mongo_db, pg_conn, stats, dry_run)
+        else:
+            print(f"❌ Colección desconocida: {collection}")
+            print(f"   Disponibles: {', '.join(collections_to_migrate.keys())}")
+    else:
+        for name, migrate_func in collections_to_migrate.items():
+            try:
+                await migrate_func(mongo_db, pg_conn, stats, dry_run)
+            except Exception as e:
+                print(f"❌ Error migrando {name}: {e}")
+    
+    # Cerrar conexiones
+    await pg_conn.close()
+    mongo_client.close()
+    
+    # Resumen
+    stats.print_summary()
+    
+    if dry_run:
+        print("\n⚠️  Esto fue un DRY RUN. Ejecuta sin --dry-run para aplicar cambios.")
+    else:
+        print("\n✅ Migración completada!")
+        print("   Siguiente paso: Actualizar servicios para usar PostgreSQL")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Migrar MongoDB a PostgreSQL")
+    parser.add_argument("--dry-run", action="store_true", help="Solo mostrar qué se migraría")
+    parser.add_argument("--collection", help="Migrar solo una colección específica")
+    
+    args = parser.parse_args()
+    
+    asyncio.run(run_migration(
+        dry_run=args.dry_run,
+        collection=args.collection
+    ))
+
+
+if __name__ == "__main__":
+    main()
+
+PASO 3: Nuevo servicio de proyectos (PostgreSQL puro)
+backend/services/project_service.py:
+python"""
+Servicio de Proyectos - PostgreSQL.
+Reemplaza el uso de MongoDB para proyectos.
+"""
+
+import asyncpg
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+import json
+from uuid import UUID
+
+
+class ProjectService:
+    """Gestión de proyectos usando PostgreSQL."""
+    
+    def __init__(self, db_pool: asyncpg.Pool):
+        self.db = db_pool
+    
+    # ==================== CRUD BÁSICO ====================
+    
+    async def create_project(
+        self,
+        empresa_id: str,
+        nombre: str,
+        descripcion: Optional[str] = None,
+        tipo: Optional[str] = None,
+        proveedor_rfc: Optional[str] = None,
+        proveedor_nombre: Optional[str] = None,
+        monto_total: Optional[float] = None,
+        datos_sib: Optional[dict] = None,
+        created_by: Optional[str] = None
+    ) -> dict:
+        """Crear nuevo proyecto."""
+        
+        row = await self.db.fetchrow("""
+            INSERT INTO projects (
+                empresa_id, nombre, descripcion, tipo,
+                proveedor_rfc, proveedor_nombre, monto_total,
+                datos_sib, created_by
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
+            RETURNING *
+        """,
+            empresa_id,
+            nombre,
+            descripcion,
+            tipo,
+            proveedor_rfc,
+            proveedor_nombre,
+            monto_total,
+            json.dumps(datos_sib or {}),
+            created_by
+        )
+        
+        # Crear fases iniciales
+        await self._initialize_phases(str(row["id"]), empresa_id)
+        
+        return self._row_to_dict(row)
+    
+    async def get_project(
+        self,
+        project_id: str,
+        empresa_id: str
+    ) -> Optional[dict]:
+        """Obtener proyecto por ID."""
+        
+        row = await self.db.fetchrow("""
+            SELECT * FROM projects
+            WHERE id = $1 AND empresa_id = $2
+        """, project_id, empresa_id)
+        
+        if not row:
+            return None
+        
+        return self._row_to_dict(row)
+    
+    async def list_projects(
+        self,
+        empresa_id: str,
+        estado: Optional[str] = None,
+        fase: Optional[int] = None,
+        limit: int = 50,
+        offset: int = 0,
+        order_by: str = "created_at",
+        order_dir: str = "DESC"
+    ) -> List[dict]:
+        """Listar proyectos con filtros."""
+        
+        # Construir query dinámicamente
+        conditions = ["empresa_id = $1"]
+        params = [empresa_id]
+        param_count = 1
+        
+        if estado:
+            param_count += 1
+            conditions.append(f"estado = ${param_count}")
+            params.append(estado)
+        
+        if fase is not None:
+            param_count += 1
+            conditions.append(f"fase_actual = ${param_count}")
+            params.append(fase)
+        
+        where_clause = " AND ".join(conditions)
+        
+        # Validar order_by para prevenir SQL injection
+        valid_columns = ["created_at", "updated_at", "nombre", "fase_actual", "risk_score"]
+        if order_by not in valid_columns:
+            order_by = "created_at"
+        
+        order_dir = "DESC" if order_dir.upper() == "DESC" else "ASC"
+        
+        query = f"""
+            SELECT * FROM projects
+            WHERE {where_clause}
+            ORDER BY {order_by} {order_dir}
+            LIMIT ${param_count + 1} OFFSET ${param_count + 2}
+        """
+        params.extend([limit, offset])
+        
+        rows = await self.db.fetch(query, *params)
+        return [self._row_to_dict(row) for row in rows]
+    
+    async def update_project(
+        self,
+        project_id: str,
+        empresa_id: str,
+        updates: dict
+    ) -> Optional[dict]:
+        """Actualizar proyecto."""
+        
+        # Campos permitidos para actualizar
+        allowed_fields = [
+            "nombre", "descripcion", "tipo", "estado", "fase_actual",
+            "proveedor_rfc", "proveedor_nombre", "monto_total",
+            "risk_score", "compliance_score"
+        ]
+        
+        # Filtrar solo campos permitidos
+        filtered_updates = {k: v for k, v in updates.items() if k in allowed_fields}
+        
+        if not filtered_updates:
+            return await self.get_project(project_id, empresa_id)
+        
+        # Construir SET clause
+        set_parts = []
+        params = []
+        param_count = 0
+        
+        for field, value in filtered_updates.items():
+            param_count += 1
+            set_parts.append(f"{field} = ${param_count}")
+            params.append(value)
+        
+        set_clause = ", ".join(set_parts)
+        params.extend([project_id, empresa_id])
+        
+        row = await self.db.fetchrow(f"""
+            UPDATE projects
+            SET {set_clause}, updated_at = NOW()
+            WHERE id = ${param_count + 1} AND empresa_id = ${param_count + 2}
+            RETURNING *
+        """, *params)
+        
+        if not row:
+            return None
+        
+        return self._row_to_dict(row)
+    
+    async def update_project_metadata(
+        self,
+        project_id: str,
+        empresa_id: str,
+        metadata_updates: dict
+    ) -> bool:
+        """Actualizar metadata JSONB (merge)."""
+        
+        result = await self.db.execute("""
+            UPDATE projects
+            SET metadata = metadata || $1::jsonb,
+                updated_at = NOW()
+            WHERE id = $2 AND empresa_id = $3
+        """, json.dumps(metadata_updates), project_id, empresa_id)
+        
+        return "UPDATE 1" in result
+    
+    async def delete_project(
+        self,
+        project_id: str,
+        empresa_id: str
+    ) -> bool:
+        """Eliminar proyecto (y cascada a fases, deliberaciones)."""
+        
+        result = await self.db.execute("""
+            DELETE FROM projects
+            WHERE id = $1 AND empresa_id = $2
+        """, project_id, empresa_id)
+        
+        return "DELETE 1" in result
+    
+    # ==================== FASES ====================
+    
+    async def _initialize_phases(self, project_id: str, empresa_id: str):
+        """Inicializar las 10 fases del proyecto."""
+        
+        fases = [
+            (0, "Intake"),
+            (1, "PO"),
+            (2, "Contrato"),
+            (3, "Ejecución"),
+            (4, "Auditoría"),
+            (5, "Entregables"),
+            (6, "Cierre"),
+            (7, "Defense File"),
+            (8, "Pago"),
+            (9, "Archivo"),
+        ]
+        
+        for fase_num, nombre in fases:
+            await self.db.execute("""
+                INSERT INTO project_phases (project_id, empresa_id, fase, nombre, estado)
+                VALUES ($1, $2, $3, $4, 'pendiente')
+                ON CONFLICT (project_id, fase) DO NOTHING
+            """, project_id, empresa_id, fase_num, nombre)
+    
+    async def get_phase_status(
+        self,
+        project_id: str,
+        empresa_id: str
+    ) -> List[dict]:
+        """Obtener estado de todas las fases."""
+        
+        rows = await self.db.fetch("""
+            SELECT * FROM project_phases
+            WHERE project_id = $1 AND empresa_id = $2
+            ORDER BY fase
+        """, project_id, empresa_id)
+        
+        return [dict(row) for row in rows]
+    
+    async def update_phase_status(
+        self,
+        project_id: str,
+        empresa_id: str,
+        fase: int,
+        estado: str,
+        aprobado_por: Optional[dict] = None
+    ) -> bool:
+        """Actualizar estado de una fase."""
+        
+        if aprobado_por:
+            # Agregar aprobación al array
+            await self.db.execute("""
+                UPDATE project_phases
+                SET estado = $1,
+                    aprobado_por = aprobado_por || $2::jsonb,
+                    fecha_completado = CASE WHEN $1 = 'aprobado' THEN NOW() ELSE fecha_completado END,
+                    updated_at = NOW()
+                WHERE project_id = $3 AND empresa_id = $4 AND fase = $5
+            """, estado, json.dumps([aprobado_por]), project_id, empresa_id, fase)
+        else:
+            await self.db.execute("""
+                UPDATE project_phases
+                SET estado = $1, updated_at = NOW()
+                WHERE project_id = $2 AND empresa_id = $3 AND fase = $4
+            """, estado, project_id, empresa_id, fase)
+        
+        # Si la fase se aprobó, avanzar el proyecto
+        if estado == "aprobado":
+            await self.db.execute("""
+                UPDATE projects
+                SET fase_actual = GREATEST(fase_actual, $1 + 1),
+                    updated_at = NOW()
+                WHERE id = $2 AND empresa_id = $3
+            """, fase, project_id, empresa_id)
+        
+        return True
+    
+    # ==================== DELIBERACIONES ====================
+    
+    async def add_deliberation(
+        self,
+        project_id: str,
+        empresa_id: str,
+        fase: int,
+        agente_id: str,
+        tipo: str,
+        contenido: str,
+        decision: Optional[dict] = None,
+        resumen: Optional[str] = None,
+        tokens_usados: Optional[int] = None
+    ) -> dict:
+        """Agregar deliberación de un agente."""
+        
+        row = await self.db.fetchrow("""
+            INSERT INTO deliberations (
+                project_id, empresa_id, fase, agente_id,
+                tipo, contenido, resumen, decision, tokens_usados
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
+            RETURNING *
+        """,
+            project_id, empresa_id, fase, agente_id,
+            tipo, contenido, resumen, 
+            json.dumps(decision) if decision else None,
+            tokens_usados
+        )
+        
+        return dict(row)
+    
+    async def get_deliberations(
+        self,
+        project_id: str,
+        empresa_id: str,
+        fase: Optional[int] = None,
+        agente_id: Optional[str] = None
+    ) -> List[dict]:
+        """Obtener deliberaciones de un proyecto."""
+        
+        conditions = ["project_id = $1", "empresa_id = $2"]
+        params = [project_id, empresa_id]
+        param_count = 2
+        
+        if fase is not None:
+            param_count += 1
+            conditions.append(f"fase = ${param_count}")
+            params.append(fase)
+        
+        if agente_id:
+            param_count += 1
+            conditions.append(f"agente_id = ${param_count}")
+            params.append(agente_id)
+        
+        query = f"""
+            SELECT * FROM deliberations
+            WHERE {' AND '.join(conditions)}
+            ORDER BY fase, created_at
+        """
+        
+        rows = await self.db.fetch(query, *params)
+        return [dict(row) for row in rows]
+    
+    async def get_latest_deliberation(
+        self,
+        project_id: str,
+        empresa_id: str,
+        agente_id: Optional[str] = None
+    ) -> Optional[dict]:
+        """Obtener última deliberación."""
+        
+        if agente_id:
+            row = await self.db.fetchrow("""
+                SELECT * FROM deliberations
+                WHERE project_id = $1 AND empresa_id = $2 AND agente_id = $3
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, project_id, empresa_id, agente_id)
+        else:
+            row = await self.db.fetchrow("""
+                SELECT * FROM deliberations
+                WHERE project_id = $1 AND empresa_id = $2
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, project_id, empresa_id)
+        
+        return dict(row) if row else None
+    
+    # ==================== BÚSQUEDA Y ESTADÍSTICAS ====================
+    
+    async def search_projects(
+        self,
+        empresa_id: str,
+        query: str,
+        limit: int = 20
+    ) -> List[dict]:
+        """Buscar proyectos por nombre o proveedor."""
+        
+        rows = await self.db.fetch("""
+            SELECT * FROM projects
+            WHERE empresa_id = $1
+            AND (
+                nombre ILIKE $2
+                OR proveedor_nombre ILIKE $2
+                OR proveedor_rfc ILIKE $2
+            )
+            ORDER BY updated_at DESC
+            LIMIT $3
+        """, empresa_id, f"%{query}%", limit)
+        
+        return [self._row_to_dict(row) for row in rows]
+    
+    async def get_project_stats(self, empresa_id: str) -> dict:
+        """Estadísticas de proyectos."""
+        
+        row = await self.db.fetchrow("""
+            SELECT 
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE estado = 'activo') as activos,
+                COUNT(*) FILTER (WHERE estado = 'completado') as completados,
+                AVG(risk_score) FILTER (WHERE risk_score IS NOT NULL) as avg_risk_score,
+                SUM(monto_total) FILTER (WHERE estado = 'activo') as monto_activo
+            FROM projects
+            WHERE empresa_id = $1
+        """, empresa_id)
+        
+        return {
+            "total": row["total"],
+            "activos": row["activos"],
+            "completados": row["completados"],
+            "avg_risk_score": float(row["avg_risk_score"]) if row["avg_risk_score"] else None,
+            "monto_activo": float(row["monto_activo"]) if row["monto_activo"] else 0
+        }
+    
+    # ==================== HELPERS ====================
+    
+    def _row_to_dict(self, row: asyncpg.Record) -> dict:
+        """Convertir row de asyncpg a dict."""
+        result = dict(row)
+        
+        # Convertir UUIDs a string
+        for key in ["id", "empresa_id", "proveedor_id", "created_by"]:
+            if key in result and result[key]:
+                result[key] = str(result[key])
+        
+        # Convertir datetimes a ISO string
+        for key in ["created_at", "updated_at", "fecha_inicio", "fecha_fin_estimada"]:
+            if key in result and result[key]:
+                result[key] = result[key].isoformat()
+        
+        return result
+
+PASO 4: Nuevo servicio de deliberaciones
+backend/services/deliberation_service.py:
+python"""
+Servicio de Deliberaciones - PostgreSQL.
+Maneja las opiniones y decisiones de los agentes.
+"""
+
+import asyncpg
+from typing import Optional, List, Dict
+from datetime import datetime
+import json
+
+
+class DeliberationService:
+    """Gestión de deliberaciones usando PostgreSQL."""
+    
+    def __init__(self, db_pool: asyncpg.Pool):
+        self.db = db_pool
+    
+    async def create_deliberation(
+        self,
+        project_id: str,
+        empresa_id: str,
+        fase: int,
+        agente_id: str,
+        tipo: str,
+        contenido: str,
+        decision: Optional[dict] = None,
+        resumen: Optional[str] = None,
+        referencias: Optional[List[dict]] = None,
+        documentos_referenciados: Optional[List[str]] = None,
+        tokens_usados: Optional[int] = None,
+        modelo_usado: Optional[str] = None,
+        duracion_ms: Optional[int] = None
+    ) -> dict:
+        """Crear nueva deliberación."""
+        
+        # Generar resumen automático si no se proporciona
+        if not resumen and contenido:
+            resumen = contenido[:200] + "..." if len(contenido) > 200 else contenido
+        
+        row = await self.db.fetchrow("""
+            INSERT INTO deliberations (
+                project_id, empresa_id, fase, agente_id,
+                tipo, contenido, resumen, decision,
+                referencias, documentos_referenciados,
+                tokens_usados, modelo_usado, duracion_ms
+            ) VALUES (
+                $1, $2, $3, $4,
+                $5, $6, $7, $8::jsonb,
+                $9::jsonb, $10::jsonb,
+                $11, $12, $13
+            )
+            RETURNING *
+        """,
+            project_id, empresa_id, fase, agente_id,
+            tipo, contenido, resumen, json.dumps(decision) if decision else None,
+            json.dumps(referencias or []), json.dumps(documentos_referenciados or []),
+            tokens_usados, modelo_usado, duracion_ms
+        )
+        
+        return self._row_to_dict(row)
+    
+    async def get_by_project(
+        self,
+        project_id: str,
+        empresa_id: str,
+        fase: Optional[int] = None,
+        agente_id: Optional[str] = None,
+        tipo: Optional[str] = None
+    ) -> List[dict]:
+        """Obtener deliberaciones filtradas."""
+        
+        conditions = ["project_id = $1", "empresa_id = $2"]
+        params = [project_id, empresa_id]
+        idx = 2
+        
+        if fase is not None:
+            idx += 1
+            conditions.append(f"fase = ${idx}")
+            params.append(fase)
+        
+        if agente_id:
+            idx += 1
+            conditions.append(f"agente_id = ${idx}")
+            params.append(agente_id)
+        
+        if tipo:
+            idx += 1
+            conditions.append(f"tipo = ${idx}")
+            params.append(tipo)
+        
+        rows = await self.db.fetch(f"""
+            SELECT * FROM deliberations
+            WHERE {' AND '.join(conditions)}
+            ORDER BY fase ASC, created_at ASC
+        """, *params)
+        
+        return [self._row_to_dict(row) for row in rows]
+    
+    async def get_decisions_by_phase(
+        self,
+        project_id: str,
+        empresa_id: str
+    ) -> Dict[int, List[dict]]:
+        """Obtener decisiones agrupadas por fase."""
+        
+        rows = await self.db.fetch("""
+            SELECT * FROM deliberations
+            WHERE project_id = $1 
+            AND empresa_id = $2 
+            AND tipo = 'decision'
+            ORDER BY fase, created_at
+        """, project_id, empresa_id)
+        
+        result = {}
+        for row in rows:
+            fase = row["fase"]
+            if fase not in result:
+                result[fase] = []
+            result[fase].append(self._row_to_dict(row))
+        
+        return result
+    
+    async def get_agent_opinion(
+        self,
+        project_id: str,
+        empresa_id: str,
+        agente_id: str,
+        fase: int
+    ) -> Optional[dict]:
+        """Obtener opinión de un agente específico en una fase."""
+        
+        row = await self.db.fetchrow("""
+            SELECT * FROM deliberations
+            WHERE project_id = $1 
+            AND empresa_id = $2
+            AND agente_id = $3
+            AND fase = $4
+            ORDER BY created_at DESC
+            LIMIT 1
+        """, project_id, empresa_id, agente_id, fase)
+        
+        return self._row_to_dict(row) if row else None
+    
+    async def check_phase_approved(
+        self,
+        project_id: str,
+        empresa_id: str,
+        fase: int,
+        required_agents: List[str]
+    ) -> dict:
+        """Verificar si una fase tiene todas las aprobaciones necesarias."""
+        
+        rows = await self.db.fetch("""
+            SELECT agente_id, decision
+            FROM deliberations
+            WHERE project_id = $1 
+            AND empresa_id = $2
+            AND fase = $3
+            AND tipo = 'decision'
+            AND decision->>'aprobado' = 'true'
+        """, project_id, empresa_id, fase)
+        
+        approved_agents = {row["agente_id"] for row in rows}
+        missing_agents = set(required_agents) - approved_agents
+        
+        return {
+            "all_approved": len(missing_agents) == 0,
+            "approved_agents": list(approved_agents),
+            "missing_agents": list(missing_agents),
+            "approval_count": len(approved_agents),
+            "required_count": len(required_agents)
+        }
+    
+    async def get_timeline(
+        self,
+        project_id: str,
+        empresa_id: str,
+        limit: int = 50
+    ) -> List[dict]:
+        """Obtener timeline de deliberaciones para visualización."""
+        
+        rows = await self.db.fetch("""
+            SELECT 
+                id, fase, agente_id, tipo, resumen, 
+                decision, created_at
+            FROM deliberations
+            WHERE project_id = $1 AND empresa_id = $2
+            ORDER BY created_at DESC
+            LIMIT $3
+        """, project_id, empresa_id, limit)
+        
+        return [self._row_to_dict(row) for row in rows]
+    
+    async def get_agent_activity(
+        self,
+        empresa_id: str,
+        agente_id: str,
+        days: int = 30,
+        limit: int = 100
+    ) -> List[dict]:
+        """Obtener actividad reciente de un agente."""
+        
+        rows = await self.db.fetch("""
+            SELECT d.*, p.nombre as project_nombre
+            FROM deliberations d
+            JOIN projects p ON p.id = d.project_id
+            WHERE d.empresa_id = $1 
+            AND d.agente_id = $2
+            AND d.created_at > NOW() - INTERVAL '%s days'
+            ORDER BY d.created_at DESC
+            LIMIT $3
+        """ % days, empresa_id, agente_id, limit)
+        
+        return [self._row_to_dict(row) for row in rows]
+    
+    def _row_to_dict(self, row: asyncpg.Record) -> dict:
+        """Convertir row a dict."""
+        result = dict(row)
+        
+        for key in ["id", "project_id", "empresa_id"]:
+            if key in result and result[key]:
+                result[key] = str(result[key])
+        
+        if "created_at" in result and result["created_at"]:
+            result["created_at"] = result["created_at"].isoformat()
+        
+        return result
+
+PASO 5: Actualizar rutas para usar PostgreSQL
+backend/routes/projects.py (actualizado):
+python"""
+Rutas de Proyectos - Usando PostgreSQL.
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional, List
+from pydantic import BaseModel
+
+from middleware.tenant_context import get_current_user, TenantContext
+from services.project_service import ProjectService
+from dependencies import get_db_pool
+
+router = APIRouter(prefix="/api/projects", tags=["Projects"])
+
+
+# ==================== SCHEMAS ====================
+
+class ProjectCreate(BaseModel):
+    nombre: str
+    descripcion: Optional[str] = None
+    tipo: Optional[str] = None
+    proveedor_rfc: Optional[str] = None
+    proveedor_nombre: Optional[str] = None
+    monto_total: Optional[float] = None
+    datos_sib: Optional[dict] = None
+
+
+class ProjectUpdate(BaseModel):
+    nombre: Optional[str] = None
+    descripcion: Optional[str] = None
+    tipo: Optional[str] = None
+    estado: Optional[str] = None
+    proveedor_rfc: Optional[str] = None
+    proveedor_nombre: Optional[str] = None
+    monto_total: Optional[float] = None
+
+
+class PhaseUpdate(BaseModel):
+    estado: str
+    comentario: Optional[str] = None
+
+
+# ==================== ENDPOINTS ====================
+
+@router.post("")
+async def create_project(
+    data: ProjectCreate,
+    tenant: TenantContext = Depends(get_current_user),
+    db=Depends(get_db_pool)
+):
+    """Crear nuevo proyecto."""
+    service = ProjectService(db)
+    
+    project = await service.create_project(
+        empresa_id=tenant.empresa_id,
+        nombre=data.nombre,
+        descripcion=data.descripcion,
+        tipo=data.tipo,
+        proveedor_rfc=data.proveedor_rfc,
+        proveedor_nombre=data.proveedor_nombre,
+        monto_total=data.monto_total,
+        datos_sib=data.datos_sib,
+        created_by=tenant.user_id
+    )
+    
+    return project
+
+
+@router.get("")
+async def list_projects(
+    estado: Optional[str] = None,
+    fase: Optional[int] = None,
+    limit: int = Query(50, le=100),
+    offset: int = 0,
+    tenant: TenantContext = Depends(get_current_user),
+    db=Depends(get_db_pool)
+):
+    """Listar proyectos de la empresa."""
+    service = ProjectService(db)
+    
+    projects = await service.list_projects(
+        empresa_id=tenant.empresa_id,
+        estado=estado,
+        fase=fase,
+        limit=limit,
+        offset=offset
+    )
+    
+    return {"projects": projects, "count": len(projects)}
+
+
+@router.get("/search")
+async def search_projects(
+    q: str,
+    limit: int = Query(20, le=50),
+    tenant: TenantContext = Depends(get_current_user),
+    db=Depends(get_db_pool)
+):
+    """Buscar proyectos."""
+    service = ProjectService(db)
+    
+    results = await service.search_projects(
+        empresa_id=tenant.empresa_id,
+        query=q,
+        limit=limit
+    )
+    
+    return {"results": results}
+
+
+@router.get("/stats")
+async def get_project_stats(
+    tenant: TenantContext = Depends(get_current_user),
+    db=Depends(get_db_pool)
+):
+    """Estadísticas de proyectos."""
+    service = ProjectService(db)
+    
+    return await service.get_project_stats(tenant.empresa_id)
+
+
+@router.get("/{project_id}")
+async def get_project(
+    project_id: str,
+    tenant: TenantContext = Depends(get_current_user),
+    db=Depends(get_db_pool)
+):
+    """Obtener proyecto por ID."""
+    service = ProjectService(db)
+    
+    project = await service.get_project(project_id, tenant.empresa_id)
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    
+    return project
+
+
+@router.patch("/{project_id}")
+async def update_project(
+    project_id: str,
+    data: ProjectUpdate,
+    tenant: TenantContext = Depends(get_current_user),
+    db=Depends(get_db_pool)
+):
+    """Actualizar proyecto."""
+    service = ProjectService(db)
+    
+    updates = data.dict(exclude_none=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+    
+    project = await service.update_project(project_id, tenant.empresa_id, updates)
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    
+    return project
+
+
+@router.delete("/{project_id}")
+async def delete_project(
+    project_id: str,
+    tenant: TenantContext = Depends(get_current_user),
+    db=Depends(get_db_pool)
+):
+    """Eliminar proyecto."""
+    service = ProjectService(db)
+    
+    deleted = await service.delete_project(project_id, tenant.empresa_id)
+    
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    
+    return {"deleted": True}
+
+
+# ==================== FASES ====================
+
+@router.get("/{project_id}/phases")
+async def get_phases(
+    project_id: str,
+    tenant: TenantContext = Depends(get_current_user),
+    db=Depends(get_db_pool)
+):
+    """Obtener estado de fases."""
+    service = ProjectService(db)
+    
+    phases = await service.get_phase_status(project_id, tenant.empresa_id)
+    return {"phases": phases}
+
+
+@router.patch("/{project_id}/phases/{fase}")
+async def update_phase(
+    project_id: str,
+    fase: int,
+    data: PhaseUpdate,
+    tenant: TenantContext = Depends(get_current_user),
+    db=Depends(get_db_pool)
+):
+    """Actualizar estado de una fase."""
+    service = ProjectService(db)
+    
+    aprobado_por = None
+    if data.estado == "aprobado":
+        aprobado_por = {
+            "user_id": tenant.user_id,
+            "fecha": datetime.utcnow().isoformat(),
+            "comentario": data.comentario
+        }
+    
+    await service.update_phase_status(
+        project_id, tenant.empresa_id, fase, data.estado, aprobado_por
+    )
+    
+    return {"updated": True}
+
+
+# ==================== DELIBERACIONES ====================
+
+@router.get("/{project_id}/deliberations")
+async def get_deliberations(
+    project_id: str,
+    fase: Optional[int] = None,
+    agente_id: Optional[str] = None,
+    tenant: TenantContext = Depends(get_current_user),
+    db=Depends(get_db_pool)
+):
+    """Obtener deliberaciones de un proyecto."""
+    service = ProjectService(db)
+    
+    deliberations = await service.get_deliberations(
+        project_id, tenant.empresa_id, fase, agente_id
+    )
+    
+    return {"deliberations": deliberations}
+```
+
+---
+
+## PASO 6: Eliminar dependencias de MongoDB
+
+Una vez migrado y verificado, eliminá MongoDB:
+
+**1. En `requirements.txt`, eliminar:**
+```
+motor
+pymongo
+2. En backend/server.py, eliminar:
+python# ELIMINAR estas líneas:
+from motor.motor_asyncio import AsyncIOMotorClient
+# mongo_client = AsyncIOMotorClient(MONGO_URI)
+# mongo_db = mongo_client.get_default_database()
+```
+
+**3. En Replit Secrets, eliminar:**
+```
+MONGO_URI
+MONGODB_URI
+
+✅ CHECKLIST TOUR #3
+#TareaEstado1Ejecutar SQL de nuevas tablas⬜2Crear script migrate_mongo_to_postgres.py⬜3Ejecutar migración (--dry-run primero)⬜4Ejecutar migración real⬜5Crear project_service.py (PostgreSQL)⬜6Crear deliberation_service.py⬜7Actualizar routes/projects.py⬜8Probar endpoints⬜9Eliminar dependencias MongoDB⬜10Eliminar MONGO_URI de Secrets⬜

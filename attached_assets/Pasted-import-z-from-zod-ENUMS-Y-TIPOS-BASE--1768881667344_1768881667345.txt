@@ -1,0 +1,377 @@
+import { z } from 'zod';
+
+// ============================================
+// ENUMS Y TIPOS BASE
+// ============================================
+
+export const EstatusProveedorEnum = z.enum(['activo', 'inactivo', 'bloqueado', 'pendiente_revision']);
+
+export const TipoPersonaEnum = z.enum(['moral', 'fisica']);
+
+export const TipoProveedorEnum = z.enum([
+  'CONSULTORIA_MACRO',
+  'CONSULTORIA_ESTRATEGICA', 
+  'SOFTWARE_SAAS',
+  'MARKETING_BRANDING',
+  'INTRAGRUPO',
+  'SERVICIOS_ESPECIALIZADOS',
+  'OUTSOURCING_PERMITIDO',
+  'OTRO'
+]);
+
+export const EstatusRfcEnum = z.enum(['activo', 'suspendido', 'cancelado', 'no_localizado']);
+
+export const TipoOpinionEnum = z.enum(['positiva', 'negativa', 'no_localizado', 'no_presentada']);
+
+export const TipoDocumentoLicenciaEnum = z.enum([
+  'licencia_sanitaria',
+  'permiso_ambiental', 
+  'certificacion_ISO',
+  'certificacion_PCI',
+  'certificacion_SOC2',
+  'google_partner',
+  'meta_partner',
+  'microsoft_partner',
+  'otra'
+]);
+
+export const NivelConfianzaOCREnum = z.enum(['alto', 'medio', 'bajo']);
+
+// ============================================
+// SCHEMAS DE DOMICILIO
+// ============================================
+
+export const DomicilioFiscalSchema = z.object({
+  calle: z.string().min(1, 'Calle es requerida'),
+  numeroExterior: z.string().optional(),
+  numeroInterior: z.string().optional(),
+  colonia: z.string().min(1, 'Colonia es requerida'),
+  municipio: z.string().min(1, 'Municipio es requerido'),
+  estado: z.string().min(1, 'Estado es requerido'),
+  codigoPostal: z.string().regex(/^\d{5}$/, 'Código postal debe ser de 5 dígitos'),
+  pais: z.string().default('México'),
+  // Campos para análisis de riesgo EFOS
+  esZonaAltoRiesgo: z.boolean().default(false),
+  esDomicilioMasivo: z.boolean().default(false),
+  coordenadas: z.object({
+    latitud: z.number().optional(),
+    longitud: z.number().optional()
+  }).optional()
+});
+
+// ============================================
+// SCHEMAS DE CAPITAL SOCIAL
+// ============================================
+
+export const CapitalSocialSchema = z.object({
+  montoSuscrito: z.number().min(0),
+  montoPagado: z.number().min(0),
+  moneda: z.string().default('MXN'),
+  fechaActualizacion: z.string().datetime().optional()
+});
+
+// ============================================
+// SCHEMA DE DATOS LEGALES Y FISCALES
+// ============================================
+
+export const DatosLegalesFiscalesSchema = z.object({
+  razonSocial: z.string().min(1, 'Razón social es requerida'),
+  nombreComercial: z.string().optional(),
+  rfc: z.string()
+    .min(12, 'RFC debe tener mínimo 12 caracteres')
+    .max(13, 'RFC debe tener máximo 13 caracteres')
+    .regex(/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/, 'Formato de RFC inválido'),
+  regimenFiscal: z.string().min(1, 'Régimen fiscal es requerido'),
+  claveRegimenFiscal: z.string().optional(), // Ej: "601", "612", etc.
+  domicilioFiscal: DomicilioFiscalSchema,
+  fechaConstitucion: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha debe ser YYYY-MM-DD'),
+  fechaAltaRfc: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  objetoSocialRelevante: z.string().max(500, 'Máximo 500 caracteres').optional(),
+  objetoSocialCompleto: z.string().optional(), // Texto completo extraído
+  capitalSocial: CapitalSocialSchema.optional(),
+  tipoPersona: TipoPersonaEnum,
+  // Datos de socios/administradores (para análisis de partes relacionadas)
+  sociosPrincipales: z.array(z.object({
+    nombre: z.string(),
+    rfc: z.string().optional(),
+    porcentajeParticipacion: z.number().min(0).max(100).optional(),
+    esSocioAdministrador: z.boolean().default(false)
+  })).optional()
+});
+
+// ============================================
+// SCHEMA DE CONTACTO Y DATOS OPERATIVOS
+// ============================================
+
+export const RedesSocialesSchema = z.object({
+  linkedin: z.string().url().optional().or(z.literal('')),
+  facebook: z.string().url().optional().or(z.literal('')),
+  instagram: z.string().url().optional().or(z.literal('')),
+  twitter: z.string().url().optional().or(z.literal('')),
+  otra: z.string().url().optional().or(z.literal(''))
+});
+
+export const ContactoPrincipalSchema = z.object({
+  nombreCompleto: z.string().min(1, 'Nombre de contacto es requerido'),
+  puesto: z.string().optional(),
+  email: z.string().email('Email inválido'),
+  emailCorporativo: z.boolean().default(false), // true si el dominio coincide con sitio web
+  telefono: z.string().min(10, 'Teléfono debe tener al menos 10 dígitos'),
+  extension: z.string().optional()
+});
+
+export const DatosContactoOperativosSchema = z.object({
+  sitioWeb: z.string().url().optional().or(z.literal('')),
+  sitioWebVerificado: z.boolean().default(false), // Se verificó que existe y está activo
+  redesSociales: RedesSocialesSchema.optional(),
+  contactoPrincipal: ContactoPrincipalSchema,
+  contactosAdicionales: z.array(ContactoPrincipalSchema).optional(),
+  tipoProveedor: TipoProveedorEnum,
+  subtipoProveedor: z.string().optional(),
+  descripcionServiciosOfrecidos: z.string().max(1000).optional(),
+  // Para activar checklists condicionales
+  requiereRepse: z.boolean().default(false),
+  tienePersonalEnSitio: z.boolean().default(false),
+  esServicioRegulado: z.boolean().default(false)
+});
+
+// ============================================
+// SCHEMAS DE DOCUMENTOS CON METADATOS OCR
+// ============================================
+
+export const MetadatosOCRSchema = z.object({
+  ocrOk: z.boolean().default(false),
+  nivelConfianza: NivelConfianzaOCREnum.optional(),
+  fechaProcesamiento: z.string().datetime().optional(),
+  erroresExtraccion: z.array(z.string()).optional(),
+  camposExtraidosAutomaticamente: z.array(z.string()).optional(),
+  camposCorregidosManualmente: z.array(z.string()).optional()
+});
+
+export const ConstanciaSituacionFiscalSchema = z.object({
+  archivoId: z.string().uuid().optional(),
+  archivoUrl: z.string().url().optional(),
+  nombreArchivo: z.string().optional(),
+  fechaEmision: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  estatusRfc: EstatusRfcEnum.optional(),
+  fechaInicioOperaciones: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  obligacionesFiscales: z.array(z.string()).optional(), // Lista de obligaciones registradas
+  metadatosOcr: MetadatosOCRSchema.optional()
+});
+
+export const ActaConstitutivaSchema = z.object({
+  archivoId: z.string().uuid().optional(),
+  archivoUrl: z.string().url().optional(),
+  nombreArchivo: z.string().optional(),
+  fechaEscritura: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  notario: z.string().optional(),
+  numeroNotaria: z.string().optional(),
+  entidadNotaria: z.string().optional(), // Estado donde se constituyó
+  numeroEscritura: z.string().optional(),
+  folioMercantil: z.string().optional(),
+  metadatosOcr: MetadatosOCRSchema.optional()
+});
+
+export const OpinionCumplimientoSchema = z.object({
+  archivoId: z.string().uuid().optional(),
+  archivoUrl: z.string().url().optional(),
+  nombreArchivo: z.string().optional(),
+  tipoOpinion: TipoOpinionEnum.optional(),
+  fechaEmision: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  vigenciaHasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  obligatoriaPorPolitica: z.boolean().default(false),
+  montoUmbralObligatoriedad: z.number().optional(), // Monto a partir del cual es obligatoria
+  metadatosOcr: MetadatosOCRSchema.optional()
+});
+
+export const RepseSchema = z.object({
+  archivoId: z.string().uuid().optional(),
+  archivoUrl: z.string().url().optional(),
+  nombreArchivo: z.string().optional(),
+  numeroRegistro: z.string().optional(),
+  objetoAutorizado: z.string().optional(),
+  actividadesAutorizadas: z.array(z.string()).optional(),
+  fechaRegistro: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  fechaVigencia: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  aplicable: z.boolean().default(false),
+  metadatosOcr: MetadatosOCRSchema.optional()
+});
+
+export const ComprobanteNominaSchema = z.object({
+  archivoId: z.string().uuid().optional(),
+  archivoUrl: z.string().url().optional(),
+  nombreArchivo: z.string().optional(),
+  tipoComprobante: z.enum(['ISR_retenido', 'IMSS', 'INFONAVIT', 'ISN', 'otro']),
+  periodo: z.string().regex(/^\d{4}-\d{2}$/, 'Formato debe ser YYYY-MM'),
+  numTrabajadores: z.number().int().min(0).optional(),
+  montoTotal: z.number().min(0).optional(),
+  metadatosOcr: MetadatosOCRSchema.optional()
+});
+
+export const PermisoLicenciaCertificacionSchema = z.object({
+  tipoDocumento: TipoDocumentoLicenciaEnum,
+  archivoId: z.string().uuid().optional(),
+  archivoUrl: z.string().url().optional(),
+  nombreArchivo: z.string().optional(),
+  autoridadEmisora: z.string().optional(),
+  numeroDocumento: z.string().optional(),
+  fechaEmision: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  fechaVencimiento: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  alcance: z.string().optional(), // Descripción del alcance de la certificación
+  metadatosOcr: MetadatosOCRSchema.optional()
+});
+
+export const DocumentosClaveSchema = z.object({
+  constanciaSituacionFiscal: ConstanciaSituacionFiscalSchema.optional(),
+  actaConstitutiva: ActaConstitutivaSchema.optional(),
+  opinionCumplimiento: OpinionCumplimientoSchema.optional(),
+  repse: RepseSchema.optional(),
+  comprobantesNominaSeguridadSocial: z.array(ComprobanteNominaSchema).optional(),
+  permisosLicenciasCertificaciones: z.array(PermisoLicenciaCertificacionSchema).optional(),
+  // Documentos adicionales genéricos
+  documentosAdicionales: z.array(z.object({
+    tipoDocumento: z.string(),
+    archivoId: z.string().uuid().optional(),
+    archivoUrl: z.string().url().optional(),
+    nombreArchivo: z.string().optional(),
+    descripcion: z.string().optional(),
+    metadatosOcr: MetadatosOCRSchema.optional()
+  })).optional()
+});
+
+// ============================================
+// SCHEMA DE RIESGO DEL PROVEEDOR
+// ============================================
+
+export const FlagsRiesgoSchema = z.object({
+  // Flags automáticos calculados
+  proveedorReciente: z.boolean().default(false), // < 12 meses de constituido
+  proveedorMuyReciente: z.boolean().default(false), // < 6 meses
+  capitalVsMontosIncongruente: z.boolean().default(false),
+  sinOpinionCumplimiento: z.boolean().default(false),
+  opinionNegativa: z.boolean().default(false),
+  sinRepseSiAplica: z.boolean().default(false),
+  repseVencido: z.boolean().default(false),
+  domicilioAltoRiesgo: z.boolean().default(false),
+  rfcEnLista69B: z.boolean().default(false),
+  rfcEnListaEFOS: z.boolean().default(false),
+  objetoSocialIncongruente: z.boolean().default(false),
+  regimenFiscalIncongruente: z.boolean().default(false),
+  sinPresenciaDigital: z.boolean().default(false),
+  emailNoCoincideConDominio: z.boolean().default(false),
+  // Flags manuales/override
+  revisadoManualmente: z.boolean().default(false),
+  aprobadoConExcepcion: z.boolean().default(false),
+  motivoExcepcion: z.string().optional()
+});
+
+export const RiesgoProveedorSchema = z.object({
+  // Scores calculados (0-100, donde 100 = máximo riesgo)
+  scoreFiscal: z.number().min(0).max(100).default(0),
+  scoreLegal: z.number().min(0).max(100).default(0),
+  scoreOperativo: z.number().min(0).max(100).default(0),
+  scoreGeneral: z.number().min(0).max(100).default(0),
+  
+  // Score de materialidad potencial (qué tan bien documentado está)
+  scoreMaterialidadPotencial: z.number().min(0).max(100).default(0),
+  
+  // Nivel de riesgo consolidado
+  nivelRiesgo: z.enum(['bajo', 'medio', 'alto', 'critico']).default('medio'),
+  
+  // Flags detallados
+  flags: FlagsRiesgoSchema,
+  
+  // Comentarios de agentes
+  comentariosAgenteFiscal: z.string().optional(),
+  comentariosAgenteLegal: z.string().optional(),
+  comentariosAgenteFinanzas: z.string().optional(),
+  comentariosAgenteProveedor: z.string().optional(),
+  
+  // Historial de evaluaciones
+  fechaUltimaEvaluacion: z.string().datetime().optional(),
+  historialEvaluaciones: z.array(z.object({
+    fecha: z.string().datetime(),
+    scoreGeneral: z.number(),
+    nivelRiesgo: z.string(),
+    evaluadoPor: z.string(), // 'sistema' o userId del auditor
+    notas: z.string().optional()
+  })).optional()
+});
+
+// ============================================
+// SCHEMA DE METADATOS
+// ============================================
+
+export const MetadatosProveedorSchema = z.object({
+  fechaAlta: z.string().datetime(),
+  usuarioAlta: z.string(),
+  fechaUltimaActualizacion: z.string().datetime(),
+  usuarioUltimaActualizacion: z.string(),
+  versionRegistro: z.number().int().default(1),
+  // Para auditoría
+  historialCambios: z.array(z.object({
+    fecha: z.string().datetime(),
+    usuario: z.string(),
+    camposModificados: z.array(z.string()),
+    descripcionCambio: z.string().optional()
+  })).optional()
+});
+
+// ============================================
+// SCHEMA PRINCIPAL DE PROVEEDOR
+// ============================================
+
+export const ProveedorSchema = z.object({
+  proveedorId: z.string().uuid(),
+  empresaClienteId: z.string().uuid(), // La empresa que da de alta al proveedor
+  estatus: EstatusProveedorEnum.default('pendiente_revision'),
+  
+  datosLegalesFiscales: DatosLegalesFiscalesSchema,
+  datosContactoOperativos: DatosContactoOperativosSchema,
+  documentosClave: DocumentosClaveSchema,
+  riesgoProveedor: RiesgoProveedorSchema.optional(),
+  metadatos: MetadatosProveedorSchema
+});
+
+// ============================================
+// SCHEMAS PARA FORMULARIOS (PARCIALES)
+// ============================================
+
+// Schema para el paso 1: Datos básicos
+export const ProveedorPaso1Schema = z.object({
+  nombreLegalEmpresa: z.string().min(1, 'Nombre legal es requerido'),
+  tipoPersona: TipoPersonaEnum,
+  tipoProveedor: TipoProveedorEnum
+});
+
+// Schema para el paso 2: Documentos obligatorios
+export const ProveedorPaso2Schema = z.object({
+  constanciaSituacionFiscal: z.any(), // File
+  actaConstitutiva: z.any() // File
+});
+
+// Schema para el paso 3: Datos extraídos y validación
+export const ProveedorPaso3Schema = DatosLegalesFiscalesSchema.partial();
+
+// Schema para el paso 4: Contacto y datos operativos
+export const ProveedorPaso4Schema = DatosContactoOperativosSchema;
+
+// Schema para el paso 5: Documentos opcionales
+export const ProveedorPaso5Schema = z.object({
+  opinionCumplimiento: z.any().optional(),
+  repse: z.any().optional(),
+  comprobantesNomina: z.array(z.any()).optional(),
+  certificaciones: z.array(z.any()).optional()
+});
+
+// ============================================
+// TIPOS EXPORTADOS
+// ============================================
+
+export type Proveedor = z.infer<typeof ProveedorSchema>;
+export type DatosLegalesFiscales = z.infer<typeof DatosLegalesFiscalesSchema>;
+export type DatosContactoOperativos = z.infer<typeof DatosContactoOperativosSchema>;
+export type DocumentosClave = z.infer<typeof DocumentosClaveSchema>;
+export type RiesgoProveedor = z.infer<typeof RiesgoProveedorSchema>;
+export type FlagsRiesgo = z.infer<typeof FlagsRiesgoSchema>;
+export type MetadatosOCR = z.infer<typeof MetadatosOCRSchema>;

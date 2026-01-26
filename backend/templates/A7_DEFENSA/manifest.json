@@ -1,0 +1,57 @@
+{
+  "agent_id": "A7_DEFENSA",
+  "version": "1.0.0",
+  "generated_at": "{{FECHA_ACTUAL}}",
+  "templates": [
+    {
+      "filename": "guia_defense_file.docx",
+      "title": "GUÍA DE ESTRUCTURACIÓN DEL DEFENSE FILE",
+      "section_count": 3,
+      "placeholders": [
+        "EMPRESA_NOMBRE",
+        "PROYECTO_NOMBRE",
+        "MONTO_CREDITO",
+        "PROVEEDOR_NOMBRE"
+      ]
+    },
+    {
+      "filename": "criterios_tfja.docx",
+      "title": "CRITERIOS JURISPRUDENCIALES TFJA APLICABLES",
+      "section_count": 4,
+      "placeholders": [
+        "NUMERO_TESIS_2",
+        "NUMERO_TESIS_3",
+        "NUMERO_TESIS_1"
+      ]
+    },
+    {
+      "filename": "documentos_criticos.docx",
+      "title": "CHECKLIST DE DOCUMENTOS CRÍTICOS PARA DEFENSA",
+      "section_count": 5,
+      "placeholders": [
+        "PROYECTO_NOMBRE",
+        "MONTO_CREDITO",
+        "PROVEEDOR_NOMBRE"
+      ]
+    },
+    {
+      "filename": "precedentes_defensa.docx",
+      "title": "PRECEDENTES DE DEFENSA FISCAL EXITOSA",
+      "section_count": 3,
+      "placeholders": [
+        "PROYECTO_NOMBRE"
+      ]
+    },
+    {
+      "filename": "refuerzo_probatorio.docx",
+      "title": "ESTRATEGIAS DE REFUERZO PROBATORIO",
+      "section_count": 5,
+      "placeholders": [
+        "ESTRATEGIAS_SELECCIONADAS",
+        "PROYECTO_NOMBRE",
+        "FECHA_LIMITE",
+        "RESPONSABLE"
+      ]
+    }
+  ]
+}

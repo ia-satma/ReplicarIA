@@ -1,0 +1,953 @@
+=============================================================================
+TOON FASE 5: CHECKLISTS ESPECÍFICOS POR TIPOLOGÍA DE SERVICIO
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta todas las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. SOLO EJECUTA.
+
+PRERREQUISITO: Las Fases 1-4 deben estar completadas.
+
+CONTEXTO: Una de las brechas críticas del sistema actual es que los agentes
+dan recomendaciones genéricas ("debe haber documentación completa") en lugar
+de checklists específicos según el tipo de servicio. Un estudio de mercado
+necesita entregables diferentes que un desarrollo de software o un management fee.
+
+Esta fase crea checklists específicos por tipología y fase, para que los
+agentes puedan decir exactamente qué documentos faltan según el tipo de proyecto.
+
+=============================================================================
+PASO 1: CREAR ARCHIVO DE CHECKLISTS PARA CONSULTORÍA MACRO/MERCADO
+=============================================================================
+
+Crea archivo "checklists/consultoriaMacroMercado.js":
+
+const CHECKLIST_CONSULTORIA_MACRO_MERCADO = {
+  
+  tipologia: "CONSULTORIA_MACRO_MERCADO",
+  nombre: "Estudios macroeconómicos, de mercado, regulatorios",
+  
+  F0: {
+    nombre: "Aprobación - Definir BEE",
+    items: [
+      {
+        id: "CMM_F0_01",
+        descripcion: "SIB (Service Initiation Brief) con objetivo del estudio claramente definido",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Documento que especifique: qué se quiere conocer, por qué se necesita, cómo se usará",
+        ejemplo_bueno: "SIB que dice: 'Estudio para dimensionar demanda residencial premium NL 2026-2028, para informar decisiones de inversión en nuevos desarrollos'",
+        ejemplo_malo: "SIB que dice: 'Estudio de mercado general'"
+      },
+      {
+        id: "CMM_F0_02",
+        descripcion: "BEE (Beneficio Económico Esperado) con ROI estimado",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Documento o sección del SIB que cuantifique: beneficio esperado, ROI estimado, horizonte temporal",
+        ejemplo_bueno: "ROI 2.5x: mejor asignación de CAPEX estimada en $15M sobre horizonte de 24 meses",
+        ejemplo_malo: "'El estudio nos ayudará a tomar mejores decisiones'"
+      },
+      {
+        id: "CMM_F0_03",
+        descripcion: "Vinculación documentada con Plan Estratégico",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Referencia específica a qué iniciativa/objetivo del plan estratégico soporta este estudio",
+        ejemplo_bueno: "Soporta Iniciativa 3.2 del PE 2025-2028: 'Expansión a nuevos mercados geográficos'",
+        ejemplo_malo: "'Está alineado con nuestra estrategia'"
+      },
+      {
+        id: "CMM_F0_04",
+        descripcion: "Evaluación inicial de riesgo fiscal por A3",
+        obligatorio: true,
+        responsable: "FISCAL",
+        criterio_aceptacion: "Dictamen preliminar de A3 con risk_score inicial y observaciones",
+        ejemplo_bueno: "Risk score inicial: 22/100 - Bajo riesgo. Observación: asegurar entregables tangibles",
+        ejemplo_malo: "Sin evaluación fiscal previa"
+      }
+    ]
+  },
+  
+  F1: {
+    nombre: "Pre-contratación / SOW",
+    items: [
+      {
+        id: "CMM_F1_01",
+        descripcion: "SOW o propuesta con alcance del estudio definido",
+        obligatorio: true,
+        responsable: "LEGAL",
+        criterio_aceptacion: "Documento con: objetivo, alcance geográfico/temporal, metodología general, fuentes a consultar",
+        ejemplo_bueno: "SOW con: 'Análisis de mercado residencial premium en ZMM, horizonte 2026-2028, metodología PESTEL + análisis cuantitativo de demanda'",
+        ejemplo_malo: "'Estudio de mercado completo'"
+      },
+      {
+        id: "CMM_F1_02",
+        descripcion: "Lista de entregables específicos",
+        obligatorio: true,
+        responsable: "LEGAL",
+        criterio_aceptacion: "Enumeración clara de qué documentos/archivos se recibirán",
+        ejemplo_bueno: "1) Informe ejecutivo (30-50 pp), 2) Informe técnico completo (150-200 pp), 3) Modelo paramétrico Excel, 4) Dashboard interactivo, 5) Manual metodológico",
+        ejemplo_malo: "'Entregables según lo acordado'"
+      },
+      {
+        id: "CMM_F1_03",
+        descripcion: "Cronograma de hitos con fechas estimadas",
+        obligatorio: true,
+        responsable: "LEGAL",
+        criterio_aceptacion: "Timeline con al menos: kick-off, entrega V1, revisión, entrega final",
+        ejemplo_bueno: "Kick-off: Sem 1 | V1 borrador: Sem 4 | Revisión: Sem 5-6 | Entrega final: Sem 8",
+        ejemplo_malo: "'Duración estimada: 2 meses'"
+      },
+      {
+        id: "CMM_F1_04",
+        descripcion: "Esquema de honorarios/precio",
+        obligatorio: true,
+        responsable: "LEGAL",
+        criterio_aceptacion: "Monto total y forma de pago (único, por hitos, etc.)",
+        ejemplo_bueno: "$1,250,000 MXN: 30% anticipo, 40% entrega V1, 30% entrega final",
+        ejemplo_malo: "'Precio a convenir'"
+      },
+      {
+        id: "CMM_F1_05",
+        descripcion: "Criterios de aceptación del estudio",
+        obligatorio: false,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Qué condiciones debe cumplir el entregable para considerarse aceptado",
+        ejemplo_bueno: "Aceptación si: 1) Cubre las 5 zonas geográficas acordadas, 2) Incluye proyecciones a 3 años, 3) Modelo paramétrico funcional con al menos 10 variables",
+        ejemplo_malo: "'A satisfacción del cliente'"
+      }
+    ]
+  },
+  
+  F2: {
+    nombre: "Validación previa al inicio",
+    items: [
+      {
+        id: "CMM_F2_01",
+        descripcion: "Confirmación de presupuesto disponible",
+        obligatorio: true,
+        responsable: "FINANZAS",
+        criterio_aceptacion: "Documento o registro de A5 confirmando partida presupuestal",
+        ejemplo_bueno: "Confirmación A5: Presupuesto disponible en partida 'Estudios y Consultoría 2026' - $1.5M asignados",
+        ejemplo_malo: "Sin confirmación de presupuesto"
+      },
+      {
+        id: "CMM_F2_02",
+        descripcion: "Contrato o SOW firmado",
+        obligatorio: true,
+        responsable: "LEGAL",
+        criterio_aceptacion: "Documento con firmas de ambas partes y fecha",
+        ejemplo_bueno: "Contrato firmado el 15/mar/2026 por representantes autorizados",
+        ejemplo_malo: "Solo propuesta enviada por correo sin aceptación formal"
+      },
+      {
+        id: "CMM_F2_03",
+        descripcion: "Revisión humana obtenida (si aplica por umbral)",
+        obligatorio: false,
+        responsable: "PMO",
+        criterio_aceptacion: "Si monto >= $5M o risk_score >= 60, documentar aprobación humana",
+        ejemplo_bueno: "Proyecto de $1.25M con risk_score 22: No requiere revisión humana adicional",
+        ejemplo_malo: "Proyecto de $8M sin ninguna revisión humana documentada"
+      }
+    ]
+  },
+  
+  F3: {
+    nombre: "Ejecución inicial",
+    items: [
+      {
+        id: "CMM_F3_01",
+        descripcion: "Minuta de kick-off con asistentes y acuerdos",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Documento con: fecha, asistentes, temas tratados, acuerdos, próximos pasos",
+        ejemplo_bueno: "Minuta kick-off 5/abr: Asistentes (lista), Acuerdos: fuentes a consultar, zonas prioritarias, formato de entregas",
+        ejemplo_malo: "Sin registro de reunión inicial"
+      },
+      {
+        id: "CMM_F3_02",
+        descripcion: "Entregable V1 / borrador inicial",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Primera versión identificable del estudio, aunque sea preliminar",
+        ejemplo_bueno: "Informe V1.0 - Borrador 15/may - 80 páginas con análisis preliminar",
+        ejemplo_malo: "Solo presentación de 10 slides genéricas"
+      },
+      {
+        id: "CMM_F3_03",
+        descripcion: "Registro de fuentes consultadas",
+        obligatorio: false,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Lista de fuentes de información utilizadas",
+        ejemplo_bueno: "Fuentes: INEGI, Banxico, AMPI, entrevistas a 15 desarrolladores locales",
+        ejemplo_malo: "Sin mención de fuentes"
+      }
+    ]
+  },
+  
+  F4: {
+    nombre: "Revisión iterativa",
+    items: [
+      {
+        id: "CMM_F4_01",
+        descripcion: "Versiones sucesivas del entregable (V1.1, V1.2, V2, etc.)",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Al menos una versión revisada después de retroalimentación",
+        ejemplo_bueno: "V1.0 (15/may) → V1.2 (25/may) con ajustes en proyecciones → V2.0 (10/jun) versión final",
+        ejemplo_malo: "Solo una versión sin iteración"
+      },
+      {
+        id: "CMM_F4_02",
+        descripcion: "Registro de observaciones y cómo se atendieron",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Documento o correos que muestren qué se pidió ajustar y qué se hizo",
+        ejemplo_bueno: "Correo 20/may: 'Favor incluir análisis de zona Valle Poniente'. Respuesta 25/may: 'Incluido en V1.2 sección 4.3'",
+        ejemplo_malo: "Sin registro de retroalimentación"
+      },
+      {
+        id: "CMM_F4_03",
+        descripcion: "Minuta(s) de sesiones de revisión",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Al menos 1-2 minutas de sesiones de trabajo/revisión",
+        ejemplo_bueno: "Minuta sesión revisión 22/may: Asistentes, observaciones al V1, acuerdos para V2",
+        ejemplo_malo: "Sin minutas de reuniones"
+      }
+    ]
+  },
+  
+  F5: {
+    nombre: "Entrega final / Aceptación técnica",
+    items: [
+      {
+        id: "CMM_F5_01",
+        descripcion: "Informe final completo y versionado",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Documento final con número de versión, fecha, índice, metodología, hallazgos, conclusiones",
+        ejemplo_bueno: "Informe Final V2.0 - 'Estudio de Mercado Residencial Premium NL 2026-2028' - 180 páginas - 30/jun/2026",
+        ejemplo_malo: "Documento sin versión ni fecha, incompleto"
+      },
+      {
+        id: "CMM_F5_02",
+        descripcion: "Modelo paramétrico / cuantitativo funcional",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Archivo Excel/herramienta con modelo de proyecciones que funcione y sea modificable",
+        ejemplo_bueno: "Modelo Excel con 12 variables ajustables, proyecciones a 3 años, escenarios base/optimista/pesimista",
+        ejemplo_malo: "Excel con datos estáticos sin fórmulas"
+      },
+      {
+        id: "CMM_F5_03",
+        descripcion: "Dashboard interactivo (si aplica)",
+        obligatorio: false,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Herramienta de visualización funcional (Power BI, Tableau, web)",
+        ejemplo_bueno: "Dashboard Power BI con 8 indicadores clave, filtros por zona y segmento, actualizable",
+        ejemplo_malo: "Capturas de pantalla estáticas"
+      },
+      {
+        id: "CMM_F5_04",
+        descripcion: "Manual metodológico",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Documento que explique metodología utilizada para replicabilidad",
+        ejemplo_bueno: "Manual de 25 páginas explicando: fuentes, métodos de análisis, supuestos, limitaciones",
+        ejemplo_malo: "Sin documentación de metodología"
+      },
+      {
+        id: "CMM_F5_05",
+        descripcion: "Acta de aceptación técnica firmada",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Documento donde el área usuaria acepta formalmente el entregable",
+        ejemplo_bueno: "Acta firmada por Director de Planeación: 'Se acepta el estudio cumpliendo los criterios acordados'",
+        ejemplo_malo: "Solo correo informal diciendo 'ok, recibido'"
+      }
+    ]
+  },
+  
+  F6: {
+    nombre: "Visto Bueno Fiscal/Legal",
+    items: [
+      {
+        id: "CMM_F6_01",
+        descripcion: "Matriz de materialidad completa (>80%)",
+        obligatorio: true,
+        responsable: "FISCAL",
+        criterio_aceptacion: "Tabla que vincule cada hecho relevante con su evidencia documental",
+        ejemplo_bueno: "Matriz con 15 hechos, 14 con evidencia OK (93% completitud)",
+        ejemplo_malo: "Sin matriz o con menos de 80% de evidencias"
+      },
+      {
+        id: "CMM_F6_02",
+        descripcion: "Contrato/anexo final que refleje realidad del servicio",
+        obligatorio: true,
+        responsable: "LEGAL",
+        criterio_aceptacion: "Versión final del contrato congruente con lo entregado",
+        ejemplo_bueno: "Contrato con anexo técnico que lista los mismos entregables que se recibieron",
+        ejemplo_malo: "Contrato genérico que no menciona los entregables específicos"
+      },
+      {
+        id: "CMM_F6_03",
+        descripcion: "VBC Fiscal emitido por A3",
+        obligatorio: true,
+        responsable: "FISCAL",
+        criterio_aceptacion: "Documento de A3 aprobando el proyecto desde perspectiva tributaria",
+        ejemplo_bueno: "VBC Fiscal firmado: 'Se aprueba la deducibilidad del gasto. Risk score final: 16/100'",
+        ejemplo_malo: "Sin VBC o con VBC condicionado sin resolver condiciones"
+      },
+      {
+        id: "CMM_F6_04",
+        descripcion: "VBC Legal emitido por A4",
+        obligatorio: true,
+        responsable: "LEGAL",
+        criterio_aceptacion: "Documento de A4 aprobando el proyecto desde perspectiva jurídica",
+        ejemplo_bueno: "VBC Legal firmado: 'Documentación contractual completa y coherente'",
+        ejemplo_malo: "Sin VBC Legal"
+      }
+    ]
+  },
+  
+  F7: {
+    nombre: "Auditoría interna",
+    items: [
+      {
+        id: "CMM_F7_01",
+        descripcion: "Informe de auditoría interna / control",
+        obligatorio: true,
+        responsable: "PMO",
+        criterio_aceptacion: "Revisión de que se siguió el POE y Defense File está completo",
+        ejemplo_bueno: "Informe AI: 'Se verificó cumplimiento de F0-F6, Defense File completo con 22 documentos'",
+        ejemplo_malo: "Sin revisión de auditoría interna"
+      }
+    ]
+  },
+  
+  F8: {
+    nombre: "CFDI y pago",
+    items: [
+      {
+        id: "CMM_F8_01",
+        descripcion: "CFDI con descripción específica del servicio",
+        obligatorio: true,
+        responsable: "FINANZAS",
+        criterio_aceptacion: "Factura cuyo concepto coincida con el objeto del contrato",
+        ejemplo_bueno: "CFDI: 'Estudio de mercado residencial premium Nuevo León 2026-2028 según contrato XXX'",
+        ejemplo_malo: "CFDI: 'Servicios profesionales varios'"
+      },
+      {
+        id: "CMM_F8_02",
+        descripcion: "Comprobante de pago por medios trazables",
+        obligatorio: true,
+        responsable: "FINANZAS",
+        criterio_aceptacion: "Transferencia bancaria con referencia identificable",
+        ejemplo_bueno: "Transferencia SPEI del 15/jul al RFC XXX por $1,250,000 ref: Estudio Mercado NL",
+        ejemplo_malo: "Pago en efectivo sin comprobante"
+      },
+      {
+        id: "CMM_F8_03",
+        descripcion: "Conciliación contable / registro en póliza",
+        obligatorio: true,
+        responsable: "FINANZAS",
+        criterio_aceptacion: "Asiento contable que registre el gasto en cuenta apropiada",
+        ejemplo_bueno: "Póliza 2026-0458: Cargo a 'Gastos - Estudios y Consultoría' $1,250,000",
+        ejemplo_malo: "Sin registro contable"
+      },
+      {
+        id: "CMM_F8_04",
+        descripcion: "3-way match validado",
+        obligatorio: true,
+        responsable: "FINANZAS",
+        criterio_aceptacion: "Verificación de que CFDI, contrato y pago coinciden en monto y concepto",
+        ejemplo_bueno: "3-way match OK: Contrato $1.25M = CFDI $1.25M = Pago $1.25M",
+        ejemplo_malo: "Montos diferentes entre documentos"
+      }
+    ]
+  },
+  
+  F9: {
+    nombre: "Post-implementación",
+    items: [
+      {
+        id: "CMM_F9_01",
+        descripcion: "Informe de seguimiento del BEE (a 6, 12 o 24 meses)",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Evaluación de si los beneficios esperados se están cumpliendo",
+        ejemplo_bueno: "Seguimiento 12 meses: 'El estudio informó 3 decisiones de inversión por $45M. ROI parcial: 1.8x vs 2.5x esperado'",
+        ejemplo_malo: "Sin seguimiento post-implementación"
+      },
+      {
+        id: "CMM_F9_02",
+        descripcion: "Documentación de usos concretos del estudio",
+        obligatorio: false,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Registro de cómo se utilizó el estudio en decisiones reales",
+        ejemplo_bueno: "El estudio se usó para: 1) Definir ubicación de Proyecto Cumbres, 2) Ajustar pricing de Torre Valle, 3) Descartar proyecto en zona saturada",
+        ejemplo_malo: "Sin evidencia de uso del estudio"
+      }
+    ]
+  }
+};
+
+module.exports = { CHECKLIST_CONSULTORIA_MACRO_MERCADO };
+
+=============================================================================
+PASO 2: CREAR CHECKLIST PARA INTRAGRUPO/MANAGEMENT FEE (ALTO RIESGO)
+=============================================================================
+
+Crea archivo "checklists/intragrupoManagementFee.js":
+
+const CHECKLIST_INTRAGRUPO_MANAGEMENT_FEE = {
+  
+  tipologia: "INTRAGRUPO_MANAGEMENT_FEE",
+  nombre: "Servicios intra-grupo, management fees, soporte corporativo",
+  riesgo_inherente: "MUY_ALTO",
+  revision_humana_obligatoria: true,
+  
+  alertas_especiales: [
+    "Esta tipología SIEMPRE requiere revisión humana de Fiscal y Legal",
+    "Se requiere estudio de precios de transferencia ANTES de F2",
+    "Verificar que no haya duplicidad de funciones con personal interno",
+    "Documentar capacidad operativa del prestador (empleados, infraestructura)"
+  ],
+  
+  F0: {
+    nombre: "Aprobación - Definir BEE",
+    items: [
+      {
+        id: "IMF_F0_01",
+        descripcion: "SIB con justificación de necesidad del servicio intra-grupo",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Por qué se necesita este servicio de una empresa relacionada y no se hace internamente",
+        ejemplo_bueno: "SIB: 'Servicios de TI centralizados porque holding tiene equipo especializado de 50 personas que da soporte a 8 subsidiarias, evitando duplicar infraestructura en cada una'",
+        ejemplo_malo: "'Management fee por servicios corporativos'"
+      },
+      {
+        id: "IMF_F0_02",
+        descripcion: "BEE con análisis de ahorro vs hacer internamente",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Comparativo de costo centralizado vs costo de hacerlo en cada subsidiaria",
+        ejemplo_bueno: "Costo centralizado: $2M/año. Costo de equipo propio equivalente: $3.5M/año. Ahorro: $1.5M",
+        ejemplo_malo: "'Es más eficiente centralizar' sin números"
+      },
+      {
+        id: "IMF_F0_03",
+        descripcion: "Análisis de no duplicidad de funciones",
+        obligatorio: true,
+        responsable: "FISCAL",
+        criterio_aceptacion: "Verificación de que no se paga por servicios que ya hace el personal interno",
+        ejemplo_bueno: "Análisis: La subsidiaria no tiene departamento de TI propio. El fee cubre: soporte, infraestructura, licencias, seguridad",
+        ejemplo_malo: "Sin análisis de duplicidad"
+      },
+      {
+        id: "IMF_F0_04",
+        descripcion: "Estudio de precios de transferencia vigente",
+        obligatorio: true,
+        responsable: "FISCAL",
+        criterio_aceptacion: "Estudio de TP que cubra estos servicios con método y comparables",
+        ejemplo_bueno: "Estudio TP 2025 por Deloitte: Servicios de TI intra-grupo, método TNMM, margen operativo 8% dentro de rango de mercado",
+        ejemplo_malo: "Sin estudio de TP o estudio de hace 5 años"
+      },
+      {
+        id: "IMF_F0_05",
+        descripcion: "Documentación de capacidad operativa del prestador",
+        obligatorio: true,
+        responsable: "FISCAL",
+        criterio_aceptacion: "Evidencia de que el prestador tiene personal e infraestructura para dar el servicio",
+        ejemplo_bueno: "Organigrama del prestador con 50 empleados de TI, lista de activos tecnológicos, instalaciones",
+        ejemplo_malo: "Empresa prestadora sin empleados visibles ni infraestructura"
+      }
+    ]
+  },
+  
+  F1: {
+    nombre: "Pre-contratación / SOW",
+    items: [
+      {
+        id: "IMF_F1_01",
+        descripcion: "Contrato de servicios intra-grupo detallado",
+        obligatorio: true,
+        responsable: "LEGAL",
+        criterio_aceptacion: "Contrato que especifique: servicios concretos, niveles de servicio, base de cobro",
+        ejemplo_bueno: "Contrato con anexo: 'Servicios de TI: soporte N1/N2/N3 (SLA 4h/8h/24h), gestión de infraestructura, licenciamiento, seguridad. Base: usuarios activos + consumo'",
+        ejemplo_malo: "'Contrato de management fee por servicios corporativos'"
+      },
+      {
+        id: "IMF_F1_02",
+        descripcion: "Desglose de servicios incluidos en el fee",
+        obligatorio: true,
+        responsable: "LEGAL",
+        criterio_aceptacion: "Lista detallada de qué servicios específicos cubre el fee",
+        ejemplo_bueno: "Desglose: 1) Soporte técnico (40%), 2) Infraestructura cloud (25%), 3) Licencias (20%), 4) Seguridad (15%)",
+        ejemplo_malo: "'Servicios de gestión y asesoría corporativa general'"
+      },
+      {
+        id: "IMF_F1_03",
+        descripcion: "Metodología de asignación de costos",
+        obligatorio: true,
+        responsable: "FINANZAS",
+        criterio_aceptacion: "Cómo se calcula el monto a cobrar a cada subsidiaria",
+        ejemplo_bueno: "Base de asignación: 60% usuarios activos + 40% ingresos. Subsidiaria X tiene 15% de usuarios y 20% de ingresos = 17% del costo total",
+        ejemplo_malo: "Sin metodología de asignación"
+      },
+      {
+        id: "IMF_F1_04",
+        descripcion: "Referencia a estudio de TP en contrato",
+        obligatorio: true,
+        responsable: "LEGAL",
+        criterio_aceptacion: "El contrato debe mencionar que los precios están soportados por estudio de TP",
+        ejemplo_bueno: "Cláusula: 'Los precios de este contrato se determinan conforme al estudio de TP elaborado por [firma] vigente para el ejercicio'",
+        ejemplo_malo: "Contrato sin mención de TP"
+      }
+    ]
+  },
+  
+  F2: {
+    nombre: "Validación previa al inicio",
+    items: [
+      {
+        id: "IMF_F2_01",
+        descripcion: "Revisión humana obligatoria de Fiscal",
+        obligatorio: true,
+        responsable: "FISCAL",
+        criterio_aceptacion: "Revisión y aprobación por persona de Fiscal (no solo agente)",
+        ejemplo_bueno: "Revisión 15/mar por Director Fiscal: 'Aprobado con observación de actualizar estudio TP para 2026'",
+        ejemplo_malo: "Solo aprobación del agente A3 sin revisión humana"
+      },
+      {
+        id: "IMF_F2_02",
+        descripcion: "Revisión humana obligatoria de Legal",
+        obligatorio: true,
+        responsable: "LEGAL",
+        criterio_aceptacion: "Revisión y aprobación por persona de Legal (no solo agente)",
+        ejemplo_bueno: "Revisión 16/mar por Gerente Legal: 'Contrato aprobado, incluir cláusula de auditoría'",
+        ejemplo_malo: "Solo aprobación del agente A4 sin revisión humana"
+      },
+      {
+        id: "IMF_F2_03",
+        descripcion: "Confirmación de presupuesto",
+        obligatorio: true,
+        responsable: "FINANZAS",
+        criterio_aceptacion: "Partida presupuestal identificada para el fee",
+        ejemplo_bueno: "Presupuesto 2026: Partida 'Servicios intra-grupo TI' - $2.4M aprobados",
+        ejemplo_malo: "Sin presupuesto asignado"
+      }
+    ]
+  },
+  
+  F3: {
+    nombre: "Ejecución inicial",
+    items: [
+      {
+        id: "IMF_F3_01",
+        descripcion: "Reportes periódicos de servicios prestados",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Reportes mensuales/trimestrales de qué servicios se dieron",
+        ejemplo_bueno: "Reporte mensual Ene-2026: 145 tickets atendidos, 99.2% SLA cumplido, consumo cloud $X",
+        ejemplo_malo: "Sin reportes de servicio"
+      },
+      {
+        id: "IMF_F3_02",
+        descripcion: "Registro de horas/recursos dedicados",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Log de tiempo dedicado por el equipo del prestador",
+        ejemplo_bueno: "Timesheet Ene-2026: 320 horas de soporte N1, 80 horas N2, 20 horas N3",
+        ejemplo_malo: "Sin registro de horas"
+      }
+    ]
+  },
+  
+  F4: {
+    nombre: "Revisión iterativa",
+    items: [
+      {
+        id: "IMF_F4_01",
+        descripcion: "Revisiones trimestrales de niveles de servicio",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Minutas de reuniones de revisión de SLAs",
+        ejemplo_bueno: "Minuta Q1-2026: SLA cumplido al 98.5%, 2 incidentes mayores, plan de mejora acordado",
+        ejemplo_malo: "Sin revisiones periódicas"
+      }
+    ]
+  },
+  
+  F5: {
+    nombre: "Entrega final / Cierre de periodo",
+    items: [
+      {
+        id: "IMF_F5_01",
+        descripcion: "Reporte anual consolidado de servicios",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Resumen anual de todos los servicios prestados",
+        ejemplo_bueno: "Reporte 2026: 1,680 tickets, SLA promedio 98.7%, proyectos completados: migración cloud, actualización ERP",
+        ejemplo_malo: "Sin reporte consolidado"
+      },
+      {
+        id: "IMF_F5_02",
+        descripcion: "Acta de conformidad del receptor",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Documento donde la subsidiaria confirma haber recibido los servicios",
+        ejemplo_bueno: "Acta firmada: 'La subsidiaria X confirma haber recibido los servicios de TI conforme al contrato durante 2026'",
+        ejemplo_malo: "Sin acta de conformidad"
+      }
+    ]
+  },
+  
+  F6: {
+    nombre: "VBC Fiscal/Legal",
+    items: [
+      {
+        id: "IMF_F6_01",
+        descripcion: "Verificación de estudio TP vigente",
+        obligatorio: true,
+        responsable: "FISCAL",
+        criterio_aceptacion: "Confirmar que el estudio de TP sigue vigente y cubre la operación",
+        ejemplo_bueno: "Estudio TP 2026 vigente, operación dentro del rango de precios de mercado",
+        ejemplo_malo: "Estudio TP vencido o que no cubre estos servicios"
+      },
+      {
+        id: "IMF_F6_02",
+        descripcion: "Matriz de materialidad con énfasis en sustancia",
+        obligatorio: true,
+        responsable: "FISCAL",
+        criterio_aceptacion: "Demostrar que los servicios realmente se prestaron (no simulación)",
+        ejemplo_bueno: "Matriz con: reportes mensuales, timesheets, tickets resueltos, minutas, evidencia de trabajo real",
+        ejemplo_malo: "Solo contrato y facturas sin evidencia de ejecución"
+      },
+      {
+        id: "IMF_F6_03",
+        descripcion: "VBC Fiscal con análisis especial de TP",
+        obligatorio: true,
+        responsable: "FISCAL",
+        criterio_aceptacion: "VBC que confirme cumplimiento de requisitos de precios de transferencia",
+        ejemplo_bueno: "VBC Fiscal: 'Operación conforme a estudio TP, evidencia de sustancia económica suficiente'",
+        ejemplo_malo: "VBC sin análisis de TP"
+      },
+      {
+        id: "IMF_F6_04",
+        descripcion: "VBC Legal",
+        obligatorio: true,
+        responsable: "LEGAL",
+        criterio_aceptacion: "VBC Legal confirmando adecuada documentación",
+        ejemplo_bueno: "VBC Legal: 'Contrato adecuado, desglose de servicios completo'",
+        ejemplo_malo: "Sin VBC Legal"
+      }
+    ]
+  },
+  
+  F8: {
+    nombre: "CFDI y pago",
+    items: [
+      {
+        id: "IMF_F8_01",
+        descripcion: "CFDI con desglose de servicios",
+        obligatorio: true,
+        responsable: "FINANZAS",
+        criterio_aceptacion: "Factura que detalle los servicios cobrados",
+        ejemplo_bueno: "CFDI: 'Servicios de TI Ene-Dic 2026: Soporte técnico $960K, Infraestructura $600K, Licencias $480K'",
+        ejemplo_malo: "CFDI: 'Management fee 2026'"
+      },
+      {
+        id: "IMF_F8_02",
+        descripcion: "Pago conforme a metodología de asignación",
+        obligatorio: true,
+        responsable: "FINANZAS",
+        criterio_aceptacion: "El monto pagado corresponde a la base de asignación documentada",
+        ejemplo_bueno: "Pago $2.04M = 17% del costo total de $12M según metodología de asignación",
+        ejemplo_malo: "Monto arbitrario sin base de cálculo"
+      }
+    ]
+  }
+};
+
+module.exports = { CHECKLIST_INTRAGRUPO_MANAGEMENT_FEE };
+
+=============================================================================
+PASO 3: CREAR CHECKLIST PARA SOFTWARE/SAAS/DESARROLLO
+=============================================================================
+
+Crea archivo "checklists/softwareSaasDev.js":
+
+const CHECKLIST_SOFTWARE_SAAS_DESARROLLO = {
+  
+  tipologia: "SOFTWARE_SAAS_DESARROLLO",
+  nombre: "Desarrollo de software, licencias, SaaS",
+  
+  F0: {
+    items: [
+      {
+        id: "SSD_F0_01",
+        descripcion: "SIB con necesidad de negocio que resuelve el software",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Qué problema/oportunidad de negocio atiende el sistema",
+        ejemplo_bueno: "SIB: 'Sistema de gestión de inventarios para reducir faltantes de 8% a 2% y liberar capital de trabajo'",
+        ejemplo_malo: "'Desarrollo de sistema'"
+      },
+      {
+        id: "SSD_F0_02",
+        descripcion: "BEE con beneficios cuantificables del sistema",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Ahorros, eficiencias o ingresos esperados del sistema",
+        ejemplo_bueno: "BEE: Reducción de faltantes = $2M/año, liberación de inventario = $5M one-time. ROI: 3.5x en 18 meses",
+        ejemplo_malo: "'El sistema nos hará más eficientes'"
+      },
+      {
+        id: "SSD_F0_03",
+        descripcion: "Análisis de capitalización vs gasto",
+        obligatorio: true,
+        responsable: "FISCAL",
+        criterio_aceptacion: "Determinar si el desarrollo se capitaliza como activo intangible o se gasta",
+        ejemplo_bueno: "Análisis: Desarrollo a la medida con vida útil > 1 año → Capitalizar y amortizar en 3 años",
+        ejemplo_malo: "Sin análisis de tratamiento contable/fiscal"
+      }
+    ]
+  },
+  
+  F1: {
+    items: [
+      {
+        id: "SSD_F1_01",
+        descripcion: "Especificaciones funcionales/técnicas",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Documento que describa qué debe hacer el sistema",
+        ejemplo_bueno: "Especificación de 40 páginas con: módulos, funcionalidades, integraciones, usuarios, permisos",
+        ejemplo_malo: "'Sistema de inventarios completo'"
+      },
+      {
+        id: "SSD_F1_02",
+        descripcion: "Contrato/SOW con entregables de desarrollo",
+        obligatorio: true,
+        responsable: "LEGAL",
+        criterio_aceptacion: "Contrato que liste módulos, fases de desarrollo, criterios de aceptación",
+        ejemplo_bueno: "SOW con: Fase 1 - Módulo inventarios (8 sem), Fase 2 - Módulo compras (6 sem), Fase 3 - Reportes (4 sem)",
+        ejemplo_malo: "'Desarrollo de sistema según requerimientos'"
+      },
+      {
+        id: "SSD_F1_03",
+        descripcion: "Propiedad intelectual definida en contrato",
+        obligatorio: true,
+        responsable: "LEGAL",
+        criterio_aceptacion: "Quién es dueño del código: cliente, proveedor, o licencia",
+        ejemplo_bueno: "Cláusula: 'El código fuente desarrollado será propiedad exclusiva del Cliente una vez pagado'",
+        ejemplo_malo: "Sin cláusula de propiedad intelectual"
+      }
+    ]
+  },
+  
+  F3: {
+    items: [
+      {
+        id: "SSD_F3_01",
+        descripcion: "Repositorio de código con commits",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Acceso a repo Git con historial de desarrollo",
+        ejemplo_bueno: "Repositorio GitHub con 450 commits, 12 branches, historial desde kick-off",
+        ejemplo_malo: "Solo entrega de código final sin historial"
+      },
+      {
+        id: "SSD_F3_02",
+        descripcion: "Tickets/issues de desarrollo",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Sistema de tracking con tareas, bugs, features",
+        ejemplo_bueno: "Jira con 180 tickets: 120 features, 45 bugs, 15 mejoras",
+        ejemplo_malo: "Sin sistema de tracking"
+      },
+      {
+        id: "SSD_F3_03",
+        descripcion: "Ambiente de desarrollo/staging funcional",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Sistema accesible para pruebas durante desarrollo",
+        ejemplo_bueno: "Ambiente staging en URL con credenciales de prueba",
+        ejemplo_malo: "Solo demos en computadora del proveedor"
+      }
+    ]
+  },
+  
+  F5: {
+    items: [
+      {
+        id: "SSD_F5_01",
+        descripcion: "Sistema en producción funcionando",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Sistema desplegado y operativo en ambiente productivo",
+        ejemplo_bueno: "Sistema en producción desde 1/jul, URL productiva, 50 usuarios activos",
+        ejemplo_malo: "Sistema que nunca llegó a producción"
+      },
+      {
+        id: "SSD_F5_02",
+        descripcion: "Código fuente entregado (si aplica)",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Entrega del código fuente según contrato",
+        ejemplo_bueno: "Código entregado en repositorio transferido + backup en medio físico",
+        ejemplo_malo: "Sin entrega de código cuando contrato lo requería"
+      },
+      {
+        id: "SSD_F5_03",
+        descripcion: "Documentación técnica y de usuario",
+        obligatorio: true,
+        responsable: "PROVEEDOR",
+        criterio_aceptacion: "Manuales técnico y de usuario",
+        ejemplo_bueno: "Manual técnico (arquitectura, APIs, deploy) + Manual usuario (50 pp con screenshots)",
+        ejemplo_malo: "Sin documentación"
+      },
+      {
+        id: "SSD_F5_04",
+        descripcion: "Pruebas de aceptación (UAT) documentadas",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Registro de pruebas realizadas y resultados",
+        ejemplo_bueno: "Reporte UAT: 85 casos de prueba, 82 pasados, 3 menores aceptados con workaround",
+        ejemplo_malo: "Sin pruebas documentadas"
+      },
+      {
+        id: "SSD_F5_05",
+        descripcion: "Acta de aceptación del sistema",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Documento de aceptación formal",
+        ejemplo_bueno: "Acta firmada por TI y usuario líder: 'Se acepta el sistema cumpliendo especificaciones'",
+        ejemplo_malo: "Sin acta formal"
+      }
+    ]
+  },
+  
+  F8: {
+    items: [
+      {
+        id: "SSD_F8_01",
+        descripcion: "CFDI con descripción del desarrollo",
+        obligatorio: true,
+        responsable: "FINANZAS",
+        criterio_aceptacion: "Factura que describa el sistema desarrollado",
+        ejemplo_bueno: "CFDI: 'Desarrollo de sistema de gestión de inventarios según contrato XXX - Fases 1, 2 y 3'",
+        ejemplo_malo: "CFDI: 'Servicios de desarrollo de software'"
+      },
+      {
+        id: "SSD_F8_02",
+        descripcion: "Registro contable correcto (gasto o activo)",
+        obligatorio: true,
+        responsable: "FINANZAS",
+        criterio_aceptacion: "Contabilización según análisis de F0 (capitalizar o gastar)",
+        ejemplo_bueno: "Alta de activo intangible 'Sistema Inventarios' por $2.5M, amortización 3 años",
+        ejemplo_malo: "Todo a gasto cuando debía capitalizarse"
+      }
+    ]
+  },
+  
+  F9: {
+    items: [
+      {
+        id: "SSD_F9_01",
+        descripcion: "Logs de uso del sistema",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Evidencia de que el sistema se usa realmente",
+        ejemplo_bueno: "Reporte: 50 usuarios activos, 12,000 transacciones/mes, uptime 99.5%",
+        ejemplo_malo: "Sistema desarrollado pero nunca usado"
+      },
+      {
+        id: "SSD_F9_02",
+        descripcion: "Evaluación de beneficios obtenidos",
+        obligatorio: true,
+        responsable: "SPONSOR",
+        criterio_aceptacion: "Medición de si se lograron los beneficios del BEE",
+        ejemplo_bueno: "A 12 meses: Faltantes reducidos de 8% a 2.5%, inventario liberado $4.2M vs $5M esperado",
+        ejemplo_malo: "Sin medición de beneficios"
+      }
+    ]
+  }
+};
+
+module.exports = { CHECKLIST_SOFTWARE_SAAS_DESARROLLO };
+
+=============================================================================
+PASO 4: CREAR ÍNDICE DE CHECKLISTS
+=============================================================================
+
+Crea archivo "checklists/index.js":
+
+const { CHECKLIST_CONSULTORIA_MACRO_MERCADO } = require('./consultoriaMacroMercado');
+const { CHECKLIST_INTRAGRUPO_MANAGEMENT_FEE } = require('./intragrupoManagementFee');
+const { CHECKLIST_SOFTWARE_SAAS_DESARROLLO } = require('./softwareSaasDev');
+
+const CHECKLISTS_POR_TIPOLOGIA = {
+  CONSULTORIA_MACRO_MERCADO: CHECKLIST_CONSULTORIA_MACRO_MERCADO,
+  INTRAGRUPO_MANAGEMENT_FEE: CHECKLIST_INTRAGRUPO_MANAGEMENT_FEE,
+  SOFTWARE_SAAS_DESARROLLO: CHECKLIST_SOFTWARE_SAAS_DESARROLLO,
+  // Los demás tipos usarán un checklist genérico basado en el de consultoría
+  CONSULTORIA_ESTRATEGICA: CHECKLIST_CONSULTORIA_MACRO_MERCADO, // Similar
+  MARKETING_BRANDING: CHECKLIST_CONSULTORIA_MACRO_MERCADO, // Adaptar después
+  SERVICIOS_ESG_CUMPLIMIENTO: CHECKLIST_CONSULTORIA_MACRO_MERCADO,
+  REESTRUCTURAS: CHECKLIST_INTRAGRUPO_MANAGEMENT_FEE, // Similar en rigurosidad
+  OTROS: CHECKLIST_CONSULTORIA_MACRO_MERCADO
+};
+
+function getChecklistParaTipologia(tipologia) {
+  return CHECKLISTS_POR_TIPOLOGIA[tipologia] || CHECKLISTS_POR_TIPOLOGIA.OTROS;
+}
+
+function getChecklistParaFase(tipologia, fase) {
+  const checklist = getChecklistParaTipologia(tipologia);
+  return checklist[fase] || null;
+}
+
+function getItemsObligatorios(tipologia, fase) {
+  const checklistFase = getChecklistParaFase(tipologia, fase);
+  if (!checklistFase || !checklistFase.items) return [];
+  return checklistFase.items.filter(item => item.obligatorio === true);
+}
+
+function getItemsPendientes(tipologia, fase, itemsEntregados) {
+  const checklistFase = getChecklistParaFase(tipologia, fase);
+  if (!checklistFase || !checklistFase.items) return [];
+  
+  const idsEntregados = itemsEntregados.map(i => i.id);
+  return checklistFase.items.filter(item => !idsEntregados.includes(item.id));
+}
+
+module.exports = {
+  CHECKLISTS_POR_TIPOLOGIA,
+  getChecklistParaTipologia,
+  getChecklistParaFase,
+  getItemsObligatorios,
+  getItemsPendientes,
+  CHECKLIST_CONSULTORIA_MACRO_MERCADO,
+  CHECKLIST_INTRAGRUPO_MANAGEMENT_FEE,
+  CHECKLIST_SOFTWARE_SAAS_DESARROLLO
+};
+
+=============================================================================
+PASO 5: VERIFICACIÓN
+=============================================================================
+
+Al terminar, verifica:
+
+1. Los tres checklists específicos se crearon correctamente
+2. Puedes obtener el checklist para una tipología: getChecklistParaTipologia('SOFTWARE_SAAS_DESARROLLO')
+3. Puedes obtener items de una fase específica: getChecklistParaFase('CONSULTORIA_MACRO_MERCADO', 'F5')
+4. Puedes filtrar items obligatorios: getItemsObligatorios('INTRAGRUPO_MANAGEMENT_FEE', 'F0')
+
+Si algo falla, corregirlo antes de continuar a Fase 6.
+
+=============================================================================
+FIN FASE 5
+=============================================================================

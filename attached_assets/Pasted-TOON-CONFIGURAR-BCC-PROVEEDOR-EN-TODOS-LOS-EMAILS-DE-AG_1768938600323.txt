@@ -1,0 +1,292 @@
+TOON: CONFIGURAR BCC PROVEEDOR EN TODOS LOS EMAILS DE AGENTES
+
+REGLA:
+- Todos los emails que envíen los agentes → BCC al proveedor del servicio
+- Email del proveedor → Se toma del formulario de registro del proveedor
+- SIEMPRE en BCC adicional → proveedor@revisar-ia.com
+
+================================================================================
+PASO 1: ACTUALIZAR SERVICIO DE EMAIL
+================================================================================
+
+MODIFICAR: server/services/email.ts
+```typescript
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+const EMAIL_FROM = process.env.EMAIL_FROM || 'notificaciones@revisar-ia.com';
+const BCC_MASTER = 'proveedor@revisar-ia.com'; // SIEMPRE en copia
+
+interface EmailOptions {
+  to: string | string[];
+  subject: string;
+  html: string;
+  cc?: string | string[];
+  bcc?: string | string[];
+  replyTo?: string;
+  attachments?: Array<{
+    filename: string;
+    content: Buffer | string;
+    contentType?: string;
+  }>;
+  // Datos del proyecto para BCC automático
+  proveedorEmail?: string;
+}
+
+export async function sendEmail(options: EmailOptions): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    // Construir lista de BCC
+    const bccList: string[] = [];
+    
+    // 1. Agregar BCC master (siempre)
+    bccList.push(BCC_MASTER);
+    
+    // 2. Agregar email del proveedor si existe
+    if (options.proveedorEmail && isValidEmail(options.proveedorEmail)) {
+      bccList.push(options.proveedorEmail);
+    }
+    
+    // 3. Agregar BCCs adicionales que vengan en options
+    if (options.bcc) {
+      const additionalBcc = Array.isArray(options.bcc) ? options.bcc : [options.bcc];
+      additionalBcc.forEach(email => {
+        if (isValidEmail(email) && !bccList.includes(email)) {
+          bccList.push(email);
+        }
+      });
+    }
+
+    console.log(`📧 Enviando email:
+      To: ${options.to}
+      Subject: ${options.subject}
+      BCC: ${bccList.join(', ')}
+    `);
+
+    const result = await resend.emails.send({
+      from: EMAIL_FROM,
+      to: options.to,
+      cc: options.cc,
+      bcc: bccList, // ← BCC con proveedor + master
+      subject: options.subject,
+      html: options.html,
+      replyTo: options.replyTo,
+      attachments: options.attachments
+    });
+
+    console.log(`✅ Email enviado: ${result.data?.id}`);
+    
+    return { 
+      success: true, 
+      messageId: result.data?.id 
+    };
+
+  } catch (error: any) {
+    console.error('❌ Error enviando email:', error);
+    return { 
+      success: false, 
+      error: error.message 
+    };
+  }
+}
+
+// Función para enviar email de agente (con BCC automático del proveedor)
+export async function sendAgentEmail(options: {
+  to: string | string[];
+  subject: string;
+  html: string;
+  proyectoId: string;
+  agenteId: string;
+  attachments?: any[];
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  
+  // Obtener email del proveedor del proyecto
+  let proveedorEmail: string | undefined;
+  
+  try {
+    const { db } = await import('../db');
+    
+    const result = await db.query(`
+      SELECT p.email as proveedor_email
+      FROM proyectos pr
+      JOIN proveedores p ON pr.proveedor_id = p.id
+      WHERE pr.id = $1
+    `, [options.proyectoId]);
+    
+    if (result.rows.length > 0 && result.rows[0].proveedor_email) {
+      proveedorEmail = result.rows[0].proveedor_email;
+      console.log(`📋 Proveedor en BCC: ${proveedorEmail}`);
+    }
+  } catch (e) {
+    console.warn('No se pudo obtener email del proveedor:', e);
+  }
+
+  // Enviar con BCC del proveedor
+  return sendEmail({
+    to: options.to,
+    subject: `[${options.agenteId}] ${options.subject}`,
+    html: options.html,
+    proveedorEmail, // ← Se agrega automáticamente al BCC
+    attachments: options.attachments
+  });
+}
+
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+export { EMAIL_FROM, BCC_MASTER };
+```
+
+================================================================================
+PASO 2: ACTUALIZAR ORQUESTADOR DE AGENTES
+================================================================================
+
+MODIFICAR donde los agentes envían emails:
+```typescript
+// server/services/agents/orchestrator.ts
+
+import { sendAgentEmail } from '../email';
+
+export class AgentOrchestrator {
+  
+  // Cuando un agente necesita notificar
+  async notificarResultado(params: {
+    proyectoId: string;
+    agenteId: string;
+    destinatario: string;
+    asunto: string;
+    contenido: string;
+    attachments?: any[];
+  }) {
+    
+    // Usar sendAgentEmail que incluye BCC automático
+    const result = await sendAgentEmail({
+      to: params.destinatario,
+      subject: params.asunto,
+      html: this.generarEmailHTML(params.agenteId, params.contenido),
+      proyectoId: params.proyectoId,
+      agenteId: params.agenteId,
+      attachments: params.attachments
+    });
+
+    // Registrar en log
+    await this.registrarEmail({
+      proyectoId: params.proyectoId,
+      agenteId: params.agenteId,
+      destinatario: params.destinatario,
+      asunto: params.asunto,
+      enviado: result.success,
+      messageId: result.messageId
+    });
+
+    return result;
+  }
+
+  private generarEmailHTML(agenteId: string, contenido: string): string {
+    const agentesInfo: Record<string, { nombre: string; color: string }> = {
+      'A1': { nombre: 'Estratega Fiscal', color: '#7C3AED' },
+      'A3': { nombre: 'Analista Fiscal', color: '#3B82F6' },
+      'A5': { nombre: 'Analista Financiero', color: '#10B981' },
+      'A6': { nombre: 'Verificador de Proveedores', color: '#F59E0B' },
+      'A7': { nombre: 'Generador Defense File', color: '#EF4444' },
+    };
+
+    const agente = agentesInfo[agenteId] || { nombre: 'Agente', color: '#6B7280' };
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+          .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+          .header { background: linear-gradient(135deg, ${agente.color} 0%, ${agente.color}dd 100%); padding: 25px; }
+          .header h1 { color: white; margin: 0; font-size: 20px; }
+          .header p { color: rgba(255,255,255,0.8); margin: 5px 0 0; font-size: 14px; }
+          .content { padding: 25px; }
+          .footer { background: #f9fafb; padding: 15px 25px; text-align: center; border-top: 1px solid #e5e7eb; }
+          .footer p { color: #6b7280; font-size: 12px; margin: 0; }
+          .badge { display: inline-block; background: ${agente.color}20; color: ${agente.color}; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>📋 Notificación de Revisar.IA</h1>
+            <p>Agente: ${agente.nombre} (${agenteId})</p>
+          </div>
+          <div class="content">
+            <span class="badge">${agenteId} - ${agente.nombre}</span>
+            <div style="margin-top: 20px;">
+              ${contenido}
+            </div>
+          </div>
+          <div class="footer">
+            <p>Este es un correo automático de Revisar.IA - Sistema de Auditoría Fiscal Inteligente</p>
+            <p>© 2025 Revisar.IA - Todos los derechos reservados</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  private async registrarEmail(data: any) {
+    try {
+      const { db } = await import('../db');
+      await db.query(`
+        INSERT INTO email_log (id, proyecto_id, agente_id, destinatario, asunto, enviado, message_id, timestamp)
+        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, NOW())
+      `, [data.proyectoId, data.agenteId, data.destinatario, data.asunto, data.enviado, data.messageId]);
+    } catch (e) {
+      console.warn('Error registrando email:', e);
+    }
+  }
+}
+```
+
+================================================================================
+PASO 3: ASEGURAR QUE EL FORMULARIO DE PROVEEDOR GUARDE EL EMAIL
+================================================================================
+
+Verificar que al registrar proveedor se guarde el email:
+```typescript
+// Cuando se registra un proveedor
+const proveedor = await db.proveedores.create({
+  empresaId,
+  nombre: data.nombre,
+  rfc: data.rfc,
+  email: data.email,  // ← IMPORTANTE: Guardar email del proveedor
+  telefono: data.telefono,
+  tipoServicio: data.tipoServicio,
+  // ...
+});
+```
+
+================================================================================
+PASO 4: CREAR TABLA DE LOG DE EMAILS (si no existe)
+================================================================================
+```sql
+CREATE TABLE IF NOT EXISTS email_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  proyecto_id VARCHAR(36),
+  agente_id VARCHAR(10),
+  destinatario VARCHAR(255),
+  asunto VARCHAR(500),
+  enviado BOOLEAN DEFAULT false,
+  message_id VARCHAR(255),
+  bcc_proveedor VARCHAR(255),
+  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_email_log_proyecto ON email_log(proyecto_id);
+```
+
+================================================================================
+PASO 5: VERIFICAR CONFIGURACIÓN
+================================================================================
+
+En .env o Secrets de Replit:

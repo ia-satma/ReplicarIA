@@ -1,0 +1,207 @@
+"""
+RUTAS API PARA DEFENSE FILE GENERATOR
+"""
+
+from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from typing import Dict, List, Optional, Any
+import os
+
+from services.defense_file.defense_file_generator import (
+    defense_file_generator,
+    DefenseFileConfig,
+    DefenseFileResult,
+    generate_defense_file
+)
+
+router = APIRouter(prefix="/api/defense-file", tags=["defense-file"])
+
+
+# === Modelos de Request ===
+
+class DocumentInfo(BaseModel):
+    nombre: str
+    tipo: str
+    status: str = "PENDING"
+    file_path: Optional[str] = None
+
+
+class GenerateDefenseFileRequest(BaseModel):
+    project_data: Dict[str, Any]
+    documents: List[DocumentInfo]
+    ocr_results: Optional[List[Dict]] = None
+    red_team_results: Optional[Dict] = None
+    config: Optional[Dict] = None
+
+
+class DefenseFileResponse(BaseModel):
+    success: bool
+    pdf_path: Optional[str] = None
+    zip_path: Optional[str] = None
+    download_url_pdf: Optional[str] = None
+    download_url_zip: Optional[str] = None
+    total_pages: int = 0
+    total_documents: int = 0
+    generation_time_ms: int = 0
+    folio: Optional[str] = None
+    errors: List[str] = []
+
+
+# === Endpoints ===
+
+@router.post("/generate", response_model=DefenseFileResponse)
+async def generate_defense_file_endpoint(request: GenerateDefenseFileRequest):
+    """
+    Genera expediente de defensa fiscal completo.
+    
+    Retorna rutas a PDF y ZIP generados.
+    """
+    try:
+        # Convertir documentos a formato esperado
+        documents = [doc.dict() for doc in request.documents]
+        
+        # Crear config si se proporcionó
+        config = None
+        if request.config:
+            config = DefenseFileConfig(**request.config)
+        
+        # Generar expediente
+        result = await defense_file_generator.generate(
+            project_data=request.project_data,
+            documents=documents,
+            ocr_results=request.ocr_results,
+            red_team_results=request.red_team_results,
+            config=config
+        )
+        
+        # Construir URLs de descarga
+        base_url = "/api/defense-file/download"
+        
+        return DefenseFileResponse(
+            success=result.success,
+            pdf_path=result.pdf_path,
+            zip_path=result.zip_path,
+            download_url_pdf=f"{base_url}/pdf/{os.path.basename(result.pdf_path)}" if result.pdf_path else None,
+            download_url_zip=f"{base_url}/zip/{os.path.basename(result.zip_path)}" if result.zip_path else None,
+            total_pages=result.total_pages,
+            total_documents=result.total_documents,
+            generation_time_ms=result.generation_time_ms,
+            folio=result.file_hashes.get('folio'),
+            errors=result.errors
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/download/pdf/{filename}")
+async def download_pdf(filename: str):
+    """Descarga el PDF del expediente"""
+    file_path = os.path.join("static/generated_files", filename)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+    
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type="application/pdf"
+    )
+
+
+@router.get("/download/zip/{filename}")
+async def download_zip(filename: str):
+    """Descarga el ZIP del expediente"""
+    file_path = os.path.join("static/generated_files", filename)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+    
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type="application/zip"
+    )
+
+
+@router.post("/generate-from-project/{project_id}")
+async def generate_from_project(project_id: str):
+    """
+    Genera expediente directamente desde un proyecto en la BD.
+    Usa los datos del proyecto, documentos, resultados OCR y Red Team almacenados.
+    """
+    try:
+        # Importar modelos
+        from models import Project, Document
+        
+        # Obtener proyecto
+        project = await Project.find_one({"_id": project_id})
+        if not project:
+            raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+        
+        # Obtener documentos
+        documents = await Document.find({"project_id": project_id}).to_list()
+        
+        # Preparar datos
+        project_data = project.dict() if hasattr(project, 'dict') else dict(project)
+        doc_list = [d.dict() if hasattr(d, 'dict') else dict(d) for d in documents]
+        
+        # Obtener resultados de validaciones si existen
+        ocr_results = project_data.get('ocr_results', [])
+        red_team_results = project_data.get('red_team_report', {})
+        
+        # Generar expediente
+        result = await defense_file_generator.generate(
+            project_data=project_data,
+            documents=doc_list,
+            ocr_results=ocr_results,
+            red_team_results=red_team_results
+        )
+        
+        # Guardar referencias en el proyecto
+        if result.success:
+            await Project.update_one(
+                {"_id": project_id},
+                {"$set": {
+                    "defense_file": {
+                        "pdf_path": result.pdf_path,
+                        "zip_path": result.zip_path,
+                        "generated_at": datetime.now(),
+                        "folio": list(result.file_hashes.keys())[0] if result.file_hashes else None
+                    }
+                }}
+            )
+        
+        return DefenseFileResponse(
+            success=result.success,
+            pdf_path=result.pdf_path,
+            zip_path=result.zip_path,
+            download_url_pdf=f"/api/defense-file/download/pdf/{os.path.basename(result.pdf_path)}" if result.pdf_path else None,
+            download_url_zip=f"/api/defense-file/download/zip/{os.path.basename(result.zip_path)}" if result.zip_path else None,
+            total_pages=result.total_pages,
+            total_documents=result.total_documents,
+            generation_time_ms=result.generation_time_ms,
+            errors=result.errors
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/health")
+async def health_check():
+    """Verifica que el generador está operativo"""
+    return {
+        "status": "healthy",
+        "output_dir": defense_file_generator.output_dir,
+        "output_dir_exists": os.path.exists(defense_file_generator.output_dir),
+        "capabilities": [
+            "pdf_generation",
+            "zip_packaging",
+            "integrity_hashing",
+            "qr_codes"
+        ]
+    }

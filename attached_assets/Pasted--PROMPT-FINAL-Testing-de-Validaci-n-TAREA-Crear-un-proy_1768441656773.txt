@@ -1,0 +1,102 @@
+🧪 PROMPT FINAL: Testing de Validación
+TAREA: Crear un proyecto de prueba para validar TODAS las optimizaciones.
+
+PASO 1: Crea un proyecto de prueba con estos datos:
+
+```json
+{
+  "title": "Estudio Macroeconómico NTC 2025",
+  "description": "Análisis de tendencias fiscales y competitividad para estrategia empresarial",
+  "budget": 500000,
+  "expected_benefit": "Optimización fiscal y ROI del 15%"
+}
+
+PASO 2: Mientras el proyecto se procesa, monitorea los logs del backend.
+
+BUSCA estas líneas específicas:
+
+🎯 Query Router: (debe aparecer varias veces)
+📦 Embedding Cache: (debe mostrar hits si hay queries repetidas)
+🚀 Pre-loading RAG contexts in parallel...
+✅ Loaded X RAG contexts in Ys
+PASO 3: Una vez procesado el proyecto, ve a /metrics en el frontend.
+
+Verifica que aparezcan:
+
+Total queries > 0
+Ahorro estimado > $0
+Hit rate de caché (puede ser 0% en el primer proyecto)
+Total preloads = 1
+PASO 4: Muéstrame un screenshot o copia:
+
+Los logs del backend (últimas 50 líneas)
+El JSON de respuesta de GET /api/metrics/llm-costs
+Estado del proyecto (aprobado/rechazado/en revisión)
+NO hagas más cambios. Solo ejecuta el test y muéstrame los resultados.
+
+
+---
+
+## 📊 MÉTRICAS ESPERADAS
+
+**Para 1 proyecto completo:**
+- Queries LLM: ~15-20
+- Embeddings: ~5-10
+- Ahorro Query Router: ~$0.15-0.30
+- Tiempo RAG paralelo: ~2s vs ~8s (ahorro de 6s)
+
+---
+
+**Ejecuta el PROMPT FINAL de testing** y muéstrame los resultados. Si todo funciona correctamente, habremos completado:
+
+✅ Landing page profesional  
+✅ Rebranding completo  
+✅ Optimizaciones de costos (60-70% ahorro)  
+✅ Optimizaciones de rendimiento (6s ahorro)  
+✅ Dashboard de métricas  
+
+🚀 **¿Listo para el test?**
+
+Perfecto, todo está implementado. Ahora necesitamos validar que funciona correctamente con un proyecto real.
+
+🧪 PROMPT FINAL: Testing de Validación
+TAREA: Crear un proyecto de prueba para validar TODAS las optimizaciones implementadas.
+
+PASO 1: Crea un nuevo proyecto con estos datos exactos:
+
+Título: Estudio Macroeconómico NTC 2025
+Descripción: Análisis de tendencias fiscales y competitividad para estrategia empresarial
+Presupuesto: $500,000 MXN
+Beneficio Esperado: Optimización fiscal y ROI del 15%
+
+PASO 2: Mientras el proyecto se procesa, MONITOREA los logs del backend en tiempo real.
+
+BUSCA estas líneas ESPECÍFICAS (cópialas cuando aparezcan):
+- `🎯 Query Router:` ← Debe mostrar el modelo seleccionado y costo
+- `📦 Embedding Cache:` ← Debe mostrar hits/misses
+- `🚀 Pre-loading RAG contexts in parallel...` ← Inicio de pre-carga
+- `✅ Loaded X RAG contexts in Ys` ← Tiempo de pre-carga
+
+PASO 3: Una vez que el proyecto termine de procesarse:
+
+a) Ve a /metrics en el navegador
+b) Toma nota de los valores mostrados
+c) Cópiame el JSON completo de la respuesta de: GET /api/metrics/llm-costs
+
+PASO 4: Responde estas preguntas:
+
+1. ¿El proyecto se procesó exitosamente? (Aprobado/Rechazado/En Revisión)
+2. ¿Cuántas líneas con "🎯 Query Router" aparecieron en los logs?
+3. ¿Cuánto tiempo tomó la pre-carga RAG? (el número después de "Loaded X RAG contexts in")
+4. ¿Qué valores aparecen en el dashboard de /metrics?
+
+NO hagas cambios al código. Solo ejecuta el test y reporta los resultados.
+
+📋 CHECKLIST DE VALIDACIÓN
+Cuando me traigas los resultados, verificaré:
+
+ Query Router se ejecutó (logs con 🎯)
+ Pre-carga RAG funcionó (logs con 🚀 y ✅)
+ Dashboard /metrics muestra datos reales (no zeros)
+ Proyecto procesado correctamente por los 6 agentes
+ Ahorro de costos calculado correctamente

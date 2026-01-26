@@ -1,0 +1,619 @@
+SATMA/Revisar.ia - Sistema de Estabilización para Replit
+Fase 1: Inspección Inicial del Repositorio
+Antes de proponer cualquier cambio, necesito conocer el estado actual del proyecto. Ejecuta los siguientes comandos en la terminal de Replit y pega la salida completa en tu siguiente mensaje.
+
+Comandos de Inspección (copiar/pegar en terminal Replit)
+# 1. Estructura general del proyecto
+echo "=== ESTRUCTURA DEL PROYECTO ===" && ls -la
+
+# 2. Configuración de Replit
+echo -e "\n=== ARCHIVO .replit ===" && cat .replit 2>/dev/null || echo "No existe .replit"
+
+# 3. Configuración Nix (si existe)
+echo -e "\n=== ARCHIVO replit.nix ===" && cat replit.nix 2>/dev/null || echo "No existe replit.nix"
+
+# 4. Dependencias Python
+echo -e "\n=== REQUIREMENTS.TXT ===" && cat requirements.txt 2>/dev/null || echo "No existe requirements.txt"
+echo -e "\n=== PYPROJECT.TOML ===" && cat pyproject.toml 2>/dev/null || echo "No existe pyproject.toml"
+
+# 5. Dependencias Node/Frontend
+echo -e "\n=== PACKAGE.JSON ===" && cat package.json 2>/dev/null || echo "No existe package.json"
+echo -e "\n=== FRONTEND PACKAGE.JSON ===" && cat frontend/package.json 2>/dev/null || echo "No existe frontend/package.json"
+
+# 6. Variables de entorno (solo nombres, no valores)
+echo -e "\n=== VARIABLES DE ENTORNO (solo keys) ===" && env | cut -d'=' -f1 | sort
+
+# 7. Estado de Git
+echo -e "\n=== GIT STATUS ===" && git status 2>/dev/null || echo "No es repositorio git"
+
+# 8. Estructura de carpetas backend
+echo -e "\n=== ESTRUCTURA BACKEND ===" && ls -la backend/ 2>/dev/null || echo "No existe backend/"
+echo -e "\n=== BACKEND SERVICES ===" && ls -la backend/services/ 2>/dev/null || echo "No existe backend/services/"
+
+# 9. Estructura de carpetas frontend
+echo -e "\n=== ESTRUCTURA FRONTEND ===" && ls -la frontend/ 2>/dev/null || echo "No existe frontend/"
+echo -e "\n=== FRONTEND SRC ===" && ls -la frontend/src/ 2>/dev/null || echo "No existe frontend/src/"
+
+# 10. Agentes existentes
+echo -e "\n=== AGENTES EXISTENTES ===" && ls -la agents/ 2>/dev/null || echo "No existe agents/"
+
+# 11. Scripts existentes
+echo -e "\n=== SCRIPTS EXISTENTES ===" && ls -la scripts/ 2>/dev/null || echo "No existe scripts/"
+
+# 12. Versión de Python y Node
+echo -e "\n=== VERSIONES ===" && python --version && node --version 2>/dev/null || echo "Node no disponible"
+
+Archivos Iniciales Propuestos
+Mientras espero la salida de inspección, preparo la estructura base. Estos archivos se ajustarán según los resultados.
+
+Archivo: docs/REPLIT_INSTRUCTIONS.md
+# SATMA/Revisar.ia - Instrucciones para Replit
+
+## Índice
+1. [Setup Inicial](#1-setup-inicial)
+2. [Ejecutar Tests](#2-ejecutar-tests)
+3. [Iniciar Agentes](#3-iniciar-agentes)
+4. [Reportar Errores al Asistente](#4-reportar-errores-al-asistente)
+5. [Aplicar Parches](#5-aplicar-parches)
+6. [Rollback de Cambios](#6-rollback-de-cambios)
+
+---
+
+## 1. Setup Inicial
+
+```bash
+# Crear estructura de carpetas necesaria
+mkdir -p agents/repair_agent agents/monitor_agent agents/test_agent
+mkdir -p scripts docs logs
+
+# Instalar dependencias backend
+pip install -r requirements.txt
+
+# Instalar dependencias frontend (si aplica)
+cd frontend && npm install && cd ..
+
+# Verificar instalación
+python -c "import fastapi; print('FastAPI OK')"
+
+2. Ejecutar Tests
+# Tests unitarios backend
+./scripts/run_tests.sh
+
+# O manualmente:
+python -m pytest backend/tests/ -v --tb=short
+
+3. Iniciar Agentes
+# Iniciar red de agentes
+./scripts/run_agents.sh
+
+# O iniciar agente de reparación individualmente:
+python -m agents.repair_agent.main
+
+4. Reportar Errores al Asistente
+Cuando Replit muestre un error, copia el mensaje completo incluyendo:
+
+Stack trace completo
+Comando que generó el error
+Últimas líneas de log relevantes
+Usa este formato:
+
+COMANDO EJECUTADO:
+[pegar comando]
+
+ERROR/SALIDA:
+[pegar error completo]
+
+5. Aplicar Parches
+Cuando el asistente proporcione un parche:
+
+# 1. Crear branch de trabajo
+git checkout -b fix/nombre-descriptivo
+
+# 2. Guardar el parche (copiar contenido a archivo)
+cat > /tmp/fix.patch << 'PATCH_EOF'
+[pegar contenido del diff aquí]
+PATCH_EOF
+
+# 3. Aplicar parche
+git apply /tmp/fix.patch
+
+# 4. Verificar cambios
+git diff
+
+# 5. Ejecutar tests
+./scripts/run_tests.sh
+
+# 6. Si tests pasan, commit
+git add -A && git commit -m "fix: descripción del arreglo"
+
+6. Rollback de Cambios
+# Deshacer último commit (mantiene cambios en staging)
+git reset --soft HEAD~1
+
+# Deshacer cambios no commiteados
+git checkout -- .
+
+# Volver a estado anterior completo
+git reset --hard HEAD~1
+
+
+---
+
+### Archivo: `docs/AGENTS_ARCHITECTURE.md`
+
+```markdown
+# Arquitectura de Red Agentica - SATMA/Revisar.ia
+
+## Diagrama de Agentes
+
+
+                ┌─────────────────────┐
+                │   ORQUESTADOR       │
+                │   (Supervisor)      │
+                └──────────┬──────────┘
+                           │
+    ┌──────────┬───────────┼───────────┬──────────┐
+    │          │           │           │          │
+    ▼          ▼           ▼           ▼          ▼
+
+┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐
+│ BUILD │ │ TEST │ │ LINTER │ │ DEPLOY │ │ MONITOR │
+│ AGENT │ │ AGENT │ │ AGENT │ │ AGENT │ │ AGENT │
+└────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘
+│ │ │ │ │
+└──────────┴───────────┼───────────┴──────────┘
+│
+▼
+┌─────────────────────┐
+│ REPAIR AGENT │
+│ (Auto-reparación) │
+└─────────────────────┘
+
+
+## Agentes y Responsabilidades
+
+### 1. Orquestador (Supervisor)
+- **Archivo**: `agents/orchestrator/main.py`
+- **Función**: Coordina todos los agentes, gestiona cola de tareas
+- **Comunicación**: Escribe/lee de `logs/agent_queue.json`
+
+### 2. Build Agent
+- **Archivo**: `agents/build_agent/main.py`
+- **Función**: Verifica dependencias, ejecuta builds, reporta fallos
+- **Triggers**: Cambios en requirements.txt, package.json
+
+### 3. Test Agent
+- **Archivo**: `agents/test_agent/main.py`
+- **Función**: Ejecuta suite de tests, genera reportes de cobertura
+- **Triggers**: Cambios en código fuente, post-build
+
+### 4. Linter Agent
+- **Archivo**: `agents/linter_agent/main.py`
+- **Función**: Ejecuta flake8, mypy, eslint; propone fixes automáticos
+- **Triggers**: Pre-commit, cambios en código
+
+### 5. Deploy Agent
+- **Archivo**: `agents/deploy_agent/main.py`
+- **Función**: Valida readiness, ejecuta migrations, health checks
+- **Triggers**: Tests pasados, aprobación manual
+
+### 6. Monitor Agent
+- **Archivo**: `agents/monitor_agent/main.py`
+- **Función**: Observa logs, métricas, latencia; detecta anomalías
+- **Triggers**: Continuo (cada 30s)
+
+### 7. Repair Agent (Crítico)
+- **Archivo**: `agents/repair_agent/main.py`
+- **Función**: Analiza errores, genera parches, valida fixes
+- **Triggers**: Errores detectados por Monitor Agent
+
+## Protocolo de Comunicación
+
+```json
+// logs/agent_queue.json
+{
+  "tasks": [
+    {
+      "id": "task-001",
+      "type": "repair",
+      "source": "monitor_agent",
+      "target": "repair_agent",
+      "payload": {
+        "error_type": "ImportError",
+        "file": "backend/services/project_service.py",
+        "line": 42,
+        "message": "No module named 'asyncpg'"
+      },
+      "status": "pending",
+      "created_at": "2025-01-24T10:00:00Z"
+    }
+  ]
+}
+
+Flujo de Auto-reparación
+Monitor detecta error en logs
+Monitor crea tarea en cola para Repair Agent
+Repair Agent analiza error y genera parche
+Repair Agent crea branch temporal
+Test Agent ejecuta tests en branch
+Si pasan → merge automático (con flag) o reporte para aprobación
+Si fallan → rollback y reporte detallado
+
+---
+
+### Archivo: `agents/repair_agent/main.py` (Esqueleto)
+
+```python
+#!/usr/bin/env python3
+"""
+Repair Agent - Agente Autónomo de Reparación de Código
+SATMA/Revisar.ia
+
+Responsabilidades:
+- Monitorear logs y errores en tiempo real
+- Parsear stack traces y mensajes de error
+- Proponer parches mínimos (diffs unificados)
+- Validar parches en sandbox antes de merge
+- Rollback automático si falla validación
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+# Configuración
+LOGS_DIR = Path("logs")
+QUEUE_FILE = LOGS_DIR / "agent_queue.json"
+REPAIR_LOG = LOGS_DIR / "repair_agent.log"
+AUTO_APPLY = os.getenv("REPAIR_AGENT_AUTO_APPLY", "false").lower() == "true"
+
+
+class RepairAgent:
+    """Agente de reparación autónoma de código."""
+
+    def __init__(self):
+        self.ensure_dirs()
+        self.error_patterns = self._load_error_patterns()
+
+    def ensure_dirs(self):
+        """Crea directorios necesarios."""
+        LOGS_DIR.mkdir(exist_ok=True)
+        if not QUEUE_FILE.exists():
+            QUEUE_FILE.write_text(json.dumps({"tasks": []}, indent=2))
+
+    def _load_error_patterns(self) -> dict:
+        """Patrones conocidos de errores y sus soluciones."""
+        return {
+            r"ModuleNotFoundError: No module named '(\w+)'": self._fix_missing_module,
+            r"ImportError: cannot import name '(\w+)' from '([\w.]+)'": self._fix_import_error,
+            r"SyntaxError: (.+), line (\d+)": self._fix_syntax_error,
+            r"NameError: name '(\w+)' is not defined": self._fix_name_error,
+            r"TypeError: (.+) takes (\d+) positional arguments? but (\d+) (?:was|were) given": self._fix_type_error,
+            r"AttributeError: '(\w+)' object has no attribute '(\w+)'": self._fix_attribute_error,
+        }
+
+    def log(self, message: str, level: str = "INFO"):
+        """Registra mensaje en log."""
+        timestamp = datetime.now().isoformat()
+        log_entry = f"[{timestamp}] [{level}] {message}\n"
+        with open(REPAIR_LOG, "a") as f:
+            f.write(log_entry)
+        print(log_entry.strip())
+
+    def parse_error(self, error_text: str) -> Optional[dict]:
+        """Analiza un error y extrae información estructurada."""
+        for pattern, handler in self.error_patterns.items():
+            match = re.search(pattern, error_text)
+            if match:
+                return {
+                    "pattern": pattern,
+                    "handler": handler.__name__,
+                    "groups": match.groups(),
+                    "full_match": match.group(0),
+                }
+        return None
+
+    def _fix_missing_module(self, groups: tuple, context: dict) -> dict:
+        """Genera fix para módulo faltante."""
+        module_name = groups[0]
+        return {
+            "type": "missing_module",
+            "module": module_name,
+            "fix_type": "requirements",
+            "commands": [f"pip install {module_name}"],
+            "patch": None,
+            "risk": "low",
+        }
+
+    def _fix_import_error(self, groups: tuple, context: dict) -> dict:
+        """Genera fix para error de import."""
+        name, module = groups
+        return {
+            "type": "import_error",
+            "name": name,
+            "module": module,
+            "fix_type": "code_change",
+            "suggestion": f"Verificar que '{name}' existe en '{module}' o actualizar import",
+            "risk": "medium",
+        }
+
+    def _fix_syntax_error(self, groups: tuple, context: dict) -> dict:
+        """Genera sugerencia para error de sintaxis."""
+        message, line = groups
+        return {
+            "type": "syntax_error",
+            "message": message,
+            "line": int(line),
+            "fix_type": "manual_review",
+            "suggestion": f"Revisar sintaxis en línea {line}: {message}",
+            "risk": "high",
+        }
+
+    def _fix_name_error(self, groups: tuple, context: dict) -> dict:
+        """Genera fix para nombre no definido."""
+        name = groups[0]
+        return {
+            "type": "name_error",
+            "name": name,
+            "fix_type": "code_change",
+            "suggestion": f"Variable/función '{name}' no definida. Verificar imports o definición.",
+            "risk": "medium",
+        }
+
+    def _fix_type_error(self, groups: tuple, context: dict) -> dict:
+        """Genera fix para error de tipo."""
+        return {
+            "type": "type_error",
+            "details": groups,
+            "fix_type": "code_change",
+            "suggestion": "Verificar número de argumentos en llamada a función",
+            "risk": "medium",
+        }
+
+    def _fix_attribute_error(self, groups: tuple, context: dict) -> dict:
+        """Genera fix para error de atributo."""
+        obj_type, attr = groups
+        return {
+            "type": "attribute_error",
+            "object_type": obj_type,
+            "attribute": attr,
+            "fix_type": "code_change",
+            "suggestion": f"Objeto '{obj_type}' no tiene atributo '{attr}'",
+            "risk": "medium",
+        }
+
+    def generate_patch(self, file_path: str, old_content: str, new_content: str) -> str:
+        """Genera diff unificado entre contenidos."""
+        import difflib
+
+        old_lines = old_content.splitlines(keepends=True)
+        new_lines = new_content.splitlines(keepends=True)
+
+        diff = difflib.unified_diff(
+            old_lines,
+            new_lines,
+            fromfile=f"a/{file_path}",
+            tofile=f"b/{file_path}",
+        )
+        return "".join(diff)
+
+    def validate_patch(self, patch_content: str) -> dict:
+        """Valida un parche en sandbox."""
+        # Crear branch temporal
+        branch_name = f"repair-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+        try:
+            # Crear branch
+            subprocess.run(
+                ["git", "checkout", "-b", branch_name],
+                capture_output=True,
+                check=True,
+            )
+
+            # Aplicar parche
+            result = subprocess.run(
+                ["git", "apply", "--check"],
+                input=patch_content.encode(),
+                capture_output=True,
+            )
+
+            if result.returncode != 0:
+                return {"valid": False, "error": result.stderr.decode()}
+
+            # Ejecutar tests
+            test_result = subprocess.run(
+                ["python", "-m", "pytest", "backend/tests/", "-v", "--tb=short"],
+                capture_output=True,
+                timeout=120,
+            )
+
+            return {
+                "valid": test_result.returncode == 0,
+                "test_output": test_result.stdout.decode(),
+                "test_errors": test_result.stderr.decode(),
+            }
+
+        except subprocess.TimeoutExpired:
+            return {"valid": False, "error": "Tests timeout"}
+        except Exception as e:
+            return {"valid": False, "error": str(e)}
+        finally:
+            # Rollback a branch principal
+            subprocess.run(["git", "checkout", "-"], capture_output=True)
+            subprocess.run(
+                ["git", "branch", "-D", branch_name], capture_output=True
+            )
+
+    def process_task(self, task: dict) -> dict:
+        """Procesa una tarea de reparación."""
+        self.log(f"Procesando tarea: {task.get('id', 'unknown')}")
+
+        error_info = self.parse_error(task.get("payload", {}).get("message", ""))
+        if not error_info:
+            return {
+                "status": "failed",
+                "reason": "No se pudo parsear el error",
+                "task_id": task.get("id"),
+            }
+
+        handler = getattr(self, error_info["handler"])
+        fix = handler(error_info["groups"], task.get("payload", {}))
+
+        return {
+            "status": "analyzed",
+            "task_id": task.get("id"),
+            "error_info": error_info,
+            "proposed_fix": fix,
+        }
+
+    def run(self):
+        """Loop principal del agente."""
+        self.log("Repair Agent iniciado")
+
+        while True:
+            try:
+                # Leer cola de tareas
+                queue = json.loads(QUEUE_FILE.read_text())
+                pending_tasks = [
+                    t for t in queue.get("tasks", []) if t.get("status") == "pending"
+                ]
+
+                for task in pending_tasks:
+                    result = self.process_task(task)
+                    self.log(f"Resultado: {json.dumps(result, indent=2)}")
+
+                    # Actualizar estado de tarea
+                    task["status"] = result["status"]
+                    task["result"] = result
+
+                # Guardar cola actualizada
+                QUEUE_FILE.write_text(json.dumps(queue, indent=2))
+
+                # Esperar antes de siguiente ciclo
+                import time
+
+                time.sleep(5)
+
+            except KeyboardInterrupt:
+                self.log("Repair Agent detenido por usuario")
+                break
+            except Exception as e:
+                self.log(f"Error en loop principal: {e}", level="ERROR")
+                import time
+
+                time.sleep(10)
+
+
+if __name__ == "__main__":
+    agent = RepairAgent()
+    agent.run()
+
+Archivo: agents/repair_agent/requirements.txt
+# Repair Agent - Dependencias
+watchdog>=3.0.0
+gitpython>=3.1.40
+pytest>=7.4.0
+
+Archivo: scripts/setup.sh
+#!/bin/bash
+# Setup inicial para SATMA/Revisar.ia en Replit
+
+set -e
+
+echo "=== SATMA/Revisar.ia - Setup Inicial ==="
+
+# Crear estructura de directorios
+echo "Creando estructura de directorios..."
+mkdir -p agents/{repair_agent,monitor_agent,test_agent,build_agent,linter_agent,deploy_agent,orchestrator}
+mkdir -p scripts docs logs
+
+# Instalar dependencias Python
+echo "Instalando dependencias Python..."
+pip install -q -r requirements.txt
+
+# Instalar dependencias de agentes
+if [ -f "agents/repair_agent/requirements.txt" ]; then
+    echo "Instalando dependencias del Repair Agent..."
+    pip install -q -r agents/repair_agent/requirements.txt
+fi
+
+# Verificar instalación
+echo "Verificando instalación..."
+python -c "import fastapi; print('✓ FastAPI')"
+python -c "import pytest; print('✓ pytest')"
+
+# Crear archivo de log inicial
+touch logs/repair_agent.log
+echo '{"tasks": []}' > logs/agent_queue.json
+
+echo "=== Setup completado ==="
+
+Archivo: scripts/run_tests.sh
+#!/bin/bash
+# Ejecutar suite de tests
+
+set -e
+
+echo "=== Ejecutando Tests ==="
+
+# Tests backend
+if [ -d "backend/tests" ]; then
+    echo "--- Tests Backend ---"
+    python -m pytest backend/tests/ -v --tb=short
+else
+    echo "No se encontró backend/tests/"
+fi
+
+# Tests de agentes
+if [ -d "agents" ]; then
+    echo "--- Tests Agentes ---"
+    for agent_dir in agents/*/; do
+        if [ -d "${agent_dir}tests" ]; then
+            echo "Testing ${agent_dir}..."
+            python -m pytest "${agent_dir}tests/" -v --tb=short
+        fi
+    done
+fi
+
+echo "=== Tests completados ==="
+
+Archivo: scripts/run_agents.sh
+#!/bin/bash
+# Iniciar red de agentes
+
+echo "=== Iniciando Red de Agentes ==="
+
+# Crear directorio de logs
+mkdir -p logs
+
+# Iniciar Repair Agent en background
+echo "Iniciando Repair Agent..."
+python -m agents.repair_agent.main &
+REPAIR_PID=$!
+echo "Repair Agent PID: $REPAIR_PID"
+
+# Guardar PIDs para cleanup
+echo "$REPAIR_PID" > logs/agent_pids.txt
+
+echo "=== Agentes iniciados ==="
+echo "Para detener: kill \$(cat logs/agent_pids.txt)"
+
+Información Requerida
+Para continuar con la estabilización, necesito que ejecutes los comandos de inspección y pegues la salida. Específicamente necesito:
+
+Contenido de .replit - Para entender cómo está configurado el entorno
+Contenido de requirements.txt o pyproject.toml - Para verificar dependencias
+Estructura de backend/ - Para mapear servicios existentes
+Cualquier error actual - Si hay errores al iniciar, pegar el stack trace completo
+Próximos Pasos (después de inspección)
+Una vez tenga la información del repositorio:
+
+Ajustaré .replit y replit.nix para fijar versiones
+Crearé tests de humo para verificar arranque
+Integraré el Repair Agent con los logs existentes
+Generaré parches específicos para errores detectados

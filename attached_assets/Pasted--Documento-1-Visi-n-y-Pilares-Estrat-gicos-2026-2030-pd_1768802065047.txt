@@ -1,0 +1,271 @@
+**Documento 1 – “Visión y Pilares Estratégicos 2026‑2030.pdf” (A1_ESTRATEGIA)**
+
+Propuesta de contenido base:
+
+**Título:** Visión y Pilares Estratégicos 2026‑2030
+
+**1. Visión 2026‑2030**
+
+La empresa se propone consolidarse como **referente en desarrollo inmobiliario y construcción** en México, con enfoque en:
+
+- **Mercados clave:** Nuevo León, Nayarit y otras plazas estratégicas vinculadas al nearshoring y al turismo de alto valor.  
+- **Segmentos objetivo:** residencial premium y de lujo, proyectos corporativos y logísticos de alta especificación.  
+- **Propuesta de valor:** proyectos con alto nivel de diseño, calidad constructiva, cumplimiento normativo estricto y diferenciales en experiencia del cliente y sostenibilidad.
+
+La visión 2026‑2030 es **crecer de forma rentable y sostenible**, aprovechando el impulso del nearshoring y la demanda en segmentos premium, sin comprometer el cumplimiento fiscal ni la solidez financiera.
+
+**2. Misión / Propósito**
+
+Desarrollar y ejecutar proyectos inmobiliarios y de construcción que **generen valor sostenible** para clientes, inversionistas, colaboradores y comunidades, mediante:
+
+- Planeación rigurosa basada en inteligencia de negocio.  
+- Ejecución operativa eficiente y segura.  
+- Respeto a la normatividad aplicable (urbana, técnica, fiscal, ambiental).  
+- Uso responsable de recursos y enfoque en sostenibilidad.
+
+**3. Pilares Estratégicos 2026‑2030**
+
+Se definen los siguientes **pilares estratégicos**:
+
+1. **Crecimiento rentable en mercados clave**  
+   - Expandir el portafolio de proyectos en Nuevo León, Nayarit y otras plazas estratégicas alineadas al nearshoring.  
+   - Priorizar proyectos con márgenes y perfiles de riesgo adecuados al apetito de la empresa.
+
+2. **Excelencia operativa y transformación digital**  
+   - Implementar y escalar tecnologías como **BIM, ERP y herramientas de analítica** para mejorar productividad, control de costos y calidad.  
+   - Estandarizar procesos constructivos y de gestión mediante metodologías de mejora continua.
+
+3. **Gestión estratégica del talento y productividad**  
+   - Atraer, desarrollar y retener talento especializado en ingeniería, construcción, finanzas, fiscal y gestión de proyectos.  
+   - Mejorar la productividad de obra y oficinas mediante capacitación, herramientas y métricas claras.
+
+4. **Sostenibilidad (ESG) como diferenciador competitivo**  
+   - Incorporar criterios ambientales, sociales y de gobierno corporativo en el diseño y ejecución de proyectos.  
+   - Desarrollar proyectos con mejor desempeño energético, hídrico y de impacto urbano, cuando sea factible.
+
+5. **Gestión integral de riesgos (operativos, regulatorios y fiscales)**  
+   - Anticipar impactos de cambios normativos (NTC, regulaciones locales, fiscales) en la planeación de proyectos.  
+   - Contar con sistemas de control interno robustos para prevenir contingencias fiscales y de cumplimiento.
+
+**4. Metas de alto nivel 2026‑2030**
+
+A manera de referencia, se establecen metas cuantitativas y cualitativas de alto nivel, tales como:
+
+- **Crecimiento:** alcanzar un crecimiento compuesto en ingresos dentro de un rango objetivo (por ejemplo, X–Y% anual), priorizando proyectos con retornos ajustados al riesgo.  
+- **Rentabilidad:** mantener un margen EBITDA mínimo objetivo, coherente con la naturaleza de los proyectos y el ciclo económico.  
+- **Digitalización:** lograr que un porcentaje significativo de proyectos relevantes se gestionen íntegramente en BIM/ERP y cuenten con tableros de control.  
+- **Cumplimiento:** minimizar contingencias fiscales relevantes mediante procesos estandarizados de revisión de servicios e intangibles.  
+- **ESG:** incrementar gradualmente el número de proyectos con atributos ESG diferenciadores, cuando las condiciones de mercado y regulatorias lo permitan.
+
+Este documento sirve como **marco de referencia** para que, al evaluar proyectos de servicios e intangibles, se determine si éstos están alineados con los objetivos y pilares estratégicos definidos para 2026‑2030.
+
+---
+
+**Documento 2 – “Planeación Estratégica OKRs.pdf” (A1_ESTRATEGIA)**
+
+Propuesta de contenido base (estructura tipo):
+
+**Título:** Planeación Estratégica y OKRs – Ejercicio 2026
+
+**1. Introducción**
+
+Este documento consolida los **Objetivos y Resultados Clave (OKRs)** definidos para el ejercicio 2026, alineados con la Visión y Pilares Estratégicos 2026‑2030. Su función es:
+
+- Proveer un marco para evaluar si un proyecto de servicios/intangibles contribuye a objetivos estratégicos específicos.  
+- Servir de referencia para formular y validar el **Beneficio Económico Esperado (BEE)** de dichos proyectos.
+
+**2. OKRs Corporativos 2026**
+
+Ejemplo de estructura (adaptas los valores y textos exactos):
+
+- **OBJ‑2026‑CREC‑01 – Crecimiento rentable en mercados clave**  
+  - **O (Objetivo):** Consolidar la presencia en Nuevo León y Nayarit con proyectos rentables en segmentos residencial premium y lujo.  
+  - **KR1:** Alcanzar X unidades vendidas en proyectos residenciales premium en NL.  
+  - **KR2:** Lanzar al menos Y proyectos turísticos de alto valor en Nayarit.  
+  - **KR3:** Mantener margen bruto mínimo de Z% en nuevos proyectos.
+
+- **OBJ‑2026‑DIGITAL‑01 – Transformación digital de proyectos**  
+  - **O:** Implementar BIM y ERP en la mayoría de proyectos relevantes.  
+  - **KR1:** Que al menos el X% de los proyectos iniciados en 2026 se gestionen en BIM.  
+  - **KR2:** Integrar ERP en los procesos de compras y costos de al menos Y proyectos clave.  
+
+- **OBJ‑2026‑RIESGO‑01 – Gestión de riesgos regulatorios y fiscales**  
+  - **O:** Reducir la exposición a contingencias mediante sistemas de control.  
+  - **KR1:** Evaluar el 100% de los proyectos de servicios/intangibles relevantes con el sistema de auditoría de intangibles.  
+  - **KR2:** Mantener “0” casos de rechazo de deducciones por falta de materialidad en servicios relevantes, dentro de parámetros internos razonables.  
+
+(Agregas otros objetivos relevantes: talento, ESG, etc.)
+
+**3. OKRs por área (Estrategia, Operaciones, Finanzas, Fiscal, Legal, Comercial)**
+
+Para cada área, se listan:
+
+- Objetivos específicos (O)  
+- Resultados clave (KR) con sus métricas.
+
+Ejemplo breve para Estrategia:
+
+- **OBJ‑ESTR‑2026‑01 – Inteligencia de mercado y entorno 2026**  
+  - **KR1:** Completar portafolio de 20+ estudios estratégicos (macroeconómicos, regulatorios, de mercado) antes de Q4 2026.  
+  - **KR2:** Que al menos el X% de decisiones de inversión mayores a cierto umbral se basen en dichos estudios.
+
+**4. Relación OKRs ↔ BEE de proyectos de servicios/intangibles**
+
+Se explica que:
+
+- Cada proyecto de servicio intangible debe indicar **qué objetivo(s) apoya** (por ID de objetivo).  
+- El BEE debe describirse en términos consistentes con esos OKRs (por ejemplo, impactos en ingresos, márgenes, productividad, reducción de riesgos).
+
+---
+
+**Documento 3 – “Análisis Panorama Industria.pdf” (A1_ESTRATEGIA)**
+
+Propuesta base:
+
+**Título:** Análisis del Panorama de la Industria – Contexto 2024–2026
+
+**1. Entorno macroeconómico general**
+
+- Resumen del entorno económico previsto para México en el horizonte 2024–2026:  
+  - rangos de crecimiento del PIB (basados en fuentes públicas),  
+  - inflación convergiendo a meta,  
+  - tendencias en tasas de interés y tipo de cambio.  
+- Nota: se enfatiza que son **referencias de contexto** utilizadas en la planeación estratégica, no proyecciones fiscales propias de la plataforma.
+
+**2. Tendencias sectoriales en construcción e inmobiliario**
+
+- Demanda creciente asociada al **nearshoring**, especialmente en el norte del país (por ejemplo, Nuevo León).  
+- Dinámica de segmentos: residencial premium, industrial/logístico, turístico de alto valor.  
+- Factores que condicionan el crecimiento:  
+  - disponibilidad de mano de obra calificada,  
+  - costos de insumos (acero, aluminio, energía),  
+  - infraestructura (agua, energía, vialidades).
+
+**3. Entorno regulatorio y técnico relevante**
+
+- Referencia a aspectos como:  
+  - nuevas **Normas Técnicas Complementarias (NTC)** en ciertas ciudades,  
+  - complejidad en permisos locales,  
+  - posibles cambios fiscales que impactan inversiones y servicios.  
+
+**4. Implicaciones para la planeación de la empresa**
+
+- Necesidad de contar con:  
+  - análisis macro y de mercado,  
+  - modelos de escenarios,  
+  - estudios regulatorios,  
+  para tomar decisiones de inversión informadas en proyectos de alto monto y riesgo.
+
+Este documento es un **insumo de contexto**, no de normativa. Se basa en información pública y análisis internos.
+
+---
+
+**Documento 4 – “Plan Estratégico Anual.pdf” (A1_ESTRATEGIA)**
+
+Propuesta base:
+
+**Título:** Plan Estratégico Anual – Ejercicio 2026
+
+**1. Objetivo del documento**
+
+Describir las **líneas de acción prioritarias** y los **proyectos estratégicos** del ejercicio 2026, para alinear:
+
+- decisiones de inversión,  
+- contratación de servicios e intangibles,  
+- recursos humanos y financieros.
+
+**2. Prioridades clave 2026**
+
+Ejemplo de estructura:
+
+- **Prioridad 1:** Consolidación de proyectos residenciales premium en NL (zonas definidas).  
+- **Prioridad 2:** Proyectos turísticos y de lujo en Nayarit y otras ubicaciones seleccionadas.  
+- **Prioridad 3:** Implementación de BIM/ERP y otras herramientas de digitalización.  
+- **Prioridad 4:** Fortalecimiento de capacidades internas (talento técnico, fiscal, legal, ESG).  
+- **Prioridad 5:** Gestión activa de riesgos regulatorios y fiscales (incluyendo el uso sistemático de la plataforma de auditoría de intangibles).
+
+**3. Mapa de proyectos estratégicos**
+
+Una tabla ejemplo:
+
+- Proyecto | Tipo | Área responsable | Relación con OKR | Requiere servicios/intangibles clave (S/N).  
+
+Se puede incluir explícitamente el programa de **“20+ proyectos de inteligencia estratégica (Durezza 4.0)”** como parte del plan.
+
+**4. Relación con la plataforma de auditoría de intangibles**
+
+Se indica que:
+
+- Toda contratación de servicios estratégicos e intangibles **deberá canalizarse** a través de la plataforma.  
+- El Plan Estratégico Anual sirve como referencia para que los agentes de Estrategia, Fiscal, Legal y Finanzas evalúen si un proyecto está alineado o no.
+
+---
+
+**Documento 5 – “Matriz de Alineación BEE.pdf” (A1_ESTRATEGIA)**
+
+Propuesta base:
+
+**Título:** Matriz de Alineación del Beneficio Económico Esperado (BEE)
+
+**1. Definición interna de BEE**
+
+Se define el **Beneficio Económico Esperado (BEE)** como:
+
+> El conjunto de beneficios económicos razonablemente esperados de un proyecto de servicio o intangible, medidos en términos de ahorros de costos, incremento de ingresos, mitigación de riesgos relevantes, mejora de márgenes o cumplimiento de requisitos indispensables para operar, más allá de cualquier efecto fiscal asociado.
+
+Se enfatiza que el BEE debe **ir más allá del simple ahorro de impuestos** y debe ser **documentable**.
+
+**2. Estructura estándar de BEE por proyecto**
+
+Se propone una plantilla que todo proyecto debe completar:
+
+- **Objetivo de negocio que atiende:**  
+  – Ejemplo: “Mejorar la calidad de la decisión de inversión en proyectos residenciales premium en NL”.  
+
+- **Tipo(s) de beneficio económico:**  
+  – Ahorro de costos / Incremento de ingresos / Mitigación de riesgo / Cumplimiento obligatorio.
+
+- **Estimación cuantitativa (orden de magnitud):**  
+  – Rangos de ahorro o incremento esperado, cuando sea posible.  
+  – Ejemplo: “Evitar inversiones subóptimas por al menos $X en el horizonte de 24 meses”.
+
+- **Horizonte temporal:**  
+  – Ejemplo: 12, 24, 36 meses.
+
+- **Supuestos principales:**  
+  – Supuestos de mercado, de costos, de implementación.
+
+- **Indicadores clave de éxito (KPIs):**  
+  – Ejemplo: reducción de desviaciones presupuestales, mejora en margen de cierto tipo de proyecto, etc.
+
+**3. Criterios internos de evaluación del BEE**
+
+Se establece, de forma general:
+
+- Un BEE se considera **sólido** cuando:  
+  – el objetivo es concreto y entendible,  
+  – hay al menos una cuantificación razonable de impacto (aunque sea por rangos),  
+  – el horizonte temporal es congruente con el tipo de servicio,  
+  – está vinculado a uno o más OKRs o pilares estratégicos.
+
+- Un BEE se considera **débil** si:  
+  – se describe en términos vagos (“mejorar eficiencia”, “apoyar la estrategia”),  
+  – carece de cualquier aproximación cuantitativa,  
+  – no se puede vincular a objetivos estratégicos claros.
+
+**4. Relación con el análisis fiscal (Art. 5‑A CFF)**
+
+Se aclara que la Matriz BEE:
+
+- sirve como insumo para que el área fiscal evalúe:  
+  – **razón de negocios**,  
+  – **beneficio económico esperado**,  
+  en términos de CFF 5‑A.  
+- contribuye a demostrar que los servicios e intangibles tienen una **justificación económica real**, más allá del efecto fiscal, lo que es relevante para la defensa en caso de revisión.
+
+---
+
+Con esto, quedan cubiertos los cinco documentos de **A1_ESTRATEGIA** en contenido base.  
+
+En el siguiente paso, seguiré en orden con **A2_PMO (Carlos – Gerente PMO)** y sus documentos (POE F0‑F9 Manual, Plantillas PO/Consolidation Report, Guía de Coordinación Multi‑Agente, Checklist por Tipología).
+

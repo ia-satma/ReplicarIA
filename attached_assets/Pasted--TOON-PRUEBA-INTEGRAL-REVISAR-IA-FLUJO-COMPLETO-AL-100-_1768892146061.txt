@@ -1,0 +1,802 @@
+```
+TOON: PRUEBA INTEGRAL REVISAR.IA - FLUJO COMPLETO AL 100%
+
+OBJETIVO: Validar que el sistema funcione end-to-end con dos proveedores de prueba.
+- Registro de empresa y proveedores
+- Ejecución de agentes (A1-A8)
+- Deliberación entre agentes
+- Generación de PDFs (Defense File)
+- Envío de emails
+- Guardado en pCloud
+- Dashboard con métricas
+
+================================================================================
+FASE 0: PREPARACIÓN DEL ENTORNO
+================================================================================
+
+PASO 1: Verificar variables de entorno
+Crear/actualizar archivo .env con TODAS estas variables:
+
+```env
+# Base de datos
+DATABASE_URL=tu_conexion_db
+
+# Anthropic (Agentes IA)
+ANTHROPIC_API_KEY=tu_api_key
+
+# Email (Resend o SendGrid)
+RESEND_API_KEY=tu_api_key
+EMAIL_FROM=noreply@tudominio.com
+EMAIL_ADMIN=admin@tudominio.com
+
+# pCloud
+PCLOUD_ACCESS_TOKEN=tu_token
+PCLOUD_FOLDER_ID=id_carpeta_raiz
+
+# App
+APP_URL=https://tu-app.replit.app
+NODE_ENV=production
+```
+
+PASO 2: Verificar que los servicios estén corriendo
+```typescript
+// Agregar en server.ts al inicio
+console.log('=== VERIFICACIÓN DE SERVICIOS ===');
+console.log('DATABASE_URL:', process.env.DATABASE_URL ? '✅ Configurado' : '❌ FALTA');
+console.log('ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? '✅ Configurado' : '❌ FALTA');
+console.log('RESEND_API_KEY:', process.env.RESEND_API_KEY ? '✅ Configurado' : '❌ FALTA');
+console.log('PCLOUD_ACCESS_TOKEN:', process.env.PCLOUD_ACCESS_TOKEN ? '✅ Configurado' : '❌ FALTA');
+console.log('================================');
+```
+
+================================================================================
+FASE 1: CREAR SERVICIO DE PRUEBAS
+================================================================================
+
+CREAR ARCHIVO: server/services/testRunner.ts
+
+```typescript
+import { AnthropicService } from './anthropic';
+import { EmailService } from './email';
+import { PCloudService } from './pcloud';
+import { AgentOrchestrator } from './agents/orchestrator';
+import { DefenseFileGenerator } from './defenseFile/generator';
+import { db } from '../db';
+
+interface TestResult {
+  paso: string;
+  status: 'success' | 'error' | 'warning';
+  mensaje: string;
+  datos?: any;
+  duracion_ms?: number;
+}
+
+export class TestRunner {
+  private resultados: TestResult[] = [];
+  private emailService: EmailService;
+  private pcloudService: PCloudService;
+  private orchestrator: AgentOrchestrator;
+  private defenseGenerator: DefenseFileGenerator;
+
+  constructor() {
+    this.emailService = new EmailService();
+    this.pcloudService = new PCloudService();
+    this.orchestrator = new AgentOrchestrator();
+    this.defenseGenerator = new DefenseFileGenerator();
+  }
+
+  private log(paso: string, status: 'success' | 'error' | 'warning', mensaje: string, datos?: any, duracion_ms?: number) {
+    const resultado: TestResult = { paso, status, mensaje, datos, duracion_ms };
+    this.resultados.push(resultado);
+    const icon = status === 'success' ? '✅' : status === 'error' ? '❌' : '⚠️';
+    console.log(`${icon} [${paso}] ${mensaje}${duracion_ms ? ` (${duracion_ms}ms)` : ''}`);
+    if (datos) console.log('   Datos:', JSON.stringify(datos, null, 2));
+  }
+
+  async ejecutarPruebaCompleta(proveedorData: any): Promise<TestResult[]> {
+    console.log('\n' + '='.repeat(80));
+    console.log('🚀 INICIANDO PRUEBA INTEGRAL REVISAR.IA');
+    console.log('   Proveedor:', proveedorData.nombre);
+    console.log('   RFC:', proveedorData.rfc);
+    console.log('='.repeat(80) + '\n');
+
+    const inicio = Date.now();
+
+    try {
+      // TEST 1: Conexión a base de datos
+      await this.testDatabase();
+
+      // TEST 2: Registro de empresa (si no existe)
+      const empresa = await this.testRegistroEmpresa(proveedorData.empresa);
+
+      // TEST 3: Registro de proveedor
+      const proveedor = await this.testRegistroProveedor(empresa.id, proveedorData);
+
+      // TEST 4: Crear proyecto/diagnóstico
+      const proyecto = await this.testCrearProyecto(empresa.id, proveedor.id, proveedorData.proyecto);
+
+      // TEST 5: Ejecutar Agente A6 (Análisis Proveedor)
+      await this.testAgenteA6(proyecto.id, proveedor);
+
+      // TEST 6: Ejecutar Agente A3 (Análisis Fiscal)
+      await this.testAgenteA3(proyecto.id, proveedorData);
+
+      // TEST 7: Ejecutar Agente A5 (Análisis Financiero)
+      await this.testAgenteA5(proyecto.id, proveedorData);
+
+      // TEST 8: Ejecutar Agente A1 (Estrategia)
+      await this.testAgenteA1(proyecto.id);
+
+      // TEST 9: Deliberación entre agentes
+      await this.testDeliberacion(proyecto.id);
+
+      // TEST 10: Generar Defense File PDF
+      const pdfPath = await this.testGenerarPDF(proyecto.id);
+
+      // TEST 11: Subir a pCloud
+      const pcloudUrl = await this.testSubirPCloud(pdfPath, proveedorData);
+
+      // TEST 12: Enviar email de notificación
+      await this.testEnviarEmail(proveedorData, pcloudUrl);
+
+      // TEST 13: Actualizar dashboard
+      await this.testActualizarDashboard(proyecto.id);
+
+      // TEST 14: Verificar métricas
+      await this.testVerificarMetricas(proyecto.id);
+
+    } catch (error: any) {
+      this.log('ERROR_GENERAL', 'error', `Error no manejado: ${error.message}`, { stack: error.stack });
+    }
+
+    const duracionTotal = Date.now() - inicio;
+    
+    console.log('\n' + '='.repeat(80));
+    console.log('📊 RESUMEN DE PRUEBAS');
+    console.log('='.repeat(80));
+    
+    const exitosos = this.resultados.filter(r => r.status === 'success').length;
+    const errores = this.resultados.filter(r => r.status === 'error').length;
+    const warnings = this.resultados.filter(r => r.status === 'warning').length;
+    
+    console.log(`✅ Exitosos: ${exitosos}`);
+    console.log(`❌ Errores: ${errores}`);
+    console.log(`⚠️ Warnings: ${warnings}`);
+    console.log(`⏱️ Tiempo total: ${duracionTotal}ms (${(duracionTotal/1000).toFixed(2)}s)`);
+    console.log('='.repeat(80) + '\n');
+
+    return this.resultados;
+  }
+
+  // TEST 1: Base de datos
+  private async testDatabase() {
+    const inicio = Date.now();
+    try {
+      await db.query('SELECT 1');
+      this.log('DATABASE', 'success', 'Conexión a base de datos OK', null, Date.now() - inicio);
+    } catch (error: any) {
+      this.log('DATABASE', 'error', `Error de conexión: ${error.message}`, null, Date.now() - inicio);
+      throw error;
+    }
+  }
+
+  // TEST 2: Registro empresa
+  private async testRegistroEmpresa(empresaData: any) {
+    const inicio = Date.now();
+    try {
+      let empresa = await db.empresas.findByRfc(empresaData.rfc);
+      
+      if (!empresa) {
+        empresa = await db.empresas.create({
+          nombre: empresaData.nombre,
+          rfc: empresaData.rfc,
+          email: empresaData.email,
+          telefono: empresaData.telefono,
+          direccion: empresaData.direccion
+        });
+        this.log('EMPRESA', 'success', `Empresa registrada: ${empresa.nombre}`, { id: empresa.id }, Date.now() - inicio);
+      } else {
+        this.log('EMPRESA', 'success', `Empresa ya existe: ${empresa.nombre}`, { id: empresa.id }, Date.now() - inicio);
+      }
+      
+      return empresa;
+    } catch (error: any) {
+      this.log('EMPRESA', 'error', `Error registrando empresa: ${error.message}`, null, Date.now() - inicio);
+      throw error;
+    }
+  }
+
+  // TEST 3: Registro proveedor
+  private async testRegistroProveedor(empresaId: string, proveedorData: any) {
+    const inicio = Date.now();
+    try {
+      const proveedor = await db.proveedores.create({
+        empresaId,
+        nombre: proveedorData.nombre,
+        rfc: proveedorData.rfc,
+        tipoServicio: proveedorData.tipoServicio,
+        monto: proveedorData.monto,
+        fechaContrato: proveedorData.fechaContrato
+      });
+      
+      this.log('PROVEEDOR', 'success', `Proveedor registrado: ${proveedor.nombre}`, { 
+        id: proveedor.id, 
+        rfc: proveedor.rfc,
+        monto: proveedor.monto 
+      }, Date.now() - inicio);
+      
+      return proveedor;
+    } catch (error: any) {
+      this.log('PROVEEDOR', 'error', `Error registrando proveedor: ${error.message}`, null, Date.now() - inicio);
+      throw error;
+    }
+  }
+
+  // TEST 4: Crear proyecto
+  private async testCrearProyecto(empresaId: string, proveedorId: string, proyectoData: any) {
+    const inicio = Date.now();
+    try {
+      const proyecto = await db.proyectos.create({
+        empresaId,
+        proveedorId,
+        nombre: proyectoData.nombre,
+        descripcion: proyectoData.descripcion,
+        tipoIntangible: proyectoData.tipoIntangible,
+        monto: proyectoData.monto,
+        estado: 'en_proceso',
+        faseActual: 'A6',
+        progreso: 0
+      });
+      
+      this.log('PROYECTO', 'success', `Proyecto creado: ${proyecto.nombre}`, { 
+        id: proyecto.id,
+        estado: proyecto.estado 
+      }, Date.now() - inicio);
+      
+      return proyecto;
+    } catch (error: any) {
+      this.log('PROYECTO', 'error', `Error creando proyecto: ${error.message}`, null, Date.now() - inicio);
+      throw error;
+    }
+  }
+
+  // TEST 5: Agente A6
+  private async testAgenteA6(proyectoId: string, proveedor: any) {
+    const inicio = Date.now();
+    try {
+      console.log('\n--- Ejecutando Agente A6 (Análisis Proveedor) ---');
+      
+      const resultado = await this.orchestrator.ejecutarAgente('A6', {
+        proyectoId,
+        proveedor,
+        verificaciones: ['lista_69b', 'opinion_32d', 'estatus_fiscal']
+      });
+      
+      this.log('AGENTE_A6', 'success', 'Análisis de proveedor completado', {
+        riesgo: resultado.nivelRiesgo,
+        lista69b: resultado.enLista69B,
+        opinion32d: resultado.opinion32DValida,
+        observaciones: resultado.observaciones?.length || 0
+      }, Date.now() - inicio);
+      
+      // Guardar resultado
+      await db.analisis.create({
+        proyectoId,
+        agente: 'A6',
+        resultado: JSON.stringify(resultado),
+        timestamp: new Date()
+      });
+      
+      return resultado;
+    } catch (error: any) {
+      this.log('AGENTE_A6', 'error', `Error en A6: ${error.message}`, null, Date.now() - inicio);
+      throw error;
+    }
+  }
+
+  // TEST 6: Agente A3
+  private async testAgenteA3(proyectoId: string, datos: any) {
+    const inicio = Date.now();
+    try {
+      console.log('\n--- Ejecutando Agente A3 (Análisis Fiscal) ---');
+      
+      const resultado = await this.orchestrator.ejecutarAgente('A3', {
+        proyectoId,
+        tipoIntangible: datos.proyecto.tipoIntangible,
+        monto: datos.proyecto.monto,
+        documentos: datos.documentos || []
+      });
+      
+      this.log('AGENTE_A3', 'success', 'Análisis fiscal completado', {
+        deducible: resultado.esDeducible,
+        fundamentoLegal: resultado.fundamentoLegal,
+        requisitos: resultado.requisitosCumplidos,
+        riesgos: resultado.riesgosIdentificados?.length || 0
+      }, Date.now() - inicio);
+      
+      await db.analisis.create({
+        proyectoId,
+        agente: 'A3',
+        resultado: JSON.stringify(resultado),
+        timestamp: new Date()
+      });
+      
+      return resultado;
+    } catch (error: any) {
+      this.log('AGENTE_A3', 'error', `Error en A3: ${error.message}`, null, Date.now() - inicio);
+      throw error;
+    }
+  }
+
+  // TEST 7: Agente A5
+  private async testAgenteA5(proyectoId: string, datos: any) {
+    const inicio = Date.now();
+    try {
+      console.log('\n--- Ejecutando Agente A5 (Análisis Financiero) ---');
+      
+      const resultado = await this.orchestrator.ejecutarAgente('A5', {
+        proyectoId,
+        monto: datos.proyecto.monto,
+        tipoServicio: datos.tipoServicio,
+        industria: datos.empresa.industria
+      });
+      
+      this.log('AGENTE_A5', 'success', 'Análisis financiero completado', {
+        razonable: resultado.montoRazonable,
+        benchmarkMin: resultado.rangoBenchmark?.min,
+        benchmarkMax: resultado.rangoBenchmark?.max,
+        desviacion: resultado.desviacionPorcentaje
+      }, Date.now() - inicio);
+      
+      await db.analisis.create({
+        proyectoId,
+        agente: 'A5',
+        resultado: JSON.stringify(resultado),
+        timestamp: new Date()
+      });
+      
+      return resultado;
+    } catch (error: any) {
+      this.log('AGENTE_A5', 'error', `Error en A5: ${error.message}`, null, Date.now() - inicio);
+      throw error;
+    }
+  }
+
+  // TEST 8: Agente A1
+  private async testAgenteA1(proyectoId: string) {
+    const inicio = Date.now();
+    try {
+      console.log('\n--- Ejecutando Agente A1 (Estrategia) ---');
+      
+      // Obtener análisis previos
+      const analisisPrevios = await db.analisis.findByProyecto(proyectoId);
+      
+      const resultado = await this.orchestrator.ejecutarAgente('A1', {
+        proyectoId,
+        analisisPrevios
+      });
+      
+      this.log('AGENTE_A1', 'success', 'Estrategia definida', {
+        razonNegociosScore: resultado.razonNegociosScore,
+        estrategiaPrincipal: resultado.estrategiaPrincipal,
+        argumentos: resultado.argumentos?.length || 0
+      }, Date.now() - inicio);
+      
+      await db.analisis.create({
+        proyectoId,
+        agente: 'A1',
+        resultado: JSON.stringify(resultado),
+        timestamp: new Date()
+      });
+      
+      return resultado;
+    } catch (error: any) {
+      this.log('AGENTE_A1', 'error', `Error en A1: ${error.message}`, null, Date.now() - inicio);
+      throw error;
+    }
+  }
+
+  // TEST 9: Deliberación
+  private async testDeliberacion(proyectoId: string) {
+    const inicio = Date.now();
+    try {
+      console.log('\n--- Ejecutando Deliberación entre Agentes ---');
+      
+      const analisis = await db.analisis.findByProyecto(proyectoId);
+      
+      const deliberacion = await this.orchestrator.deliberar({
+        proyectoId,
+        agentesParticipantes: ['A1', 'A3', 'A5', 'A6'],
+        analisis,
+        maxRondas: 3
+      });
+      
+      this.log('DELIBERACION', 'success', 'Deliberación completada', {
+        consenso: deliberacion.consensoAlcanzado,
+        rondas: deliberacion.rondasEjecutadas,
+        recomendacionFinal: deliberacion.recomendacionFinal,
+        votacion: deliberacion.votacion
+      }, Date.now() - inicio);
+      
+      await db.deliberaciones.create({
+        proyectoId,
+        resultado: JSON.stringify(deliberacion),
+        timestamp: new Date()
+      });
+      
+      return deliberacion;
+    } catch (error: any) {
+      this.log('DELIBERACION', 'error', `Error en deliberación: ${error.message}`, null, Date.now() - inicio);
+      throw error;
+    }
+  }
+
+  // TEST 10: Generar PDF
+  private async testGenerarPDF(proyectoId: string) {
+    const inicio = Date.now();
+    try {
+      console.log('\n--- Generando Defense File PDF ---');
+      
+      const proyecto = await db.proyectos.findById(proyectoId);
+      const analisis = await db.analisis.findByProyecto(proyectoId);
+      const deliberacion = await db.deliberaciones.findByProyecto(proyectoId);
+      
+      const pdfPath = await this.defenseGenerator.generar({
+        proyecto,
+        analisis,
+        deliberacion,
+        version: '1.0'
+      });
+      
+      // Verificar que el archivo existe
+      const fs = await import('fs');
+      const stats = fs.statSync(pdfPath);
+      
+      this.log('PDF', 'success', 'Defense File generado', {
+        path: pdfPath,
+        tamaño: `${(stats.size / 1024).toFixed(2)} KB`
+      }, Date.now() - inicio);
+      
+      return pdfPath;
+    } catch (error: any) {
+      this.log('PDF', 'error', `Error generando PDF: ${error.message}`, null, Date.now() - inicio);
+      throw error;
+    }
+  }
+
+  // TEST 11: Subir a pCloud
+  private async testSubirPCloud(pdfPath: string, proveedorData: any) {
+    const inicio = Date.now();
+    try {
+      console.log('\n--- Subiendo a pCloud ---');
+      
+      const folderPath = `/Revisar.IA/Empresas/${proveedorData.empresa.rfc}/Proveedores/${proveedorData.rfc}`;
+      
+      // Crear carpeta si no existe
+      const folderId = await this.pcloudService.createFolderPath(folderPath);
+      
+      // Subir archivo
+      const fileName = `DefenseFile_${proveedorData.rfc}_v1.0_${Date.now()}.pdf`;
+      const uploadResult = await this.pcloudService.uploadFile(pdfPath, fileName, folderId);
+      
+      // Generar link público
+      const publicLink = await this.pcloudService.createPublicLink(uploadResult.fileId);
+      
+      this.log('PCLOUD', 'success', 'Archivo subido a pCloud', {
+        fileId: uploadResult.fileId,
+        path: `${folderPath}/${fileName}`,
+        publicLink: publicLink
+      }, Date.now() - inicio);
+      
+      return publicLink;
+    } catch (error: any) {
+      this.log('PCLOUD', 'error', `Error subiendo a pCloud: ${error.message}`, null, Date.now() - inicio);
+      throw error;
+    }
+  }
+
+  // TEST 12: Enviar email
+  private async testEnviarEmail(proveedorData: any, pcloudUrl: string) {
+    const inicio = Date.now();
+    try {
+      console.log('\n--- Enviando Email de Notificación ---');
+      
+      const emailResult = await this.emailService.send({
+        to: proveedorData.empresa.email,
+        subject: `✅ Defense File Generado - ${proveedorData.nombre}`,
+        html: `
+          <h1>Defense File Completado</h1>
+          <p>Se ha generado el expediente de defensa para el proveedor:</p>
+          <ul>
+            <li><strong>Proveedor:</strong> ${proveedorData.nombre}</li>
+            <li><strong>RFC:</strong> ${proveedorData.rfc}</li>
+            <li><strong>Proyecto:</strong> ${proveedorData.proyecto.nombre}</li>
+          </ul>
+          <p><a href="${pcloudUrl}" style="background:#7C3AED;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;">Descargar Defense File</a></p>
+          <p>Este enlace estará disponible por 30 días.</p>
+          <hr>
+          <p><small>Revisar.IA - Sistema de Auditoría Fiscal</small></p>
+        `
+      });
+      
+      this.log('EMAIL', 'success', 'Email enviado correctamente', {
+        to: proveedorData.empresa.email,
+        messageId: emailResult.messageId
+      }, Date.now() - inicio);
+      
+      return emailResult;
+    } catch (error: any) {
+      this.log('EMAIL', 'error', `Error enviando email: ${error.message}`, null, Date.now() - inicio);
+      throw error;
+    }
+  }
+
+  // TEST 13: Actualizar dashboard
+  private async testActualizarDashboard(proyectoId: string) {
+    const inicio = Date.now();
+    try {
+      console.log('\n--- Actualizando Dashboard ---');
+      
+      await db.proyectos.update(proyectoId, {
+        estado: 'completado',
+        faseActual: 'COMPLETADO',
+        progreso: 100,
+        fechaCompletado: new Date()
+      });
+      
+      // Recalcular métricas globales
+      const metricas = await db.metricas.recalcular();
+      
+      this.log('DASHBOARD', 'success', 'Dashboard actualizado', {
+        proyectoEstado: 'completado',
+        diagnosticosActivos: metricas.diagnosticosActivos,
+        completadosHoy: metricas.completadosHoy
+      }, Date.now() - inicio);
+      
+      return metricas;
+    } catch (error: any) {
+      this.log('DASHBOARD', 'error', `Error actualizando dashboard: ${error.message}`, null, Date.now() - inicio);
+      throw error;
+    }
+  }
+
+  // TEST 14: Verificar métricas
+  private async testVerificarMetricas(proyectoId: string) {
+    const inicio = Date.now();
+    try {
+      console.log('\n--- Verificando Métricas Finales ---');
+      
+      const proyecto = await db.proyectos.findById(proyectoId);
+      const analisis = await db.analisis.findByProyecto(proyectoId);
+      
+      const metricas = {
+        progreso: proyecto.progreso,
+        agentesEjecutados: analisis.length,
+        versiones: proyecto.versiones || 1,
+        ajustesSolicitados: proyecto.ajustesSolicitados || 0,
+        ajustesResueltos: proyecto.ajustesResueltos || 0,
+        diasEnProceso: Math.floor((Date.now() - new Date(proyecto.fechaInicio).getTime()) / (1000 * 60 * 60 * 24))
+      };
+      
+      this.log('METRICAS', 'success', 'Métricas verificadas', metricas, Date.now() - inicio);
+      
+      return metricas;
+    } catch (error: any) {
+      this.log('METRICAS', 'error', `Error verificando métricas: ${error.message}`, null, Date.now() - inicio);
+      throw error;
+    }
+  }
+}
+```
+
+================================================================================
+FASE 2: CREAR ENDPOINT DE PRUEBAS
+================================================================================
+
+CREAR/ACTUALIZAR: server/routes/test.ts
+
+```typescript
+import { Router } from 'express';
+import { TestRunner } from '../services/testRunner';
+
+const router = Router();
+
+// POST /api/test/full - Ejecutar prueba completa
+router.post('/full', async (req, res) => {
+  try {
+    const { proveedor } = req.body;
+    
+    if (!proveedor) {
+      return res.status(400).json({ error: 'Datos del proveedor requeridos' });
+    }
+    
+    const testRunner = new TestRunner();
+    const resultados = await testRunner.ejecutarPruebaCompleta(proveedor);
+    
+    const exitosos = resultados.filter(r => r.status === 'success').length;
+    const errores = resultados.filter(r => r.status === 'error').length;
+    
+    res.json({
+      success: errores === 0,
+      resumen: {
+        total: resultados.length,
+        exitosos,
+        errores,
+        warnings: resultados.filter(r => r.status === 'warning').length
+      },
+      resultados
+    });
+    
+  } catch (error: any) {
+    console.error('Error en prueba:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;
+```
+
+REGISTRAR en server.ts:
+```typescript
+import testRoutes from './routes/test';
+app.use('/api/test', testRoutes);
+```
+
+================================================================================
+FASE 3: DATOS DE PRUEBA
+================================================================================
+
+PROVEEDOR 1 - Software (Riesgo Bajo):
+```json
+{
+  "empresa": {
+    "nombre": "Corporativo Prueba SA de CV",
+    "rfc": "CPR240120XX1",
+    "email": "tu-email-real@gmail.com",
+    "telefono": "8112345678",
+    "direccion": "Monterrey, NL",
+    "industria": "tecnologia"
+  },
+  "nombre": "Software Solutions Test SA",
+  "rfc": "SST200115AA1",
+  "tipoServicio": "licencias_software",
+  "monto": 1500000,
+  "fechaContrato": "2024-01-15",
+  "proyecto": {
+    "nombre": "Licencias ERP Test",
+    "descripcion": "Licenciamiento de sistema ERP para operaciones",
+    "tipoIntangible": "software",
+    "monto": 1500000
+  },
+  "documentos": [
+    { "tipo": "contrato", "nombre": "Contrato de licenciamiento" },
+    { "tipo": "factura", "nombre": "CFDI A-001" }
+  ]
+}
+```
+
+PROVEEDOR 2 - Consultoría (Riesgo Medio):
+```json
+{
+  "empresa": {
+    "nombre": "Corporativo Prueba SA de CV",
+    "rfc": "CPR240120XX1",
+    "email": "tu-email-real@gmail.com",
+    "telefono": "8112345678",
+    "direccion": "Monterrey, NL",
+    "industria": "tecnologia"
+  },
+  "nombre": "Consultores Fiscales Test",
+  "rfc": "CFT190820BB2",
+  "tipoServicio": "consultoria_fiscal",
+  "monto": 3200000,
+  "fechaContrato": "2024-03-01",
+  "proyecto": {
+    "nombre": "Asesoría Fiscal Especial Test",
+    "descripcion": "Servicios de consultoría fiscal especializada",
+    "tipoIntangible": "servicios_profesionales",
+    "monto": 3200000
+  },
+  "documentos": [
+    { "tipo": "contrato", "nombre": "Contrato de servicios" },
+    { "tipo": "entregable", "nombre": "Informe de diagnóstico" }
+  ]
+}
+```
+
+================================================================================
+FASE 4: EJECUTAR PRUEBAS
+================================================================================
+
+OPCIÓN A - Via API (Postman/curl):
+
+```bash
+# Proveedor 1
+curl -X POST https://tu-app.replit.app/api/test/full \
+  -H "Content-Type: application/json" \
+  -d '{"proveedor": <JSON_PROVEEDOR_1>}'
+
+# Esperar 2-3 minutos
+
+# Proveedor 2
+curl -X POST https://tu-app.replit.app/api/test/full \
+  -H "Content-Type: application/json" \
+  -d '{"proveedor": <JSON_PROVEEDOR_2>}'
+```
+
+OPCIÓN B - Via Script en Replit:
+
+CREAR: scripts/runTests.ts
+```typescript
+import { TestRunner } from '../server/services/testRunner';
+
+const proveedor1 = { /* JSON PROVEEDOR 1 */ };
+const proveedor2 = { /* JSON PROVEEDOR 2 */ };
+
+async function main() {
+  const runner = new TestRunner();
+  
+  console.log('\n🔷 PRUEBA 1: Software Solutions Test\n');
+  await runner.ejecutarPruebaCompleta(proveedor1);
+  
+  console.log('\n⏳ Esperando 30 segundos antes de la siguiente prueba...\n');
+  await new Promise(r => setTimeout(r, 30000));
+  
+  console.log('\n🔷 PRUEBA 2: Consultores Fiscales Test\n');
+  const runner2 = new TestRunner();
+  await runner2.ejecutarPruebaCompleta(proveedor2);
+  
+  console.log('\n✅ TODAS LAS PRUEBAS COMPLETADAS\n');
+}
+
+main().catch(console.error);
+```
+
+EJECUTAR:
+```bash
+npx ts-node scripts/runTests.ts
+```
+
+================================================================================
+FASE 5: VERIFICACIÓN MANUAL
+================================================================================
+
+DESPUÉS de ejecutar las pruebas, verificar:
+
+1. ✅ BASE DE DATOS
+   - Tablas: empresas, proveedores, proyectos, analisis, deliberaciones
+   - Verificar que los registros existan
+
+2. ✅ pCLOUD
+   - Ir a pCloud y verificar estructura:
+     /Revisar.IA/Empresas/CPR240120XX1/Proveedores/SST200115AA1/
+     /Revisar.IA/Empresas/CPR240120XX1/Proveedores/CFT190820BB2/
+   - Verificar que los PDFs estén ahí
+
+3. ✅ EMAIL
+   - Revisar bandeja de entrada del email configurado
+   - Verificar que llegaron 2 emails con los links de descarga
+
+4. ✅ DASHBOARD
+   - Abrir la app en el navegador
+   - Verificar que muestra los 2 proveedores (o los que hayan quedado activos)
+   - Verificar métricas actualizadas
+
+5. ✅ PDFs
+   - Descargar los PDFs desde pCloud
+   - Verificar que contengan toda la información
+
+================================================================================
+FIN DEL TOON
+================================================================================
+
+EJECUTAR EN ORDEN:
+1. Configurar .env
+2. Crear testRunner.ts
+3. Crear endpoint /api/test/full
+4. Ejecutar prueba con Proveedor 1
+5. Ejecutar prueba con Proveedor 2
+6. Verificar resultados manualmente
+
+NO PREGUNTAR. EJECUTAR.
+```

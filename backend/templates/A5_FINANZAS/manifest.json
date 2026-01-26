@@ -1,0 +1,86 @@
+{
+  "agent_id": "A5_FINANZAS",
+  "version": "1.0.0",
+  "generated_at": "{{FECHA_ACTUAL}}",
+  "templates": [
+    {
+      "filename": "politicas_presupuestales.docx",
+      "title": "POLÍTICAS PRESUPUESTALES 2026",
+      "section_count": 4,
+      "placeholders": [
+        "PERIODO_FISCAL",
+        "EMPRESA_NOMBRE",
+        "FECHA_ACTUAL"
+      ]
+    },
+    {
+      "filename": "benchmarks_roi.docx",
+      "title": "BENCHMARKS DE ROI POR TIPO DE SERVICIO",
+      "section_count": 5,
+      "placeholders": [
+        "MONTO_CREDITO",
+        "ROI_PROYECTADO",
+        "PROYECTO_NOMBRE",
+        "PERIODO_RECUPERACION",
+        "CATEGORIA_SERVICIO"
+      ]
+    },
+    {
+      "filename": "three_way_match.docx",
+      "title": "VALIDACIÓN 3-WAY MATCH",
+      "section_count": 6,
+      "placeholders": [
+        "MONTO_CREDITO",
+        "RECIBIO",
+        "PROYECTO_NOMBRE",
+        "FECHA_RECEPCION",
+        "FIRMA_PO",
+        "ENTREGABLE_2",
+        "NUMERO_ACTA",
+        "MONTO_PO",
+        "UUID_FACTURA",
+        "DISCREPANCIAS",
+        "FECHA_FACTURA",
+        "FOLIO_PROYECTO",
+        "MONTO_FACTURA",
+        "FECHA_PO",
+        "ENTREGABLE_1",
+        "PROVEEDOR_NOMBRE"
+      ]
+    },
+    {
+      "filename": "analisis_financiero.docx",
+      "title": "ANÁLISIS FINANCIERO DEL PROYECTO",
+      "section_count": 4,
+      "placeholders": [
+        "BENEFICIO_ANO_1",
+        "BENEFICIO_ANO_3",
+        "BENEFICIO_ESPERADO",
+        "MONTO_CREDITO",
+        "OBSERVACIONES_FINANCIERAS",
+        "PROVEEDOR_NOMBRE",
+        "PROYECTO_NOMBRE",
+        "BENEFICIO_ANO_2",
+        "RELACION_BC",
+        "ROI_CALCULADO",
+        "PRESUPUESTO_PARTIDA",
+        "DISPONIBLE",
+        "COMPROMETIDO"
+      ]
+    },
+    {
+      "filename": "limites_autorizacion.docx",
+      "title": "MATRIZ DE LÍMITES DE AUTORIZACIÓN",
+      "section_count": 6,
+      "placeholders": [
+        "MONTO_CREDITO",
+        "NIVEL_AUTORIZACION",
+        "EMPRESA_NOMBRE",
+        "PROYECTO_NOMBRE",
+        "FECHA_AUTORIZACION",
+        "AUTORIZADOR",
+        "FECHA_ACTUAL"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1475 @@
+═══════════════════════════════════════════════════════════════════════════════
+📁 DEFENSE FILES - SISTEMA COMPLETO DE EVIDENCIA FISCAL
+═══════════════════════════════════════════════════════════════════════════════
+
+OBJETIVO CRÍTICO: Documentar ABSOLUTAMENTE TODO lo que pueda servir como
+evidencia ante una revisión del SAT. Cada interacción, cada análisis,
+cada documento, cada decisión debe quedar registrada con:
+- Timestamp exacto
+- Quién lo hizo (usuario o agente)
+- Qué información se usó
+- Qué conclusión se llegó
+- Fundamento legal aplicable
+- Hash de integridad
+
+═══════════════════════════════════════════════════════════════════════════════
+¿QUÉ REVISA EL SAT Y QUÉ DEBEMOS DOCUMENTAR?
+═══════════════════════════════════════════════════════════════════════════════
+
+El SAT puede observar:
+
+1. MATERIALIDAD DE OPERACIONES
+   → ¿Las operaciones con proveedores son reales?
+   → ¿Hay sustancia económica?
+   
+   DOCUMENTAR:
+   ✓ Verificación de existencia del proveedor
+   ✓ Verificación Lista 69-B (EFOS/EDOS)
+   ✓ Opinión de cumplimiento del proveedor
+   ✓ Contratos firmados
+   ✓ Evidencia de entrega (fotos, bitácoras, remisiones)
+   ✓ Comprobantes de pago (transferencias, estados de cuenta)
+   ✓ Correspondencia con proveedor
+
+2. REQUISITOS DE DEDUCCIONES (Art. 27 LISR)
+   → ¿Los gastos cumplen requisitos para ser deducibles?
+   
+   DOCUMENTAR:
+   ✓ Cada CFDI con su análisis de deducibilidad
+   ✓ Fundamento legal por cada tipo de gasto
+   ✓ Justificación de estricta indispensabilidad
+   ✓ Verificación de fecha de pago vs fecha de factura
+   ✓ Método de pago correcto
+   ✓ RFC correcto del proveedor
+
+3. OPERACIONES CON PARTES RELACIONADAS
+   → ¿Precios de transferencia correctos?
+   
+   DOCUMENTAR:
+   ✓ Identificación de partes relacionadas
+   ✓ Análisis de precios de mercado
+   ✓ Documentación de políticas de precios
+
+4. RETENCIONES Y ENTEROS
+   → ¿Se retuvieron y enteraron impuestos correctamente?
+   
+   DOCUMENTAR:
+   ✓ Cálculo de cada retención
+   ✓ Comprobantes de pago de retenciones
+   ✓ Conciliación con declaraciones
+
+5. IVA ACREDITABLE
+   → ¿El IVA acreditado cumple requisitos?
+   
+   DOCUMENTAR:
+   ✓ Verificación de CFDIs con IVA
+   ✓ Que el gasto sea deducible para ISR
+   ✓ Que esté efectivamente pagado
+   ✓ Que esté trasladado expresamente
+
+═══════════════════════════════════════════════════════════════════════════════
+MODELO DE DATOS COMPLETO
+═══════════════════════════════════════════════════════════════════════════════
+
+```sql
+-- ═══════════════════════════════════════════════════════════════════════════
+-- DEFENSE FILE PRINCIPAL
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS defense_files (
+    id SERIAL PRIMARY KEY,
+    
+    -- Identificación
+    codigo VARCHAR(20) UNIQUE,  -- DF-2025-0001
+    cliente_id INTEGER REFERENCES clientes(id),
+    entregable_id INTEGER,
+    
+    -- Datos del contribuyente
+    contribuyente_rfc VARCHAR(13) NOT NULL,
+    contribuyente_nombre VARCHAR(255),
+    regimen_fiscal VARCHAR(100),
+    
+    -- Periodo auditado
+    ejercicio INTEGER NOT NULL,
+    periodo_inicio DATE,
+    periodo_fin DATE,
+    
+    -- Tipo de revisión
+    tipo_revision VARCHAR(50),  -- preventiva, respuesta_sat, auditoria
+    numero_oficio_sat VARCHAR(50),  -- Si es respuesta a SAT
+    
+    -- Estado
+    estado VARCHAR(20) DEFAULT 'activo',
+    
+    -- pCloud
+    pcloud_path TEXT,
+    
+    -- Integridad
+    hash_maestro VARCHAR(64),
+    
+    -- Metadata
+    created_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    cerrado_at TIMESTAMP
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- BITÁCORA MAESTRA DE EVENTOS (TODO QUEDA AQUÍ)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS df_bitacora (
+    id SERIAL PRIMARY KEY,
+    defense_file_id INTEGER REFERENCES defense_files(id) ON DELETE CASCADE,
+    
+    -- Clasificación del evento
+    categoria VARCHAR(50) NOT NULL,  -- proveedor, cfdi, agente, comunicacion, calculo, documento
+    tipo VARCHAR(50) NOT NULL,       -- verificacion_69b, analisis_cfdi, conversacion_ia, etc.
+    subtipo VARCHAR(50),
+    
+    -- Origen del evento
+    origen VARCHAR(20) NOT NULL,     -- usuario, agente, sistema, sat
+    agente_id VARCHAR(10),           -- A1, A2, A3... si aplica
+    usuario_id INTEGER REFERENCES users(id),
+    usuario_email VARCHAR(255),
+    
+    -- Contenido
+    titulo VARCHAR(255) NOT NULL,
+    descripcion TEXT,
+    
+    -- Datos estructurados (JSONB para búsqueda)
+    datos JSONB NOT NULL DEFAULT '{}',
+    
+    -- Entidades relacionadas
+    proveedor_rfc VARCHAR(13),
+    cfdi_uuid VARCHAR(36),
+    documento_id INTEGER,
+    
+    -- Archivos generados
+    archivos JSONB DEFAULT '[]',  -- [{nombre, path, hash, tipo, size}]
+    
+    -- Fundamento legal (si aplica)
+    fundamento_legal JSONB,  -- {ley, articulo, fraccion, texto}
+    
+    -- Resultado/Conclusión
+    resultado VARCHAR(50),  -- ok, alerta, error, pendiente
+    conclusion TEXT,
+    
+    -- Integridad (cadena de bloques simple)
+    timestamp TIMESTAMP DEFAULT NOW(),
+    hash_evento VARCHAR(64),
+    hash_anterior VARCHAR(64),
+    
+    -- Búsqueda
+    tags TEXT[],
+    texto_busqueda TSVECTOR
+);
+
+CREATE INDEX idx_bitacora_df ON df_bitacora(defense_file_id);
+CREATE INDEX idx_bitacora_categoria ON df_bitacora(categoria);
+CREATE INDEX idx_bitacora_proveedor ON df_bitacora(proveedor_rfc);
+CREATE INDEX idx_bitacora_cfdi ON df_bitacora(cfdi_uuid);
+CREATE INDEX idx_bitacora_timestamp ON df_bitacora(timestamp);
+CREATE INDEX idx_bitacora_busqueda ON df_bitacora USING GIN(texto_busqueda);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PROVEEDORES Y SU EVIDENCIA DE MATERIALIDAD
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS df_proveedores (
+    id SERIAL PRIMARY KEY,
+    defense_file_id INTEGER REFERENCES defense_files(id) ON DELETE CASCADE,
+    
+    -- Datos del proveedor
+    rfc VARCHAR(13) NOT NULL,
+    razon_social VARCHAR(255),
+    nombre_comercial VARCHAR(255),
+    domicilio_fiscal TEXT,
+    actividad_economica VARCHAR(255),
+    
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- VERIFICACIONES OBLIGATORIAS
+    -- ═══════════════════════════════════════════════════════════════════════
+    
+    -- Lista 69-B (Operaciones simuladas)
+    lista_69b_consultado BOOLEAN DEFAULT FALSE,
+    lista_69b_fecha TIMESTAMP,
+    lista_69b_resultado VARCHAR(20),  -- no_publicado, presunto, definitivo, desvirtuado, sentencia_favorable
+    lista_69b_evidencia JSONB,  -- Screenshot, respuesta API, etc.
+    
+    -- EFOS (Empresas Facturadoras de Operaciones Simuladas)
+    efos_consultado BOOLEAN DEFAULT FALSE,
+    efos_fecha TIMESTAMP,
+    efos_resultado BOOLEAN,
+    efos_evidencia JSONB,
+    
+    -- Opinión de Cumplimiento (32-D)
+    opinion_cumplimiento_consultada BOOLEAN DEFAULT FALSE,
+    opinion_cumplimiento_fecha TIMESTAMP,
+    opinion_cumplimiento_resultado VARCHAR(20),  -- positiva, negativa, en_tramite
+    opinion_cumplimiento_evidencia JSONB,
+    
+    -- Verificación de RFC activo
+    rfc_activo_consultado BOOLEAN DEFAULT FALSE,
+    rfc_activo_fecha TIMESTAMP,
+    rfc_activo_resultado BOOLEAN,
+    rfc_activo_evidencia JSONB,
+    
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- EVIDENCIA DE MATERIALIDAD
+    -- ═══════════════════════════════════════════════════════════════════════
+    
+    tiene_contrato BOOLEAN DEFAULT FALSE,
+    contrato_path TEXT,
+    contrato_fecha DATE,
+    
+    tiene_evidencia_entrega BOOLEAN DEFAULT FALSE,
+    evidencia_entrega_paths JSONB DEFAULT '[]',
+    
+    tiene_comprobantes_pago BOOLEAN DEFAULT FALSE,
+    comprobantes_pago_paths JSONB DEFAULT '[]',
+    
+    tiene_correspondencia BOOLEAN DEFAULT FALSE,
+    correspondencia_paths JSONB DEFAULT '[]',
+    
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- RESUMEN DE OPERACIONES
+    -- ═══════════════════════════════════════════════════════════════════════
+    
+    total_cfdis INTEGER DEFAULT 0,
+    monto_subtotal DECIMAL(15,2) DEFAULT 0,
+    monto_iva DECIMAL(15,2) DEFAULT 0,
+    monto_total DECIMAL(15,2) DEFAULT 0,
+    monto_retenido_isr DECIMAL(15,2) DEFAULT 0,
+    monto_retenido_iva DECIMAL(15,2) DEFAULT 0,
+    
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- EVALUACIÓN DE RIESGO
+    -- ═══════════════════════════════════════════════════════════════════════
+    
+    nivel_riesgo VARCHAR(20),  -- bajo, medio, alto, critico
+    score_riesgo INTEGER,  -- 0-100
+    factores_riesgo JSONB DEFAULT '[]',
+    
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- CONCLUSIÓN
+    -- ═══════════════════════════════════════════════════════════════════════
+    
+    conclusion_materialidad TEXT,
+    recomendacion TEXT,
+    aprobado_por INTEGER REFERENCES users(id),
+    aprobado_at TIMESTAMP,
+    
+    -- Metadata
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    
+    UNIQUE(defense_file_id, rfc)
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- CFDIs CON ANÁLISIS COMPLETO
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS df_cfdis (
+    id SERIAL PRIMARY KEY,
+    defense_file_id INTEGER REFERENCES defense_files(id) ON DELETE CASCADE,
+    proveedor_id INTEGER REFERENCES df_proveedores(id),
+    
+    -- Identificación CFDI
+    uuid VARCHAR(36) NOT NULL,
+    version VARCHAR(5),
+    serie VARCHAR(25),
+    folio VARCHAR(40),
+    
+    -- Emisor
+    emisor_rfc VARCHAR(13),
+    emisor_nombre VARCHAR(255),
+    emisor_regimen_fiscal VARCHAR(10),
+    
+    -- Receptor
+    receptor_rfc VARCHAR(13),
+    receptor_nombre VARCHAR(255),
+    receptor_uso_cfdi VARCHAR(10),
+    
+    -- Montos
+    subtotal DECIMAL(15,2),
+    descuento DECIMAL(15,2) DEFAULT 0,
+    total DECIMAL(15,2),
+    moneda VARCHAR(3) DEFAULT 'MXN',
+    tipo_cambio DECIMAL(10,4),
+    
+    -- Impuestos trasladados
+    iva_tasa DECIMAL(5,4),
+    iva_importe DECIMAL(15,2) DEFAULT 0,
+    ieps_importe DECIMAL(15,2) DEFAULT 0,
+    
+    -- Impuestos retenidos
+    isr_retenido DECIMAL(15,2) DEFAULT 0,
+    iva_retenido DECIMAL(15,2) DEFAULT 0,
+    
+    -- Fechas
+    fecha_emision TIMESTAMP,
+    fecha_timbrado TIMESTAMP,
+    fecha_pago DATE,
+    fecha_registro DATE,
+    
+    -- Tipo y forma
+    tipo_comprobante VARCHAR(5),  -- I, E, T, P, N
+    metodo_pago VARCHAR(3),  -- PUE, PPD
+    forma_pago VARCHAR(2),
+    condiciones_pago VARCHAR(100),
+    
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- VALIDACIÓN SAT
+    -- ═══════════════════════════════════════════════════════════════════════
+    
+    validado_sat BOOLEAN DEFAULT FALSE,
+    validacion_sat_fecha TIMESTAMP,
+    validacion_sat_resultado VARCHAR(20),  -- vigente, cancelado, no_encontrado
+    validacion_sat_evidencia JSONB,
+    
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- ANÁLISIS DE DEDUCIBILIDAD
+    -- ═══════════════════════════════════════════════════════════════════════
+    
+    -- Requisitos Art. 27 LISR
+    req_estrictamente_indispensable BOOLEAN,
+    req_estrictamente_indispensable_justificacion TEXT,
+    
+    req_documentacion_comprobatoria BOOLEAN,
+    req_registrado_contabilidad BOOLEAN,
+    req_pago_forma_correcta BOOLEAN,  -- Bancarizado si > 2000
+    req_retencion_correcta BOOLEAN,
+    
+    -- Clasificación
+    categoria_gasto VARCHAR(100),
+    subcategoria_gasto VARCHAR(100),
+    cuenta_contable VARCHAR(20),
+    
+    -- Conclusión deducibilidad
+    es_deducible BOOLEAN,
+    es_deducible_parcial BOOLEAN,
+    monto_deducible DECIMAL(15,2),
+    monto_no_deducible DECIMAL(15,2),
+    motivo_no_deducible TEXT,
+    
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- ANÁLISIS IVA ACREDITABLE
+    -- ═══════════════════════════════════════════════════════════════════════
+    
+    iva_es_acreditable BOOLEAN,
+    iva_monto_acreditable DECIMAL(15,2),
+    iva_monto_no_acreditable DECIMAL(15,2),
+    iva_motivo_no_acreditable TEXT,
+    
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- FUNDAMENTO LEGAL
+    -- ═══════════════════════════════════════════════════════════════════════
+    
+    fundamento_legal JSONB,  -- [{ley, articulo, fraccion, aplicacion}]
+    
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- ALERTAS Y RIESGOS
+    -- ═══════════════════════════════════════════════════════════════════════
+    
+    alertas JSONB DEFAULT '[]',
+    nivel_riesgo VARCHAR(20),
+    
+    -- ═══════════════════════════════════════════════════════════════════════
+    -- ARCHIVOS
+    -- ═══════════════════════════════════════════════════════════════════════
+    
+    xml_original TEXT,
+    xml_path TEXT,
+    pdf_path TEXT,
+    
+    -- Metadata
+    analizado_por VARCHAR(50),  -- agente o usuario
+    analizado_at TIMESTAMP,
+    revisado_por INTEGER REFERENCES users(id),
+    revisado_at TIMESTAMP,
+    
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    
+    UNIQUE(defense_file_id, uuid)
+);
+
+CREATE INDEX idx_cfdis_uuid ON df_cfdis(uuid);
+CREATE INDEX idx_cfdis_emisor ON df_cfdis(emisor_rfc);
+CREATE INDEX idx_cfdis_fecha ON df_cfdis(fecha_emision);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- CONCEPTOS DE CFDI (DETALLE)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS df_cfdi_conceptos (
+    id SERIAL PRIMARY KEY,
+    cfdi_id INTEGER REFERENCES df_cfdis(id) ON DELETE CASCADE,
+    
+    -- Datos del concepto
+    clave_prod_serv VARCHAR(10),
+    clave_unidad VARCHAR(5),
+    descripcion TEXT,
+    cantidad DECIMAL(15,6),
+    valor_unitario DECIMAL(15,6),
+    importe DECIMAL(15,2),
+    descuento DECIMAL(15,2) DEFAULT 0,
+    
+    -- Impuestos del concepto
+    iva_tasa DECIMAL(5,4),
+    iva_importe DECIMAL(15,2),
+    ieps_tasa DECIMAL(5,4),
+    ieps_importe DECIMAL(15,2),
+    
+    -- Análisis
+    es_deducible BOOLEAN,
+    categoria VARCHAR(100),
+    
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- CONVERSACIONES CON AGENTES IA (COMPLETAS)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS df_conversaciones (
+    id SERIAL PRIMARY KEY,
+    defense_file_id INTEGER REFERENCES defense_files(id) ON DELETE CASCADE,
+    bitacora_id INTEGER REFERENCES df_bitacora(id),
+    
+    -- Agente
+    agente_id VARCHAR(10) NOT NULL,
+    agente_nombre VARCHAR(50),
+    
+    -- Usuario
+    usuario_id INTEGER REFERENCES users(id),
+    usuario_email VARCHAR(255),
+    
+    -- Contexto
+    contexto_tipo VARCHAR(50),  -- analisis_cfdi, consulta_legal, calculo, etc.
+    contexto_entidad VARCHAR(50),  -- proveedor, cfdi, deduccion
+    contexto_id INTEGER,  -- ID de la entidad relacionada
+    
+    -- Conversación
+    mensaje_usuario TEXT NOT NULL,
+    respuesta_ia TEXT NOT NULL,
+    
+    -- RAG (si se usó)
+    rag_utilizado BOOLEAN DEFAULT FALSE,
+    rag_query TEXT,
+    rag_chunks_ids INTEGER[],
+    rag_documentos_citados JSONB,  -- [{doc_id, nombre, chunks_usados}]
+    
+    -- Tokens y costos
+    tokens_entrada INTEGER,
+    tokens_salida INTEGER,
+    modelo_usado VARCHAR(50),
+    
+    -- Fundamentos extraídos
+    fundamentos_citados JSONB,  -- [{ley, articulo, texto}]
+    
+    -- Acciones derivadas
+    acciones_sugeridas JSONB,
+    acciones_ejecutadas JSONB,
+    
+    -- Metadata
+    timestamp TIMESTAMP DEFAULT NOW(),
+    duracion_ms INTEGER
+);
+
+CREATE INDEX idx_conversaciones_df ON df_conversaciones(defense_file_id);
+CREATE INDEX idx_conversaciones_agente ON df_conversaciones(agente_id);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- CÁLCULOS FISCALES
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS df_calculos (
+    id SERIAL PRIMARY KEY,
+    defense_file_id INTEGER REFERENCES defense_files(id) ON DELETE CASCADE,
+    bitacora_id INTEGER REFERENCES df_bitacora(id),
+    
+    -- Tipo de cálculo
+    impuesto VARCHAR(20),  -- isr, iva, ieps, retenciones
+    tipo_calculo VARCHAR(50),  -- mensual, trimestral, anual, ajuste
+    periodo VARCHAR(20),  -- 2024-01, 2024-Q1, 2024
+    
+    -- Datos de entrada
+    datos_entrada JSONB NOT NULL,
+    
+    -- Cálculo
+    concepto VARCHAR(255),
+    base_gravable DECIMAL(15,2),
+    tasa DECIMAL(10,6),
+    impuesto_causado DECIMAL(15,2),
+    
+    -- Acreditamientos/Deducciones
+    impuesto_acreditable DECIMAL(15,2) DEFAULT 0,
+    impuesto_retenido DECIMAL(15,2) DEFAULT 0,
+    pagos_provisionales DECIMAL(15,2) DEFAULT 0,
+    
+    -- Resultado
+    impuesto_a_cargo DECIMAL(15,2),
+    impuesto_a_favor DECIMAL(15,2),
+    
+    -- Metodología
+    formula_aplicada TEXT,
+    fundamento_legal JSONB,
+    
+    -- Papeles de trabajo
+    papel_trabajo JSONB,  -- Desglose completo
+    excel_path TEXT,
+    
+    -- Conciliación
+    conciliado BOOLEAN DEFAULT FALSE,
+    diferencia_vs_declaracion DECIMAL(15,2),
+    explicacion_diferencia TEXT,
+    
+    -- Quién lo hizo
+    calculado_por VARCHAR(50),
+    revisado_por INTEGER REFERENCES users(id),
+    
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- COMUNICACIONES (EMAILS, NOTIFICACIONES)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS df_comunicaciones (
+    id SERIAL PRIMARY KEY,
+    defense_file_id INTEGER REFERENCES defense_files(id) ON DELETE CASCADE,
+    bitacora_id INTEGER REFERENCES df_bitacora(id),
+    
+    -- Tipo
+    tipo VARCHAR(20),  -- email_enviado, email_recibido, notificacion_sat, carta
+    
+    -- Participantes
+    de VARCHAR(255),
+    para VARCHAR(255),
+    cc VARCHAR(500),
+    
+    -- Contenido
+    asunto VARCHAR(500),
+    cuerpo TEXT,
+    cuerpo_html TEXT,
+    
+    -- Adjuntos
+    adjuntos JSONB DEFAULT '[]',
+    
+    -- Si es del SAT
+    numero_oficio VARCHAR(50),
+    fecha_notificacion DATE,
+    plazo_respuesta DATE,
+    
+    -- Tracking
+    enviado_at TIMESTAMP,
+    entregado_at TIMESTAMP,
+    leido_at TIMESTAMP,
+    
+    -- Archivos
+    eml_path TEXT,
+    pdf_path TEXT,
+    
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- DOCUMENTOS DE SOPORTE
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS df_documentos_soporte (
+    id SERIAL PRIMARY KEY,
+    defense_file_id INTEGER REFERENCES defense_files(id) ON DELETE CASCADE,
+    bitacora_id INTEGER REFERENCES df_bitacora(id),
+    
+    -- Clasificación
+    categoria VARCHAR(50),  -- contrato, estado_cuenta, comprobante_pago, acuse, constancia
+    subcategoria VARCHAR(50),
+    
+    -- Relación
+    proveedor_id INTEGER REFERENCES df_proveedores(id),
+    cfdi_id INTEGER REFERENCES df_cfdis(id),
+    
+    -- Documento
+    nombre VARCHAR(255),
+    descripcion TEXT,
+    fecha_documento DATE,
+    
+    -- Archivo
+    archivo_path TEXT,
+    archivo_hash VARCHAR(64),
+    archivo_size INTEGER,
+    archivo_tipo VARCHAR(50),
+    
+    -- Contenido extraído
+    contenido_texto TEXT,
+    metadata JSONB,
+    
+    -- Para qué sirve
+    proposito TEXT,  -- "Evidencia pago factura X", "Contrato con proveedor Y"
+    
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- FUNDAMENTOS LEGALES APLICADOS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS df_fundamentos (
+    id SERIAL PRIMARY KEY,
+    defense_file_id INTEGER REFERENCES defense_files(id) ON DELETE CASCADE,
+    
+    -- Tipo
+    tipo VARCHAR(50),  -- ley, reglamento, rmf, jurisprudencia, criterio_normativo
+    
+    -- Identificación
+    ordenamiento VARCHAR(100),  -- CFF, LISR, LIVA, RCFF, RMF 2024
+    articulo VARCHAR(20),
+    fraccion VARCHAR(20),
+    inciso VARCHAR(10),
+    parrafo VARCHAR(10),
+    
+    -- Para jurisprudencias
+    numero_tesis VARCHAR(50),
+    epoca VARCHAR(20),
+    instancia VARCHAR(100),
+    materia VARCHAR(50),
+    
+    -- Contenido
+    titulo VARCHAR(500),
+    texto_completo TEXT,
+    texto_relevante TEXT,  -- La parte que aplica
+    
+    -- Aplicación
+    como_aplica TEXT,
+    
+    -- Dónde se usó
+    usado_en_cfdis INTEGER[],
+    usado_en_calculos INTEGER[],
+    usado_en_conversaciones INTEGER[],
+    
+    -- Fuente (si viene del RAG)
+    kb_documento_id INTEGER,
+    kb_chunk_ids INTEGER[],
+    
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ALERTAS Y HALLAZGOS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS df_alertas (
+    id SERIAL PRIMARY KEY,
+    defense_file_id INTEGER REFERENCES defense_files(id) ON DELETE CASCADE,
+    bitacora_id INTEGER REFERENCES df_bitacora(id),
+    
+    -- Clasificación
+    severidad VARCHAR(20),  -- info, advertencia, importante, critica
+    categoria VARCHAR(50),
+    
+    -- Entidad afectada
+    entidad_tipo VARCHAR(50),  -- proveedor, cfdi, calculo
+    entidad_id INTEGER,
+    
+    -- Alerta
+    titulo VARCHAR(255),
+    descripcion TEXT,
+    
+    -- Impacto
+    impacto_fiscal DECIMAL(15,2),
+    impacto_descripcion TEXT,
+    
+    -- Acción requerida
+    accion_requerida TEXT,
+    fecha_limite DATE,
+    
+    -- Resolución
+    resuelta BOOLEAN DEFAULT FALSE,
+    resuelta_por INTEGER REFERENCES users(id),
+    resuelta_at TIMESTAMP,
+    resolucion TEXT,
+    
+    created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+SERVICIO DE DOCUMENTACIÓN AUTOMÁTICA
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/services/defense_files/documentador.py
+
+```python
+"""
+═══════════════════════════════════════════════════════════════════════════════
+DOCUMENTADOR AUTOMÁTICO DE DEFENSE FILES
+Registra ABSOLUTAMENTE TODO lo que ocurre en el sistema
+═══════════════════════════════════════════════════════════════════════════════
+"""
+
+import json
+import hashlib
+from datetime import datetime
+from typing import Dict, Any, List, Optional
+from dataclasses import dataclass, asdict
+from enum import Enum
+
+from extensions import db
+from sqlalchemy import text
+
+
+class Categoria(Enum):
+    PROVEEDOR = 'proveedor'
+    CFDI = 'cfdi'
+    AGENTE = 'agente'
+    COMUNICACION = 'comunicacion'
+    CALCULO = 'calculo'
+    DOCUMENTO = 'documento'
+    SISTEMA = 'sistema'
+
+
+class Origen(Enum):
+    USUARIO = 'usuario'
+    AGENTE = 'agente'
+    SISTEMA = 'sistema'
+    SAT = 'sat'
+
+
+@dataclass
+class EventoDocumentar:
+    """Estructura de un evento a documentar"""
+    categoria: Categoria
+    tipo: str
+    titulo: str
+    descripcion: str
+    datos: Dict[str, Any]
+    
+    # Opcionales
+    origen: Origen = Origen.SISTEMA
+    agente_id: str = None
+    usuario_id: int = None
+    usuario_email: str = None
+    proveedor_rfc: str = None
+    cfdi_uuid: str = None
+    fundamento_legal: Dict = None
+    resultado: str = None
+    conclusion: str = None
+    archivos: List[Dict] = None
+    tags: List[str] = None
+
+
+class Documentador:
+    """
+    Clase principal para documentar TODO en el Defense File.
+    
+    REGLA DE ORO: Si algo pasa en el sistema que pueda ser relevante
+    para defensa fiscal, DEBE llamar a este documentador.
+    """
+    
+    def __init__(self, defense_file_id: int):
+        self.df_id = defense_file_id
+        self._ultimo_hash = self._obtener_ultimo_hash()
+    
+    def _obtener_ultimo_hash(self) -> str:
+        """Obtiene el hash del último evento para la cadena"""
+        result = db.session.execute(text("""
+            SELECT hash_evento FROM df_bitacora 
+            WHERE defense_file_id = :df_id 
+            ORDER BY id DESC LIMIT 1
+        """), {'df_id': self.df_id}).fetchone()
+        
+        return result.hash_evento if result else 'GENESIS'
+    
+    def _calcular_hash(self, evento: EventoDocumentar) -> str:
+        """Calcula hash SHA256 del evento"""
+        contenido = json.dumps({
+            'timestamp': datetime.now().isoformat(),
+            'categoria': evento.categoria.value,
+            'tipo': evento.tipo,
+            'datos': evento.datos,
+            'anterior': self._ultimo_hash
+        }, sort_keys=True, default=str)
+        
+        return hashlib.sha256(contenido.encode()).hexdigest()
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # MÉTODO PRINCIPAL DE REGISTRO
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def registrar(self, evento: EventoDocumentar) -> int:
+        """
+        Registra un evento en la bitácora del Defense File.
+        
+        Returns: ID del evento registrado
+        """
+        
+        hash_evento = self._calcular_hash(evento)
+        
+        result = db.session.execute(text("""
+            INSERT INTO df_bitacora (
+                defense_file_id, categoria, tipo, subtipo,
+                origen, agente_id, usuario_id, usuario_email,
+                titulo, descripcion, datos,
+                proveedor_rfc, cfdi_uuid,
+                fundamento_legal, resultado, conclusion,
+                archivos, tags,
+                hash_evento, hash_anterior, timestamp
+            ) VALUES (
+                :df_id, :categoria, :tipo, :subtipo,
+                :origen, :agente_id, :usuario_id, :usuario_email,
+                :titulo, :descripcion, :datos,
+                :proveedor_rfc, :cfdi_uuid,
+                :fundamento, :resultado, :conclusion,
+                :archivos, :tags,
+                :hash, :hash_anterior, NOW()
+            ) RETURNING id
+        """), {
+            'df_id': self.df_id,
+            'categoria': evento.categoria.value,
+            'tipo': evento.tipo,
+            'subtipo': evento.tags[0] if evento.tags else None,
+            'origen': evento.origen.value,
+            'agente_id': evento.agente_id,
+            'usuario_id': evento.usuario_id,
+            'usuario_email': evento.usuario_email,
+            'titulo': evento.titulo,
+            'descripcion': evento.descripcion,
+            'datos': json.dumps(evento.datos, default=str, ensure_ascii=False),
+            'proveedor_rfc': evento.proveedor_rfc,
+            'cfdi_uuid': evento.cfdi_uuid,
+            'fundamento': json.dumps(evento.fundamento_legal) if evento.fundamento_legal else None,
+            'resultado': evento.resultado,
+            'conclusion': evento.conclusion,
+            'archivos': json.dumps(evento.archivos or []),
+            'tags': evento.tags,
+            'hash': hash_evento,
+            'hash_anterior': self._ultimo_hash
+        })
+        
+        db.session.commit()
+        
+        evento_id = result.fetchone()[0]
+        self._ultimo_hash = hash_evento
+        
+        print(f"  📝 [{evento.categoria.value}] {evento.titulo}")
+        
+        return evento_id
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # MÉTODOS ESPECÍFICOS POR TIPO
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    # --- PROVEEDORES ---
+    
+    def registrar_verificacion_69b(self, rfc: str, razon_social: str,
+                                    resultado: str, evidencia: Dict,
+                                    usuario_email: str = None) -> int:
+        """Registra verificación de Lista 69-B"""
+        
+        return self.registrar(EventoDocumentar(
+            categoria=Categoria.PROVEEDOR,
+            tipo='verificacion_69b',
+            titulo=f'Verificación Lista 69-B: {rfc}',
+            descripcion=f'{razon_social} - Resultado: {resultado}',
+            datos={
+                'rfc': rfc,
+                'razon_social': razon_social,
+                'resultado': resultado,
+                'evidencia': evidencia,
+                'fecha_consulta': datetime.now().isoformat()
+            },
+            origen=Origen.SISTEMA,
+            proveedor_rfc=rfc,
+            resultado=resultado,
+            conclusion='En lista 69-B' if resultado != 'no_publicado' else 'Limpio',
+            usuario_email=usuario_email,
+            tags=['69b', 'verificacion', resultado]
+        ))
+    
+    def registrar_verificacion_efos(self, rfc: str, razon_social: str,
+                                     es_efos: bool, evidencia: Dict,
+                                     usuario_email: str = None) -> int:
+        """Registra verificación EFOS"""
+        
+        return self.registrar(EventoDocumentar(
+            categoria=Categoria.PROVEEDOR,
+            tipo='verificacion_efos',
+            titulo=f'Verificación EFOS: {rfc}',
+            descripcion=f'{razon_social} - {"⚠️ ES EFOS" if es_efos else "✅ No es EFOS"}',
+            datos={
+                'rfc': rfc,
+                'razon_social': razon_social,
+                'es_efos': es_efos,
+                'evidencia': evidencia
+            },
+            origen=Origen.SISTEMA,
+            proveedor_rfc=rfc,
+            resultado='alerta' if es_efos else 'ok',
+            usuario_email=usuario_email,
+            tags=['efos', 'verificacion', 'alerta' if es_efos else 'limpio']
+        ))
+    
+    def registrar_verificacion_opinion(self, rfc: str, razon_social: str,
+                                        resultado: str, evidencia: Dict,
+                                        usuario_email: str = None) -> int:
+        """Registra verificación de opinión de cumplimiento 32-D"""
+        
+        return self.registrar(EventoDocumentar(
+            categoria=Categoria.PROVEEDOR,
+            tipo='verificacion_opinion_32d',
+            titulo=f'Opinión Cumplimiento 32-D: {rfc}',
+            descripcion=f'{razon_social} - Opinión: {resultado}',
+            datos={
+                'rfc': rfc,
+                'razon_social': razon_social,
+                'resultado': resultado,
+                'evidencia': evidencia
+            },
+            origen=Origen.SISTEMA,
+            proveedor_rfc=rfc,
+            resultado=resultado,
+            usuario_email=usuario_email,
+            tags=['32d', 'opinion_cumplimiento', resultado]
+        ))
+    
+    def registrar_evidencia_materialidad(self, rfc: str, razon_social: str,
+                                          tipo_evidencia: str,
+                                          descripcion: str,
+                                          archivos: List[Dict],
+                                          usuario_email: str = None) -> int:
+        """Registra evidencia de materialidad de operaciones"""
+        
+        return self.registrar(EventoDocumentar(
+            categoria=Categoria.PROVEEDOR,
+            tipo='evidencia_materialidad',
+            titulo=f'Evidencia materialidad: {tipo_evidencia}',
+            descripcion=f'{razon_social} ({rfc}) - {descripcion}',
+            datos={
+                'rfc': rfc,
+                'razon_social': razon_social,
+                'tipo_evidencia': tipo_evidencia,
+                'descripcion': descripcion,
+                'num_archivos': len(archivos)
+            },
+            origen=Origen.USUARIO,
+            proveedor_rfc=rfc,
+            archivos=archivos,
+            usuario_email=usuario_email,
+            tags=['materialidad', tipo_evidencia, 'soporte']
+        ))
+    
+    # --- CFDIs ---
+    
+    def registrar_cfdi_analizado(self, cfdi_data: Dict, 
+                                  analisis: Dict,
+                                  agente_id: str = 'A1',
+                                  usuario_email: str = None) -> int:
+        """Registra análisis completo de un CFDI"""
+        
+        uuid = cfdi_data.get('uuid')
+        emisor = cfdi_data.get('emisor_rfc')
+        total = cfdi_data.get('total', 0)
+        es_deducible = analisis.get('es_deducible', False)
+        
+        return self.registrar(EventoDocumentar(
+            categoria=Categoria.CFDI,
+            tipo='analisis_cfdi',
+            titulo=f'CFDI Analizado: ${total:,.2f}',
+            descripcion=f'UUID: {uuid[:8]}... | Emisor: {emisor} | {"✅ Deducible" if es_deducible else "❌ No deducible"}',
+            datos={
+                'cfdi': cfdi_data,
+                'analisis': analisis,
+                'timestamp': datetime.now().isoformat()
+            },
+            origen=Origen.AGENTE,
+            agente_id=agente_id,
+            cfdi_uuid=uuid,
+            proveedor_rfc=emisor,
+            resultado='deducible' if es_deducible else 'no_deducible',
+            conclusion=analisis.get('justificacion'),
+            fundamento_legal=analisis.get('fundamento_legal'),
+            usuario_email=usuario_email,
+            tags=['cfdi', 'analisis', cfdi_data.get('tipo_comprobante', 'I')]
+        ))
+    
+    def registrar_validacion_sat(self, uuid: str, resultado: str,
+                                  evidencia: Dict) -> int:
+        """Registra validación de CFDI ante el SAT"""
+        
+        return self.registrar(EventoDocumentar(
+            categoria=Categoria.CFDI,
+            tipo='validacion_sat',
+            titulo=f'Validación SAT: {uuid[:8]}...',
+            descripcion=f'Resultado: {resultado}',
+            datos={
+                'uuid': uuid,
+                'resultado': resultado,
+                'evidencia': evidencia,
+                'fecha_validacion': datetime.now().isoformat()
+            },
+            origen=Origen.SISTEMA,
+            cfdi_uuid=uuid,
+            resultado=resultado,
+            tags=['sat', 'validacion', resultado]
+        ))
+    
+    # --- AGENTES IA ---
+    
+    def registrar_conversacion_ia(self, agente_id: str, agente_nombre: str,
+                                   mensaje_usuario: str, respuesta_ia: str,
+                                   rag_info: Dict = None,
+                                   fundamentos: List[Dict] = None,
+                                   contexto: Dict = None,
+                                   usuario_email: str = None) -> int:
+        """Registra conversación completa con un agente IA"""
+        
+        return self.registrar(EventoDocumentar(
+            categoria=Categoria.AGENTE,
+            tipo='conversacion_ia',
+            titulo=f'Conversación con {agente_nombre}',
+            descripcion=mensaje_usuario[:100] + ('...' if len(mensaje_usuario) > 100 else ''),
+            datos={
+                'agente_id': agente_id,
+                'agente_nombre': agente_nombre,
+                'mensaje_usuario': mensaje_usuario,
+                'respuesta_ia': respuesta_ia,
+                'rag': rag_info,
+                'fundamentos_citados': fundamentos,
+                'contexto': contexto,
+                'tokens_respuesta': len(respuesta_ia.split())
+            },
+            origen=Origen.AGENTE,
+            agente_id=agente_id,
+            fundamento_legal={'citados': fundamentos} if fundamentos else None,
+            usuario_email=usuario_email,
+            proveedor_rfc=contexto.get('proveedor_rfc') if contexto else None,
+            cfdi_uuid=contexto.get('cfdi_uuid') if contexto else None,
+            tags=['conversacion', agente_id, 'ia']
+        ))
+    
+    def registrar_consulta_rag(self, agente_id: str,
+                                query: str, 
+                                chunks_usados: List[Dict],
+                                documentos_citados: List[str],
+                                respuesta: str,
+                                usuario_email: str = None) -> int:
+        """Registra consulta al RAG con todos los detalles"""
+        
+        return self.registrar(EventoDocumentar(
+            categoria=Categoria.AGENTE,
+            tipo='consulta_rag',
+            titulo=f'Consulta RAG: {query[:50]}...',
+            descripcion=f'{len(chunks_usados)} chunks usados de {len(documentos_citados)} documentos',
+            datos={
+                'query': query,
+                'chunks': chunks_usados,
+                'documentos': documentos_citados,
+                'respuesta_preview': respuesta[:500]
+            },
+            origen=Origen.AGENTE,
+            agente_id=agente_id,
+            usuario_email=usuario_email,
+            tags=['rag', 'consulta', agente_id]
+        ))
+    
+    # --- CÁLCULOS ---
+    
+    def registrar_calculo_fiscal(self, impuesto: str, periodo: str,
+                                  datos_entrada: Dict, resultado: Dict,
+                                  metodologia: str, fundamento: Dict,
+                                  agente_id: str = 'A4',
+                                  usuario_email: str = None) -> int:
+        """Registra un cálculo fiscal con todo el detalle"""
+        
+        return self.registrar(EventoDocumentar(
+            categoria=Categoria.CALCULO,
+            tipo='calculo_fiscal',
+            titulo=f'Cálculo {impuesto.upper()} {periodo}',
+            descripcion=f'Base: ${resultado.get("base_gravable", 0):,.2f} | Impuesto: ${resultado.get("impuesto", 0):,.2f}',
+            datos={
+                'impuesto': impuesto,
+                'periodo': periodo,
+                'entrada': datos_entrada,
+                'resultado': resultado,
+                'metodologia': metodologia
+            },
+            origen=Origen.AGENTE,
+            agente_id=agente_id,
+            fundamento_legal=fundamento,
+            usuario_email=usuario_email,
+            tags=['calculo', impuesto, periodo]
+        ))
+    
+    # --- COMUNICACIONES ---
+    
+    def registrar_email_enviado(self, destinatario: str, asunto: str,
+                                 cuerpo: str, adjuntos: List[Dict] = None,
+                                 tipo: str = 'notificacion',
+                                 usuario_email: str = None) -> int:
+        """Registra email enviado"""
+        
+        return self.registrar(EventoDocumentar(
+            categoria=Categoria.COMUNICACION,
+            tipo='email_enviado',
+            titulo=f'Email enviado: {asunto[:50]}',
+            descripcion=f'Para: {destinatario}',
+            datos={
+                'destinatario': destinatario,
+                'asunto': asunto,
+                'cuerpo': cuerpo,
+                'tipo': tipo,
+                'num_adjuntos': len(adjuntos or [])
+            },
+            origen=Origen.SISTEMA,
+            archivos=adjuntos,
+            usuario_email=usuario_email,
+            tags=['email', 'enviado', tipo]
+        ))
+    
+    def registrar_notificacion_sat(self, numero_oficio: str,
+                                    contenido: str, fecha: str,
+                                    plazo_respuesta: str = None,
+                                    archivos: List[Dict] = None) -> int:
+        """Registra notificación recibida del SAT"""
+        
+        return self.registrar(EventoDocumentar(
+            categoria=Categoria.COMUNICACION,
+            tipo='notificacion_sat',
+            titulo=f'Notificación SAT: {numero_oficio}',
+            descripcion=f'Fecha: {fecha} | Plazo: {plazo_respuesta or "N/A"}',
+            datos={
+                'numero_oficio': numero_oficio,
+                'contenido': contenido,
+                'fecha': fecha,
+                'plazo_respuesta': plazo_respuesta
+            },
+            origen=Origen.SAT,
+            archivos=archivos,
+            resultado='pendiente',
+            tags=['sat', 'notificacion', 'oficio']
+        ))
+    
+    # --- DOCUMENTOS ---
+    
+    def registrar_documento_subido(self, categoria: str, nombre: str,
+                                    descripcion: str, proposito: str,
+                                    archivo: Dict,
+                                    proveedor_rfc: str = None,
+                                    cfdi_uuid: str = None,
+                                    usuario_email: str = None) -> int:
+        """Registra documento de soporte subido"""
+        
+        return self.registrar(EventoDocumentar(
+            categoria=Categoria.DOCUMENTO,
+            tipo='documento_soporte',
+            titulo=f'Documento: {nombre}',
+            descripcion=f'{categoria} - {proposito}',
+            datos={
+                'categoria': categoria,
+                'nombre': nombre,
+                'descripcion': descripcion,
+                'proposito': proposito,
+                'archivo': archivo
+            },
+            origen=Origen.USUARIO,
+            proveedor_rfc=proveedor_rfc,
+            cfdi_uuid=cfdi_uuid,
+            archivos=[archivo],
+            usuario_email=usuario_email,
+            tags=['documento', categoria, 'soporte']
+        ))
+    
+    # --- ALERTAS ---
+    
+    def registrar_alerta(self, severidad: str, categoria: str,
+                          titulo: str, descripcion: str,
+                          impacto_fiscal: float = None,
+                          accion_requerida: str = None,
+                          entidad_tipo: str = None,
+                          entidad_id: int = None,
+                          proveedor_rfc: str = None,
+                          cfdi_uuid: str = None) -> int:
+        """Registra una alerta o hallazgo"""
+        
+        return self.registrar(EventoDocumentar(
+            categoria=Categoria.SISTEMA,
+            tipo='alerta',
+            titulo=f'⚠️ [{severidad.upper()}] {titulo}',
+            descripcion=descripcion,
+            datos={
+                'severidad': severidad,
+                'categoria_alerta': categoria,
+                'impacto_fiscal': impacto_fiscal,
+                'accion_requerida': accion_requerida,
+                'entidad_tipo': entidad_tipo,
+                'entidad_id': entidad_id
+            },
+            origen=Origen.SISTEMA,
+            proveedor_rfc=proveedor_rfc,
+            cfdi_uuid=cfdi_uuid,
+            resultado=severidad,
+            tags=['alerta', severidad, categoria]
+        ))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FUNCIÓN HELPER PARA OBTENER DOCUMENTADOR
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_documentador(defense_file_id: int) -> Documentador:
+    """Obtiene instancia del documentador para un Defense File"""
+    return Documentador(defense_file_id)
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+INTEGRACIÓN AUTOMÁTICA EN CADA AGENTE
+═══════════════════════════════════════════════════════════════════════════════
+
+Modificar cada agente para que documente automáticamente.
+
+Ejemplo en Facturar.IA (backend/routes/facturar_routes.py):
+
+```python
+from services.defense_files.documentador import get_documentador
+
+@facturar_bp.route('/chat', methods=['POST'])
+def chat_facturar():
+    data = request.get_json()
+    mensaje = data.get('message', '')
+    defense_file_id = data.get('defense_file_id')  # IMPORTANTE: Pasar siempre
+    usuario_email = data.get('usuario_email')
+    
+    # ... generar respuesta con IA ...
+    respuesta = generar_respuesta_facturar(mensaje)
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # DOCUMENTAR AUTOMÁTICAMENTE
+    # ═══════════════════════════════════════════════════════════════════
+    if defense_file_id:
+        doc = get_documentador(defense_file_id)
+        
+        doc.registrar_conversacion_ia(
+            agente_id='A1',
+            agente_nombre='Facturar.IA',
+            mensaje_usuario=mensaje,
+            respuesta_ia=respuesta,
+            fundamentos=extraer_fundamentos(respuesta),  # Extraer artículos citados
+            contexto={
+                'tipo': 'consulta_fiscal',
+                'cfdis_mencionados': extraer_uuids(mensaje)
+            },
+            usuario_email=usuario_email
+        )
+    
+    return jsonify({'success': True, 'response': respuesta})
+
+
+@facturar_bp.route('/analizar-cfdi', methods=['POST'])
+def analizar_cfdi():
+    data = request.get_json()
+    xml = data.get('xml')
+    defense_file_id = data.get('defense_file_id')
+    
+    # Parsear y analizar CFDI
+    cfdi_data = parsear_cfdi(xml)
+    analisis = analizar_deducibilidad(cfdi_data)
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # DOCUMENTAR CFDI ANALIZADO
+    # ═══════════════════════════════════════════════════════════════════
+    if defense_file_id:
+        doc = get_documentador(defense_file_id)
+        
+        # 1. Registrar análisis del CFDI
+        doc.registrar_cfdi_analizado(
+            cfdi_data=cfdi_data,
+            analisis=analisis,
+            agente_id='A1'
+        )
+        
+        # 2. Si es proveedor nuevo, registrar verificaciones
+        proveedor_rfc = cfdi_data['emisor_rfc']
+        if not proveedor_ya_verificado(defense_file_id, proveedor_rfc):
+            
+            # Verificar Lista 69-B
+            resultado_69b = verificar_lista_69b(proveedor_rfc)
+            doc.registrar_verificacion_69b(
+                rfc=proveedor_rfc,
+                razon_social=cfdi_data['emisor_nombre'],
+                resultado=resultado_69b['status'],
+                evidencia=resultado_69b
+            )
+            
+            # Verificar EFOS
+            resultado_efos = verificar_efos(proveedor_rfc)
+            doc.registrar_verificacion_efos(
+                rfc=proveedor_rfc,
+                razon_social=cfdi_data['emisor_nombre'],
+                es_efos=resultado_efos['es_efos'],
+                evidencia=resultado_efos
+            )
+            
+            # Verificar opinión cumplimiento
+            resultado_opinion = verificar_opinion_32d(proveedor_rfc)
+            doc.registrar_verificacion_opinion(
+                rfc=proveedor_rfc,
+                razon_social=cfdi_data['emisor_nombre'],
+                resultado=resultado_opinion['opinion'],
+                evidencia=resultado_opinion
+            )
+        
+        # 3. Si hay alertas, registrarlas
+        for alerta in analisis.get('alertas', []):
+            doc.registrar_alerta(
+                severidad=alerta['severidad'],
+                categoria='cfdi',
+                titulo=alerta['titulo'],
+                descripcion=alerta['descripcion'],
+                cfdi_uuid=cfdi_data['uuid'],
+                proveedor_rfc=proveedor_rfc
+            )
+    
+    return jsonify({'success': True, 'cfdi': cfdi_data, 'analisis': analisis})
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+INTEGRACIÓN CON BIBLIOTECAR.IA (RAG)
+═══════════════════════════════════════════════════════════════════════════════
+
+```python
+from services.defense_files.documentador import get_documentador
+
+def _procesar_chat_con_rag():
+    # ... lógica existente ...
+    
+    # Buscar chunks relevantes
+    chunks = buscar_chunks(mensaje)
+    
+    # Generar respuesta
+    respuesta = generar_respuesta_con_contexto(mensaje, chunks)
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # DOCUMENTAR CONSULTA RAG
+    # ═══════════════════════════════════════════════════════════════════
+    if defense_file_id:
+        doc = get_documentador(defense_file_id)
+        
+        # Registrar conversación completa
+        doc.registrar_conversacion_ia(
+            agente_id='A2',
+            agente_nombre='Bibliotecar.IA',
+            mensaje_usuario=mensaje,
+            respuesta_ia=respuesta,
+            rag_info={
+                'chunks_usados': len(chunks),
+                'documentos': list(set(c['documento'] for c in chunks))
+            },
+            fundamentos=extraer_articulos_citados(respuesta),
+            usuario_email=usuario_email
+        )
+        
+        # Registrar detalle del RAG
+        doc.registrar_consulta_rag(
+            agente_id='A2',
+            query=mensaje,
+            chunks_usados=[{
+                'id': c['id'],
+                'documento': c['documento'],
+                'contenido_preview': c['contenido'][:200]
+            } for c in chunks],
+            documentos_citados=[c['documento'] for c in chunks],
+            respuesta=respuesta,
+            usuario_email=usuario_email
+        )
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+INTEGRACIÓN CON TRÁFICO.IA (EMAILS)
+═══════════════════════════════════════════════════════════════════════════════
+
+```python
+def enviar_reporte_email(defense_file_id, reporte, destinatario):
+    # ... enviar email ...
+    
+    if defense_file_id:
+        doc = get_documentador(defense_file_id)
+        
+        doc.registrar_email_enviado(
+            destinatario=destinatario,
+            asunto=f'Reporte {reporte["tipo"]}',
+            cuerpo=reporte['contenido'],
+            tipo='reporte_automatico'
+        )
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST FINAL - ¿QUÉ SE DOCUMENTA?
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ PROVEEDORES:
+   □ Verificación Lista 69-B
+   □ Verificación EFOS
+   □ Verificación opinión cumplimiento 32-D
+   □ Verificación RFC activo
+   □ Contratos firmados
+   □ Evidencia de entrega
+   □ Comprobantes de pago
+   □ Correspondencia
+   □ Evaluación de riesgo
+
+✅ CFDIs:
+   □ XML original
+   □ Validación ante SAT
+   □ Análisis de requisitos Art. 27 LISR
+   □ Clasificación de deducción
+   □ Justificación de deducibilidad
+   □ Fundamento legal aplicable
+   □ Análisis de IVA acreditable
+   □ Alertas detectadas
+
+✅ AGENTES IA:
+   □ Cada conversación completa
+   □ Mensaje del usuario
+   □ Respuesta del agente
+   □ Chunks de RAG utilizados
+   □ Documentos citados
+   □ Fundamentos legales extraídos
+   □ Tokens y modelo usado
+
+✅ CÁLCULOS:
+   □ Datos de entrada
+   □ Fórmula aplicada
+   □ Resultado
+   □ Fundamento legal
+   □ Conciliación con declaraciones
+
+✅ COMUNICACIONES:
+   □ Cada email enviado/recibido
+   □ Notificaciones del SAT
+   □ Oficios con plazos
+   □ Adjuntos
+
+✅ DOCUMENTOS SOPORTE:
+   □ Contratos
+   □ Estados de cuenta
+   □ Comprobantes de pago
+   □ Acuses
+   □ Constancias
+
+✅ ALERTAS:
+   □ Proveedor en lista negra
+   □ CFDI no deducible
+   □ Inconsistencias detectadas
+   □ Plazos por vencer
+
+✅ INTEGRIDAD:
+   □ Hash SHA256 de cada evento
+   □ Cadena de hashes (blockchain simple)
+   □ Timestamps inmutables
+   □ Usuario responsable
+
+═══════════════════════════════════════════════════════════════════════════════

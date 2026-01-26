@@ -1,0 +1,388 @@
+PASO 7: Script de Migración (Backfill de Embeddings)
+Este script genera embeddings para todos los chunks existentes que no los tienen.
+Creá este archivo:
+backend/scripts/migrate_embeddings.py
+python"""
+Script de migración para generar embeddings de chunks existentes.
+Ejecutar una sola vez después de implementar pgvector.
+
+Uso:
+    python -m scripts.migrate_embeddings
+    
+    # O con límite para probar:
+    python -m scripts.migrate_embeddings --limit 100
+    
+    # Solo una empresa específica:
+    python -m scripts.migrate_embeddings --empresa-id abc123
+"""
+
+import asyncio
+import asyncpg
+import os
+import sys
+import argparse
+from datetime import datetime
+from typing import Optional
+
+# Agregar el directorio padre al path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from services.embedding_service import EmbeddingService
+
+
+# Configuración
+DATABASE_URL = os.getenv("DATABASE_URL")
+BATCH_SIZE = 50  # Procesar de a 50 chunks
+
+
+class MigrationStats:
+    def __init__(self):
+        self.total = 0
+        self.processed = 0
+        self.errors = 0
+        self.skipped = 0
+        self.start_time = None
+    
+    def start(self):
+        self.start_time = datetime.now()
+    
+    def elapsed(self) -> str:
+        if not self.start_time:
+            return "0s"
+        delta = datetime.now() - self.start_time
+        return f"{delta.seconds}s"
+    
+    def rate(self) -> float:
+        if not self.start_time:
+            return 0
+        delta = (datetime.now() - self.start_time).seconds or 1
+        return self.processed / delta
+    
+    def print_progress(self):
+        pct = (self.processed / self.total * 100) if self.total > 0 else 0
+        print(
+            f"\r⏳ Progreso: {self.processed}/{self.total} ({pct:.1f}%) | "
+            f"Errores: {self.errors} | "
+            f"Velocidad: {self.rate():.1f} chunks/s | "
+            f"Tiempo: {self.elapsed()}",
+            end="", flush=True
+        )
+
+
+async def get_chunks_without_embeddings(
+    db: asyncpg.Connection,
+    empresa_id: Optional[str] = None,
+    limit: Optional[int] = None
+) -> list:
+    """Obtiene chunks que no tienen embedding."""
+    
+    sql = """
+        SELECT id, contenido, empresa_id
+        FROM knowledge_chunks
+        WHERE embedding IS NULL
+        AND contenido IS NOT NULL
+        AND LENGTH(contenido) > 10
+    """
+    
+    params = []
+    param_count = 0
+    
+    if empresa_id:
+        param_count += 1
+        sql += f" AND empresa_id = ${param_count}"
+        params.append(empresa_id)
+    
+    sql += " ORDER BY id"
+    
+    if limit:
+        param_count += 1
+        sql += f" LIMIT ${param_count}"
+        params.append(limit)
+    
+    return await db.fetch(sql, *params)
+
+
+async def update_chunk_embedding(
+    db: asyncpg.Connection,
+    chunk_id: str,
+    embedding: list
+) -> bool:
+    """Actualiza el embedding de un chunk."""
+    
+    try:
+        # Convertir lista a formato pgvector
+        embedding_str = "[" + ",".join(map(str, embedding)) + "]"
+        
+        await db.execute("""
+            UPDATE knowledge_chunks
+            SET embedding = $1::vector
+            WHERE id = $2
+        """, embedding_str, chunk_id)
+        
+        return True
+    except Exception as e:
+        print(f"\n❌ Error actualizando chunk {chunk_id}: {e}")
+        return False
+
+
+async def migrate_batch(
+    db: asyncpg.Connection,
+    embedder: EmbeddingService,
+    chunks: list,
+    stats: MigrationStats
+):
+    """Procesa un batch de chunks."""
+    
+    # Extraer textos
+    texts = [chunk["contenido"] for chunk in chunks]
+    chunk_ids = [chunk["id"] for chunk in chunks]
+    
+    try:
+        # Generar embeddings en batch
+        results = await embedder.generate_batch_embeddings(texts)
+        
+        # Actualizar cada chunk
+        for chunk_id, result in zip(chunk_ids, results):
+            success = await update_chunk_embedding(db, chunk_id, result.embedding)
+            
+            if success:
+                stats.processed += 1
+            else:
+                stats.errors += 1
+            
+            stats.print_progress()
+    
+    except Exception as e:
+        print(f"\n❌ Error en batch: {e}")
+        stats.errors += len(chunks)
+
+
+async def run_migration(
+    empresa_id: Optional[str] = None,
+    limit: Optional[int] = None,
+    dry_run: bool = False
+):
+    """Ejecuta la migración completa."""
+    
+    print("=" * 60)
+    print("🚀 MIGRACIÓN DE EMBEDDINGS PARA KNOWLEDGE CHUNKS")
+    print("=" * 60)
+    
+    if not DATABASE_URL:
+        print("❌ ERROR: DATABASE_URL no configurada")
+        return
+    
+    # Conectar a DB
+    print("\n📡 Conectando a la base de datos...")
+    db = await asyncpg.connect(DATABASE_URL)
+    
+    # Inicializar embedder
+    print("🤖 Inicializando servicio de embeddings...")
+    embedder = EmbeddingService()
+    print(f"   Provider: {embedder.provider}")
+    print(f"   Model: {embedder.model}")
+    
+    # Obtener chunks pendientes
+    print("\n📊 Obteniendo chunks sin embeddings...")
+    chunks = await get_chunks_without_embeddings(db, empresa_id, limit)
+    
+    if not chunks:
+        print("✅ No hay chunks pendientes de procesar!")
+        await db.close()
+        return
+    
+    # Stats
+    stats = MigrationStats()
+    stats.total = len(chunks)
+    
+    print(f"   Total chunks a procesar: {stats.total}")
+    
+    if empresa_id:
+        print(f"   Filtrado por empresa: {empresa_id}")
+    
+    # Dry run
+    if dry_run:
+        print("\n🔍 DRY RUN - No se guardarán cambios")
+        print(f"   Se procesarían {stats.total} chunks")
+        
+        # Mostrar muestra
+        print("\n   Muestra de chunks:")
+        for chunk in chunks[:3]:
+            preview = chunk["contenido"][:100].replace("\n", " ")
+            print(f"   - [{chunk['id'][:8]}...] {preview}...")
+        
+        await db.close()
+        return
+    
+    # Confirmación
+    print(f"\n⚠️  Se van a procesar {stats.total} chunks")
+    print(f"   Costo estimado: ~${stats.total * 0.0001:.2f} USD (OpenAI ada-002)")
+    
+    confirm = input("\n¿Continuar? [y/N]: ")
+    if confirm.lower() != 'y':
+        print("❌ Migración cancelada")
+        await db.close()
+        return
+    
+    # Ejecutar migración
+    print("\n🔄 Iniciando migración...\n")
+    stats.start()
+    
+    for i in range(0, len(chunks), BATCH_SIZE):
+        batch = chunks[i:i + BATCH_SIZE]
+        await migrate_batch(db, embedder, batch, stats)
+        
+        # Pequeña pausa entre batches para no saturar la API
+        if i + BATCH_SIZE < len(chunks):
+            await asyncio.sleep(0.5)
+    
+    # Resumen final
+    print("\n\n" + "=" * 60)
+    print("📈 RESUMEN DE MIGRACIÓN")
+    print("=" * 60)
+    print(f"   ✅ Procesados exitosamente: {stats.processed}")
+    print(f"   ❌ Errores: {stats.errors}")
+    print(f"   ⏱️  Tiempo total: {stats.elapsed()}")
+    print(f"   📊 Velocidad promedio: {stats.rate():.1f} chunks/s")
+    
+    # Verificar resultado
+    remaining = await db.fetchval("""
+        SELECT COUNT(*) FROM knowledge_chunks
+        WHERE embedding IS NULL
+        AND contenido IS NOT NULL
+        AND LENGTH(contenido) > 10
+    """)
+    
+    print(f"\n   📋 Chunks aún sin embedding: {remaining}")
+    
+    # Cerrar conexiones
+    await embedder.close()
+    await db.close()
+    
+    print("\n✅ Migración completada!")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Migrar chunks a embeddings")
+    parser.add_argument("--empresa-id", help="Filtrar por empresa específica")
+    parser.add_argument("--limit", type=int, help="Límite de chunks a procesar")
+    parser.add_argument("--dry-run", action="store_true", help="Solo mostrar qué se haría")
+    
+    args = parser.parse_args()
+    
+    asyncio.run(run_migration(
+        empresa_id=args.empresa_id,
+        limit=args.limit,
+        dry_run=args.dry_run
+    ))
+
+
+if __name__ == "__main__":
+    main()
+
+PASO 8: Ejecutar la migración
+Primero probá en dry-run:
+bashpython -m scripts.migrate_embeddings --dry-run
+Luego con un límite pequeño para verificar:
+bashpython -m scripts.migrate_embeddings --limit 50
+Finalmente la migración completa:
+bashpython -m scripts.migrate_embeddings
+
+PASO 9: Integrar en el pipeline de ingesta
+Ahora hay que modificar tu ingestion_service.py para que los nuevos documentos generen embeddings automáticamente.
+Buscá donde guardás los chunks y agregá esto:
+En backend/services/ingestion_service.py (o donde proceses documentos):
+pythonfrom services.embedding_service import get_embedding_service
+
+class IngestionService:
+    def __init__(self, db):
+        self.db = db
+        self.embedder = get_embedding_service()
+    
+    async def process_document(self, file, empresa_id: str, ...):
+        # ... tu código existente de extracción y chunking ...
+        
+        # Después de crear los chunks:
+        chunks = self.chunking_service.chunk_document(text)
+        
+        # NUEVO: Generar embeddings para los chunks
+        print(f"Generando embeddings para {len(chunks)} chunks...")
+        
+        texts = [chunk["contenido"] for chunk in chunks]
+        embedding_results = await self.embedder.generate_batch_embeddings(texts)
+        
+        # Guardar chunks CON embeddings
+        for chunk, emb_result in zip(chunks, embedding_results):
+            embedding_str = "[" + ",".join(map(str, emb_result.embedding)) + "]"
+            
+            await self.db.execute("""
+                INSERT INTO knowledge_chunks 
+                (document_id, empresa_id, chunk_index, contenido, tokens_count, embedding)
+                VALUES ($1, $2, $3, $4, $5, $6::vector)
+            """, 
+                doc_id, 
+                empresa_id, 
+                chunk["index"], 
+                chunk["contenido"],
+                chunk.get("tokens", 0),
+                embedding_str
+            )
+        
+        print(f"✅ Documento procesado con {len(chunks)} chunks + embeddings")
+
+PASO 10: Actualizar agent_service para usar RAG semántico
+Buscá en tu agent_service.py donde construís el contexto para los agentes y reemplazá la búsqueda vieja:
+pythonfrom services.vector_search_service import VectorSearchService
+
+class AgentService:
+    def __init__(self, db):
+        self.db = db
+        self.vector_search = VectorSearchService(db)
+    
+    async def _get_rag_context(self, empresa_id: str, query: str, agent_id: str) -> str:
+        """Obtiene contexto relevante del KB para el agente."""
+        
+        # NUEVO: Usar búsqueda semántica híbrida
+        context = await self.vector_search.get_context_for_agent(
+            empresa_id=empresa_id,
+            query=query,
+            agent_id=agent_id,
+            max_tokens=4000
+        )
+        
+        return context
+    
+    async def chat(self, empresa_id: str, agent_id: str, message: str, ...):
+        # Obtener contexto RAG
+        rag_context = await self._get_rag_context(empresa_id, message, agent_id)
+        
+        # Construir prompt con contexto
+        system_prompt = self._get_system_prompt(agent_id)
+        
+        if rag_context:
+            system_prompt += f"""
+
+## INFORMACIÓN DEL REPOSITORIO DE CONOCIMIENTO
+Usa la siguiente información como referencia para tu análisis:
+
+{rag_context}
+
+---
+Basa tu respuesta en esta información cuando sea relevante.
+"""
+        
+        # Llamar a Claude
+        response = await self.client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            system=system_prompt,
+            messages=[{"role": "user", "content": message}]
+        )
+        
+        return response
+
+✅ CHECKLIST DEL RAG SEMÁNTICO
+#TareaEstado1SQL: Crear extensión vector⬜2SQL: Agregar columna embedding⬜3SQL: Crear índices⬜4Crear embedding_service.py⬜5Crear vector_search_service.py⬜6Agregar OPENAI_API_KEY en Secrets⬜7Crear ruta /search/semantic⬜8Crear migrate_embeddings.py⬜9Ejecutar migración (dry-run)⬜10Ejecutar migración (completa)⬜11Integrar en ingestion_service⬜12Integrar en agent_service⬜
+
+Una vez que completes esto, tu RAG va a funcionar de verdad - buscando por significado, no por palabras exactas.
+¿Lo implementás y me avisás cuando esté listo para pasar al Tour #2: Refactor Frontend?

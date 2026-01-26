@@ -1,0 +1,514 @@
+TOON: BYPASS ADMIN CON CONTRASEÑA FIJA - URGENTE PARA DEMO
+
+================================================================================
+PASO 1: CREAR ENDPOINT DE LOGIN ADMIN CON CONTRASEÑA
+================================================================================
+
+BUSCAR el archivo de rutas de autenticación:
+- server/routes/auth.py (si es FastAPI/Python)
+- server/routes/auth.ts (si es Express/Node)
+
+AGREGAR este endpoint:
+
+SI ES PYTHON (FastAPI):
+───────────────────────
+```python
+# server/routes/auth.py
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+import hashlib
+import uuid
+from datetime import datetime, timedelta
+
+router = APIRouter()
+
+# Credenciales de admin (para demo)
+ADMIN_CREDENTIALS = {
+    "santiago@satma.mx": "Accesowe1#",
+    # Agrega más admins si necesitas
+}
+
+class AdminLoginRequest(BaseModel):
+    email: str
+    password: str
+
+@router.post("/admin-login")
+async def admin_login(data: AdminLoginRequest):
+    """Login directo para administradores con contraseña"""
+    
+    email = data.email.lower().strip()
+    password = data.password
+    
+    print(f"🔐 Intento de login admin: {email}")
+    
+    # Verificar credenciales de admin
+    if email in ADMIN_CREDENTIALS and ADMIN_CREDENTIALS[email] == password:
+        # Crear token de sesión
+        token = str(uuid.uuid4())
+        
+        # Guardar sesión en BD (o en memoria para demo)
+        try:
+            from server.db import db
+            
+            # Obtener datos del usuario
+            usuario = db.query(
+                "SELECT * FROM usuarios_autorizados WHERE email = %s",
+                (email,)
+            )
+            
+            if usuario:
+                user_data = usuario[0]
+                
+                # Crear sesión
+                db.execute("""
+                    INSERT INTO sesiones (token, email, usuario_id, expira_en, activa)
+                    VALUES (%s, %s, %s, %s, true)
+                """, (token, email, user_data.get('id'), datetime.now() + timedelta(hours=24)))
+                
+                print(f"✅ Admin login exitoso: {email}")
+                
+                return {
+                    "success": True,
+                    "token": token,
+                    "usuario": {
+                        "id": user_data.get('id'),
+                        "email": email,
+                        "nombre": user_data.get('nombre', 'Administrador'),
+                        "rol": "admin"
+                    }
+                }
+        except Exception as e:
+            print(f"⚠️ Error en BD, creando sesión temporal: {e}")
+            # Fallback: sesión temporal sin BD
+            return {
+                "success": True,
+                "token": token,
+                "usuario": {
+                    "id": "admin-temp",
+                    "email": email,
+                    "nombre": "Administrador",
+                    "rol": "admin"
+                }
+            }
+    
+    print(f"❌ Credenciales inválidas para: {email}")
+    raise HTTPException(status_code=401, detail="Credenciales inválidas")
+```
+
+SI ES TYPESCRIPT (Express):
+──────────────────────────
+```typescript
+// server/routes/auth.ts
+
+import { Router } from 'express';
+import { v4 as uuidv4 } from 'uuid';
+
+const router = Router();
+
+// Credenciales de admin (para demo)
+const ADMIN_CREDENTIALS: Record<string, string> = {
+  "santiago@satma.mx": "Accesowe1#",
+  // Agrega más admins si necesitas
+};
+
+// POST /api/auth/admin-login
+router.post('/admin-login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    const emailLower = email?.toLowerCase().trim();
+    
+    console.log(`🔐 Intento de login admin: ${emailLower}`);
+    
+    // Verificar credenciales
+    if (emailLower && ADMIN_CREDENTIALS[emailLower] === password) {
+      const token = uuidv4();
+      
+      // Guardar sesión (simplificado para demo)
+      try {
+        const { db } = await import('../db');
+        
+        // Buscar usuario
+        const usuario = await db.query(
+          'SELECT * FROM usuarios_autorizados WHERE email = $1',
+          [emailLower]
+        );
+        
+        if (usuario.rows.length > 0) {
+          const user = usuario.rows[0];
+          
+          // Crear sesión
+          await db.query(`
+            INSERT INTO sesiones (token, email, usuario_id, expira_en, activa)
+            VALUES ($1, $2, $3, NOW() + INTERVAL '24 hours', true)
+          `, [token, emailLower, user.id]);
+          
+          console.log(`✅ Admin login exitoso: ${emailLower}`);
+          
+          // Establecer cookie
+          res.cookie('revisar_token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 24 * 60 * 60 * 1000 // 24 horas
+          });
+          
+          return res.json({
+            success: true,
+            token,
+            usuario: {
+              id: user.id,
+              email: emailLower,
+              nombre: user.nombre || 'Administrador',
+              rol: 'admin'
+            }
+          });
+        }
+      } catch (dbError) {
+        console.log('⚠️ Error BD, sesión temporal:', dbError);
+      }
+      
+      // Fallback sin BD
+      res.cookie('revisar_token', token, {
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000
+      });
+      
+      return res.json({
+        success: true,
+        token,
+        usuario: {
+          id: 'admin-temp',
+          email: emailLower,
+          nombre: 'Administrador',
+          rol: 'admin'
+        }
+      });
+    }
+    
+    console.log(`❌ Credenciales inválidas: ${emailLower}`);
+    res.status(401).json({ error: 'Credenciales inválidas' });
+    
+  } catch (error: any) {
+    console.error('Error en admin-login:', error);
+    res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+export default router;
+```
+
+================================================================================
+PASO 2: ACTUALIZAR EL FRONTEND - MODAL DE LOGIN ADMIN
+================================================================================
+
+BUSCAR el componente de Login y AGREGAR el formulario de contraseña:
+```tsx
+// client/pages/Login.tsx
+
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Mail, Lock, Loader2, Shield } from 'lucide-react';
+
+export function Login() {
+  const navigate = useNavigate();
+  
+  // Estados
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [codigo, setCodigo] = useState('');
+  const [paso, setPaso] = useState<'email' | 'codigo' | 'admin'>('email');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Login con OTP (código)
+  const handleSolicitarCodigo = async () => {
+    setError('');
+    setLoading(true);
+    
+    try {
+      const res = await fetch('/api/auth/request-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Error de conexion');
+      }
+      
+      setPaso('codigo');
+    } catch (err: any) {
+      setError(err.message || 'Error de conexion. Intenta de nuevo.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Login ADMIN con contraseña
+  const handleAdminLogin = async () => {
+    setError('');
+    setLoading(true);
+    
+    try {
+      const res = await fetch('/api/auth/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password })
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Credenciales inválidas');
+      }
+      
+      // Guardar token y usuario
+      localStorage.setItem('revisar_token', data.token);
+      localStorage.setItem('revisar_usuario', JSON.stringify(data.usuario));
+      
+      // Redirigir al dashboard
+      navigate('/dashboard');
+      
+    } catch (err: any) {
+      setError(err.message || 'Error de conexion');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Verificar código OTP
+  const handleVerificarCodigo = async () => {
+    setError('');
+    setLoading(true);
+    
+    try {
+      const res = await fetch('/api/auth/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, codigo })
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Código inválido');
+      }
+      
+      localStorage.setItem('revisar_token', data.token);
+      localStorage.setItem('revisar_usuario', JSON.stringify(data.usuario));
+      navigate('/dashboard');
+      
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-cover bg-center"
+         style={{ backgroundImage: 'url(/images/login-bg.jpg)' }}>
+      
+      {/* Logo */}
+      <div className="absolute top-8 left-1/2 -translate-x-1/2 text-center">
+        <h1 className="text-5xl font-bold text-emerald-400">REVISAR.IA</h1>
+        <p className="text-emerald-300 tracking-[0.3em] text-sm mt-2">
+          AUDITORÍA FISCAL INTELIGENTE
+        </p>
+      </div>
+
+      {/* Card de Login */}
+      <div className="bg-gray-900/80 backdrop-blur-lg rounded-2xl p-8 w-full max-w-md border border-gray-700">
+        
+        <h2 className="text-2xl font-bold text-white text-center mb-2">
+          {paso === 'admin' ? 'Acceso Administrador' : 'Acceso Usuario'}
+        </h2>
+        <p className="text-gray-400 text-center mb-6">
+          {paso === 'admin' 
+            ? 'Ingresa tu contraseña de administrador' 
+            : 'Recibe un codigo en tu correo'}
+        </p>
+
+        {/* Error */}
+        {error && (
+          <div className="bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg mb-4">
+            {error}
+          </div>
+        )}
+
+        {/* PASO: EMAIL (solicitar código) */}
+        {paso === 'email' && (
+          <>
+            <div className="mb-4">
+              <label className="block text-gray-300 text-sm mb-2">Correo electronico</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu@email.com"
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <button
+              onClick={handleSolicitarCodigo}
+              disabled={loading || !email}
+              className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-gray-900 font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+            >
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+              ) : (
+                'Solicitar codigo de acceso'
+              )}
+            </button>
+          </>
+        )}
+
+        {/* PASO: CÓDIGO OTP */}
+        {paso === 'codigo' && (
+          <>
+            <div className="mb-4">
+              <label className="block text-gray-300 text-sm mb-2">Código de 6 dígitos</label>
+              <input
+                type="text"
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="123456"
+                maxLength={6}
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white text-center text-2xl tracking-widest focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <button
+              onClick={handleVerificarCodigo}
+              disabled={loading || codigo.length !== 6}
+              className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-gray-900 font-semibold rounded-lg transition disabled:opacity-50 mb-4"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Verificar código'}
+            </button>
+
+            <button
+              onClick={() => setPaso('email')}
+              className="w-full text-gray-400 hover:text-white text-sm"
+            >
+              ← Volver
+            </button>
+          </>
+        )}
+
+        {/* PASO: LOGIN ADMIN CON CONTRASEÑA */}
+        {paso === 'admin' && (
+          <>
+            <div className="mb-4">
+              <label className="block text-gray-300 text-sm mb-2">Correo electronico</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@empresa.com"
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-gray-300 text-sm mb-2">Contraseña</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <button
+              onClick={handleAdminLogin}
+              disabled={loading || !email || !password}
+              className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-gray-900 font-semibold rounded-lg transition disabled:opacity-50 mb-4"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Iniciar sesión'}
+            </button>
+
+            <button
+              onClick={() => setPaso('email')}
+              className="w-full text-gray-400 hover:text-white text-sm"
+            >
+              ← Volver al acceso con código
+            </button>
+          </>
+        )}
+
+        {/* Separador */}
+        <div className="flex items-center gap-3 my-4 text-gray-500 text-sm">
+          <Lock className="w-4 h-4" />
+          <span>Sin contrasenas</span>
+          <Shield className="w-4 h-4 ml-4" />
+          <span>Acceso seguro</span>
+        </div>
+
+        {/* Link para admin */}
+        {paso !== 'admin' && (
+          <button
+            onClick={() => setPaso('admin')}
+            className="w-full text-center text-gray-400 hover:text-emerald-400 text-sm flex items-center justify-center gap-2"
+          >
+            <Shield className="w-4 h-4" />
+            Eres administrador? Inicia sesion con contrasena
+          </button>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="absolute bottom-8 text-center text-gray-400 text-sm">
+        <p>2026 Revisar.IA - Plataforma de Cumplimiento Fiscal</p>
+      </div>
+    </div>
+  );
+}
+```
+
+================================================================================
+PASO 3: VERIFICAR QUE LA RUTA ESTÉ REGISTRADA
+================================================================================
+
+En el archivo principal del servidor:
+
+SI ES PYTHON (main.py):
+```python
+from server.routes.auth import router as auth_router
+app.include_router(auth_router, prefix="/api/auth")
+```
+
+SI ES TYPESCRIPT (index.ts):
+```typescript
+import authRoutes from './routes/auth';
+app.use('/api/auth', authRoutes);
+```
+
+================================================================================
+RESUMEN - LO QUE DEBES HACER
+================================================================================
+
+1. Agregar el endpoint /api/auth/admin-login al backend
+2. Actualizar el componente Login.tsx con el formulario de contraseña
+3. Reiniciar el servidor
+4. Ir a login → clic en "Eres administrador?"
+5. Ingresar:
+   - Email: santiago@satma.mx
+   - Contraseña: Accesowe1#
+6. ¡Listo para la demo!
+
+================================================================================
+CREDENCIALES DE ADMIN
+================================================================================
+
+Email: santiago@satma.mx
+Password: Accesowe1#
+
+================================================================================
+EJECUTAR AHORA. NO PREGUNTAR.
+================================================================================

@@ -1,0 +1,54 @@
+🚀 PROMPT 7: Footer Profesional
+TAREA: Agregar footer profesional al final de la landing page.
+
+En frontend/src/pages/LoginPage.js, DESPUÉS de la sección del formulario de login (</section>), y ANTES del cierre del div principal (</div>), agrega:
+
+```jsx
+{/* Footer */}
+<footer className="bg-[#1A1A1A] text-white py-12 border-t border-gray-800">
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="grid md:grid-cols-4 gap-8">
+      {/* Logo y descripción */}
+      <div className="col-span-2">
+        <h3 className="text-2xl font-bold mb-4">
+          REVISAR<span className="text-[#7FEDD8]">.IA</span>
+        </h3>
+        <p className="text-gray-400 mb-4">
+          Gobernanza Cognitiva para intangibles con cumplimiento SAT por diseño.
+        </p>
+        <p className="text-sm text-gray-500">
+          © 2025 Revisar.ia. Todos los derechos reservados.
+        </p>
+      </div>
+
+      {/* Producto */}
+      <div>
+        <h4 className="font-semibold mb-4 text-[#7FEDD8]">Producto</h4>
+        <ul className="space-y-2 text-gray-400 text-sm">
+          <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Características</a></li>
+          <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Agentes de IA</a></li>
+          <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">POE (F0-F9)</a></li>
+          <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Defense File</a></li>
+        </ul>
+      </div>
+
+      {/* Legal */}
+      <div>
+        <h4 className="font-semibold mb-4 text-[#7FEDD8]">Legal</h4>
+        <ul className="space-y-2 text-gray-400 text-sm">
+          <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Términos de Servicio</a></li>
+          <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Política de Privacidad</a></li>
+          <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Cumplimiento SAT</a></li>
+          <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Contacto</a></li>
+        </ul>
+      </div>
+    </div>
+
+    {/* Línea separadora */}
+    <div className="border-t border-gray-800 mt-8 pt-8 text-center">
+      <p className="text-gray-500 text-sm">
+        Hecho con 🤖 por el equipo de Revisar.ia | Sistema de Trazabilidad Multi-Agente
+      </p>
+    </div>
+  </div>
+</footer>

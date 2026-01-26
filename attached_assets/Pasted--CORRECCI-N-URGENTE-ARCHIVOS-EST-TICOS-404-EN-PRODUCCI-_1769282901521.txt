@@ -1,0 +1,427 @@
+# 🚨 CORRECCIÓN URGENTE - ARCHIVOS ESTÁTICOS 404 EN PRODUCCIÓN
+
+## PROBLEMA IDENTIFICADO
+
+```
+https://revisar-ia.com/static/js/main.a8290dfa.js → 404 Not Found
+https://revisar-ia.com/static/css/main.*.css → 404 Not Found
+```
+
+**Causa raíz:** El orden de rutas en FastAPI hace que el catch-all `/{full_path:path}` intercepte las peticiones de `/static/*` ANTES de que lleguen al mount de archivos estáticos.
+
+---
+
+## SOLUCIÓN COMPLETA
+
+### PASO 1: Corregir server.py
+
+Busca el archivo `backend/server.py` y aplica estos cambios **EN ESTE ORDEN EXACTO**:
+
+```python
+# backend/server.py - VERSIÓN CORREGIDA
+
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+import os
+
+app = FastAPI(
+    title="REVISAR.IA API",
+    description="Plataforma de Auditoría Fiscal Inteligente",
+    version="4.0.0"
+)
+
+# ============================================
+# 1. CORS - DEBE IR PRIMERO
+# ============================================
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ============================================
+# 2. DETERMINAR RUTA DEL BUILD DE FRONTEND
+# ============================================
+# Intentar múltiples ubicaciones posibles
+POSSIBLE_BUILD_PATHS = [
+    os.path.join(os.path.dirname(__file__), "..", "frontend", "build"),
+    os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"),
+    "/home/runner/ReplicarIA/frontend/build",
+    "/home/runner/ReplicarIA/frontend/dist",
+    "./frontend/build",
+    "./frontend/dist",
+]
+
+FRONTEND_BUILD_PATH = None
+for path in POSSIBLE_BUILD_PATHS:
+    abs_path = os.path.abspath(path)
+    if os.path.exists(abs_path) and os.path.isdir(abs_path):
+        # Verificar que tiene index.html
+        if os.path.exists(os.path.join(abs_path, "index.html")):
+            FRONTEND_BUILD_PATH = abs_path
+            break
+
+if FRONTEND_BUILD_PATH:
+    print(f"✅ Frontend build encontrado: {FRONTEND_BUILD_PATH}")
+    print(f"   Archivos: {os.listdir(FRONTEND_BUILD_PATH)[:10]}")
+else:
+    print("⚠️ WARNING: No se encontró el build del frontend")
+    print(f"   Rutas buscadas: {POSSIBLE_BUILD_PATHS}")
+
+# ============================================
+# 3. MONTAR ARCHIVOS ESTÁTICOS - ANTES DE RUTAS API
+# ============================================
+if FRONTEND_BUILD_PATH:
+    static_path = os.path.join(FRONTEND_BUILD_PATH, "static")
+    if os.path.exists(static_path):
+        app.mount("/static", StaticFiles(directory=static_path), name="static")
+        print(f"✅ /static montado desde: {static_path}")
+
+# ============================================
+# 4. IMPORTAR Y REGISTRAR ROUTERS DE API
+# ============================================
+# Importar todos los routers aquí
+try:
+    from routes.auth_routes import router as auth_router
+    app.include_router(auth_router)
+except ImportError as e:
+    print(f"⚠️ auth_routes no disponible: {e}")
+
+try:
+    from routes.projects_routes import router as projects_router
+    app.include_router(projects_router)
+except ImportError as e:
+    print(f"⚠️ projects_routes no disponible: {e}")
+
+try:
+    from routes.knowledge_routes import router as knowledge_router
+    app.include_router(knowledge_router)
+except ImportError as e:
+    print(f"⚠️ knowledge_routes no disponible: {e}")
+
+try:
+    from routes.agents_routes import router as agents_router
+    app.include_router(agents_router)
+except ImportError as e:
+    print(f"⚠️ agents_routes no disponible: {e}")
+
+try:
+    from routes.usage_routes import router as usage_router
+    app.include_router(usage_router)
+except ImportError as e:
+    print(f"⚠️ usage_routes no disponible: {e}")
+
+try:
+    from routes.defense_files_routes import router as defense_router
+    app.include_router(defense_router)
+except ImportError as e:
+    print(f"⚠️ defense_files_routes no disponible: {e}")
+
+# Agregar aquí cualquier otro router que tengas...
+
+# ============================================
+# 5. ENDPOINT DE HEALTH CHECK
+# ============================================
+@app.get("/api/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "frontend_path": FRONTEND_BUILD_PATH,
+        "static_mounted": FRONTEND_BUILD_PATH is not None
+    }
+
+# ============================================
+# 6. SERVIR ARCHIVOS ESPECÍFICOS DEL BUILD
+# ============================================
+@app.get("/manifest.json")
+async def serve_manifest():
+    if FRONTEND_BUILD_PATH:
+        manifest_path = os.path.join(FRONTEND_BUILD_PATH, "manifest.json")
+        if os.path.exists(manifest_path):
+            return FileResponse(manifest_path, media_type="application/json")
+    return JSONResponse({"error": "manifest not found"}, status_code=404)
+
+@app.get("/favicon.ico")
+async def serve_favicon():
+    if FRONTEND_BUILD_PATH:
+        favicon_path = os.path.join(FRONTEND_BUILD_PATH, "favicon.ico")
+        if os.path.exists(favicon_path):
+            return FileResponse(favicon_path)
+    return JSONResponse({"error": "favicon not found"}, status_code=404)
+
+@app.get("/robots.txt")
+async def serve_robots():
+    if FRONTEND_BUILD_PATH:
+        robots_path = os.path.join(FRONTEND_BUILD_PATH, "robots.txt")
+        if os.path.exists(robots_path):
+            return FileResponse(robots_path, media_type="text/plain")
+    return JSONResponse({"error": "robots.txt not found"}, status_code=404)
+
+# ============================================
+# 7. CATCH-ALL PARA SPA - DEBE IR AL FINAL
+# ============================================
+@app.get("/{full_path:path}")
+async def serve_spa(request: Request, full_path: str):
+    """
+    Catch-all para servir la SPA de React.
+    IMPORTANTE: Esta ruta DEBE estar al final de todas las demás.
+    """
+    # NO interceptar rutas de API
+    if full_path.startswith("api/"):
+        return JSONResponse({"error": "API endpoint not found"}, status_code=404)
+    
+    # NO interceptar archivos estáticos (ya manejados por el mount)
+    if full_path.startswith("static/"):
+        return JSONResponse({"error": "Static file not found"}, status_code=404)
+    
+    # Servir index.html para todas las demás rutas (SPA routing)
+    if FRONTEND_BUILD_PATH:
+        index_path = os.path.join(FRONTEND_BUILD_PATH, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path, media_type="text/html")
+    
+    return JSONResponse({
+        "error": "Frontend not available",
+        "detail": "El build del frontend no se encontró. Ejecuta 'npm run build' en frontend/"
+    }, status_code=503)
+
+
+# ============================================
+# 8. STARTUP EVENT - VERIFICACIÓN
+# ============================================
+@app.on_event("startup")
+async def startup_event():
+    print("=" * 50)
+    print("🚀 REVISAR.IA - SERVIDOR INICIADO")
+    print("=" * 50)
+    print(f"Frontend Build: {FRONTEND_BUILD_PATH or 'NO ENCONTRADO'}")
+    
+    if FRONTEND_BUILD_PATH:
+        static_path = os.path.join(FRONTEND_BUILD_PATH, "static")
+        if os.path.exists(static_path):
+            js_files = [f for f in os.listdir(os.path.join(static_path, "js")) if f.endswith(".js")] if os.path.exists(os.path.join(static_path, "js")) else []
+            css_files = [f for f in os.listdir(os.path.join(static_path, "css")) if f.endswith(".css")] if os.path.exists(os.path.join(static_path, "css")) else []
+            print(f"   JS files: {len(js_files)}")
+            print(f"   CSS files: {len(css_files)}")
+    
+    print("=" * 50)
+```
+
+---
+
+### PASO 2: Verificar y Reconstruir Frontend
+
+```bash
+# 1. Ir al directorio frontend
+cd frontend
+
+# 2. Limpiar cache y builds anteriores
+rm -rf build dist node_modules/.cache .parcel-cache
+
+# 3. Verificar package.json tiene el script de build correcto
+cat package.json | grep -A5 '"scripts"'
+
+# 4. Reconstruir
+npm run build
+
+# 5. Verificar que el build se creó correctamente
+echo "=== CONTENIDO DEL BUILD ==="
+ls -la build/
+ls -la build/static/
+ls -la build/static/js/
+ls -la build/static/css/
+
+# 6. Verificar que index.html referencia los archivos correctamente
+echo "=== REFERENCIAS EN INDEX.HTML ==="
+cat build/index.html | grep -E "src=|href=" | head -10
+```
+
+---
+
+### PASO 3: Verificar Configuración de Deployment
+
+El archivo `.replit` debe tener:
+
+```toml
+run = "cd backend && python -m uvicorn server:app --host 0.0.0.0 --port 5000"
+
+[deployment]
+run = ["sh", "-c", "cd backend && python -m uvicorn server:app --host 0.0.0.0 --port 5000"]
+deploymentTarget = "cloudrun"
+```
+
+---
+
+### PASO 4: Script de Diagnóstico Pre-Deploy
+
+Crear `scripts/check_deployment.sh`:
+
+```bash
+#!/bin/bash
+echo "=========================================="
+echo "🔍 VERIFICACIÓN PRE-DEPLOY"
+echo "=========================================="
+
+ERRORS=0
+
+# 1. Verificar build existe
+echo -e "\n1. Verificando build del frontend..."
+if [ -d "frontend/build" ]; then
+    echo "   ✅ frontend/build existe"
+    
+    if [ -f "frontend/build/index.html" ]; then
+        echo "   ✅ index.html existe"
+    else
+        echo "   ❌ index.html NO existe"
+        ERRORS=$((ERRORS+1))
+    fi
+    
+    if [ -d "frontend/build/static/js" ]; then
+        JS_COUNT=$(ls frontend/build/static/js/*.js 2>/dev/null | wc -l)
+        echo "   ✅ static/js: $JS_COUNT archivos"
+    else
+        echo "   ❌ static/js NO existe"
+        ERRORS=$((ERRORS+1))
+    fi
+    
+    if [ -d "frontend/build/static/css" ]; then
+        CSS_COUNT=$(ls frontend/build/static/css/*.css 2>/dev/null | wc -l)
+        echo "   ✅ static/css: $CSS_COUNT archivos"
+    else
+        echo "   ❌ static/css NO existe"
+        ERRORS=$((ERRORS+1))
+    fi
+else
+    echo "   ❌ frontend/build NO existe"
+    echo "   Ejecuta: cd frontend && npm run build"
+    ERRORS=$((ERRORS+1))
+fi
+
+# 2. Verificar server.py monta estáticos
+echo -e "\n2. Verificando server.py..."
+if grep -q "StaticFiles" backend/server.py; then
+    echo "   ✅ StaticFiles importado"
+else
+    echo "   ❌ StaticFiles NO importado"
+    ERRORS=$((ERRORS+1))
+fi
+
+if grep -q 'mount.*"/static"' backend/server.py; then
+    echo "   ✅ /static montado"
+else
+    echo "   ❌ /static NO montado"
+    ERRORS=$((ERRORS+1))
+fi
+
+# 3. Verificar orden de rutas
+echo -e "\n3. Verificando orden de rutas..."
+STATIC_LINE=$(grep -n 'mount.*"/static"' backend/server.py | head -1 | cut -d: -f1)
+CATCHALL_LINE=$(grep -n 'full_path:path' backend/server.py | head -1 | cut -d: -f1)
+
+if [ -n "$STATIC_LINE" ] && [ -n "$CATCHALL_LINE" ]; then
+    if [ "$STATIC_LINE" -lt "$CATCHALL_LINE" ]; then
+        echo "   ✅ /static (línea $STATIC_LINE) antes de catch-all (línea $CATCHALL_LINE)"
+    else
+        echo "   ❌ catch-all ANTES de /static - ESTO CAUSA EL 404"
+        ERRORS=$((ERRORS+1))
+    fi
+fi
+
+# 4. Verificar que no hay import.meta en el build
+echo -e "\n4. Verificando compatibilidad del build..."
+if grep -r "import.meta" frontend/build/static/js/*.js 2>/dev/null; then
+    echo "   ⚠️ ADVERTENCIA: import.meta encontrado en build"
+    echo "   Esto puede causar errores en navegadores antiguos"
+else
+    echo "   ✅ Sin import.meta problemático"
+fi
+
+# Resumen
+echo -e "\n=========================================="
+if [ $ERRORS -eq 0 ]; then
+    echo "✅ TODO OK - Listo para deploy"
+else
+    echo "❌ $ERRORS ERRORES ENCONTRADOS"
+    echo "Corrige los errores antes de hacer deploy"
+fi
+echo "=========================================="
+
+exit $ERRORS
+```
+
+---
+
+### PASO 5: Re-deploy
+
+```bash
+# 1. Ejecutar verificación
+bash scripts/check_deployment.sh
+
+# 2. Si todo OK, hacer deploy
+# En Replit: Deploy → Publish
+
+# 3. Después del deploy, verificar:
+curl -I https://revisar-ia.com/static/js/main.*.js 2>/dev/null | head -5
+# Debe mostrar: HTTP/2 200
+```
+
+---
+
+## RESUMEN DE CAMBIOS CRÍTICOS
+
+| Archivo | Cambio | Por qué |
+|---------|--------|---------|
+| `server.py` | Mover `app.mount("/static", ...)` ANTES de los routers | El orden importa en FastAPI |
+| `server.py` | Excluir `/static/` y `/api/` del catch-all | Evita que intercepte archivos estáticos |
+| `server.py` | Detectar ruta del build automáticamente | Funciona en dev y producción |
+| `frontend/` | Reconstruir con `npm run build` | Asegurar archivos actualizados |
+
+---
+
+## VERIFICACIÓN POST-DEPLOY
+
+Después de publicar, ejecutar:
+
+```bash
+# 1. Verificar que el HTML se sirve
+curl -s https://revisar-ia.com | head -20
+
+# 2. Verificar que los JS se sirven (cambiar el hash por el real)
+curl -I https://revisar-ia.com/static/js/main.*.js
+
+# 3. Verificar health check
+curl https://revisar-ia.com/api/health
+
+# 4. Abrir en navegador y verificar consola sin errores
+```
+
+---
+
+## SI AÚN NO FUNCIONA
+
+Ejecuta esto y pégame el resultado:
+
+```bash
+echo "=== DIAGNÓSTICO COMPLETO ==="
+
+echo -e "\n1. Estructura de archivos:"
+find frontend/build -type f | head -30
+
+echo -e "\n2. Contenido de server.py (rutas de static):"
+grep -n -A2 -B2 "static\|mount\|StaticFiles" backend/server.py
+
+echo -e "\n3. Variables de entorno:"
+echo "PWD: $(pwd)"
+echo "Existe frontend/build: $([ -d frontend/build ] && echo SI || echo NO)"
+
+echo -e "\n4. Primeras líneas de index.html:"
+cat frontend/build/index.html 2>/dev/null | head -15
+
+echo -e "\n5. Logs del servidor:"
+# Si hay logs, mostrar los últimos
+tail -50 /var/log/app.log 2>/dev/null || echo "No hay logs disponibles"
+```

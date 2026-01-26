@@ -1,0 +1,67 @@
+{
+  "agente_id": "A4_LEGAL",
+  "nombre": "Legal - Contratos y Cumplimiento",
+  "descripcion": "Documentos para revisión contractual, cláusulas de materialidad y protección de datos",
+  "documentos": [
+    {
+      "id": "001_plantilla_contrato",
+      "titulo": "Plantilla Base de Contrato de Servicios",
+      "tipo": "plantilla",
+      "uso": "Modelo de contrato con cláusulas de materialidad fiscal",
+      "personalizable": true,
+      "campos_clave": ["partes", "objeto", "clausulas_materialidad", "entregables"]
+    },
+    {
+      "id": "002_guia_nom151_trazabilidad",
+      "titulo": "Guía NOM-151 y Trazabilidad Documental",
+      "tipo": "normativo",
+      "uso": "Requisitos de conservación y trazabilidad de documentos electrónicos",
+      "personalizable": false,
+      "campos_clave": ["nom_151", "requisitos_conservacion", "firma_electronica"]
+    },
+    {
+      "id": "003_clausulas_materialidad",
+      "titulo": "Cláusulas de Materialidad Tipo",
+      "tipo": "plantilla",
+      "uso": "Cláusulas modelo para demostrar materialidad en contratos",
+      "personalizable": true,
+      "campos_clave": ["clausulas_entregables", "evidencia_ejecucion", "penalizaciones"]
+    },
+    {
+      "id": "004_guia_revision_sow",
+      "titulo": "Guía de Revisión SOW (Statement of Work)",
+      "tipo": "metodologia",
+      "uso": "Checklist para validar alcances de trabajo en contratos",
+      "personalizable": false,
+      "campos_clave": ["elementos_sow", "criterios_aceptacion", "metricas"]
+    },
+    {
+      "id": "005_terminos_pago_penalizaciones",
+      "titulo": "Términos de Pago y Penalizaciones",
+      "tipo": "plantilla",
+      "uso": "Cláusulas estándar de pagos, retenciones y penalidades",
+      "personalizable": true,
+      "campos_clave": ["condiciones_pago", "retenciones", "penalidades_incumplimiento"]
+    },
+    {
+      "id": "006_proteccion_datos_confidencialidad",
+      "titulo": "Protección de Datos y Confidencialidad",
+      "tipo": "plantilla",
+      "uso": "Cláusulas de protección de datos personales y confidencialidad",
+      "personalizable": true,
+      "campos_clave": ["lfpdppp", "clausulas_confidencialidad", "manejo_datos"]
+    }
+  ],
+  "contexto_requerido": {
+    "obligatorio": [
+      "tipo_contrato",
+      "partes_involucradas",
+      "objeto_servicio"
+    ],
+    "deseable": [
+      "contratos_previos",
+      "clausulas_especiales",
+      "jurisdiccion"
+    ]
+  }
+}

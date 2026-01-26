@@ -1,0 +1,740 @@
+# FASE 6: FLUJO DE FASES Y CANDADOS DUROS
+## Prompt TOON para Replit
+
+```
+=============================================================================
+TOON FASE 6: LÓGICA DE FLUJO F0-F9 Y CANDADOS DE CONTROL
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta todas las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. SOLO EJECUTA.
+
+PRERREQUISITO: Las Fases 1-5 deben estar completadas.
+
+CONTEXTO: El sistema tiene 10 fases (F0-F9) y tres "candados duros" que 
+NUNCA deben permitir avanzar si no se cumplen condiciones críticas:
+
+- CANDADO F2: No puede iniciarse ejecución sin aprobación completa
+- CANDADO F6: No puede emitirse CFDI/pago sin VBC de Fiscal y Legal
+- CANDADO F8: No puede liberarse pago sin 3-way match validado
+
+Esta fase implementa la lógica de flujo y los bloqueos que protegen la integridad
+del proceso.
+
+=============================================================================
+PASO 1: CREAR SERVICIO DE GESTIÓN DE FASES
+=============================================================================
+
+Crea archivo "services/faseService.js":
+
+const { POE_FASES, obtenerConfigFase, esCandadoDuro } = require('../contextoGlobal');
+const { getChecklistParaFase, getItemsObligatorios } = require('../checklists');
+const { UMBRALES_REVISION_HUMANA, requiereRevisionHumana } = require('../contextoGlobal');
+
+// Orden de fases
+const ORDEN_FASES = ['F0', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9'];
+
+// =========================================================================
+// FUNCIÓN PRINCIPAL: Verificar si proyecto puede avanzar de fase
+// =========================================================================
+
+async function puedeAvanzarFase(proyecto, faseActual, db) {
+  const resultado = {
+    puede_avanzar: false,
+    fase_actual: faseActual,
+    fase_siguiente: getSiguienteFase(faseActual),
+    bloqueos: [],
+    advertencias: [],
+    checklist_pendiente: [],
+    requiere_revision_humana: false,
+    es_candado_duro: esCandadoDuro(faseActual)
+  };
+
+  // 1. Verificar que la fase actual tenga configuración
+  const configFase = obtenerConfigFase(faseActual);
+  if (!configFase) {
+    resultado.bloqueos.push(`Fase ${faseActual} no tiene configuración definida`);
+    return resultado;
+  }
+
+  // 2. Obtener checklist de la fase y verificar items obligatorios
+  const checklistFase = getChecklistParaFase(proyecto.tipologia, faseActual);
+  if (checklistFase && checklistFase.items) {
+    const itemsObligatorios = checklistFase.items.filter(i => i.obligatorio);
+    const documentosProyecto = await getDocumentosProyecto(proyecto.id, db);
+    
+    for (const item of itemsObligatorios) {
+      const entregado = documentosProyecto.some(doc => 
+        doc.tipo === item.tipo_documento_esperado || 
+        doc.checklist_item_id === item.id
+      );
+      
+      if (!entregado) {
+        resultado.checklist_pendiente.push({
+          id: item.id,
+          descripcion: item.descripcion,
+          responsable: item.responsable
+        });
+      }
+    }
+  }
+
+  // 3. Verificar decisiones de agentes requeridos para la fase
+  const agentesRequeridos = configFase.agentes_obligatorios || [];
+  const deliberaciones = await getDeliberacionesFase(proyecto.id, faseActual, db);
+  
+  for (const agenteId of agentesRequeridos) {
+    const deliberacion = deliberaciones.find(d => d.agente === agenteId);
+    
+    if (!deliberacion) {
+      resultado.bloqueos.push(`Falta dictamen de ${agenteId} para fase ${faseActual}`);
+    } else if (deliberacion.decision === 'RECHAZAR') {
+      resultado.bloqueos.push(`${agenteId} ha RECHAZADO el proyecto`);
+    } else if (deliberacion.decision === 'SOLICITAR_AJUSTES') {
+      resultado.advertencias.push(`${agenteId} solicita ajustes - revisar condiciones`);
+    } else if (deliberacion.decision === 'PENDIENTE') {
+      resultado.bloqueos.push(`${agenteId} aún no ha emitido decisión`);
+    }
+  }
+
+  // 4. Verificar bloqueos específicos de la fase
+  const bloqueosConfig = configFase.bloqueos || [];
+  for (const bloqueoDesc of bloqueosConfig) {
+    const bloqueado = await evaluarBloqueo(proyecto, faseActual, bloqueoDesc, db);
+    if (bloqueado.activo) {
+      resultado.bloqueos.push(bloqueado.mensaje);
+    }
+  }
+
+  // 5. CANDADOS DUROS - Lógica especial
+  if (faseActual === 'F2') {
+    const candadoF2 = await verificarCandadoF2(proyecto, db);
+    if (!candadoF2.liberado) {
+      resultado.bloqueos.push(...candadoF2.bloqueos);
+    }
+  }
+  
+  if (faseActual === 'F6') {
+    const candadoF6 = await verificarCandadoF6(proyecto, db);
+    if (!candadoF6.liberado) {
+      resultado.bloqueos.push(...candadoF6.bloqueos);
+    }
+  }
+  
+  if (faseActual === 'F8') {
+    const candadoF8 = await verificarCandadoF8(proyecto, db);
+    if (!candadoF8.liberado) {
+      resultado.bloqueos.push(...candadoF8.bloqueos);
+    }
+  }
+
+  // 6. Verificar si requiere revisión humana
+  const proveedor = await getProveedor(proyecto.proveedor_id, db);
+  const revisionHumana = requiereRevisionHumana(proyecto, proyecto.risk_score_total, proveedor);
+  
+  if (revisionHumana.requiere) {
+    resultado.requiere_revision_humana = true;
+    resultado.razon_revision_humana = revisionHumana.razon;
+    
+    // Verificar si ya se obtuvo
+    if (!proyecto.revision_humana_obtenida && ['F2', 'F6'].includes(faseActual)) {
+      resultado.bloqueos.push(`Requiere revisión humana: ${revisionHumana.razon}`);
+    }
+  }
+
+  // 7. Determinar si puede avanzar
+  resultado.puede_avanzar = resultado.bloqueos.length === 0 && 
+                            resultado.checklist_pendiente.length === 0;
+
+  return resultado;
+}
+
+// =========================================================================
+// CANDADO F2: No iniciar ejecución sin aprobación completa
+// =========================================================================
+
+async function verificarCandadoF2(proyecto, db) {
+  const resultado = {
+    liberado: false,
+    bloqueos: []
+  };
+
+  // 1. F0 y F1 deben estar completadas
+  const fasesCompletadas = await getFasesCompletadas(proyecto.id, db);
+  
+  if (!fasesCompletadas.includes('F0')) {
+    resultado.bloqueos.push('CANDADO F2: F0 (Aprobación BEE) no está completada');
+  }
+  
+  if (!fasesCompletadas.includes('F1')) {
+    resultado.bloqueos.push('CANDADO F2: F1 (SOW) no está completada');
+  }
+
+  // 2. Presupuesto debe estar confirmado
+  const deliberacionFinanzas = await getDeliberacion(proyecto.id, 'F2', 'A5_FINANZAS', db);
+  if (!deliberacionFinanzas || deliberacionFinanzas.decision !== 'APROBAR') {
+    resultado.bloqueos.push('CANDADO F2: Finanzas no ha confirmado presupuesto');
+  }
+
+  // 3. Si requiere revisión humana por umbral, debe estar obtenida
+  if (proyecto.monto >= 5000000 || proyecto.risk_score_total >= 60) {
+    if (!proyecto.revision_humana_obtenida) {
+      resultado.bloqueos.push('CANDADO F2: Proyecto requiere revisión humana por umbral y no se ha obtenido');
+    }
+  }
+
+  // 4. A1 y A3 deben haber aprobado
+  const deliberacionA1 = await getDeliberacion(proyecto.id, 'F0', 'A1_SPONSOR', db);
+  const deliberacionA3 = await getDeliberacion(proyecto.id, 'F0', 'A3_FISCAL', db);
+  
+  if (!deliberacionA1 || !['APROBAR', 'APROBAR_CONDICIONES'].includes(deliberacionA1.decision)) {
+    resultado.bloqueos.push('CANDADO F2: A1-Sponsor no ha aprobado el proyecto');
+  }
+  
+  if (!deliberacionA3 || !['APROBAR', 'APROBAR_CONDICIONES'].includes(deliberacionA3.decision)) {
+    resultado.bloqueos.push('CANDADO F2: A3-Fiscal no ha aprobado el proyecto');
+  }
+
+  resultado.liberado = resultado.bloqueos.length === 0;
+  return resultado;
+}
+
+// =========================================================================
+// CANDADO F6: No emitir VBC ni autorizar pago sin evidencia completa
+// =========================================================================
+
+async function verificarCandadoF6(proyecto, db) {
+  const resultado = {
+    liberado: false,
+    bloqueos: []
+  };
+
+  // 1. F5 debe estar completada (entrega aceptada)
+  const fasesCompletadas = await getFasesCompletadas(proyecto.id, db);
+  
+  if (!fasesCompletadas.includes('F5')) {
+    resultado.bloqueos.push('CANDADO F6: F5 (Aceptación técnica) no está completada');
+  }
+
+  // 2. Matriz de materialidad debe tener > 80% completitud
+  const defenseFile = await getDefenseFile(proyecto.id, db);
+  if (!defenseFile || defenseFile.matriz_materialidad_completitud < 80) {
+    const completitud = defenseFile ? defenseFile.matriz_materialidad_completitud : 0;
+    resultado.bloqueos.push(`CANDADO F6: Matriz de materialidad incompleta (${completitud}% vs 80% requerido)`);
+  }
+
+  // 3. VBC Fiscal debe estar emitido
+  if (!defenseFile || !defenseFile.vbc_fiscal_emitido) {
+    resultado.bloqueos.push('CANDADO F6: VBC Fiscal no ha sido emitido');
+  }
+
+  // 4. VBC Legal debe estar emitido
+  if (!defenseFile || !defenseFile.vbc_legal_emitido) {
+    resultado.bloqueos.push('CANDADO F6: VBC Legal no ha sido emitido');
+  }
+
+  // 5. A3 y A4 deben tener decisión APROBAR en F6
+  const deliberacionA3 = await getDeliberacion(proyecto.id, 'F6', 'A3_FISCAL', db);
+  const deliberacionA4 = await getDeliberacion(proyecto.id, 'F6', 'A4_LEGAL', db);
+  
+  if (!deliberacionA3 || deliberacionA3.decision !== 'APROBAR') {
+    resultado.bloqueos.push('CANDADO F6: A3-Fiscal no ha dado aprobación final');
+  }
+  
+  if (!deliberacionA4 || deliberacionA4.decision !== 'APROBAR') {
+    resultado.bloqueos.push('CANDADO F6: A4-Legal no ha dado aprobación final');
+  }
+
+  // 6. Si es intra-grupo, verificar estudio TP vigente
+  const proveedor = await getProveedor(proyecto.proveedor_id, db);
+  if (proveedor && proveedor.tipo_relacion !== 'TERCERO_INDEPENDIENTE') {
+    // Verificar que existe documentación de TP
+    const docTP = await getDocumentoTipo(proyecto.id, 'ESTUDIO_TP', db);
+    if (!docTP) {
+      resultado.bloqueos.push('CANDADO F6: Operación con parte relacionada sin estudio de TP');
+    }
+  }
+
+  resultado.liberado = resultado.bloqueos.length === 0;
+  return resultado;
+}
+
+// =========================================================================
+// CANDADO F8: No liberar pago sin 3-way match
+// =========================================================================
+
+async function verificarCandadoF8(proyecto, db) {
+  const resultado = {
+    liberado: false,
+    bloqueos: []
+  };
+
+  // 1. F6 y F7 deben estar completadas
+  const fasesCompletadas = await getFasesCompletadas(proyecto.id, db);
+  
+  if (!fasesCompletadas.includes('F6')) {
+    resultado.bloqueos.push('CANDADO F8: F6 (VBC) no está completada');
+  }
+  
+  if (!fasesCompletadas.includes('F7')) {
+    resultado.bloqueos.push('CANDADO F8: F7 (Auditoría interna) no está completada');
+  }
+
+  // 2. CFDI debe existir y tener descripción específica
+  const cfdi = await getDocumentoTipo(proyecto.id, 'CFDI', db);
+  if (!cfdi) {
+    resultado.bloqueos.push('CANDADO F8: No se ha cargado CFDI');
+  } else {
+    // Verificar que no sea genérico
+    const descripcionCFDI = cfdi.metadata?.descripcion || '';
+    const palabrasGenericas = ['servicios profesionales varios', 'servicios generales', 
+                               'honorarios profesionales', 'asesoría general'];
+    
+    const esGenerico = palabrasGenericas.some(palabra => 
+      descripcionCFDI.toLowerCase().includes(palabra)
+    );
+    
+    if (esGenerico) {
+      resultado.bloqueos.push('CANDADO F8: CFDI tiene descripción genérica - debe ser específico');
+    }
+  }
+
+  // 3. 3-way match: Contrato vs CFDI vs Monto
+  const contrato = await getDocumentoTipo(proyecto.id, 'CONTRATO', db);
+  
+  if (cfdi && contrato) {
+    const montoCFDI = cfdi.metadata?.monto || 0;
+    const montoContrato = contrato.metadata?.monto || proyecto.monto;
+    
+    // Tolerancia del 5% por ajustes menores
+    const diferencia = Math.abs(montoCFDI - montoContrato) / montoContrato;
+    
+    if (diferencia > 0.05) {
+      resultado.bloqueos.push(`CANDADO F8: 3-way match fallido - CFDI: $${montoCFDI} vs Contrato: $${montoContrato}`);
+    }
+  }
+
+  // 4. A5-Finanzas debe aprobar en F8
+  const deliberacionA5 = await getDeliberacion(proyecto.id, 'F8', 'A5_FINANZAS', db);
+  if (!deliberacionA5 || deliberacionA5.decision !== 'APROBAR') {
+    resultado.bloqueos.push('CANDADO F8: A5-Finanzas no ha validado el 3-way match');
+  }
+
+  resultado.liberado = resultado.bloqueos.length === 0;
+  return resultado;
+}
+
+// =========================================================================
+// FUNCIÓN: Avanzar proyecto a siguiente fase
+// =========================================================================
+
+async function avanzarFase(proyecto, db) {
+  const faseActual = proyecto.fase_actual;
+  const verificacion = await puedeAvanzarFase(proyecto, faseActual, db);
+  
+  if (!verificacion.puede_avanzar) {
+    return {
+      exito: false,
+      mensaje: 'No se puede avanzar de fase',
+      bloqueos: verificacion.bloqueos,
+      checklist_pendiente: verificacion.checklist_pendiente
+    };
+  }
+  
+  const siguienteFase = verificacion.fase_siguiente;
+  
+  if (!siguienteFase) {
+    return {
+      exito: false,
+      mensaje: 'El proyecto ya está en la última fase (F9)'
+    };
+  }
+  
+  // Actualizar fase del proyecto
+  await db.update('Project', proyecto.id, {
+    fase_actual: siguienteFase,
+    updated_at: new Date()
+  });
+  
+  // Completar la fase actual en ProjectPhase
+  await db.update('ProjectPhase', 
+    { proyecto_id: proyecto.id, fase: faseActual },
+    { estado: 'COMPLETADA', fecha_completado: new Date() }
+  );
+  
+  // Crear registro de la nueva fase
+  await db.create('ProjectPhase', {
+    proyecto_id: proyecto.id,
+    fase: siguienteFase,
+    estado: 'EN_PROGRESO',
+    fecha_inicio: new Date()
+  });
+  
+  // Registrar en log
+  await db.create('AuditLog', {
+    proyecto_id: proyecto.id,
+    accion: 'FASE_COMPLETADA',
+    descripcion: `Proyecto avanzó de ${faseActual} a ${siguienteFase}`,
+    datos_antes: { fase: faseActual },
+    datos_despues: { fase: siguienteFase },
+    created_at: new Date()
+  });
+  
+  return {
+    exito: true,
+    mensaje: `Proyecto avanzó a fase ${siguienteFase}`,
+    fase_anterior: faseActual,
+    fase_nueva: siguienteFase
+  };
+}
+
+// =========================================================================
+// FUNCIONES AUXILIARES
+// =========================================================================
+
+function getSiguienteFase(faseActual) {
+  const index = ORDEN_FASES.indexOf(faseActual);
+  if (index === -1 || index === ORDEN_FASES.length - 1) return null;
+  return ORDEN_FASES[index + 1];
+}
+
+function getFaseAnterior(faseActual) {
+  const index = ORDEN_FASES.indexOf(faseActual);
+  if (index <= 0) return null;
+  return ORDEN_FASES[index - 1];
+}
+
+async function getDocumentosProyecto(proyectoId, db) {
+  return await db.findMany('Document', { proyecto_id: proyectoId });
+}
+
+async function getDeliberacionesFase(proyectoId, fase, db) {
+  return await db.findMany('AgentDeliberation', { 
+    proyecto_id: proyectoId, 
+    fase: fase 
+  });
+}
+
+async function getDeliberacion(proyectoId, fase, agente, db) {
+  return await db.findOne('AgentDeliberation', {
+    proyecto_id: proyectoId,
+    fase: fase,
+    agente: agente
+  });
+}
+
+async function getFasesCompletadas(proyectoId, db) {
+  const fases = await db.findMany('ProjectPhase', {
+    proyecto_id: proyectoId,
+    estado: 'COMPLETADA'
+  });
+  return fases.map(f => f.fase);
+}
+
+async function getDefenseFile(proyectoId, db) {
+  return await db.findOne('DefenseFile', { proyecto_id: proyectoId });
+}
+
+async function getProveedor(proveedorId, db) {
+  return await db.findOne('Supplier', { id: proveedorId });
+}
+
+async function getDocumentoTipo(proyectoId, tipo, db) {
+  return await db.findOne('Document', { 
+    proyecto_id: proyectoId, 
+    tipo: tipo 
+  });
+}
+
+async function evaluarBloqueo(proyecto, fase, bloqueoDesc, db) {
+  // Esta función evalúa condiciones de bloqueo dinámicamente
+  // Por ahora retorna no activo - se puede expandir según necesidad
+  return { activo: false, mensaje: '' };
+}
+
+module.exports = {
+  puedeAvanzarFase,
+  avanzarFase,
+  verificarCandadoF2,
+  verificarCandadoF6,
+  verificarCandadoF8,
+  getSiguienteFase,
+  getFaseAnterior,
+  ORDEN_FASES
+};
+
+=============================================================================
+PASO 2: CREAR MIDDLEWARE DE VALIDACIÓN DE CANDADOS
+=============================================================================
+
+Crea archivo "middleware/candadosMiddleware.js":
+
+const { verificarCandadoF2, verificarCandadoF6, verificarCandadoF8 } = require('../services/faseService');
+
+// Middleware que se ejecuta antes de ciertas acciones críticas
+
+async function validarAntesDeIniciarEjecucion(proyecto, db) {
+  // Se llama antes de permitir que el proveedor comience trabajos (entrada a F3)
+  
+  if (proyecto.fase_actual !== 'F2') {
+    return {
+      permitido: false,
+      error: 'El proyecto debe estar en F2 para iniciar ejecución'
+    };
+  }
+  
+  const candado = await verificarCandadoF2(proyecto, db);
+  
+  if (!candado.liberado) {
+    return {
+      permitido: false,
+      error: 'CANDADO F2 ACTIVO: No se puede iniciar ejecución',
+      bloqueos: candado.bloqueos,
+      mensaje_usuario: `
+⛔ NO SE PUEDE INICIAR EJECUCIÓN DEL SERVICIO
+
+El proyecto no ha completado las validaciones previas requeridas:
+${candado.bloqueos.map(b => `• ${b}`).join('\n')}
+
+Acciones requeridas:
+1. Resolver los bloqueos indicados
+2. Obtener aprobaciones faltantes
+3. Reintentar cuando todo esté completo
+
+IMPORTANTE: Ningún proveedor debe iniciar trabajos hasta que este candado se libere.
+      `
+    };
+  }
+  
+  return { permitido: true };
+}
+
+async function validarAntesDeEmitirCFDI(proyecto, db) {
+  // Se llama antes de permitir la carga de CFDI
+  
+  const candado = await verificarCandadoF6(proyecto, db);
+  
+  if (!candado.liberado) {
+    return {
+      permitido: false,
+      error: 'CANDADO F6 ACTIVO: No se puede emitir/cargar CFDI',
+      bloqueos: candado.bloqueos,
+      mensaje_usuario: `
+⛔ NO SE PUEDE PROCEDER CON FACTURACIÓN
+
+El proyecto no tiene los Vistos Buenos requeridos:
+${candado.bloqueos.map(b => `• ${b}`).join('\n')}
+
+Acciones requeridas:
+1. Completar matriz de materialidad (>80%)
+2. Obtener VBC Fiscal de A3
+3. Obtener VBC Legal de A4
+4. Reintentar cuando todo esté completo
+
+IMPORTANTE: No se acepta CFDI sin VBC previo.
+      `
+    };
+  }
+  
+  return { permitido: true };
+}
+
+async function validarAntesDeliberarPago(proyecto, db) {
+  // Se llama antes de permitir la liberación del pago
+  
+  const candado = await verificarCandadoF8(proyecto, db);
+  
+  if (!candado.liberado) {
+    return {
+      permitido: false,
+      error: 'CANDADO F8 ACTIVO: No se puede liberar pago',
+      bloqueos: candado.bloqueos,
+      mensaje_usuario: `
+⛔ NO SE PUEDE LIBERAR PAGO
+
+Falta completar validaciones de 3-way match:
+${candado.bloqueos.map(b => `• ${b}`).join('\n')}
+
+Acciones requeridas:
+1. Verificar que CFDI tenga descripción específica (no genérica)
+2. Validar que monto de CFDI = monto de contrato
+3. Obtener aprobación de A5-Finanzas
+4. Reintentar cuando todo esté completo
+
+IMPORTANTE: Ningún pago se libera sin 3-way match validado.
+      `
+    };
+  }
+  
+  return { permitido: true };
+}
+
+module.exports = {
+  validarAntesDeIniciarEjecucion,
+  validarAntesDeEmitirCFDI,
+  validarAntesDeliberarPago
+};
+
+=============================================================================
+PASO 3: CREAR ENDPOINTS/RUTAS PARA GESTIÓN DE FASES
+=============================================================================
+
+Crea archivo "routes/fasesRoutes.js" (adaptar según tu framework):
+
+const express = require('express');
+const router = express.Router();
+const { puedeAvanzarFase, avanzarFase, ORDEN_FASES } = require('../services/faseService');
+const { 
+  validarAntesDeIniciarEjecucion, 
+  validarAntesDeEmitirCFDI, 
+  validarAntesDeliberarPago 
+} = require('../middleware/candadosMiddleware');
+
+// GET /api/proyectos/:id/fase/estado
+// Obtiene el estado actual de la fase y si puede avanzar
+router.get('/proyectos/:id/fase/estado', async (req, res) => {
+  try {
+    const proyecto = await req.db.findOne('Project', { id: req.params.id });
+    if (!proyecto) {
+      return res.status(404).json({ error: 'Proyecto no encontrado' });
+    }
+    
+    const estado = await puedeAvanzarFase(proyecto, proyecto.fase_actual, req.db);
+    
+    res.json({
+      proyecto_id: proyecto.id,
+      fase_actual: proyecto.fase_actual,
+      estado_fase: estado
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/proyectos/:id/fase/avanzar
+// Intenta avanzar el proyecto a la siguiente fase
+router.post('/proyectos/:id/fase/avanzar', async (req, res) => {
+  try {
+    const proyecto = await req.db.findOne('Project', { id: req.params.id });
+    if (!proyecto) {
+      return res.status(404).json({ error: 'Proyecto no encontrado' });
+    }
+    
+    const resultado = await avanzarFase(proyecto, req.db);
+    
+    if (!resultado.exito) {
+      return res.status(400).json(resultado);
+    }
+    
+    res.json(resultado);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/proyectos/:id/validar/iniciar-ejecucion
+// Valida si el proyecto puede iniciar ejecución (candado F2)
+router.post('/proyectos/:id/validar/iniciar-ejecucion', async (req, res) => {
+  try {
+    const proyecto = await req.db.findOne('Project', { id: req.params.id });
+    if (!proyecto) {
+      return res.status(404).json({ error: 'Proyecto no encontrado' });
+    }
+    
+    const validacion = await validarAntesDeIniciarEjecucion(proyecto, req.db);
+    
+    if (!validacion.permitido) {
+      return res.status(403).json(validacion);
+    }
+    
+    res.json({ permitido: true, mensaje: 'Proyecto autorizado para iniciar ejecución' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/proyectos/:id/validar/emitir-cfdi
+// Valida si el proyecto puede recibir CFDI (candado F6)
+router.post('/proyectos/:id/validar/emitir-cfdi', async (req, res) => {
+  try {
+    const proyecto = await req.db.findOne('Project', { id: req.params.id });
+    if (!proyecto) {
+      return res.status(404).json({ error: 'Proyecto no encontrado' });
+    }
+    
+    const validacion = await validarAntesDeEmitirCFDI(proyecto, req.db);
+    
+    if (!validacion.permitido) {
+      return res.status(403).json(validacion);
+    }
+    
+    res.json({ permitido: true, mensaje: 'Proyecto autorizado para facturación' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/proyectos/:id/validar/liberar-pago
+// Valida si el proyecto puede liberar pago (candado F8)
+router.post('/proyectos/:id/validar/liberar-pago', async (req, res) => {
+  try {
+    const proyecto = await req.db.findOne('Project', { id: req.params.id });
+    if (!proyecto) {
+      return res.status(404).json({ error: 'Proyecto no encontrado' });
+    }
+    
+    const validacion = await validarAntesDeliberarPago(proyecto, req.db);
+    
+    if (!validacion.permitido) {
+      return res.status(403).json(validacion);
+    }
+    
+    res.json({ permitido: true, mensaje: 'Proyecto autorizado para liberar pago' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/fases
+// Lista todas las fases del POE
+router.get('/fases', (req, res) => {
+  res.json({
+    orden: ORDEN_FASES,
+    candados_duros: ['F2', 'F6', 'F8']
+  });
+});
+
+module.exports = router;
+
+=============================================================================
+PASO 4: VERIFICACIÓN
+=============================================================================
+
+Al terminar, verifica:
+
+1. El servicio de fases puede evaluar si un proyecto puede avanzar
+2. Los tres candados (F2, F6, F8) funcionan correctamente:
+   - F2 bloquea si no hay BEE, SOW, presupuesto o aprobaciones
+   - F6 bloquea si no hay VBC Fiscal/Legal o matriz < 80%
+   - F8 bloquea si no hay 3-way match o CFDI genérico
+3. El middleware previene acciones no autorizadas
+4. Las rutas/endpoints responden correctamente
+
+Prueba con un proyecto de ejemplo que NO cumple condiciones - debe bloquearse.
+Prueba con un proyecto que SÍ cumple - debe poder avanzar.
+
+Si algo falla, corregirlo antes de continuar a Fase 7.
+
+=============================================================================
+FIN FASE 6
+=============================================================================
+```
+
+## Verificación Post-Implementación
+
+Los candados duros son el corazón del control del sistema. Sin ellos:
+- Se podrían iniciar trabajos sin aprobación (riesgo de costos hundidos)
+- Se podrían emitir facturas sin VBC (riesgo fiscal)
+- Se podrían pagar facturas sin 3-way match (riesgo de fraude)
+
+Verifica que cada candado bloquee correctamente cuando debe.

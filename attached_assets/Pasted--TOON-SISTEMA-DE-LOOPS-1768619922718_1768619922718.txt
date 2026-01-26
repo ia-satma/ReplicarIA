@@ -1,0 +1,181 @@
+=============================================================================
+TOON: SISTEMA DE LOOPS ITERATIVOS TIPO RALPH PARA DUREZZA 4.0
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta TODAS las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. NO te detengas. SOLO EJECUTA.
+
+CONTEXTO: Durezza 4.0 necesita un sistema de loops iterativos para tareas
+que requieren múltiples intentos hasta completarse correctamente. Esto es
+crítico para: OCR Validation, Red Team Simulation, y Testing Automatizado.
+
+=============================================================================
+PASO 1: CREAR ARCHIVO DEL ORQUESTADOR DE LOOPS
+=============================================================================
+
+Crea el archivo: server/services/loopOrchestrator.js
+
+```javascript
+/**
+ * LOOP ORCHESTRATOR - Implementación de principios Ralph Loop para Replit
+ * Permite ejecutar tareas iterativamente hasta completarse o alcanzar límite
+ */
+
+const EventEmitter = require('events');
+
+class LoopOrchestrator extends EventEmitter {
+  constructor(options = {}) {
+    super();
+    this.maxIterations = options.maxIterations || 10;
+    this.timeoutMs = options.timeoutMs || 300000; // 5 minutos por defecto
+    this.completionMarker = options.completionMarker || 'COMPLETE';
+    this.currentIteration = 0;
+    this.logs = [];
+  }
+
+  /**
+   * Ejecuta una tarea en loop hasta que:
+   * 1. La tarea retorne el completionMarker
+   * 2. Se alcance maxIterations
+   * 3. Se exceda el timeout
+   * 
+   * @param {Function} taskFn - Función async que ejecuta la tarea
+   * @param {Object} context - Contexto inicial (se pasa entre iteraciones)
+   * @returns {Object} - { success, iterations, result, logs }
+   */
+  async executeLoop(taskFn, context = {}) {
+    const startTime = Date.now();
+    let result = null;
+    let success = false;
+
+    this.emit('loop:start', { context, maxIterations: this.maxIterations });
+
+    while (this.currentIteration < this.maxIterations) {
+      this.currentIteration++;
+      
+      // Check timeout
+      if (Date.now() - startTime > this.timeoutMs) {
+        this.log(`TIMEOUT alcanzado después de ${this.currentIteration} iteraciones`);
+        break;
+      }
+
+      this.emit('iteration:start', { 
+        iteration: this.currentIteration, 
+        context 
+      });
+
+      try {
+        // Ejecutar la tarea con el contexto actual
+        result = await taskFn(context, this.currentIteration);
+        
+        this.log(`Iteración ${this.currentIteration}: ${JSON.stringify(result).substring(0, 200)}`);
+
+        // Verificar si la tarea se completó
+        if (this.isComplete(result)) {
+          success = true;
+          this.emit('loop:complete', { 
+            iteration: this.currentIteration, 
+            result 
+          });
+          break;
+        }
+
+        // Actualizar contexto para siguiente iteración
+        // El resultado de esta iteración alimenta la siguiente
+        context = this.mergeContext(context, result);
+        
+        this.emit('iteration:end', { 
+          iteration: this.currentIteration, 
+          result,
+          willContinue: true 
+        });
+
+      } catch (error) {
+        this.log(`ERROR en iteración ${this.currentIteration}: ${error.message}`);
+        this.emit('iteration:error', { 
+          iteration: this.currentIteration, 
+          error 
+        });
+        
+        // Decidir si continuar o abortar según el tipo de error
+        if (this.isFatalError(error)) {
+          break;
+        }
+        // Si no es fatal, continuar con siguiente iteración
+      }
+    }
+
+    if (!success) {
+      this.emit('loop:maxIterations', { 
+        iterations: this.currentIteration,
+        lastResult: result 
+      });
+    }
+
+    return {
+      success,
+      iterations: this.currentIteration,
+      result,
+      logs: this.logs,
+      duration: Date.now() - startTime
+    };
+  }
+
+  isComplete(result) {
+    if (!result) return false;
+    
+    // Verificar marcador de completitud en diferentes formatos
+    if (typeof result === 'string') {
+      return result.includes(this.completionMarker) || 
+             result.includes('<promise>') && result.includes('</promise>');
+    }
+    
+    if (typeof result === 'object') {
+      return result.status === this.completionMarker ||
+             result.complete === true ||
+             result.done === true;
+    }
+    
+    return false;
+  }
+
+  mergeContext(oldContext, newResult) {
+    return {
+      ...oldContext,
+      previousResult: newResult,
+      previousIteration: this.currentIteration,
+      accumulatedFindings: [
+        ...(oldContext.accumulatedFindings || []),
+        ...(newResult?.findings || [])
+      ]
+    };
+  }
+
+  isFatalError(error) {
+    // Errores que deben detener el loop inmediatamente
+    const fatalPatterns = [
+      'ECONNREFUSED',      // Base de datos no disponible
+      'INVALID_API_KEY',   // Credenciales inválidas
+      'RATE_LIMIT',        // Límite de API alcanzado
+      'OUT_OF_MEMORY'      // Sin memoria
+    ];
+    return fatalPatterns.some(p => error.message.includes(p));
+  }
+
+  log(message) {
+    const entry = {
+      timestamp: new Date().toISOString(),
+      iteration: this.currentIteration,
+      message
+    };
+    this.logs.push(entry);
+    console.log(`[Loop:${this.currentIteration}] ${message}`);
+  }
+
+  reset() {
+    this.currentIteration = 0;
+    this.logs = [];
+  }
+}
+
+module.exports = LoopOrchestrator;

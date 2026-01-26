@@ -1,0 +1,431 @@
+MODO AGENTE AUTÓNOMO - ARREGLAR ROL ADMINISTRADOR NO RECONOCIDO EN LOGIN OTP
+
+NO PREGUNTAR. DIAGNOSTICAR Y ARREGLAR COMPLETAMENTE.
+
+<TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+PROBLEMA REPORTADO
+═══════════════════════════════════════════════════════════════════════════════
+
+El usuario santiago@satma.mx SE LOGGEA EXITOSAMENTE con OTP pero el sistema 
+NO LO RECONOCE COMO ADMINISTRADOR. No puede:
+- Administrar usuarios
+- Ver opciones de admin
+- Acceder a funcionalidades administrativas
+
+El login funciona, pero el ROL no se está propagando correctamente.
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 1: DIAGNÓSTICO - VERIFICAR TABLA USUARIOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Ejecutar en Shell:
+
+```bash
+# Ver estructura de tabla usuarios
+psql $DATABASE_URL -c "\d usuarios"
+
+# Ver el usuario admin y su rol
+psql $DATABASE_URL -c "SELECT id, email, nombre, rol, activo FROM usuarios WHERE email = 'santiago@satma.mx'"
+
+# Si la tabla se llama diferente, buscarla
+psql $DATABASE_URL -c "\dt" | grep -i user
+```
+
+VERIFICAR:
+□ ¿El campo "rol" existe en la tabla?
+□ ¿El valor del rol es 'admin' o 'administrador' exactamente?
+□ ¿El usuario está activo?
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 2: BUSCAR ENDPOINT VERIFY-CODE Y VER QUÉ RETORNA
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+# Buscar el endpoint de verificación de código OTP
+grep -r "verify-code\|verificar.*codigo\|verifyCode" server/ --include="*.ts" --include="*.js" -A 30 | head -100
+
+# Buscar cómo se genera el JWT/token
+grep -r "jwt.sign\|jsonwebtoken\|generateToken" server/ --include="*.ts" --include="*.js" -A 10 | head -50
+```
+
+EL PROBLEMA PROBABLE:
+El token JWT NO incluye el campo "rol" o lo incluye incorrecto.
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 3: ARREGLAR - EL TOKEN JWT DEBE INCLUIR EL ROL
+═══════════════════════════════════════════════════════════════════════════════
+
+BUSCAR el archivo donde se genera el token (probablemente authService.ts o auth.ts)
+
+EL CÓDIGO ACTUAL probablemente dice algo como:
+
+```typescript
+// ❌ INCORRECTO - No incluye rol
+const token = jwt.sign(
+  { id: user.id, email: user.email },
+  JWT_SECRET,
+  { expiresIn: '24h' }
+);
+```
+
+CAMBIAR A:
+
+```typescript
+// ✅ CORRECTO - Incluye rol
+const token = jwt.sign(
+  { 
+    id: user.id, 
+    email: user.email,
+    rol: user.rol,           // ← AGREGAR ESTO
+    nombre: user.nombre      // ← OPCIONAL pero útil
+  },
+  JWT_SECRET,
+  { expiresIn: '24h' }
+);
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 4: VERIFICAR QUE EL QUERY TRAE EL ROL
+═══════════════════════════════════════════════════════════════════════════════
+
+Buscar el query que obtiene el usuario para verificar OTP:
+
+```bash
+grep -r "SELECT.*FROM.*usuarios\|FROM usuarios\|from usuarios" server/ --include="*.ts" --include="*.js" -B 2 -A 5 | head -80
+```
+
+EL QUERY DEBE INCLUIR "rol":
+
+```typescript
+// ❌ INCORRECTO
+const result = await db.query(
+  'SELECT id, email, nombre FROM usuarios WHERE email = $1',
+  [email]
+);
+
+// ✅ CORRECTO
+const result = await db.query(
+  'SELECT id, email, nombre, rol FROM usuarios WHERE email = $1 AND activo = TRUE',
+  [email]
+);
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 5: VERIFICAR RESPUESTA AL FRONTEND
+═══════════════════════════════════════════════════════════════════════════════
+
+El endpoint verify-code debe responder incluyendo el usuario CON ROL:
+
+```typescript
+// ✅ Respuesta correcta
+res.json({
+  success: true,
+  token: token,
+  usuario: {
+    id: user.id,
+    email: user.email,
+    nombre: user.nombre,
+    rol: user.rol           // ← CRÍTICO: Debe incluir rol
+  }
+});
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 6: VERIFICAR FRONTEND - CÓMO GUARDA Y USA EL ROL
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+# Buscar dónde guarda el usuario en localStorage
+grep -r "localStorage.*usuario\|revisar_usuario\|setItem.*usuario" frontend/src/ --include="*.tsx" --include="*.ts" -A 3 | head -30
+
+# Buscar dónde verifica si es admin
+grep -r "rol.*admin\|isAdmin\|esAdmin\|role.*admin" frontend/src/ --include="*.tsx" --include="*.ts" -B 2 -A 5 | head -50
+```
+
+EL FRONTEND DEBE:
+
+1. Guardar el usuario completo (con rol):
+```typescript
+localStorage.setItem('revisar_usuario', JSON.stringify(data.usuario));
+```
+
+2. Verificar el rol correctamente:
+```typescript
+const usuario = JSON.parse(localStorage.getItem('revisar_usuario') || '{}');
+const esAdmin = usuario.rol === 'admin';
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 7: CREAR/VERIFICAR CONTEXTO DE AUTENTICACIÓN
+═══════════════════════════════════════════════════════════════════════════════
+
+Si usas React Context para auth, debe verse así:
+
+CREAR O MODIFICAR: frontend/src/context/AuthContext.tsx
+
+```typescript
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+
+interface Usuario {
+  id: string;
+  email: string;
+  nombre: string;
+  rol: string;
+}
+
+interface AuthContextType {
+  usuario: Usuario | null;
+  token: string | null;
+  esAdmin: boolean;
+  login: (token: string, usuario: Usuario) => void;
+  logout: () => void;
+  isAuthenticated: boolean;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Cargar de localStorage al iniciar
+    const savedToken = localStorage.getItem('revisar_token');
+    const savedUsuario = localStorage.getItem('revisar_usuario');
+    
+    if (savedToken && savedUsuario) {
+      setToken(savedToken);
+      try {
+        setUsuario(JSON.parse(savedUsuario));
+      } catch (e) {
+        console.error('Error parsing usuario:', e);
+      }
+    }
+  }, []);
+
+  const login = (newToken: string, newUsuario: Usuario) => {
+    setToken(newToken);
+    setUsuario(newUsuario);
+    localStorage.setItem('revisar_token', newToken);
+    localStorage.setItem('revisar_usuario', JSON.stringify(newUsuario));
+  };
+
+  const logout = () => {
+    setToken(null);
+    setUsuario(null);
+    localStorage.removeItem('revisar_token');
+    localStorage.removeItem('revisar_usuario');
+  };
+
+  const esAdmin = usuario?.rol === 'admin';
+  const isAuthenticated = !!token && !!usuario;
+
+  return (
+    <AuthContext.Provider value={{ usuario, token, esAdmin, login, logout, isAuthenticated }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth debe usarse dentro de AuthProvider');
+  }
+  return context;
+}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 8: USAR esAdmin PARA MOSTRAR/OCULTAR FUNCIONES ADMIN
+═══════════════════════════════════════════════════════════════════════════════
+
+En los componentes que muestran opciones de admin:
+
+```typescript
+import { useAuth } from '../context/AuthContext';
+
+function Sidebar() {
+  const { esAdmin, usuario } = useAuth();
+
+  return (
+    <nav>
+      {/* Opciones para todos */}
+      <Link to="/dashboard">Dashboard</Link>
+      <Link to="/proyectos">Proyectos</Link>
+      
+      {/* Solo para admin */}
+      {esAdmin && (
+        <>
+          <Link to="/admin/usuarios">Administrar Usuarios</Link>
+          <Link to="/admin/empresas">Administrar Empresas</Link>
+          <Link to="/admin/configuracion">Configuración</Link>
+        </>
+      )}
+    </nav>
+  );
+}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 9: VERIFICAR/CREAR MIDDLEWARE DE ADMIN EN BACKEND
+═══════════════════════════════════════════════════════════════════════════════
+
+CREAR O MODIFICAR: server/middleware/auth.ts
+
+```typescript
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'revisar-ia-secret-key-2024';
+
+interface JWTPayload {
+  id: string;
+  email: string;
+  rol: string;
+  nombre: string;
+}
+
+// Extender Request para incluir usuario
+declare global {
+  namespace Express {
+    interface Request {
+      usuario?: JWTPayload;
+    }
+  }
+}
+
+// Middleware: Verificar autenticación
+export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '') || 
+                  req.cookies?.revisar_token;
+
+    if (!token) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
+    req.usuario = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+}
+
+// Middleware: Verificar que es admin
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.usuario) {
+    return res.status(401).json({ error: 'No autenticado' });
+  }
+
+  if (req.usuario.rol !== 'admin') {
+    return res.status(403).json({ error: 'Acceso denegado. Se requiere rol de administrador.' });
+  }
+
+  next();
+}
+```
+
+USO EN RUTAS:
+
+```typescript
+import { requireAuth, requireAdmin } from '../middleware/auth';
+
+// Ruta solo para admin
+router.get('/admin/usuarios', requireAuth, requireAdmin, async (req, res) => {
+  // Solo admins llegan aquí
+});
+
+// Ruta para usuarios autenticados
+router.get('/proyectos', requireAuth, async (req, res) => {
+  // Cualquier usuario autenticado
+});
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 10: FORZAR ROL ADMIN EN BD SI NO EXISTE
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+# Actualizar el rol del usuario admin si está mal
+psql $DATABASE_URL -c "UPDATE usuarios SET rol = 'admin' WHERE email = 'santiago@satma.mx'"
+
+# Verificar que se actualizó
+psql $DATABASE_URL -c "SELECT email, rol FROM usuarios WHERE email = 'santiago@satma.mx'"
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 11: TEST COMPLETO
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Cerrar sesión actual (borrar localStorage)
+2. Ir a /login
+3. Ingresar: santiago@satma.mx
+4. Recibir código OTP por email
+5. Ingresar código
+6. Verificar que el dashboard muestra opciones de admin
+7. Verificar que puede acceder a /admin/usuarios
+
+En consola del navegador (F12), verificar:
+
+```javascript
+// Ver el usuario guardado
+JSON.parse(localStorage.getItem('revisar_usuario'))
+// Debe mostrar: { id: "...", email: "santiago@satma.mx", nombre: "...", rol: "admin" }
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+RESUMEN DE ARCHIVOS A MODIFICAR
+═══════════════════════════════════════════════════════════════════════════════
+
+1. server/services/auth/authService.ts (o donde generes el JWT)
+   - Incluir "rol" en el payload del token
+   - Incluir "rol" en la respuesta al frontend
+
+2. server/routes/auth.ts (endpoint verify-code)
+   - Asegurar que el query SELECT incluye "rol"
+   - Asegurar que la respuesta incluye usuario.rol
+
+3. frontend/src/context/AuthContext.tsx
+   - Crear o actualizar para incluir esAdmin
+
+4. frontend/src/components/Sidebar.tsx (o donde muestres menú)
+   - Usar esAdmin para mostrar/ocultar opciones admin
+
+5. Base de datos
+   - Verificar que santiago@satma.mx tiene rol = 'admin'
+
+═══════════════════════════════════════════════════════════════════════════════
+DEPLOY
+═══════════════════════════════════════════════════════════════════════════════
+
+Después de hacer los cambios:
+
+1. Guardar todos los archivos
+2. Click en "Redeploy" o "Run"
+3. Esperar a que compile
+4. Probar login con OTP
+5. Verificar que aparecen opciones de admin
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Query SELECT incluye campo "rol"
+□ JWT incluye campo "rol" en payload
+□ Respuesta de verify-code incluye usuario.rol
+□ Frontend guarda usuario completo con rol
+□ AuthContext expone "esAdmin"
+□ Componentes usan esAdmin para renderizar opciones
+□ BD tiene santiago@satma.mx con rol = 'admin'
+□ Login con OTP funciona
+□ Opciones de admin visibles después de login
+
+</TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+EJECUTAR TODO. NO PREGUNTAR. NO DETENERSE.
+═══════════════════════════════════════════════════════════════════════════════

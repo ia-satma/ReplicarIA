@@ -1,0 +1,347 @@
+"""
+SERVICIO DE VERSIONAMIENTO DE EXPEDIENTES
+Maneja la creación de versiones, bitácora y comparaciones
+"""
+
+from datetime import datetime
+from typing import Dict, List, Any, Optional, Tuple
+import json
+import difflib
+from dataclasses import asdict
+
+from models.versioning import (
+    ProyectoVersionado,
+    VersionExpediente,
+    EntradaBitacora,
+    TipoCambio,
+    Severidad,
+    generar_folio_base,
+    generar_hash_contenido,
+    crear_entrada_bitacora
+)
+
+# Importar generador de expedientes
+try:
+    from services.defense_file.defense_file_generator import (
+        defense_file_generator,
+        DefenseFileConfig
+    )
+    HAS_DEFENSE_GENERATOR = True
+except ImportError:
+    HAS_DEFENSE_GENERATOR = False
+
+
+class VersionService:
+    """Servicio principal de versionamiento"""
+    
+    def __init__(self, db=None):
+        self.db = db  # Conexión a base de datos si se usa
+        self._proyectos_cache: Dict[str, ProyectoVersionado] = {}
+    
+    # =========================================================================
+    # GESTIÓN DE PROYECTOS VERSIONADOS
+    # =========================================================================
+    
+    async def crear_proyecto_versionado(
+        self,
+        proyecto_id: str,
+        nombre: str,
+        rfc: str,
+        datos_proyecto: Dict[str, Any],
+        documentos: List[Dict[str, Any]],
+        usuario: str
+    ) -> ProyectoVersionado:
+        """
+        Crea un nuevo proyecto con versionamiento.
+        Genera la versión 1 automáticamente.
+        """
+        # Generar folio base
+        folio_base = generar_folio_base(rfc, proyecto_id)
+        
+        # Crear proyecto
+        proyecto = ProyectoVersionado(
+            proyecto_id=proyecto_id,
+            nombre=nombre,
+            folio_base=folio_base,
+            version_actual=1,
+            creado_por=usuario
+        )
+        
+        # Crear versión inicial
+        version_inicial = await self._crear_version(
+            proyecto=proyecto,
+            datos_proyecto=datos_proyecto,
+            documentos=documentos,
+            motivo="Creación inicial del expediente",
+            usuario=usuario
+        )
+        
+        proyecto.versiones.append(version_inicial)
+        
+        # Registrar en bitácora
+        entrada = crear_entrada_bitacora(
+            usuario=usuario,
+            tipo=TipoCambio.CREACION,
+            titulo="Expediente creado",
+            descripcion=f"Se creó el expediente {folio_base} con {len(documentos)} documentos iniciales.",
+            severidad=Severidad.ALTA
+        )
+        proyecto.bitacora.append(entrada)
+        
+        # Guardar en cache/BD
+        self._proyectos_cache[proyecto_id] = proyecto
+        
+        return proyecto
+    
+    async def obtener_proyecto(self, proyecto_id: str) -> Optional[ProyectoVersionado]:
+        """Obtiene un proyecto versionado"""
+        # Primero buscar en cache
+        if proyecto_id in self._proyectos_cache:
+            return self._proyectos_cache[proyecto_id]
+        
+        # Buscar en BD (implementar según tu ORM)
+        # proyecto = await ProyectoVersionado.find_one({"proyecto_id": proyecto_id})
+        
+        return None
+    
+    # =========================================================================
+    # CREACIÓN DE VERSIONES
+    # =========================================================================
+    
+    async def crear_nueva_version(
+        self,
+        proyecto_id: str,
+        datos_proyecto: Dict[str, Any],
+        documentos: List[Dict[str, Any]],
+        motivo: str,
+        usuario: str,
+        generar_expediente: bool = True,
+        ocr_results: List[Dict] = None,
+        red_team_results: Dict = None
+    ) -> Tuple[ProyectoVersionado, VersionExpediente]:
+        """
+        Crea una nueva versión del expediente.
+        
+        Args:
+            proyecto_id: ID del proyecto
+            datos_proyecto: Datos actualizados del proyecto
+            documentos: Lista actualizada de documentos
+            motivo: Razón de la nueva versión
+            usuario: Usuario que crea la versión
+            generar_expediente: Si debe generar PDF/ZIP
+            ocr_results: Resultados de validación OCR
+            red_team_results: Resultados de simulación Red Team
+        
+        Returns:
+            Tuple con proyecto actualizado y nueva versión
+        """
+        proyecto = await self.obtener_proyecto(proyecto_id)
+        
+        if not proyecto:
+            raise ValueError(f"Proyecto {proyecto_id} no encontrado")
+        
+        # Obtener versión anterior para comparación
+        version_anterior = proyecto.obtener_ultima_version()
+        
+        # Incrementar número de versión
+        nueva_version_num = proyecto.version_actual + 1
+        
+        # Detectar cambios
+        cambios = []
+        if version_anterior:
+            cambios = self._detectar_cambios(
+                version_anterior.snapshot_proyecto,
+                datos_proyecto,
+                version_anterior.snapshot_documentos,
+                documentos
+            )
+        
+        # Crear nueva versión
+        nueva_version = await self._crear_version(
+            proyecto=proyecto,
+            datos_proyecto=datos_proyecto,
+            documentos=documentos,
+            motivo=motivo,
+            usuario=usuario,
+            numero_version=nueva_version_num,
+            ocr_results=ocr_results,
+            red_team_results=red_team_results,
+            generar_expediente=generar_expediente
+        )
+        
+        nueva_version.cambios_desde_anterior = cambios
+        
+        # Actualizar proyecto
+        proyecto.version_actual = nueva_version_num
+        proyecto.versiones.append(nueva_version)
+        proyecto.fecha_ultima_modificacion = datetime.now()
+        
+        # Registrar en bitácora
+        entrada = crear_entrada_bitacora(
+            usuario=usuario,
+            tipo=TipoCambio.REGENERACION_EXPEDIENTE,
+            titulo=f"Nueva versión v{nueva_version_num}",
+            descripcion=f"{motivo}\n\nCambios detectados:\n" + "\n".join(f"• {c}" for c in cambios[:10]),
+            severidad=Severidad.ALTA
+        )
+        proyecto.bitacora.append(entrada)
+        
+        # Guardar
+        self._proyectos_cache[proyecto_id] = proyecto
+        
+        return proyecto, nueva_version
+    
+    async def _crear_version(
+        self,
+        proyecto: ProyectoVersionado,
+        datos_proyecto: Dict[str, Any],
+        documentos: List[Dict[str, Any]],
+        motivo: str,
+        usuario: str,
+        numero_version: int = 1,
+        ocr_results: List[Dict] = None,
+        red_team_results: Dict = None,
+        generar_expediente: bool = True
+    ) -> VersionExpediente:
+        """Crea una versión individual"""
+        
+        folio_completo = f"{proyecto.folio_base}-v{numero_version}"
+        
+        # Calcular hash de contenido
+        hash_contenido = generar_hash_contenido({
+            'proyecto': datos_proyecto,
+            'documentos': documentos,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        version = VersionExpediente(
+            numero_version=numero_version,
+            folio_completo=folio_completo,
+            snapshot_proyecto=datos_proyecto.copy(),
+            snapshot_documentos=[d.copy() for d in documentos],
+            snapshot_risk_score=datos_proyecto.get('risk_score'),
+            snapshot_red_team=red_team_results,
+            hash_contenido=hash_contenido,
+            motivo_version=motivo,
+            creado_por=usuario,
+            estado="borrador"
+        )
+        
+        # Generar expediente físico si se solicita
+        if generar_expediente and HAS_DEFENSE_GENERATOR:
+            try:
+                result = await defense_file_generator.generate(
+                    project_data={**datos_proyecto, 'folio': folio_completo},
+                    documents=documentos,
+                    ocr_results=ocr_results or [],
+                    red_team_results=red_team_results or {}
+                )
+                
+                version.pdf_path = result.pdf_path
+                version.zip_path = result.zip_path
+                
+            except Exception as e:
+                print(f"Error generando expediente: {e}")
+        
+        return version
+    
+    # =========================================================================
+    # BITÁCORA DE CAMBIOS
+    # =========================================================================
+    
+    async def registrar_cambio(
+        self,
+        proyecto_id: str,
+        usuario: str,
+        tipo: TipoCambio,
+        titulo: str,
+        descripcion: str,
+        **kwargs
+    ) -> EntradaBitacora:
+        """
+        Registra un cambio en la bitácora del proyecto.
+        """
+        proyecto = await self.obtener_proyecto(proyecto_id)
+        
+        if not proyecto:
+            raise ValueError(f"Proyecto {proyecto_id} no encontrado")
+        
+        entrada = crear_entrada_bitacora(
+            usuario=usuario,
+            tipo=tipo,
+            titulo=titulo,
+            descripcion=descripcion,
+            **kwargs
+        )
+        
+        proyecto.bitacora.append(entrada)
+        proyecto.fecha_ultima_modificacion = datetime.now()
+        
+        return entrada
+    
+    async def registrar_comunicacion(
+        self,
+        proyecto_id: str,
+        usuario: str,
+        contraparte: str,
+        tipo_contraparte: str,  # 'proveedor', 'cliente', 'sat', 'auditor'
+        asunto: str,
+        descripcion: str,
+        referencia: str = None,
+        adjuntos: List[str] = None
+    ) -> EntradaBitacora:
+        """
+        Registra una comunicación con una contraparte externa.
+        """
+        tipo_cambio = {
+            'proveedor': TipoCambio.COMUNICACION_PROVEEDOR,
+            'cliente': TipoCambio.COMUNICACION_CLIENTE,
+        }.get(tipo_contraparte.lower(), TipoCambio.OTRO)
+        
+        return await self.registrar_cambio(
+            proyecto_id=proyecto_id,
+            usuario=usuario,
+            tipo=tipo_cambio,
+            titulo=f"Comunicación con {contraparte}",
+            descripcion=f"**Asunto:** {asunto}\n\n{descripcion}",
+            es_comunicacion_externa=True,
+            contraparte=contraparte,
+            referencia_comunicacion=referencia,
+            adjuntos=adjuntos or [],
+            severidad=Severidad.MEDIA
+        )
+    
+    async def registrar_correccion_vulnerabilidad(
+        self,
+        proyecto_id: str,
+        usuario: str,
+        vulnerabilidad_id: str,
+        descripcion_original: str,
+        accion_tomada: str,
+        evidencia: str = None
+    ) -> EntradaBitacora:
+        """
+        Registra la corrección de una vulnerabilidad detectada por Red Team.
+        """
+        return await self.registrar_cambio(
+            proyecto_id=proyecto_id,
+            usuario=usuario,
+            tipo=TipoCambio.CORRECCION_VULNERABILIDAD,
+            titulo=f"Vulnerabilidad corregida: {vulnerabilidad_id}",
+            descripcion=f"""**Vulnerabilidad original:**
+{descripcion_original}
+
+**Acción tomada:**
+{accion_tomada}
+
+**Evidencia de corrección:**
+{evidencia or 'No especificada'}""",
+            severidad=Severidad.ALTA,
+            campo_afectado=vulnerabilidad_id
+        )
+    
+    # =========================================================================
+    # CONSULTAS DE BITÁCORA
+    # =========================================================================
+    
+    async def obtener_bitacora(​​​​​​​​​​​​​​​​

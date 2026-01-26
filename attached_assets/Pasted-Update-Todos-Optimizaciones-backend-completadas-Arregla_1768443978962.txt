@@ -1,0 +1,72 @@
+Update Todos
+ Optimizaciones backend completadas
+ Arreglando colores dashboard
+ Verificar que favicon funcione
+ Completar rebranding Durezza en nombres de empresas
+ Verificar métricas reales funcionando
+Tienes toda la razón. Veo 3 problemas críticos en las screenshots:
+
+❌ PROBLEMAS DETECTADOS:
+Colores: El dashboard NO usa los colores de Revisar.ia (#7FEDD8 verde menta)
+Nombres de empresas: Todavía dice "Grupo Durezza S.A. de C.V." en el repositorio
+Métricas: El dashboard /metrics probablemente esté vacío (no se ve en las capturas)
+🚀 PROMPT 19: Arreglar Frontend Completo
+TAREA: Arreglar el dashboard para usar los colores correctos de Revisar.ia y completar el rebranding.
+
+PARTE 1: Actualizar colores del dashboard principal
+
+En frontend/src/App.js (o el componente del dashboard), BUSCA los botones y elementos con colores purple/blue:
+
+BUSCA líneas como:
+- className="...bg-purple-..." 
+- className="...bg-blue-..."
+- className="...text-purple-..."
+
+REEMPLAZA con los colores de Revisar.ia:
+- bg-purple-600 → bg-[#7FEDD8]
+- text-purple-600 → text-[#1A1A1A]
+- hover:bg-purple-700 → hover:bg-[#5DD5C0]
+- bg-blue-600 → bg-[#7FEDD8]
+
+Específicamente, el botón "+ Nuevo Proyecto" debe ser:
+```jsx
+className="px-4 py-2 bg-[#7FEDD8] text-[#1A1A1A] rounded-lg font-semibold hover:bg-[#5DD5C0]"
+
+El botón "Administración" debe ser:
+
+className="px-4 py-2 bg-[#1A1A1A] text-white rounded-lg font-semibold hover:bg-gray-800"
+
+PARTE 2: Arreglar favicon
+
+Verifica que en frontend/public/index.html tenga:
+
+<link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+
+Si el favicon no se ve, crea uno nuevo:
+
+Toma el logo de Revisar.ia
+Conviértelo a 32x32 px
+Guárdalo como frontend/public/favicon.ico
+PARTE 3: Completar rebranding de nombres de empresas
+
+En la base de datos o archivo donde se guardan las empresas, BUSCA:
+
+"Grupo Durezza S.A. de C.V."
+"Pruebas Durezza S.A. de C.V."
+REEMPLAZA con:
+
+"Revisar.ia Demo Client"
+"Revisar.ia Test Company"
+Si es una base de datos, muéstrame las queries SQL/MongoDB para actualizar.
+Si es un archivo JSON, muéstrame el archivo completo.
+
+PARTE 4: Verificar que /metrics realmente esté mostrando datos
+
+Navega a /metrics y toma un screenshot completo de la página.
+
+Muéstrame:
+
+¿Los colores del dashboard se actualizaron?
+¿El favicon aparece en el tab del navegador?
+¿Los nombres de empresas ya no dicen "Durezza"?
+¿La página /metrics muestra el dashboard de métricas o está en blanco?

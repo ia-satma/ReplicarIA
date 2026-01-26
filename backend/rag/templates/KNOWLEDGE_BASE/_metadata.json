@@ -1,0 +1,52 @@
+{
+  "agente_id": "KNOWLEDGE_BASE",
+  "nombre": "Base de Conocimiento Universal",
+  "descripcion": "Conocimiento normativo y metodológico compartido por todos los agentes",
+  "documentos": [
+    {
+      "id": "001_cff_extracto_completo",
+      "titulo": "CFF - Extracto Completo Relevante",
+      "tipo": "normativo",
+      "uso": "Artículos clave del Código Fiscal de la Federación",
+      "personalizable": false,
+      "campos_clave": ["art_5a", "art_69b", "art_42", "procedimientos_fiscalizacion"]
+    },
+    {
+      "id": "002_lisr_extracto_completo",
+      "titulo": "LISR - Extracto Completo Relevante",
+      "tipo": "normativo",
+      "uso": "Artículos de deducciones y requisitos fiscales",
+      "personalizable": false,
+      "campos_clave": ["art_27", "art_28", "requisitos_deduccion", "limitaciones"]
+    },
+    {
+      "id": "003_tipologias_servicio",
+      "titulo": "Catálogo de Tipologías de Servicio",
+      "tipo": "referencia",
+      "uso": "Clasificación de servicios intangibles y sus características",
+      "personalizable": false,
+      "campos_clave": ["tipologias", "caracteristicas", "riesgos_por_tipo"]
+    },
+    {
+      "id": "004_umbrales_riesgo",
+      "titulo": "Umbrales de Riesgo por Tipología",
+      "tipo": "metodologia",
+      "uso": "Niveles de riesgo y materialidad por tipo de operación",
+      "personalizable": false,
+      "campos_clave": ["umbrales_monto", "indicadores_riesgo", "alertas"]
+    },
+    {
+      "id": "005_politica_anti_efos",
+      "titulo": "Política Anti-EFOS",
+      "tipo": "metodologia",
+      "uso": "Procedimientos para prevención y detección de operaciones simuladas",
+      "personalizable": false,
+      "campos_clave": ["definicion_efos", "indicadores", "procedimiento_verificacion"]
+    }
+  ],
+  "contexto_requerido": {
+    "obligatorio": [],
+    "deseable": []
+  },
+  "nota": "Estos documentos son de uso universal y NO deben personalizarse por tenant"
+}

@@ -1,0 +1,148 @@
+Tenés razón en desconfiar. Replit Agent es notorio por decir "listo" cuando no terminó. Vamos a hacer una **auditoría real** archivo por archivo.
+
+---
+
+## 🔍 AUDITORÍA DE IMPLEMENTACIÓN
+
+Copiá y pegá esto en Replit para que verifique TODO:
+
+```
+Necesito una AUDITORÍA COMPLETA de implementación. No me digas "está listo", dame EVIDENCIA de cada punto:
+
+## 1. BACKEND - VERIFICAR EXISTENCIA DE ARCHIVOS
+
+Confirma si EXISTEN estos archivos (sí/no) y muestra las primeras 5 líneas de cada uno:
+
+- backend/services/embedding_service.py
+- backend/services/vector_search_service.py
+- backend/services/rate_limiter_service.py
+- backend/services/defense_file_export_service.py
+- backend/services/project_service.py
+- backend/services/deliberation_service.py
+- backend/routes/usage.py
+- backend/routes/defense_files.py
+- backend/middleware/rate_limit_middleware.py
+- backend/scripts/migrate_embeddings.py
+- backend/scripts/migrate_mongo_to_postgres.py
+
+## 2. BACKEND - VERIFICAR REGISTRO EN SERVER.PY
+
+Muestra TODAS las líneas de backend/server.py que contengan:
+- "include_router"
+- "from routes"
+- "from services"
+
+## 3. FRONTEND - VERIFICAR EXISTENCIA DE ARCHIVOS
+
+Confirma si EXISTEN estos archivos:
+
+- frontend/src/hooks/useChatMessages.js
+- frontend/src/hooks/useFileUpload.js
+- frontend/src/hooks/useOnboardingSteps.js
+- frontend/src/hooks/useChatAPI.js
+- frontend/src/constants/onboarding.js
+- frontend/src/components/chatbot/MessageBubble.jsx
+- frontend/src/components/chatbot/MessageList.jsx
+- frontend/src/components/chatbot/ChatInput.jsx
+- frontend/src/components/chatbot/FileUploadArea.jsx
+- frontend/src/components/chatbot/ProgressIndicator.jsx
+- frontend/src/components/chatbot/ConfirmationCard.jsx
+- frontend/src/components/chatbot/TypingIndicator.jsx
+- frontend/src/components/shared/Modal.jsx
+- frontend/src/components/shared/ErrorMessage.jsx
+- frontend/src/components/shared/LoadingSpinner.jsx
+- frontend/src/components/ChatbotArchivoRefactored.jsx
+- frontend/src/components/DefenseFileDownload.jsx
+- frontend/src/api/client.js
+- frontend/src/api/onboarding.js
+
+## 4. FRONTEND - VERIFICAR USO EN APP.jsx
+
+Muestra las líneas de App.jsx que contengan:
+- "import ChatbotArchivo" (¿cuál versión usa?)
+- La ruta de /onboarding (¿qué componente renderiza?)
+
+## 5. BASE DE DATOS - VERIFICAR TABLAS
+
+Ejecuta estas queries y muestra el resultado:
+
+SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';
+
+SELECT column_name FROM information_schema.columns WHERE table_name = 'knowledge_chunks' AND column_name = 'embedding';
+
+SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector');
+
+SELECT * FROM planes LIMIT 3;
+
+SELECT column_name FROM information_schema.columns WHERE table_name = 'usage_tracking';
+
+SELECT column_name FROM information_schema.columns WHERE table_name = 'projects';
+
+## 6. DEPENDENCIAS
+
+Muestra el contenido de requirements.txt y confirma si incluye:
+- reportlab
+- asyncpg
+- anthropic
+
+## 7. SECRETOS/VARIABLES
+
+Lista las variables de entorno configuradas (solo nombres, no valores):
+- OPENAI_API_KEY o AI_INTEGRATIONS_ANTHROPIC_API_KEY
+- DATABASE_URL
+- MONGO_URI (si aún existe)
+
+Dame un reporte estructurado con ✅ o ❌ para cada punto.
+```
+
+---
+
+## 📋 CHECKLIST MAESTRO
+
+Cuando te dé el resultado, llenamos esto juntos:
+
+### Backend - Servicios
+| Archivo | Existe | Importado | Funciona |
+|---------|--------|-----------|----------|
+| embedding_service.py | ? | ? | ? |
+| vector_search_service.py | ? | ? | ? |
+| rate_limiter_service.py | ? | ? | ? |
+| defense_file_export_service.py | ? | ? | ? |
+| project_service.py | ? | ? | ? |
+| deliberation_service.py | ? | ? | ? |
+
+### Backend - Rutas
+| Archivo | Existe | Registrado en server.py | Endpoint funciona |
+|---------|--------|------------------------|-------------------|
+| routes/usage.py | ? | ? | ? |
+| routes/defense_files.py | ? | ? | ? |
+
+### Frontend - Hooks
+| Archivo | Existe | Usado en componente |
+|---------|--------|---------------------|
+| useChatMessages.js | ? | ? |
+| useFileUpload.js | ? | ? |
+| useOnboardingSteps.js | ? | ? |
+| useChatAPI.js | ? | ? |
+
+### Frontend - Componentes
+| Archivo | Existe | Renderizado en App |
+|---------|--------|--------------------|
+| ChatbotArchivoRefactored.jsx | ? | ? |
+| DefenseFileDownload.jsx | ? | ? |
+| MessageBubble.jsx | ? | ? |
+| (etc) | ? | ? |
+
+### Base de Datos
+| Item | Existe |
+|------|--------|
+| Extensión pgvector | ? |
+| Columna embedding en knowledge_chunks | ? |
+| Tabla usage_tracking | ? |
+| Tabla planes | ? |
+| Tabla projects (PostgreSQL) | ? |
+| Tabla deliberations | ? |
+
+---
+
+Pasame el resultado de la auditoría y te digo exactamente qué falta conectar. **Nada de confiar en "está listo"** - verificamos todo con evidencia. 🔍

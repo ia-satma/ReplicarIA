@@ -1,0 +1,131 @@
+PROMPT DE REPARACIÓN - COPIA Y PEGA EN REPLIT:
+MODO: REPARACIÓN - UNIFICAR EMPRESAS EN POSTGRESQL
+
+El diagnóstico confirma:
+- OTP: ✅ Funciona (código 073702 generado exitosamente)
+- Empresa: ❌ admin.py busca en MongoDB pero la empresa está en PostgreSQL companies
+
+=== PASO 1: CREAR SERVICIO COMPANY_SERVICE.PY ===
+
+Crea archivo backend/services/company_service.py:
+
+```python
+"""
+Servicio de empresas usando PostgreSQL (tabla companies) como fuente de verdad.
+"""
+from typing import Optional, List, Dict, Any
+from backend.database import get_db_connection
+
+class CompanyService:
+    async def get_company_by_id(self, company_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            conn = await get_db_connection()
+            row = await conn.fetchrow("SELECT * FROM companies WHERE id = $1", company_id)
+            await conn.close()
+            return dict(row) if row else None
+        except Exception as e:
+            print(f"Error get_company_by_id: {e}")
+            return None
+    
+    async def get_company_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+        try:
+            conn = await get_db_connection()
+            row = await conn.fetchrow(
+                "SELECT * FROM companies WHERE LOWER(name) = LOWER($1)", name
+            )
+            await conn.close()
+            return dict(row) if row else None
+        except Exception as e:
+            print(f"Error get_company_by_name: {e}")
+            return None
+    
+    async def get_company_id_for_user(self, company_name: str) -> Optional[str]:
+        if not company_name:
+            return None
+        company = await self.get_company_by_name(company_name)
+        return company.get('id') if company else None
+
+company_service = CompanyService()
+
+=== PASO 2: MODIFICAR ADMIN.PY ===
+
+2.1 Agrega import al inicio:
+from backend.services.company_service import company_service
+
+2.2 Busca en GET /usuarios/{user_id} (líneas 208-216) este código:
+
+empresa_id = None
+if user.company:
+    empresas = await empresa_service.get_all_empresas(only_active=False)
+    for emp in empresas:
+        if emp.nombre_comercial == user.company or emp.id == user.company:
+            empresa_id = emp.id
+            break
+user_dict['empresa_id'] = empresa_id
+
+2.3 REEMPLAZA con:
+
+empresa_id = await company_service.get_company_id_for_user(user.company)
+user_dict['empresa_id'] = empresa_id
+if empresa_id:
+    company_data = await company_service.get_company_by_id(empresa_id)
+    if company_data:
+        user_dict['empresa_data'] = {
+            'id': company_data.get('id'),
+            'name': company_data.get('name'),
+            'rfc': company_data.get('rfc')
+        }
+
+=== PASO 3: ACTUALIZAR ENDPOINT GET /empresas/{empresa_id} ===
+
+Busca el endpoint GET /admin/empresas/{empresa_id} y reemplázalo o agrégalo:
+
+@router.get("/empresas/{empresa_id}")
+async def get_empresa(empresa_id: str, admin_user = Depends(get_admin_user)):
+    try:
+        company = await company_service.get_company_by_id(empresa_id)
+        if not company:
+            raise HTTPException(status_code=404, detail="Empresa no encontrada")
+        return {
+            "success": True,
+            "empresa": {
+                "id": company.get('id'),
+                "name": company.get('name'),
+                "nombre_comercial": company.get('name'),
+                "rfc": company.get('rfc'),
+                "is_active": company.get('is_active', True)
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+=== PASO 4: PROBAR ===
+
+4.1 Reinicia servidor
+
+4.2 Prueba endpoint usuario:
+curl "http://localhost:5000/api/admin/usuarios/f94396c4-cbc0-48fe-8fd5-1376b39a87f3"
+-H "Authorization: Bearer $JWT"
+
+ESPERADO: empresa_id = "0952d6d6-d8f8-405f-a948-09a578ef61b6" (NO null)
+
+4.3 Prueba endpoint empresa:
+curl "http://localhost:5000/api/admin/empresas/0952d6d6-d8f8-405f-a948-09a578ef61b6"
+-H "Authorization: Bearer $JWT"
+
+ESPERADO: datos de "Grupo Fortezza S.A. de C.V."
+
+=== PASO 5: VERIFICAR FRONTEND ===
+
+Abre perfil de fortezza@revisar-ia.com → pestaña Empresa
+ESPERADO: Ver "Grupo Fortezza S.A. de C.V." en lugar de "no tiene empresa asociada"
+
+=== REPORTE ===
+Reporta:
+
+¿company_service.py creado?
+¿admin.py modificado?
+¿Endpoint usuario retorna empresa_id correcto?
+¿Frontend muestra la empresa?

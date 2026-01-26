@@ -1,0 +1,881 @@
+=============================================================================
+TOON: CONTEXTO GLOBAL Y REGLAS DURAS POR TIPOLOGÍA - DUREZZA 4.0
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta todas las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. SOLO EJECUTA.
+
+CONTEXTO: Los agentes operan "ciegos" sin contexto normativo ni corporativo.
+Necesitan un "suelo común" que se inyecte a TODOS antes de su contexto específico.
+Además, cada tipología necesita reglas duras de bloqueo.
+
+=============================================================================
+PASO 1: CREAR CONTEXTO GLOBAL COMPARTIDO
+=============================================================================
+
+Crea archivo "backend/context/contexto_global.py":
+
+"""
+CONTEXTO GLOBAL - Se inyecta a TODOS los agentes como base.
+Sin esto, ningún agente puede hablar con propiedad de razón de negocios,
+BEE, materialidad, trazabilidad ni de fases F0-F9.
+"""
+
+CONTEXTO_GLOBAL = {
+    
+    # =========================================================================
+    # CONTEXTO NORMATIVO FISCAL
+    # =========================================================================
+    "normativo": {
+        "cff_5a": {
+            "articulo": "5-A CFF",
+            "titulo": "Razón de Negocios",
+            "contenido": """
+Los actos jurídicos que carezcan de una razón de negocios y que generen un 
+beneficio fiscal directo o indirecto, tendrán los efectos fiscales que 
+correspondan a los que se habrían realizado para la obtención del beneficio 
+económico razonablemente esperado por el contribuyente.
+
+Se considera que existe razón de negocios cuando el beneficio económico 
+cuantificable, razonablemente esperado, sea mayor al beneficio fiscal.
+
+CRITERIOS DE EVALUACIÓN:
+1. ¿Existe un beneficio económico cuantificable y documentado?
+2. ¿El beneficio económico es mayor que el beneficio fiscal?
+3. ¿La operación tiene sentido de negocio independiente del ahorro fiscal?
+4. ¿Está vinculada al giro y plan estratégico de la empresa?
+            """,
+            "consecuencia_incumplimiento": "Recaracterización fiscal de la operación"
+        },
+        
+        "cff_69b": {
+            "articulo": "69-B CFF",
+            "titulo": "Operaciones Inexistentes / EFOS",
+            "contenido": """
+Cuando la autoridad detecte que un contribuyente ha estado emitiendo 
+comprobantes sin contar con activos, personal, infraestructura o capacidad 
+material para prestar los servicios o producir, comercializar o entregar 
+los bienes que amparan tales comprobantes, se presumirá la inexistencia 
+de las operaciones.
+
+SEÑALES DE ALERTA (Red Flags):
+1. Proveedor sin empleados visibles o infraestructura
+2. CFDI con descripción genérica ("servicios profesionales varios")
+3. Sin entregables tangibles verificables
+4. Pagos en efectivo o a terceros no relacionados
+5. Proveedor en lista negra del SAT (69-B)
+6. Monto desproporcionado vs. capacidad del proveedor
+
+DEFENSA REQUERIDA:
+- Contrato con entregables específicos
+- Evidencia de ejecución real (minutas, correos, versiones)
+- Entregables tangibles verificables
+- CFDI específico que coincida con contrato
+            """,
+            "consecuencia_incumplimiento": "No deducibilidad + posible delito fiscal"
+        },
+        
+        "lisr_27": {
+            "articulo": "27 LISR",
+            "titulo": "Requisitos de Deducibilidad",
+            "contenido": """
+Las deducciones deben cumplir con:
+I. Ser estrictamente indispensables para la actividad del contribuyente
+II. Estar amparadas con CFDI
+III. Pagarse con medios electrónicos desde cuenta bancaria
+IV. Estar debidamente registradas en contabilidad
+V. Cumplir con retenciones de ISR e IVA cuando aplique
+
+PARA SERVICIOS INTANGIBLES:
+- Demostrar que el servicio fue estrictamente indispensable
+- Evidencia de uso real del entregable
+- Vinculación con operación o proyecto específico
+            """,
+            "consecuencia_incumplimiento": "Rechazo de deducción"
+        },
+        
+        "nom_151": {
+            "norma": "NOM-151-SCFI-2016",
+            "titulo": "Conservación de Mensajes de Datos y Digitalización",
+            "contenido": """
+Establece requisitos para la conservación de mensajes de datos y 
+digitalización de documentos.
+
+REQUISITOS CLAVE:
+1. Integridad: El documento no ha sido alterado
+2. Atribución: Se puede identificar al emisor
+3. Accesibilidad: Disponible para consulta posterior
+4. Conservación: Por el plazo legal requerido (5 años mínimo)
+
+PARA DEFENSE FILE:
+- Todos los documentos deben tener fecha cierta
+- Cadena de custodia documentada
+- Hash de integridad verificable
+- Timeline reconstruible
+            """
+        }
+    },
+    
+    # =========================================================================
+    # CONTEXTO CORPORATIVO
+    # =========================================================================
+    "corporativo": {
+        "grupo": "Grupo Durezza / Fortezza",
+        "giro_principal": "Desarrollo inmobiliario y construcción",
+        "mercados_clave": ["Nuevo León", "Nayarit", "Jalisco"],
+        "plan_estrategico": {
+            "nombre": "Plan Estratégico 2026",
+            "programa": "Durezza 4.0",
+            "objetivos_principales": [
+                "Expansión a nuevos mercados (Nayarit, nearshoring)",
+                "Diversificación de producto",
+                "Optimización de cadena de suministro",
+                "Transformación digital"
+            ]
+        },
+        "politica_contratacion_intangibles": """
+Toda contratación de servicios intangibles debe:
+1. Estar vinculada a un objetivo del Plan Estratégico
+2. Tener BEE (Beneficio Económico Esperado) documentado
+3. Pasar por el proceso de auditoría interna (POE F0-F9)
+4. Contar con Defense File completo antes de pago
+        """
+    },
+    
+    # =========================================================================
+    # POE: FASES F0-F9 CON DOCUMENTOS MÍNIMOS
+    # =========================================================================
+    "poe_fases": {
+        "F0": {
+            "nombre": "Solicitud y Aprobación BEE",
+            "descripcion": "Justificación estratégica y beneficio económico esperado",
+            "documentos_minimos": ["SIB con BEE documentado"],
+            "agentes_obligatorios": ["A1_SPONSOR", "SUB_TIPIFICACION"],
+            "criterio_avance": "SIB aprobado con BEE cuantificable"
+        },
+        "F1": {
+            "nombre": "Pre-contratación",
+            "descripcion": "Definición de alcance y selección de proveedor",
+            "documentos_minimos": ["SOW con entregables listados", "Propuesta económica"],
+            "agentes_obligatorios": ["A2_PMO", "A6_PROVEEDOR"],
+            "criterio_avance": "SOW con entregables específicos (no genéricos)"
+        },
+        "F2": {
+            "nombre": "Contratación - CANDADO DURO",
+            "descripcion": "Formalización contractual",
+            "documentos_minimos": ["Contrato firmado", "Anexo técnico", "Cronograma"],
+            "agentes_obligatorios": ["A4_LEGAL", "A5_FINANZAS"],
+            "candado_duro": True,
+            "criterio_avance": "Contrato con cláusulas de entregables verificables"
+        },
+        "F3": {
+            "nombre": "Kick-off y Entrega V1",
+            "descripcion": "Inicio de ejecución",
+            "documentos_minimos": ["Minuta kick-off", "Entregable V1"],
+            "agentes_obligatorios": ["A2_PMO"],
+            "criterio_avance": "Evidencia de inicio real de trabajos"
+        },
+        "F4": {
+            "nombre": "Ejecución Iterativa",
+            "descripcion": "Revisiones y ajustes",
+            "documentos_minimos": ["Versiones iterativas", "Minutas de revisión"],
+            "agentes_obligatorios": ["A2_PMO"],
+            "criterio_avance": "Mínimo 2 iteraciones documentadas"
+        },
+        "F5": {
+            "nombre": "Entrega Final",
+            "descripcion": "Entregables completos",
+            "documentos_minimos": ["Entregable final", "Acta de aceptación técnica"],
+            "agentes_obligatorios": ["A2_PMO", "SUB_MATERIALIDAD"],
+            "criterio_avance": "Entregables tangibles verificables"
+        },
+        "F6": {
+            "nombre": "VBC Fiscal/Legal - CANDADO DURO",
+            "descripcion": "Visto bueno de cumplimiento",
+            "documentos_minimos": ["VBC Fiscal", "VBC Legal", "Matriz materialidad ≥80%"],
+            "agentes_obligatorios": ["A3_FISCAL", "A4_LEGAL", "SUB_MATERIALIDAD"],
+            "candado_duro": True,
+            "criterio_avance": "Dictamen positivo de Fiscal y Legal"
+        },
+        "F7": {
+            "nombre": "Auditoría Interna",
+            "descripcion": "Revisión de expediente completo",
+            "documentos_minimos": ["Defense File preliminar"],
+            "agentes_obligatorios": ["A7_DEFENSA"],
+            "criterio_avance": "Índice de defendibilidad ≥70%"
+        },
+        "F8": {
+            "nombre": "Facturación y Pago - CANDADO DURO",
+            "descripcion": "Emisión de CFDI y liberación de pago",
+            "documentos_minimos": ["CFDI específico", "Comprobante de pago", "3-way match"],
+            "agentes_obligatorios": ["A5_FINANZAS"],
+            "candado_duro": True,
+            "criterio_avance": "CFDI específico + 3-way match <5%"
+        },
+        "F9": {
+            "nombre": "Cierre y Post-implementación",
+            "descripcion": "Seguimiento de uso y beneficio real",
+            "documentos_minimos": ["Evidencia de uso", "Defense File final"],
+            "agentes_obligatorios": ["A7_DEFENSA"],
+            "criterio_avance": "Expediente completo archivado"
+        }
+    },
+    
+    # =========================================================================
+    # CATÁLOGO DE TIPOLOGÍAS
+    # =========================================================================
+    "tipologias": {
+        "CONSULTORIA_MACRO_ESTRATEGIA": {
+            "id": "TYPE_CONSULTORIA_MACRO_ESTRATEGIA",
+            "nombre": "Consultoría Macro / Estratégica",
+            "definicion": """
+Servicios profesionales independientes que generan información para la 
+toma de decisiones (estudios, prospectiva, análisis regulatorio), sin 
+transferencia de propiedad industrial dura (patentes) ni desarrollo de software.
+            """,
+            "palabras_clave": [
+                "estudio", "prospectiva", "análisis de mercado", 
+                "planeación estratégica", "macroeconomía", "regulación",
+                "nearshoring", "PESTEL", "factibilidad"
+            ],
+            "riesgo_fiscal_inherente": "ALTO",
+            "causa_riesgo": "Vulnerable a presunción de inexistencia (69-B) si solo se entrega PDF. Requiere prueba de know-how aplicado.",
+            "foco_5a": "Requiere demostrar que la información generó una decisión de negocio real",
+            "revision_humana_obligatoria": False,
+            "umbral_revision_humana_monto": 5000000
+        },
+        "INTRAGRUPO_MANAGEMENT_FEE": {
+            "id": "TYPE_INTRAGRUPO_MANAGEMENT_FEE",
+            "nombre": "Servicios Intragrupo / Management Fee",
+            "definicion": "Servicios entre partes relacionadas del mismo grupo empresarial",
+            "riesgo_fiscal_inherente": "CRITICO",
+            "causa_riesgo": "Altísimo escrutinio SAT. Requiere estudio de TP vigente y análisis de no duplicidad.",
+            "revision_humana_obligatoria": True
+        },
+        "SOFTWARE_SAAS_DESARROLLO": {
+            "id": "TYPE_SOFTWARE_SAAS_DESARROLLO",
+            "nombre": "Software / SaaS / Desarrollo",
+            "definicion": "Desarrollo de software, implementación de sistemas, licenciamiento SaaS",
+            "riesgo_fiscal_inherente": "MEDIO",
+            "causa_riesgo": "Requiere evidencia de desarrollo real (commits, tickets, UAT)"
+        }
+    }
+}
+
+
+def get_contexto_global() -> dict:
+    """Retorna el contexto global completo"""
+    return CONTEXTO_GLOBAL
+
+
+def get_contexto_normativo() -> dict:
+    """Retorna solo el contexto normativo"""
+    return CONTEXTO_GLOBAL["normativo"]
+
+
+def get_poe_fase(fase: str) -> dict:
+    """Retorna configuración de una fase específica"""
+    return CONTEXTO_GLOBAL["poe_fases"].get(fase, {})
+
+
+def get_tipologia(tipologia_id: str) -> dict:
+    """Retorna configuración de una tipología"""
+    return CONTEXTO_GLOBAL["tipologias"].get(tipologia_id, {})
+
+
+def get_documentos_minimos_fase(fase: str) -> list:
+    """Retorna documentos mínimos requeridos para una fase"""
+    config = get_poe_fase(fase)
+    return config.get("documentos_minimos", [])
+
+
+def es_candado_duro(fase: str) -> bool:
+    """Verifica si una fase tiene candado duro"""
+    config = get_poe_fase(fase)
+    return config.get("candado_duro", False)
+
+=============================================================================
+PASO 2: CREAR REGLAS DURAS POR TIPOLOGÍA
+=============================================================================
+
+Crea archivo "backend/config/reglas_tipologia.py":
+
+"""
+REGLAS DURAS POR TIPOLOGÍA
+Checklist obligatorio específico que bloquea avance si no se cumple.
+"""
+
+from typing import Dict, List
+
+REGLAS_POR_TIPOLOGIA: Dict[str, Dict] = {
+    
+    "CONSULTORIA_MACRO_ESTRATEGIA": {
+        "id": "TYPE_CONSULTORIA_MACRO_ESTRATEGIA",
+        "nombre": "Consultoría Macro / Estratégica",
+        
+        # Checklist DURO por fase - Si falta, BLOQUEA
+        "checklist_obligatorio": {
+            "F0": [
+                {
+                    "documento": "Ficha SIB con BEE",
+                    "obligatorio": True,
+                    "criterio_validacion": "Debe declarar ROI estimado o impacto en decisión estratégica",
+                    "ejemplo_valido": "SIB declara ROI de 15% en proyecto de inversión NL",
+                    "ejemplo_invalido": "SIB sin mención de beneficio cuantificable"
+                }
+            ],
+            "F1": [
+                {
+                    "documento": "SOW / Propuesta",
+                    "obligatorio": True,
+                    "criterio_validacion": "Debe listar entregables con nombre propio. NO acepta 'Servicios Profesionales'",
+                    "ejemplo_valido": "SOW con: Informe de Mercado, Modelo Paramétrico, Manual Metodológico",
+                    "ejemplo_invalido": "SOW con 'Servicios profesionales de consultoría'"
+                }
+            ],
+            "F3": [
+                {
+                    "documento": "Minutas (Kick-off/Avance)",
+                    "obligatorio": True,
+                    "cantidad_minima": 2,
+                    "criterio_validacion": "Mínimo 2 documentos con fecha, asistentes y acuerdos",
+                    "ejemplo_valido": "Minuta kick-off 15/ene + Minuta avance 30/ene con lista de asistentes",
+                    "ejemplo_invalido": "Solo 1 minuta o minutas sin fecha/asistentes"
+                }
+            ],
+            "F4": [
+                {
+                    "documento": "Borradores (V0/V1)",
+                    "obligatorio": True,
+                    "criterio_validacion": "Evidencia de versión preliminar distinta a la final",
+                    "ejemplo_valido": "Informe_V1.pdf con marca de agua 'BORRADOR'",
+                    "ejemplo_invalido": "Solo versión final sin evidencia de iteración"
+                }
+            ],
+            "F5": [
+                {
+                    "documento": "Informe Final Integrado",
+                    "obligatorio": True,
+                    "criterio_validacion": "PDF extenso. Se valida índice, fuentes y fecha",
+                    "ejemplo_valido": "Informe 80+ páginas con índice, metodología, fuentes citadas",
+                    "ejemplo_invalido": "PDF de 5 páginas sin estructura ni fuentes"
+                },
+                {
+                    "documento": "Herramienta/Modelo",
+                    "obligatorio": True,
+                    "criticidad": "MAXIMA",
+                    "criterio_validacion": "CRÍTICO: Archivo Excel (Modelo Paramétrico) o acceso a Dashboard. Sin esto es riesgo de simulación.",
+                    "ejemplo_valido": "Modelo_Parametrico.xlsx con fórmulas activas o Dashboard en Power BI",
+                    "ejemplo_invalido": "Solo PDF sin herramienta de trabajo"
+                },
+                {
+                    "documento": "Manual Metodológico",
+                    "obligatorio": True,
+                    "criterio_validacion": "Explicación técnica de cómo se construyó el análisis",
+                    "ejemplo_valido": "Manual con fuentes de datos, metodología de proyección, supuestos",
+                    "ejemplo_invalido": "Sin documentación de metodología"
+                }
+            ],
+            "F6": [
+                {
+                    "documento": "VBC Fiscal",
+                    "obligatorio": True,
+                    "criterio_validacion": "Dictamen positivo de A3_FISCAL"
+                },
+                {
+                    "documento": "VBC Legal",
+                    "obligatorio": True,
+                    "criterio_validacion": "Dictamen positivo de A4_LEGAL"
+                }
+            ],
+            "F8": [
+                {
+                    "documento": "CFDI",
+                    "obligatorio": True,
+                    "criterio_validacion": "Descripción del CFDI debe coincidir con título del Estudio en SOW",
+                    "ejemplo_valido": "CFDI: 'Estudio de Mercado Inmobiliario Nayarit 2026'",
+                    "ejemplo_invalido": "CFDI: 'Servicios profesionales varios'"
+                },
+                {
+                    "documento": "Comprobante de pago",
+                    "obligatorio": True,
+                    "criterio_validacion": "Transferencia bancaria identificable"
+                }
+            ]
+        },
+        
+        # Reglas de auditoría específicas para A3_FISCAL
+        "reglas_auditoria_fiscal": [
+            {
+                "regla": "REGLA_MODELO_OBLIGATORIO",
+                "descripcion": "Si solo hay PDF y monto > $500k, exigir Modelo/Excel fuente",
+                "condicion": "monto > 500000 AND NOT existe_modelo_excel",
+                "accion": "RECHAZAR",
+                "mensaje": "Falta Modelo Paramétrico o herramienta de trabajo. Alto riesgo de simulación."
+            },
+            {
+                "regla": "REGLA_SOW_ESPECIFICO",
+                "descripcion": "Si SOW dice 'Asesoría General', RECHAZAR",
+                "condicion": "sow_descripcion CONTAINS 'asesoría general' OR 'servicios profesionales'",
+                "accion": "RECHAZAR",
+                "mensaje": "SOW con descripción genérica. Debe especificar entregables concretos."
+            },
+            {
+                "regla": "REGLA_BEE_VINCULADO",
+                "descripcion": "BEE no puede ser genérico",
+                "condicion": "bee_descripcion NOT CONTAINS decisión OR inversión OR proyecto",
+                "accion": "SOLICITAR_AJUSTES",
+                "mensaje": "BEE debe ligarse a una decisión de inversión o proyecto específico."
+            }
+        ],
+        
+        # Contexto específico a inyectar
+        "contexto_inyeccion_agentes": {
+            "A3_FISCAL": {
+                "contexto_rol": "Auditor Fiscal SAT (Enfoque 69-B y 5-A)",
+                "tarea_actual": "Validar Materialidad y Razón de Negocios",
+                "alertas_tipologia": [
+                    "Esta tipología es vulnerable a 69-B si solo hay PDF",
+                    "Exigir Modelo/Excel como prueba de know-how",
+                    "Verificar que BEE genere decisión de negocio real"
+                ]
+            },
+            "A4_LEGAL": {
+                "contexto_rol": "Validador de cumplimiento contractual",
+                "tarea_actual": "Verificar que entregables del contrato coincidan con lo recibido",
+                "alertas_tipologia": [
+                    "Contrato debe listar entregables específicos",
+                    "Verificar cláusula de propiedad intelectual del Modelo"
+                ]
+            }
+        }
+    },
+    
+    "INTRAGRUPO_MANAGEMENT_FEE": {
+        "id": "TYPE_INTRAGRUPO_MANAGEMENT_FEE",
+        "nombre": "Servicios Intragrupo / Management Fee",
+        
+        "checklist_obligatorio": {
+            "F0": [
+                {
+                    "documento": "Análisis de no duplicidad",
+                    "obligatorio": True,
+                    "criterio_validacion": "Demostrar que el servicio no se presta internamente"
+                }
+            ],
+            "F1": [
+                {
+                    "documento": "Estudio de Precios de Transferencia",
+                    "obligatorio": True,
+                    "criterio_validacion": "Estudio vigente (menos de 1 año) con método arm's length"
+                }
+            ],
+            "F6": [
+                {
+                    "documento": "Análisis de beneficio real",
+                    "obligatorio": True,
+                    "criterio_validacion": "Evidencia de que el receptor obtuvo beneficio medible"
+                }
+            ]
+        },
+        
+        "reglas_auditoria_fiscal": [
+            {
+                "regla": "REGLA_TP_VIGENTE",
+                "descripcion": "Estudio de TP obligatorio y vigente",
+                "condicion": "NOT existe_estudio_tp OR estudio_tp_antiguedad > 365",
+                "accion": "BLOQUEAR",
+                "mensaje": "Operación intragrupo sin estudio de TP vigente. BLOQUEO TOTAL."
+            }
+        ],
+        
+        "revision_humana_obligatoria": True
+    }
+}
+
+
+def get_reglas_tipologia(tipologia_id: str) -> dict:
+    """Obtiene las reglas duras para una tipología"""
+    return REGLAS_POR_TIPOLOGIA.get(tipologia_id, {})
+
+
+def get_checklist_obligatorio(tipologia_id: str, fase: str) -> list:
+    """Obtiene el checklist obligatorio para una tipología y fase"""
+    reglas = get_reglas_tipologia(tipologia_id)
+    checklist = reglas.get("checklist_obligatorio", {})
+    return checklist.get(fase, [])
+
+
+def validar_checklist_fase(tipologia_id: str, fase: str, documentos_cargados: list) -> dict:
+    """
+    Valida si se cumplen los documentos obligatorios de una fase.
+    
+    Returns:
+        {
+            "cumple": bool,
+            "faltantes": list,
+            "puede_avanzar": bool
+        }
+    """
+    checklist = get_checklist_obligatorio(tipologia_id, fase)
+    
+    faltantes = []
+    for item in checklist:
+        if item.get("obligatorio", False):
+            doc_nombre = item["documento"].lower()
+            encontrado = any(
+                doc_nombre in doc.get("tipo", "").lower() or
+                doc_nombre in doc.get("descripcion", "").lower()
+                for doc in documentos_cargados
+            )
+            if not encontrado:
+                faltantes.append({
+                    "documento": item["documento"],
+                    "criterio": item.get("criterio_validacion", ""),
+                    "criticidad": item.get("criticidad", "ALTA")
+                })
+    
+    return {
+        "cumple": len(faltantes) == 0,
+        "faltantes": faltantes,
+        "puede_avanzar": len(faltantes) == 0
+    }
+
+=============================================================================
+PASO 3: CREAR SERVICIO DE INYECCIÓN DE CONTEXTO
+=============================================================================
+
+Crea archivo "backend/services/inyeccion_contexto_service.py":
+
+"""
+Servicio que inyecta el contexto completo a los agentes:
+1. Contexto Global (normativo, corporativo, POE)
+2. Contexto de Tipología (reglas duras, alertas)
+3. Contexto Específico del Agente
+"""
+
+from typing import Dict, Optional
+from context.contexto_global import get_contexto_global, get_tipologia
+from config.reglas_tipologia import get_reglas_tipologia
+from config.contexto_requerido import get_contexto_requerido
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def construir_contexto_completo_para_agente(
+    agente_id: str,
+    proyecto: Dict,
+    proveedor: Optional[Dict] = None,
+    documentos: Optional[list] = None,
+    deliberaciones_previas: Optional[list] = None
+) -> Dict:
+    """
+    Construye el contexto completo que se inyecta al agente.
+    Combina: Global + Tipología + Específico del Agente + Datos del Proyecto
+    """
+    
+    tipologia = proyecto.get("tipologia", "")
+    
+    # 1. CONTEXTO GLOBAL (suelo común)
+    ctx_global = get_contexto_global()
+    
+    # 2. CONTEXTO DE TIPOLOGÍA (reglas duras)
+    ctx_tipologia = get_reglas_tipologia(tipologia)
+    tipologia_info = get_tipologia(tipologia)
+    
+    # 3. CONTEXTO ESPECÍFICO DEL AGENTE
+    ctx_agente = get_contexto_requerido(agente_id)
+    
+    # 4. CONTEXTO DE INYECCIÓN ESPECÍFICO (si existe para esta tipología+agente)
+    ctx_inyeccion = {}
+    if ctx_tipologia:
+        ctx_inyeccion = ctx_tipologia.get("contexto_inyeccion_agentes", {}).get(agente_id, {})
+    
+    # CONSTRUIR PAYLOAD FINAL
+    contexto_completo = {
+        # Identificación
+        "_meta": {
+            "agente_id": agente_id,
+            "tipologia": tipologia,
+            "fase_actual": proyecto.get("fase_actual", "F0")
+        },
+        
+        # BLOQUE 1: Normativo (siempre presente)
+        "contexto_normativo": {
+            "cff_5a": ctx_global["normativo"]["cff_5a"]["contenido"],
+            "cff_69b": ctx_global["normativo"]["cff_69b"]["contenido"],
+            "lisr_27": ctx_global["normativo"]["lisr_27"]["contenido"],
+            "nom_151": ctx_global["normativo"]["nom_151"]["contenido"]
+        },
+        
+        # BLOQUE 2: Corporativo
+        "contexto_corporativo": ctx_global["corporativo"],
+        
+        # BLOQUE 3: Tipología y sus reglas
+        "tipologia": {
+            "id": tipologia,
+            "info": tipologia_info,
+            "reglas_auditoria": ctx_tipologia.get("reglas_auditoria_fiscal", []),
+            "alertas": ctx_inyeccion.get("alertas_tipologia", [])
+        },
+        
+        # BLOQUE 4: Rol y tarea del agente
+        "rol_agente": {
+            "descripcion": ctx_agente.get("descripcion", ""),
+            "contexto_rol": ctx_inyeccion.get("contexto_rol", ""),
+            "tarea_actual": ctx_inyeccion.get("tarea_actual", ""),
+            "output_esperado": ctx_agente.get("output_esperado", [])
+        },
+        
+        # BLOQUE 5: Datos del proyecto
+        "proyecto": proyecto,
+        "proveedor": proveedor or {},
+        "documentos_cargados": documentos or [],
+        "deliberaciones_previas": deliberaciones_previas or [],
+        
+        # BLOQUE 6: Checklist obligatorio de la fase actual
+        "checklist_fase_actual": get_checklist_obligatorio_actual(
+            tipologia, 
+            proyecto.get("fase_actual", "F0")
+        )
+    }
+    
+    logger.info(
+        f"Contexto construido para {agente_id} - "
+        f"Tipología: {tipologia} - "
+        f"Fase: {proyecto.get('fase_actual')}"
+    )
+    
+    return contexto_completo
+
+
+def get_checklist_obligatorio_actual(tipologia: str, fase: str) -> list:
+    """Obtiene el checklist obligatorio para la fase actual"""
+    from config.reglas_tipologia import get_checklist_obligatorio
+    return get_checklist_obligatorio(tipologia, fase)
+
+
+def generar_system_prompt_con_contexto(agente_id: str, contexto: Dict) -> str:
+    """
+    Genera el system prompt completo para el agente incluyendo todo el contexto.
+    """
+    
+    prompt = f"""
+# ROL
+Eres {contexto['rol_agente']['descripcion']}.
+{contexto['rol_agente']['contexto_rol']}
+
+# TAREA ACTUAL
+{contexto['rol_agente']['tarea_actual']}
+
+# MARCO NORMATIVO APLICABLE
+## Artículo 5-A CFF (Razón de Negocios)
+{contexto['contexto_normativo']['cff_5a']}
+
+## Artículo 69-B CFF (Operaciones Inexistentes)
+{contexto['contexto_normativo']['cff_69b']}
+
+## Artículo 27 LISR (Deducibilidad)
+{contexto['contexto_normativo']['lisr_27']}
+
+# CONTEXTO DE LA EMPRESA
+- Grupo: {contexto['contexto_corporativo']['grupo']}
+- Giro: {contexto['contexto_corporativo']['giro_principal']}
+- Plan Estratégico: {contexto['contexto_corporativo']['plan_estrategico']['nombre']}
+
+# TIPOLOGÍA DEL PROYECTO: {contexto['tipologia']['id']}
+{contexto['tipologia']['info'].get('definicion', '')}
+
+Riesgo Fiscal Inherente: {contexto['tipologia']['info'].get('riesgo_fiscal_inherente', 'N/A')}
+Foco SAT: {contexto['tipologia']['info'].get('foco_5a', '')}
+
+# ALERTAS ESPECÍFICAS PARA ESTA TIPOLOGÍA
+{chr(10).join('- ' + a for a in contexto['tipologia'].get('alertas', []))}
+
+# REGLAS DE AUDITORÍA A APLICAR
+{_formatear_reglas(contexto['tipologia'].get('reglas_auditoria', []))}
+
+# CHECKLIST OBLIGATORIO FASE {contexto['_meta']['fase_actual']}
+{_formatear_checklist(contexto['checklist_fase_actual'])}
+
+# OUTPUT ESPERADO
+Tu respuesta debe incluir: {', '.join(contexto['rol_agente']['output_esperado'])}
+"""
+    
+    return prompt.strip()
+
+
+def _formatear_reglas(reglas: list) -> str:
+    if not reglas:
+        return "Sin reglas específicas adicionales."
+    
+    lines = []
+    for r in reglas:
+        lines.append(f"- {r['regla']}: {r['descripcion']}")
+        lines.append(f"  Acción si incumple: {r['accion']}")
+    return "\n".join(lines)
+
+
+def _formatear_checklist(checklist: list) -> str:
+    if not checklist:
+        return "Sin checklist específico para esta fase."
+    
+    lines = []
+    for item in checklist:
+        obligatorio = "OBLIGATORIO" if item.get("obligatorio") else "Deseable"
+        lines.append(f"- [{obligatorio}] {item['documento']}")
+        lines.append(f"  Criterio: {item.get('criterio_validacion', 'N/A')}")
+    return "\n".join(lines)
+
+=============================================================================
+PASO 4: ACTUALIZAR DELIBERATION SERVICE
+=============================================================================
+
+Actualiza el servicio de deliberación para usar el nuevo contexto:
+
+from services.inyeccion_contexto_service import (
+    construir_contexto_completo_para_agente,
+    generar_system_prompt_con_contexto
+)
+
+async def ejecutar_deliberacion_con_contexto_completo(
+    agente_id: str,
+    proyecto_id: str,
+    db
+) -> dict:
+    """Ejecuta deliberación con contexto completo inyectado"""
+    
+    # Cargar datos
+    proyecto = await obtener_proyecto(proyecto_id, db)
+    proveedor = await obtener_proveedor(proyecto.proveedor_id, db)
+    documentos = await obtener_documentos_proyecto(proyecto_id, db)
+    deliberaciones = await obtener_deliberaciones(proyecto_id, db)
+    
+    # Construir contexto completo
+    contexto = construir_contexto_completo_para_agente(
+        agente_id=agente_id,
+        proyecto=proyecto,
+        proveedor=proveedor,
+        documentos=documentos,
+        deliberaciones_previas=deliberaciones
+    )
+    
+    # Generar system prompt con contexto
+    system_prompt = generar_system_prompt_con_contexto(agente_id, contexto)
+    
+    # Llamar al LLM
+    resultado = await llamar_llm(
+        system_prompt=system_prompt,
+        user_message=f"Analiza el proyecto: {proyecto['nombre']}",
+        contexto=contexto
+    )
+    
+    return resultado
+
+=============================================================================
+PASO 5: CREAR TESTS
+=============================================================================
+
+Crea archivo "backend/tests/test_contexto_global.py":
+
+import pytest
+from context.contexto_global import (
+    get_contexto_global,
+    get_poe_fase,
+    get_tipologia,
+    es_candado_duro
+)
+from config.reglas_tipologia import (
+    get_reglas_tipologia,
+    get_checklist_obligatorio,
+    validar_checklist_fase
+)
+from services.inyeccion_contexto_service import (
+    construir_contexto_completo_para_agente
+)
+
+class TestContextoGlobal:
+    
+    def test_contexto_global_tiene_normativo(self):
+        ctx = get_contexto_global()
+        assert "normativo" in ctx
+        assert "cff_5a" in ctx["normativo"]
+        assert "cff_69b" in ctx["normativo"]
+    
+    def test_contexto_global_tiene_corporativo(self):
+        ctx = get_contexto_global()
+        assert "corporativo" in ctx
+        assert ctx["corporativo"]["grupo"] == "Grupo Durezza / Fortezza"
+    
+    def test_poe_tiene_10_fases(self):
+        ctx = get_contexto_global()
+        assert len(ctx["poe_fases"]) == 10
+    
+    def test_candados_duros_correctos(self):
+        assert es_candado_duro("F2") == True
+        assert es_candado_duro("F6") == True
+        assert es_candado_duro("F8") == True
+        assert es_candado_duro("F3") == False
+
+
+class TestReglasTipologia:
+    
+    def test_consultoria_macro_tiene_reglas(self):
+        reglas = get_reglas_tipologia("CONSULTORIA_MACRO_ESTRATEGIA")
+        assert "checklist_obligatorio" in reglas
+        assert "reglas_auditoria_fiscal" in reglas
+    
+    def test_checklist_f5_consultoria_tiene_modelo(self):
+        checklist = get_checklist_obligatorio("CONSULTORIA_MACRO_ESTRATEGIA", "F5")
+        nombres = [item["documento"] for item in checklist]
+        assert "Herramienta/Modelo" in nombres
+        assert "Manual Metodológico" in nombres
+    
+    def test_validar_checklist_detecta_faltantes(self):
+        docs = [{"tipo": "Informe Final", "descripcion": "PDF"}]
+        resultado = validar_checklist_fase(
+            "CONSULTORIA_MACRO_ESTRATEGIA", 
+            "F5", 
+            docs
+        )
+        assert resultado["cumple"] == False
+        assert len(resultado["faltantes"]) >= 2  # Falta Modelo y Manual
+
+
+class TestInyeccionContexto:
+    
+    def test_contexto_completo_tiene_todos_bloques(self):
+        proyecto = {
+            "id": "test",
+            "nombre": "Estudio Test",
+            "tipologia": "CONSULTORIA_MACRO_ESTRATEGIA",
+            "fase_actual": "F5"
+        }
+        
+        contexto = construir_contexto_completo_para_agente(
+            agente_id="A3_FISCAL",
+            proyecto=proyecto
+        )
+        
+        assert "contexto_normativo" in contexto
+        assert "contexto_corporativo" in contexto
+        assert "tipologia" in contexto
+        assert "rol_agente" in contexto
+        assert "checklist_fase_actual" in contexto
+
+=============================================================================
+PASO 6: VERIFICACIÓN
+=============================================================================
+
+Ejecuta: python -m pytest tests/test_contexto_global.py -v
+
+Verifica que:
+1. El contexto global tiene normativo, corporativo y POE
+2. Las reglas de CONSULTORIA_MACRO_ESTRATEGIA exigen Modelo/Excel en F5
+3. La inyección de contexto incluye todos los bloques
+4. El system prompt generado incluye el marco normativo
+
+=============================================================================
+FIN PROMPT A: CONTEXTO GLOBAL Y REGLAS POR TIPOLOGÍA
+=============================================================================

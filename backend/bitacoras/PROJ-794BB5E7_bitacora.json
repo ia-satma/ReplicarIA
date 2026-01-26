@@ -1,0 +1,65 @@
+{
+  "project_id": "PROJ-794BB5E7",
+  "entries": [
+    {
+      "timestamp": "2026-01-23T17:37:41.981967+00:00",
+      "action": "email_sent",
+      "from_agent": "A1_SPONSOR",
+      "to_agent": "A3_FISCAL",
+      "email_subject": "[SATMA] Deliberación PROJ-794BB5E7: Análisis Fiscal Fortezza 2025",
+      "attachment_name": "IDPROJ-794_A1_SPONSOR_Reporte_estrategia_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZCyRK5Z3i2FlPNm5j45oHSTrcmEwS8qnAt7",
+      "recorded_at": "2026-01-23T17:37:41.982290+00:00",
+      "sequence_number": 1
+    },
+    {
+      "timestamp": "2026-01-23T17:38:23.352545+00:00",
+      "action": "email_sent",
+      "from_agent": "A3_FISCAL",
+      "to_agent": "A5_FINANZAS",
+      "email_subject": "[SATMA] Deliberación PROJ-794BB5E7: Análisis Fiscal Fortezza 2025",
+      "attachment_name": "IDPROJ-794_A3_FISCAL_Reporte_fiscal_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZEyRK5Z7l9VFo2zCAF9qhVjD2G4oLQgngFX",
+      "recorded_at": "2026-01-23T17:38:23.352608+00:00",
+      "sequence_number": 2
+    },
+    {
+      "timestamp": "2026-01-23T17:40:42.812876+00:00",
+      "action": "consolidation_email_sent",
+      "from_agent": "A2_PMO",
+      "to_agent": "SOLICITANTE",
+      "to_email": "sfortezza@grupofortezza.com",
+      "email_subject": "[SATMA] Resultado de Evaluación - Análisis Fiscal Fortezza 2025 - APROBADO",
+      "attachments_count": 5,
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZR7RK5ZmxD6MnuzRqJsVGnTXY5QLms9BBjk",
+      "recorded_at": "2026-01-23T17:40:42.812887+00:00",
+      "sequence_number": 3
+    },
+    {
+      "timestamp": "2026-01-23T17:40:44.022851+00:00",
+      "action": "legal_to_provider_email_sent",
+      "from_agent": "LEGAL",
+      "to_agent": "PROVIDER",
+      "to_email": "sfortezza@grupofortezza.com",
+      "cc_emails": [
+        "pmo@revisar-ia.com"
+      ],
+      "email_subject": "[SATMA] Coordinación de Contrato - Análisis Fiscal Fortezza 2025",
+      "type": "contract_coordination",
+      "recorded_at": "2026-01-23T17:40:44.022910+00:00",
+      "sequence_number": 4
+    },
+    {
+      "timestamp": "2026-01-23T17:40:44.548870+00:00",
+      "action": "bitacora_generated",
+      "from_agent": "SYSTEM",
+      "to_agent": "ARCHIVO",
+      "email_subject": "Bitácora Final - Proyecto PROJ-794BB5E7",
+      "attachment_name": "IDPROJ-794_BITACORA_20260123_174044.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZ87RK5ZCSamGxGtpFmKuokMY65xR450a0zV",
+      "recorded_at": "2026-01-23T17:40:44.548919+00:00",
+      "sequence_number": 5
+    }
+  ],
+  "last_updated": "2026-01-23T17:40:44.548942+00:00"
+}

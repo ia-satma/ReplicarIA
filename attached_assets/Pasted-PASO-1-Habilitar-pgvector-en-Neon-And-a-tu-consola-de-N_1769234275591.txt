@@ -1,0 +1,553 @@
+PASO 1: Habilitar pgvector en Neon
+Andá a tu consola de Neon y ejecutá esto:
+sql-- Habilitar la extensión
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Verificar que quedó instalada
+SELECT * FROM pg_extension WHERE extname = 'vector';
+
+PASO 2: Modificar tabla knowledge_chunks
+sql-- Agregar columna de embeddings (1536 dimensiones para OpenAI/Voyage)
+ALTER TABLE knowledge_chunks 
+ADD COLUMN IF NOT EXISTS embedding vector(1536);
+
+-- Crear índice para búsqueda rápida por similitud
+-- ivfflat es más rápido para datasets grandes
+CREATE INDEX IF NOT EXISTS idx_chunks_embedding 
+ON knowledge_chunks 
+USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 100);
+
+-- Índice compuesto para filtrar por empresa + buscar por vector
+CREATE INDEX IF NOT EXISTS idx_chunks_empresa_embedding
+ON knowledge_chunks (empresa_id)
+INCLUDE (embedding);
+
+PASO 3: Crear el servicio de embeddings
+Creá este archivo nuevo:
+backend/services/embedding_service.py
+python"""
+Servicio de Embeddings para RAG semántico.
+Usa OpenAI ada-002 (más barato) o Voyage (mejor para español legal).
+"""
+
+import os
+import httpx
+from typing import List, Optional
+import asyncio
+from dataclasses import dataclass
+
+# Configuración - usar OpenAI por defecto (más fácil de conseguir API key)
+EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "openai")  # "openai" o "voyage"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")
+
+
+@dataclass
+class EmbeddingResult:
+    embedding: List[float]
+    tokens_used: int
+    model: str
+
+
+class EmbeddingService:
+    """Genera embeddings usando OpenAI o Voyage AI."""
+    
+    def __init__(self):
+        self.provider = EMBEDDING_PROVIDER
+        self.client = httpx.AsyncClient(timeout=60.0)
+        
+        if self.provider == "openai":
+            if not OPENAI_API_KEY:
+                raise ValueError("OPENAI_API_KEY no configurada")
+            self.api_key = OPENAI_API_KEY
+            self.model = "text-embedding-3-small"  # Más barato, 1536 dims
+            self.endpoint = "https://api.openai.com/v1/embeddings"
+        else:
+            if not VOYAGE_API_KEY:
+                raise ValueError("VOYAGE_API_KEY no configurada")
+            self.api_key = VOYAGE_API_KEY
+            self.model = "voyage-multilingual-2"  # Mejor para español
+            self.endpoint = "https://api.voyageai.com/v1/embeddings"
+    
+    async def generate_embedding(self, text: str) -> EmbeddingResult:
+        """Genera embedding para un solo texto."""
+        results = await self.generate_batch_embeddings([text])
+        return results[0]
+    
+    async def generate_batch_embeddings(
+        self, 
+        texts: List[str], 
+        batch_size: int = 100
+    ) -> List[EmbeddingResult]:
+        """Genera embeddings en batch (más eficiente)."""
+        
+        all_results = []
+        
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+            
+            # Limpiar textos vacíos
+            batch = [t.strip()[:8000] if t else "empty" for t in batch]
+            
+            if self.provider == "openai":
+                results = await self._call_openai(batch)
+            else:
+                results = await self._call_voyage(batch)
+            
+            all_results.extend(results)
+            
+            # Rate limiting básico
+            if i + batch_size < len(texts):
+                await asyncio.sleep(0.1)
+        
+        return all_results
+    
+    async def _call_openai(self, texts: List[str]) -> List[EmbeddingResult]:
+        """Llama a OpenAI Embeddings API."""
+        
+        response = await self.client.post(
+            self.endpoint,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": self.model,
+                "input": texts
+            }
+        )
+        
+        response.raise_for_status()
+        data = response.json()
+        
+        results = []
+        for item in data["data"]:
+            results.append(EmbeddingResult(
+                embedding=item["embedding"],
+                tokens_used=data["usage"]["total_tokens"] // len(texts),
+                model=self.model
+            ))
+        
+        return results
+    
+    async def _call_voyage(self, texts: List[str]) -> List[EmbeddingResult]:
+        """Llama a Voyage AI Embeddings API."""
+        
+        response = await self.client.post(
+            self.endpoint,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": self.model,
+                "input": texts,
+                "input_type": "document"
+            }
+        )
+        
+        response.raise_for_status()
+        data = response.json()
+        
+        results = []
+        for item in data["data"]:
+            results.append(EmbeddingResult(
+                embedding=item["embedding"],
+                tokens_used=data.get("usage", {}).get("total_tokens", 0) // max(len(texts), 1),
+                model=self.model
+            ))
+        
+        return results
+    
+    async def close(self):
+        await self.client.aclose()
+
+
+# Singleton para reusar
+_embedding_service: Optional[EmbeddingService] = None
+
+def get_embedding_service() -> EmbeddingService:
+    global _embedding_service
+    if _embedding_service is None:
+        _embedding_service = EmbeddingService()
+    return _embedding_service
+
+PASO 4: Crear el servicio de búsqueda vectorial
+Creá este archivo nuevo:
+backend/services/vector_search_service.py
+python"""
+Servicio de búsqueda semántica con pgvector.
+Reemplaza la búsqueda por regex de classification_service.py
+"""
+
+import asyncpg
+from typing import List, Optional, Dict, Any
+from dataclasses import dataclass
+import json
+
+from .embedding_service import get_embedding_service, EmbeddingService
+
+
+@dataclass
+class SearchResult:
+    chunk_id: str
+    document_id: str
+    contenido: str
+    filename: str
+    categoria: str
+    subcategoria: str
+    path: str
+    similarity: float
+    chunk_index: int
+    tokens_count: int
+
+
+class VectorSearchService:
+    """Búsqueda semántica usando pgvector."""
+    
+    def __init__(self, db_pool: asyncpg.Pool):
+        self.db = db_pool
+        self.embedder = get_embedding_service()
+    
+    async def semantic_search(
+        self,
+        empresa_id: str,
+        query: str,
+        limit: int = 10,
+        categoria_filter: Optional[str] = None,
+        subcategoria_filter: Optional[str] = None,
+        similarity_threshold: float = 0.5
+    ) -> List[SearchResult]:
+        """
+        Búsqueda semántica pura.
+        Encuentra chunks similares al query por significado, no por keywords.
+        """
+        
+        # 1. Generar embedding del query
+        query_result = await self.embedder.generate_embedding(query)
+        query_embedding = query_result.embedding
+        
+        # 2. Construir query SQL
+        sql = """
+            SELECT 
+                c.id as chunk_id,
+                c.document_id,
+                c.contenido,
+                c.chunk_index,
+                c.tokens_count,
+                d.filename,
+                d.categoria_principal,
+                d.subcategoria,
+                d.path,
+                1 - (c.embedding <=> $1::vector) as similarity
+            FROM knowledge_chunks c
+            JOIN knowledge_documents d ON c.document_id = d.id
+            WHERE c.empresa_id = $2
+            AND c.embedding IS NOT NULL
+            AND 1 - (c.embedding <=> $1::vector) > $3
+        """
+        
+        params = [json.dumps(query_embedding), empresa_id, similarity_threshold]
+        param_count = 3
+        
+        # Filtros opcionales
+        if categoria_filter:
+            param_count += 1
+            sql += f" AND d.categoria_principal = ${param_count}"
+            params.append(categoria_filter)
+        
+        if subcategoria_filter:
+            param_count += 1
+            sql += f" AND d.subcategoria = ${param_count}"
+            params.append(subcategoria_filter)
+        
+        # Ordenar y limitar
+        param_count += 1
+        sql += f" ORDER BY similarity DESC LIMIT ${param_count}"
+        params.append(limit)
+        
+        # 3. Ejecutar búsqueda
+        rows = await self.db.fetch(sql, *params)
+        
+        # 4. Mapear resultados
+        return [
+            SearchResult(
+                chunk_id=str(row["chunk_id"]),
+                document_id=str(row["document_id"]),
+                contenido=row["contenido"],
+                filename=row["filename"],
+                categoria=row["categoria_principal"] or "",
+                subcategoria=row["subcategoria"] or "",
+                path=row["path"] or "",
+                similarity=float(row["similarity"]),
+                chunk_index=row["chunk_index"],
+                tokens_count=row["tokens_count"] or 0
+            )
+            for row in rows
+        ]
+    
+    async def hybrid_search(
+        self,
+        empresa_id: str,
+        query: str,
+        limit: int = 10,
+        categoria_filter: Optional[str] = None,
+        semantic_weight: float = 0.7
+    ) -> List[SearchResult]:
+        """
+        Búsqueda híbrida: semántica + keywords.
+        Combina lo mejor de ambos mundos para mayor precisión.
+        """
+        
+        # 1. Búsqueda semántica
+        semantic_results = await self.semantic_search(
+            empresa_id=empresa_id,
+            query=query,
+            limit=limit * 2,
+            categoria_filter=categoria_filter,
+            similarity_threshold=0.4  # Más permisivo para híbrido
+        )
+        
+        # 2. Búsqueda por keywords (tu método actual)
+        keyword_results = await self._keyword_search(
+            empresa_id=empresa_id,
+            query=query,
+            limit=limit * 2,
+            categoria_filter=categoria_filter
+        )
+        
+        # 3. Fusionar con Reciprocal Rank Fusion
+        fused = self._rrf_fusion(
+            semantic_results, 
+            keyword_results, 
+            limit,
+            semantic_weight=semantic_weight
+        )
+        
+        return fused
+    
+    async def _keyword_search(
+        self,
+        empresa_id: str,
+        query: str,
+        limit: int = 10,
+        categoria_filter: Optional[str] = None
+    ) -> List[SearchResult]:
+        """Búsqueda por keywords (método legacy mejorado)."""
+        
+        # Extraer palabras significativas (ignorar stopwords comunes)
+        stopwords = {'el', 'la', 'los', 'las', 'de', 'del', 'en', 'a', 'que', 'y', 'o', 'un', 'una', 'es', 'por', 'con', 'para', 'se', 'su', 'al'}
+        words = [w.lower() for w in query.split() if w.lower() not in stopwords and len(w) > 2]
+        
+        if not words:
+            return []
+        
+        # Construir pattern para regex
+        search_pattern = "|".join(words)
+        
+        sql = """
+            SELECT 
+                c.id as chunk_id,
+                c.document_id,
+                c.contenido,
+                c.chunk_index,
+                c.tokens_count,
+                d.filename,
+                d.categoria_principal,
+                d.subcategoria,
+                d.path,
+                -- Score basado en cantidad de matches
+                (SELECT COUNT(*) FROM regexp_matches(c.contenido, $2, 'gi')) as match_count
+            FROM knowledge_chunks c
+            JOIN knowledge_documents d ON c.document_id = d.id
+            WHERE c.empresa_id = $1
+            AND c.contenido ~* $2
+        """
+        
+        params = [empresa_id, search_pattern]
+        param_count = 2
+        
+        if categoria_filter:
+            param_count += 1
+            sql += f" AND d.categoria_principal = ${param_count}"
+            params.append(categoria_filter)
+        
+        param_count += 1
+        sql += f" ORDER BY match_count DESC LIMIT ${param_count}"
+        params.append(limit)
+        
+        rows = await self.db.fetch(sql, *params)
+        
+        # Normalizar scores a 0-1
+        max_matches = max((row["match_count"] for row in rows), default=1)
+        
+        return [
+            SearchResult(
+                chunk_id=str(row["chunk_id"]),
+                document_id=str(row["document_id"]),
+                contenido=row["contenido"],
+                filename=row["filename"],
+                categoria=row["categoria_principal"] or "",
+                subcategoria=row["subcategoria"] or "",
+                path=row["path"] or "",
+                similarity=row["match_count"] / max_matches if max_matches > 0 else 0,
+                chunk_index=row["chunk_index"],
+                tokens_count=row["tokens_count"] or 0
+            )
+            for row in rows
+        ]
+    
+    def _rrf_fusion(
+        self,
+        semantic_results: List[SearchResult],
+        keyword_results: List[SearchResult],
+        limit: int,
+        k: int = 60,
+        semantic_weight: float = 0.7
+    ) -> List[SearchResult]:
+        """
+        Reciprocal Rank Fusion - combina dos rankings en uno.
+        k=60 es el valor estándar de la literatura.
+        """
+        
+        scores: Dict[str, float] = {}
+        items: Dict[str, SearchResult] = {}
+        
+        keyword_weight = 1 - semantic_weight
+        
+        # Scores de búsqueda semántica
+        for rank, item in enumerate(semantic_results):
+            chunk_id = item.chunk_id
+            scores[chunk_id] = scores.get(chunk_id, 0) + semantic_weight * (1 / (k + rank + 1))
+            items[chunk_id] = item
+        
+        # Scores de búsqueda por keywords
+        for rank, item in enumerate(keyword_results):
+            chunk_id = item.chunk_id
+            scores[chunk_id] = scores.get(chunk_id, 0) + keyword_weight * (1 / (k + rank + 1))
+            if chunk_id not in items:
+                items[chunk_id] = item
+        
+        # Ordenar por score combinado
+        sorted_ids = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+        
+        # Devolver top resultados
+        return [items[cid] for cid in sorted_ids[:limit]]
+    
+    async def get_context_for_agent(
+        self,
+        empresa_id: str,
+        query: str,
+        agent_id: str,
+        max_tokens: int = 4000
+    ) -> str:
+        """
+        Recupera contexto relevante formateado para un agente.
+        Útil para inyectar en el prompt del agente.
+        """
+        
+        # Mapear agente a categorías relevantes
+        agent_categories = {
+            "A3_FISCAL": ["fiscal", "normativa_sat", "criterios_juridicos"],
+            "A4_LEGAL": ["legal", "contratos", "poderes"],
+            "A5_FINANZAS": ["financiero", "estados_financieros"],
+            "A6_PROVEEDOR": ["proveedores", "evaluacion"],
+        }
+        
+        categoria = agent_categories.get(agent_id, [None])[0]
+        
+        # Buscar chunks relevantes
+        results = await self.hybrid_search(
+            empresa_id=empresa_id,
+            query=query,
+            limit=10,
+            categoria_filter=categoria
+        )
+        
+        # Construir contexto respetando límite de tokens
+        context_parts = []
+        total_tokens = 0
+        
+        for result in results:
+            chunk_tokens = result.tokens_count or len(result.contenido.split()) * 1.3
+            
+            if total_tokens + chunk_tokens > max_tokens:
+                break
+            
+            context_parts.append(
+                f"[Fuente: {result.filename} | Relevancia: {result.similarity:.0%}]\n"
+                f"{result.contenido}\n"
+            )
+            total_tokens += chunk_tokens
+        
+        if not context_parts:
+            return "No se encontró información relevante en el repositorio de conocimiento."
+        
+        return "\n---\n".join(context_parts)
+```
+
+---
+
+## PASO 5: Agregar API key de OpenAI en Replit
+
+En tu Replit, andá a **Secrets** y agregá:
+```
+OPENAI_API_KEY = sk-...tu-api-key...
+```
+
+O si preferís Voyage (mejor para español legal pero más caro):
+```
+EMBEDDING_PROVIDER = voyage
+VOYAGE_API_KEY = ...tu-api-key...
+
+PASO 6: Crear ruta para probar
+Agregá esto en backend/routes/knowledge_routes.py (o donde tengas las rutas de knowledge):
+pythonfrom services.vector_search_service import VectorSearchService
+
+@router.get("/search/semantic")
+async def semantic_search(
+    q: str,
+    limit: int = 10,
+    categoria: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: asyncpg.Pool = Depends(get_db)
+):
+    """Búsqueda semántica en el repositorio de conocimiento."""
+    
+    search_service = VectorSearchService(db)
+    
+    results = await search_service.hybrid_search(
+        empresa_id=current_user.empresa_id,
+        query=q,
+        limit=limit,
+        categoria_filter=categoria
+    )
+    
+    return {
+        "query": q,
+        "total": len(results),
+        "results": [
+            {
+                "chunk_id": r.chunk_id,
+                "document_id": r.document_id,
+                "filename": r.filename,
+                "contenido": r.contenido[:500] + "..." if len(r.contenido) > 500 else r.contenido,
+                "categoria": r.categoria,
+                "similarity": round(r.similarity, 3),
+                "path": r.path
+            }
+            for r in results
+        ]
+    }
+
+¿QUÉ SIGUE?
+Una vez que tengas esto implementado, el siguiente paso es el script de migración para generar embeddings de todos los chunks existentes.
+Avisame cuando hayas:
+
+✅ Ejecutado el SQL en Neon
+✅ Creado los dos archivos de servicios
+✅ Agregado la API key
+✅ Agregado la ruta de prueba
+
+Y pasamos al script de migración.

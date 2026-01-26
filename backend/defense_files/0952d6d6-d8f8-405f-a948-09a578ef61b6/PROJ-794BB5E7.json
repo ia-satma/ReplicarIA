@@ -1,0 +1,264 @@
+{
+  "project_id": "PROJ-794BB5E7",
+  "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+  "created_at": "2026-01-23T17:36:59.988643+00:00",
+  "project_data": {
+    "id": "PROJ-794BB5E7",
+    "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+    "created_by": "f94396c4-cbc0-48fe-8fd5-1376b39a87f3",
+    "name": "Análisis Fiscal Fortezza 2025",
+    "client_name": "Grupo Fortezza SA de CV",
+    "description": "Análisis de cumplimiento fiscal y estrategia tributaria 2025",
+    "amount": 750000.0,
+    "service_type": "Plan Estratégico 2024-2026",
+    "sponsor_name": "Santiago Fortezza",
+    "sponsor_email": "sfortezza@grupofortezza.com",
+    "department": "Finanzas",
+    "expected_benefit": 2000000.0,
+    "duration_months": 4,
+    "urgency_level": "Alta",
+    "requires_human": "No",
+    "attachments": [],
+    "submitted_at": "2026-01-23T17:36:59.988489+00:00",
+    "is_modification": false,
+    "parent_folio": "",
+    "modification_notes": ""
+  },
+  "deliberation_count": 3,
+  "deliberations": [
+    {
+      "project_id": "PROJ-794BB5E7",
+      "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+      "stage": "E1_ESTRATEGIA",
+      "agent_id": "A1_SPONSOR",
+      "decision": "pending_review",
+      "analysis": "# DICTAMEN ESTRATÉGICO A1_ESTRATEGIA\n**PROYECTO:** PROJ-794BB5E7 - Análisis Fiscal Fortezza 2025  \n**ANALISTA:** María Rodríguez | Directora de Estrategia  \n**FECHA:** 2025-01-21  \n**FASE:** F0 - INTAKE/INTI\n\n---\n\n## ⚠️ EVALUACIÓN PRELIMINAR: **NO CONFORME**\n\n### ESTADO DEL ANÁLISIS\n```\n┌─────────────────────────────────────────────────────────┐\n│ INFORMACIÓN INSUFICIENTE PARA DICTAMEN ESTRATÉGICO      │\n│ SOLICITUD DE INFORMACIÓN ADICIONAL ACTIVADA             │\n└─────────────────────────────────────────────────────────┘\n```\n\n---\n\n## 🔍 ANÁLISIS DE INFORMACIÓN DISPONIBLE\n\n### **INFORMACIÓN RECIBIDA:**\n- ✅ ID del Proyecto\n- ✅ Nombre del Proyecto\n- ✅ Monto ($750,000 MXN)\n- ✅ Tipología genérica (\"Plan Estratégico 2024-2026\")\n- ✅ Descripción básica (1 línea)\n\n### **INFORMACIÓN CRÍTICA FALTANTE:**\n\n#### 1. **RAZÓN DE NEGOCIOS (0/5 puntos)**\n**FALTANTE:**\n- ¿Por qué Grupo Fortezza necesita este análisis fiscal **ahora**?\n- ¿Qué cambios regulatorios, operativos o estratégicos lo motivan?\n- ¿Qué decisiones de negocio dependen de este análisis?\n- ¿Qué riesgos fiscales específicos se han detectado?\n\n**RED FLAG:** 🚩 Cliente = Proveedor = Grupo Fortezza  \n*Esto sugiere un servicio interno, lo cual requiere justificación robusta para evitar cuestionamientos de partes relacionadas*\n\n#### 2. **PROPÓSITO EMPRESARIAL CONCRETO (0/5 puntos)**\n**FALTANTE:**\n- Objetivos específicos del análisis\n- Entregables esperados\n- Decisiones que se tomarán con base en resultados\n- Problemática a resolver\n\n**ACTUAL:** \"Análisis de cumplimiento fiscal y estrategia tributaria\"  \n**PROBLEMA:** Demasiado genérico. ¿Cumplimiento de qué? ¿Estrategia para qué?\n\n#### 3. **COHERENCIA CON ESTRATEGIA/OKRs (0/5 puntos)**\n**FALTANTE:**\n- Pilares estratégicos de Grupo Fortezza\n- OKRs vigentes 2024-2026\n- Vinculación con objetivos corporativos\n- Contexto del Plan Estratégico 2024-2026\n\n#### 4. **BENEFICIO ECONÓMICO ESPERADO (0/5 puntos)**\n**FALTANTE:**\n- KPIs esperados\n- Beneficios cuantificables (¿ahorro fiscal? ¿mitigación de riesgos?)\n- Horizonte de materialización\n- Mecanismo causa-efecto\n\n#### 5. **DOCUMENTACIÓN CONTEMPORÁNEA (0/5 puntos)**\n**FALTANTE:**\n- SIB (Solicitud Interna de Bienes/Servicios)\n- Acta de comité/minuta de decisión\n- Diagnóstico previo que justifique la necesidad\n- Cotizaciones comparativas\n\n---\n\n## 🚨 RED FLAGS ESTRATÉGICOS IDENTIFICADOS\n\n### 1. **TIMING SOSPECHOSO**\n- Contratación de \"análisis fiscal 2025\" cuando estamos en 2025\n- ¿Por qué no se realizó en Q4-2024 para planificar 2025?\n- Riesgo de percepción: \"servicio reactivo vs. planificación estratégica\"\n\n### 2. **CLIENTE = PROVEEDOR**\n- Grupo Fortezza contratando a Grupo Fortezza\n- Sin información sobre qué entidad específica presta el servicio\n- Requiere documentación robusta para demostrar autonomía y no simulación\n\n### 3. **MONTO SIGNIFICATIVO SIN DESGLOSE**\n- $750K es material (0.15% de facturación anual)\n- Sin información sobre:\n  - Alcance del proyecto (¿cuántas entidades cubre?)\n  - Horas/equipo asignado\n  - Entregables específicos\n  - Comparativo con servicios similares\n\n### 4. **DESCRIPCIÓN GENÉRICA**\n- \"Análisis de cumplimiento\" puede incluir desde revisión documental básica hasta restructuración fiscal compleja\n- Sin alcance definido = imposible evaluar Razón de Negocios\n\n### 5. **DESCONEXIÓN TEMPORAL**\n- Proyecto nombrado \"Plan Estratégico 2024-2026\" pero ejecutándose en 2025\n- ¿Es continuación? ¿Revisión? ¿Nueva fase?\n\n---\n\n## 📊 SCORING PRELIMINAR\n\n```\n┌──────────────────────────────────────────────┐\n│ CRITERIO                          │ PUNTOS   │\n├──────────────────────────────────────────────┤\n│ 1. Sustancia sobre forma          │  0/5     │\n│ 2. Propósito empresarial concreto │  0/5     │\n│ 3. Coherencia estrategia/OKRs     │  0/5     │\n│ 4. Beneficio económico esperado   │  0/5     │\n│ 5. Documentación contemporánea    │  0/5     │\n├──────────────────────────────────────────────┤\n│ TOTAL                             │  0/25    │\n└──────────────────────────────────────────────┘\n\nESTADO: NO CONFORME\n```\n\n---\n\n## 📋 INFORMACIÓN REQUERIDA PARA DICTAMEN\n\n### **PRIORITARIA (Fase F0 - Blocking):**\n\n1. **SIB Completo** con:\n   - Área solicitante y sponsor ejecutivo\n   - Problemática específica a resolver\n   - Objetivos SMART del proyecto\n   - KPIs de éxito\n   - Alternativas evaluadas\n\n2. **Contexto Estratégico:**\n   - Plan Estratégico 2024-2026 (extracto relevante)\n   - OKRs corporativos vinculados\n   - Decisiones estratégicas pendientes que dependen de este análisis\n\n3. **Justificación de Necesidad:**\n   - ¿Qué cambió desde 2024 que hace necesario este análisis en 2025?\n   - ¿Qué riesgos fiscales específicos se han identificado?\n   - ¿Qué oportunidades fiscales se buscan explorar?\n\n4. **Alcance del Proyecto:**\n   - Entidades del grupo a analizar\n   - Jurisdicciones fiscales involucradas\n   - Ejercicios fiscales a revisar\n   - Entregables específicos (informes, dictámenes, recomendaciones)\n\n5. **Estructura de Prestación:**\n   - Entidad prestadora dentro de Grupo Fortezza\n   - Entidad receptora\n   - Justificación de servicio interno vs. externo\n   - Precio de transferencia / benchmarking\n\n### **SECUNDARIA (Fase F3 - Due Diligence):**\n\n6. **Beneficio Económico Esperado:**\n   - Ahorro fiscal proyectado (si aplica)\n   - Mitigación de riesgos (cuantificación de contingencias)\n   - Optimización de estructura (beneficios proyectados)\n   - Horizonte de materialización\n\n7. **Documentación de Decisión:**\n   -",
+      "rag_context": [],
+      "email_sent": null,
+      "timestamp": "2026-01-23T17:37:39.254070+00:00",
+      "recorded_at": "2026-01-23T17:37:39.254099+00:00"
+    },
+    {
+      "project_id": "PROJ-794BB5E7",
+      "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+      "stage": "E2_FISCAL",
+      "agent_id": "A3_FISCAL",
+      "decision": "approve",
+      "analysis": "# DICTAMEN FISCAL A3_FISCAL\n**PROYECTO:** PROJ-794BB5E7 - Análisis Fiscal Fortezza 2025  \n**ANALISTA:** Laura Sánchez | Especialista Fiscal  \n**FECHA:** 2025-01-21  \n**FASE:** F0 - PRE-SCREENING FISCAL\n\n---\n\n## 🚨 ALERTA CRÍTICA: INFORMACIÓN INSUFICIENTE PARA DICTAMEN\n\n### ESTADO DEL ANÁLISIS\n```\n┌──────────────────────────────────────────────────────────┐\n│ ⚠️  IMPOSIBLE EMITIR DICTAMEN FISCAL RESPONSABLE        │\n│ 📋 DOCUMENTACIÓN CRÍTICA FALTANTE                        │\n│ 🔴 NO SE PUEDE APROBAR F0 EN ESTADO ACTUAL              │\n└──────────────────────────────────────────────────────────┘\n```\n\n---\n\n## 📊 EVALUACIÓN PRELIMINAR FISCAL\n\n### 1️⃣ DEDUCIBILIDAD LISR (Art. 25 y 27)\n**SCORE PARCIAL: 0/25 - INDETERMINADO**\n\n| Requisito LISR | Estado | Observación |\n|----------------|--------|-------------|\n| **27-I: Estrictamente Indispensable** | ⚠️ NO EVALUABLE | Sin SOW/alcance detallado |\n| **27-III: CFDI Válido** | ❌ NO PRESENTADO | Sin CFDI para validar |\n| **27-IV: Pago Bancarizado** | ❌ NO PRESENTADO | Sin comprobante de pago |\n| **27-XVIII: Registro Contable** | ⚠️ PENDIENTE | Proyecto sin ejecutar |\n| **27-XIX: Partes Relacionadas** | 🔍 REQUIERE ANÁLISIS | ¿Es Grupo Fortezza parte relacionada? |\n\n**RIESGO IDENTIFICADO:** \n- Posible servicio entre partes relacionadas no declarado\n- Falta definición de alcance para evaluar \"estrictamente indispensable\"\n\n---\n\n### 2️⃣ CFDI Y FORMA DE PAGO (CFF 29/29-A)\n**SCORE PARCIAL: 0/25 - NO DISPONIBLE**\n\n```\n❌ CFDI: No presentado\n❌ RFCs: Sin validar\n❌ Uso CFDI: Sin determinar\n❌ Clave Producto/Servicio: Sin información\n❌ Forma de Pago: Sin documentar\n```\n\n**OBSERVACIÓN CRÍTICA:**\nMonto $750,000 MXN excede umbral de materialidad ($100K).\nRequiere documentación completa ANTES de F2.\n\n---\n\n### 3️⃣ RIESGO EFOS/69-B CFF\n**SCORE PARCIAL: PENDIENTE A6**\n\n**PROVEEDOR:** Grupo Fortezza SA de CV\n\n🔍 **ANÁLISIS REQUERIDO:**\n- Validación RFC en lista 69-B (definitivos y presuntos)\n- Due diligence de capacidad operativa\n- Historial fiscal del proveedor\n- **CRÍTICO:** Determinar si hay relación parte relacionada\n\n**HIPÓTESIS DE RIESGO:**\nSi \"Grupo Fortezza SA de CV\" es la misma entidad que contrata el servicio:\n- ⚠️ POTENCIAL OPERACIÓN SIMULADA (Art. 69-B CFF)\n- ⚠️ RIESGO DE NO DEDUCIBILIDAD TOTAL\n- ⚠️ REQUIERE ANÁLISIS DE SUSTANCIA ECONÓMICA\n\n---\n\n### 4️⃣ MATERIALIDAD FISCAL MÍNIMA\n**SCORE PARCIAL: 0/25 - SIN EVIDENCIA**\n\n```\nDOCUMENTACIÓN CRÍTICA FALTANTE:\n├─ ❌ Contrato formal / SOW detallado\n├─ ❌ Propuesta técnica y económica\n├─ ❌ Entregables definidos\n├─ ❌ Cronograma de trabajo\n├─ ❌ Personal asignado al proyecto\n├─ ❌ Metodología de trabajo\n└─ ❌ Evidencia de ejecución (pendiente por naturaleza)\n```\n\n---\n\n## 🎯 EVALUACIÓN DE 4 PILARES SAT\n\n### PILAR 1: RAZÓN DE NEGOCIOS (Art. 5-A CFF)\n**STATUS:** ⚠️ **INDETERMINADO**\n\n**REQUIERE ACLARACIÓN:**\n- ¿Por qué Fortezza contrata a sí misma?\n- Si es entre entidades del grupo: ¿Cuál es la justificación económica?\n- ¿Existe capacidad interna para este análisis?\n- ¿Por qué externalizarlo si es la misma empresa?\n\n**RIESGO:** Sin SOW detallado, imposible validar razón de negocios.\n\n---\n\n### PILAR 2: BENEFICIO ECONÓMICO (Art. 5-A CFF)\n**STATUS:** ⚠️ **NO EVALUABLE** (Pendiente A5)\n\n**OBSERVACIONES:**\n- Monto $750K para \"análisis fiscal\" debe justificar ROI\n- Requiere evidencia de valor agregado vs. capacidad interna\n- Pendiente análisis financiero de A5\n\n---\n\n### PILAR 3: MATERIALIDAD (Art. 69-B CFF)\n**STATUS:** ❌ **CRÍTICO - SIN DOCUMENTACIÓN**\n\n**FALTANTES CRÍTICOS:**\n1. Contrato formal con alcance específico\n2. Metodología de trabajo documentada\n3. Equipo técnico asignado (CVs, cédulas profesionales)\n4. Cronograma detallado de entregables\n5. Evidencia de capacidad técnica del proveedor\n\n**POSICIÓN FISCAL:**\nSin estos elementos, el SAT puede presumir:\n- Servicio no prestado (Art. 69-B)\n- Simulación de operaciones\n- Deducción improcedente\n\n---\n\n### PILAR 4: TRAZABILIDAD (NOM-151)\n**STATUS:** ❌ **NO CUMPLE**\n\n```\nDOCUMENTACIÓN REQUERIDA NOM-151:\n├─ ❌ Expediente digital del proyecto\n├─ ❌ Intercambio de correos/comunicaciones\n├─ ❌ Actas de reuniones\n├─ ❌ Avances documentados\n├─ ❌ Control de cambios\n└─ ❌ Validación de entregables\n```\n\n---\n\n## 📋 DICTAMEN FISCAL PRELIMINAR\n\n```json\n{\n  \"dictamenFiscal\": {\n    \"scoreFiscalTotal\": 0,\n    \"deducibilidad\": {\n      \"esDeducible\": false,\n      \"condicionada\": true,\n      \"motivoCondicion\": \"Información insuficiente para evaluar requisitos LISR 27. Potencial conflicto partes relacionadas sin documentar.\",\n      \"articulosClaves\": [\n        \"LISR 27-I (Indispensabilidad)\",\n        \"LISR 27-III (CFDI)\",\n        \"LISR 27-XIX (Partes Relacionadas)\",\n        \"CFF 5-A (Razón de negocios)\",\n        \"CFF 69-B (Materialidad)\",\n        \"CFF 29-A (Comprobantes)\"\n      ]\n    },\n    \"cfdi\": {\n      \"valido\": null,\n      \"observaciones\": [\n        \"CFDI no presentado - requisito indispensable\",\n        \"Monto $750K requiere CFDI válido antes de F2\"\n      ]\n    },\n    \"ries",
+      "rag_context": [],
+      "email_sent": null,
+      "timestamp": "2026-01-23T17:38:20.622798+00:00",
+      "recorded_at": "2026-01-23T17:38:20.622826+00:00"
+    },
+    {
+      "project_id": "PROJ-794BB5E7",
+      "empresa_id": "0952d6d6-d8f8-405f-a948-09a578ef61b6",
+      "stage": "E3_FINANZAS",
+      "agent_id": "A5_FINANZAS",
+      "decision": "pending_review",
+      "analysis": "# DICTAMEN FINANCIERO A5_FINANZAS\n**PROYECTO:** PROJ-794BB5E7 - Análisis Fiscal Fortezza 2025  \n**ANALISTA:** Roberto Sánchez | Director de Finanzas  \n**FECHA:** 2025-01-21  \n**FASE:** F0 - INTAKE/PRE-SCREENING FINANCIERO\n\n---\n\n## 🚨 EVALUACIÓN PRELIMINAR: **INFORMACIÓN INSUFICIENTE**\n\n### ESTADO DEL ANÁLISIS\n```\n┌──────────────────────────────────────────────────────────┐\n│ ⚠️  IMPOSIBLE CUANTIFICAR BENEFICIO ECONÓMICO           │\n│ 📊 DATOS CRÍTICOS FALTANTES PARA MODELO FINANCIERO      │\n│ 🔴 NO SE PUEDE EMITIR DICTAMEN DE VIABILIDAD            │\n└──────────────────────────────────────────────────────────┘\n```\n\n---\n\n## 📋 ANÁLISIS DE INFORMACIÓN DISPONIBLE\n\n### DATOS RECIBIDOS\n- **Monto Contrato:** $750,000 MXN\n- **Servicio:** \"Análisis Fiscal Fortezza 2025\" / \"Plan Estratégico 2024-2026\"\n- **Cliente/Proveedor:** Grupo Fortezza SA de CV ⚠️ (¿AUTO-CONTRATO?)\n- **Presupuesto Anual Servicios Estimado:** ~$25M MXN\n- **% sobre presupuesto:** 3% (moderado)\n\n### CONTRADICCIÓN DETECTADA\n```\nCAMPO \"Cliente/Proveedor\": Grupo Fortezza SA de CV\n                              ↓\n                    ¿ES EL MISMO QUE CONTRATA?\n                              ↓\n            POSIBLE ERROR EN INTAKE O AUTO-SERVICIO\n```\n\n---\n\n## ❌ DEFICIENCIAS CRÍTICAS PARA EVALUACIÓN FINANCIERA\n\n### 1. **BENEFICIO ECONÓMICO NO CUANTIFICABLE** (0/15 puntos)\n**Falta información para construir modelo BEE:**\n\n#### No definido:\n- ❌ Tipo de beneficio esperado (¿ahorro fiscal? ¿evitar multas? ¿eficiencias?)\n- ❌ KPIs medibles (¿reducción de tasa efectiva? ¿créditos fiscales recuperados?)\n- ❌ Horizonte de beneficio (¿2025 solamente? ¿implementación multi-año?)\n- ❌ Baseline vs objetivo (¿cuánto pagamos hoy vs cuánto pagaríamos con estrategia?)\n- ❌ Probabilidad de materialización del beneficio\n\n**Imposibilidad de calcular:**\n```\nROI = (Beneficio - Costo) / Costo\n      ↓\n    ¿QUÉ BENEFICIO?\n      ↓\n  NO CALCULABLE\n```\n\n### 2. **RAZONABILIDAD DE PRECIO: PARCIAL** (3/7 puntos)\n\n#### Análisis Limitado:\n**Contexto Fortezza:**\n- Facturación anual: ~$500M MXN\n- Complejidad fiscal: ALTA (construcción, desarrollos, múltiples regímenes)\n- Presupuesto servicios profesionales estimado: $25M MXN\n\n**Benchmarking Externo (datos históricos sector):**\n```\nServicio: Planeación Fiscal Estratégica Empresas $500M+ facturación\n\nRango mercado:\n├─ Despachos Big 4:        $800K - $1,500K MXN\n├─ Despachos Boutique:     $500K - $900K MXN\n└─ Consultores In-House:   $300K - $600K MXN\n```\n\n**Posición del Contrato:**\n- $750K → **DENTRO DE RANGO MEDIO-BAJO**\n- **Aparentemente razonable** para empresa de este tamaño\n\n⚠️ **PERO:** Sin scope detallado, no podemos confirmar si precio es justo para el alcance real.\n\n### 3. **IMPACTO PRESUPUESTAL: MODERADO** (2/3 puntos)\n```\n$750,000 / $25,000,000 = 3.0% del presupuesto anual servicios\n                          ↓\n                   NIVEL MEDIO\n           (No requiere aprobación especial CFO)\n```\n\n---\n\n## 🔍 EVALUACIÓN PILARES SAT (Perspectiva Financiera)\n\n### 1. RAZÓN DE NEGOCIOS (Art. 5-A CFF)\n**ESTADO:** ⚠️ **NO EVALUABLE**\n\n**Desde finanzas:**\n- Un análisis fiscal PUEDE tener razón de negocios si genera ahorro > costo\n- **PERO:** Sin cuantificar beneficio, no puedo respaldar la racionalidad económica\n- **BANDERA ROJA:** Proveedor = mismo Grupo Fortezza → ¿operación real o reclasificación contable?\n\n### 2. BENEFICIO ECONÓMICO ESPERADO (Art. 5-A CFF)\n**ESTADO:** 🔴 **CRÍTICO - NO DEMOSTRABLE**\n\n**Falta:**\n```\nHipótesis de Beneficio:\n├─ Ahorro fiscal proyectado:           [NO DEFINIDO]\n├─ Multas/recargos evitados:           [NO DEFINIDO]\n├─ Recuperación de créditos fiscales:  [NO DEFINIDO]\n├─ Eficiencias operativas tributarias: [NO DEFINIDO]\n└─ ROI esperado:                       [NO CALCULABLE]\n```\n\n**Consecuencia SAT:**\n- Sin BEE cuantificado → argumento de \"gasto simulado\" se fortalece\n- SAT podría considerar NO indispensable bajo LISR Art. 27-I\n\n### 3. MATERIALIDAD (Art. 69-B CFF)\n**ESTADO:** ⚠️ **EVALUACIÓN FUERA DE ALCANCE A5**\n- Responsabilidad de A6 (Due Diligence) y A7 (Defense File)\n- **Observación financiera:** Si proveedor = cliente, materialidad es CRÍTICA demostrar\n\n### 4. TRAZABILIDAD (NOM-151)\n**ESTADO:** ⚠️ **EVALUACIÓN FUERA DE ALCANCE A5**\n- Responsabilidad de A4 (Contratos) y A7\n- **Observación financiera:** Necesitamos entregables claros para auditoría de gasto\n\n---\n\n## 🎯 INFORMACIÓN CRÍTICA REQUERIDA\n\n### PRIORIDAD ALTA (Bloquea dictamen financiero):\n\n#### A. DEFINICIÓN DE BENEFICIO ECONÓMICO\n```json\n{\n  \"hipotesisBeneficio\": {\n    \"tipoBeneficio\": [\n      \"¿ahorro_impuestos?\",\n      \"¿evitar_multas?\",\n      \"¿recuperar_saldos_favor?\",\n      \"¿optimizar_estructura_fiscal?\"\n    ],\n    \"kpisObjetivo\": [\n      {\n        \"nombre\": \"Tasa efectiva ISR\",\n        \"baseline2024\": \"¿%?\",\n        \"objetivo2025\": \"¿%?\",\n        \"ahorroProyectado\": \"¿$ MXN?\"\n      },\n      {\n        \"nombre\": \"Contingencias fiscales identificadas\",\n        \"baseline\": \"¿monto estimado?\",\n        \"objetivo\": \"¿reducción esperada?\",\n        \"valorEvitado\": \"¿$ MXN?\"\n      }\n    ],\n    \"horizonteBeneficio\": \"¿12 meses? ¿24 meses?",
+      "rag_context": [],
+      "email_sent": null,
+      "timestamp": "2026-01-23T17:39:03.447365+00:00",
+      "recorded_at": "2026-01-23T17:39:03.447396+00:00"
+    }
+  ],
+  "email_count": 4,
+  "emails": [
+    {
+      "from_email": "estrategia@revisar-ia.com",
+      "to_email": "fiscal@revisar-ia.com",
+      "subject": "[SATMA] Deliberación E1_ESTRATEGIA",
+      "body": "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSISTEMA SATMA - COMUNICACIÓN INTER-AGENTES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nDe: María Rodríguez (Dirección Estratégica)\nPara: Laura Sánchez (Fiscal)\nEtapa: E1_ESTRATEGIA\nFecha: 23/01/2026 17:37 UTC\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPROYECTO: Análisis Fiscal Fortezza 2025\nID: PROJ-794BB5E7\nMONTO: $750,000.00 MXN\nDECISIÓN: EN REVISIÓN\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "message_id": "A1_SPONSOR_1769189861.981083",
+      "attachments": [
+        "IDPROJ-794_A1_SPONSOR_Reporte_estrategia_V1.pdf"
+      ],
+      "recorded_at": "2026-01-23T17:37:41.981208+00:00"
+    },
+    {
+      "from_email": "fiscal@revisar-ia.com",
+      "to_email": "finanzas@revisar-ia.com",
+      "subject": "[SATMA] Deliberación E2_FISCAL",
+      "body": "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSISTEMA SATMA - COMUNICACIÓN INTER-AGENTES\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nDe: Laura Sánchez (Fiscal)\nPara: Roberto Sánchez (Finanzas)\nEtapa: E2_FISCAL\nFecha: 23/01/2026 17:38 UTC\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPROYECTO: Análisis Fiscal Fortezza 2025\nID: PROJ-794BB5E7\nMONTO: $750,000.00 MXN\nDECISIÓN: APROBADO para continuar\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "message_id": "A3_FISCAL_1769189903.351423",
+      "attachments": [
+        "IDPROJ-794_A3_FISCAL_Reporte_fiscal_V1.pdf"
+      ],
+      "recorded_at": "2026-01-23T17:38:23.351575+00:00"
+    },
+    {
+      "from_email": "pmo@revisar-ia.com",
+      "to_email": "sfortezza@grupofortezza.com",
+      "subject": "[SATMA] Resultado de Evaluación - Análisis Fiscal Fortezza 2025 - APROBADO",
+      "body": "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nSISTEMA SATMA - REPORTE DE CONSOLIDACIÓN FINAL\nRevisar.ia\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nEstimado(a) Grupo Fortezza SA de CV,\n\nLe informamos que su solicitud de proyecto ha completado el proceso de evaluación multi-agente del Sistema SATMA.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nDATOS DEL PROYECTO\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nID: PROJ",
+      "message_id": "A2_PMO_1769190042.812747",
+      "attachments": [
+        "IDPROJ-794_A1_SPONSOR_Reporte_estrategia_V1.pdf",
+        "IDPROJ-794_A3_FISCAL_Reporte_fiscal_V1.pdf",
+        "IDPROJ-794_A5_FINANZAS_Reporte_finanzas_V1.pdf",
+        "IDPROJ-794_SYSTEM_Reporte_aprobacion_final_V1.pdf",
+        "IDPROJ-794_A2_PMO_Reporte_consolidacion_V1.pdf"
+      ],
+      "recorded_at": "2026-01-23T17:40:42.813408+00:00"
+    },
+    {
+      "from_email": "legal@revisar-ia.com",
+      "to_email": "sfortezza@grupofortezza.com",
+      "cc_emails": [
+        "pmo@revisar-ia.com"
+      ],
+      "subject": "[SATMA] Coordinación de Contrato - Análisis Fiscal Fortezza 2025",
+      "body": "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nGRUPO FORTEZZA - COORDINACIÓN DE CONTRATO\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nEstimado(a) Grupo Fortezza SA de CV,\n\nLe informamos que el proyecto \"Análisis Fiscal Fortezza 2025\" ha sido aprobado por \ntodos los departamentos de Revisar.ia a través del Sistema SATMA.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nDETALLES DEL PROYECTO APROBADO\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "message_id": "LEGAL_1769190044.008919",
+      "type": "legal_to_provider_coordination",
+      "recorded_at": "2026-01-23T17:40:44.009013+00:00"
+    }
+  ],
+  "provider_communications": [
+    {
+      "type": "contract_coordination_request",
+      "from_department": "LEGAL",
+      "to_provider": "sfortezza@grupofortezza.com",
+      "cc": [
+        "pmo@revisar-ia.com"
+      ],
+      "subject": "[SATMA] Coordinación de Contrato - Análisis Fiscal Fortezza 2025",
+      "timestamp": "2026-01-23T17:40:44.010125+00:00",
+      "recorded_at": "2026-01-23T17:40:44.010139+00:00"
+    }
+  ],
+  "rag_contexts": [],
+  "documents": [
+    {
+      "project_id": "PROJ-794BB5E7",
+      "stage": "E1_ESTRATEGIA",
+      "agent_id": "A1_SPONSOR",
+      "doc_type": "reporte_estrategia",
+      "file_path": "/reports/IDPROJ-794_A1_SPONSOR_Reporte_estrategia_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZCyRK5Z3i2FlPNm5j45oHSTrcmEwS8qnAt7",
+      "created_at": "2026-01-23T17:37:40.343197+00:00",
+      "version": 1
+    },
+    {
+      "project_id": "PROJ-794BB5E7",
+      "stage": "E2_FISCAL",
+      "agent_id": "A3_FISCAL",
+      "doc_type": "reporte_fiscal",
+      "file_path": "/reports/IDPROJ-794_A3_FISCAL_Reporte_fiscal_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZEyRK5Z7l9VFo2zCAF9qhVjD2G4oLQgngFX",
+      "created_at": "2026-01-23T17:38:21.474399+00:00",
+      "version": 1
+    },
+    {
+      "project_id": "PROJ-794BB5E7",
+      "stage": "E3_FINANZAS",
+      "agent_id": "A5_FINANZAS",
+      "doc_type": "reporte_finanzas",
+      "file_path": "/reports/IDPROJ-794_A5_FINANZAS_Reporte_finanzas_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZy7RK5ZomU6u6qS6IVygalyXJcsDHc6Hrrk",
+      "created_at": "2026-01-23T17:39:04.067616+00:00",
+      "version": 1
+    },
+    {
+      "project_id": "PROJ-794BB5E7",
+      "stage": "E5_APROBADO",
+      "agent_id": "SYSTEM",
+      "doc_type": "aprobacion_final",
+      "file_path": "/reports/IDPROJ-794_SYSTEM_Reporte_aprobacion_final_V1.pdf",
+      "pcloud_link": null,
+      "created_at": "2026-01-23T17:39:04.406491+00:00",
+      "version": 1
+    },
+    {
+      "project_id": "PROJ-794BB5E7",
+      "stage": "E5_APROBADO",
+      "agent_id": "A2_PMO",
+      "doc_type": "reporte_consolidacion",
+      "file_path": "/reports/IDPROJ-794_A2_PMO_Reporte_consolidacion_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZR7RK5ZmxD6MnuzRqJsVGnTXY5QLms9BBjk",
+      "created_at": "2026-01-23T17:40:41.174896+00:00",
+      "version": 1
+    }
+  ],
+  "document_count": 5,
+  "final_decision": "approved",
+  "final_justification": "Aprobado por todos los agentes. Deliberaciones: 3",
+  "compliance_checklist": {
+    "razon_de_negocios": true,
+    "beneficio_economico": true,
+    "materialidad": true,
+    "trazabilidad": true
+  },
+  "compliance_score": 100.0,
+  "pcloud_links": {
+    "A1_SPONSOR": "https://u.pcloud.link/publink/show?code=kZHqng5ZeW36Cw3UbmY6lu1DsJ1QYj9hhCe7",
+    "A2_PMO": "https://u.pcloud.link/publink/show?code=kZJqng5ZGDwXSRewkijTxOYa3WBCIkRXeUpV",
+    "A3_FISCAL": "https://u.pcloud.link/publink/show?code=kZQqng5ZE3BXwURDwrhkgreFBT4xXbyJDOa7",
+    "A5_FINANZAS": "https://u.pcloud.link/publink/show?code=kZhqng5ZpurMT7tJ7wH9vDUXiGy2Mbju5M0X"
+  },
+  "pcloud_documents": [
+    {
+      "agent_id": "A1_SPONSOR",
+      "doc_type": "reporte_estrategia",
+      "local_path": "/home/runner/workspace/backend/reports/IDPROJ-794_A1_SPONSOR_Reporte_estrategia_V1.pdf",
+      "pcloud_path": "/REVISAR_IA/Evidencias/2026-01-Evidencias/PROJ-794BB5E7/A1_SPONSOR_estrategia_20260123_173739.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZCyRK5Z3i2FlPNm5j45oHSTrcmEwS8qnAt7",
+      "file_id": 83420569256,
+      "uploaded_at": "2026-01-23T17:37:40.342459+00:00"
+    },
+    {
+      "agent_id": "A3_FISCAL",
+      "doc_type": "reporte_fiscal",
+      "local_path": "/home/runner/workspace/backend/reports/IDPROJ-794_A3_FISCAL_Reporte_fiscal_V1.pdf",
+      "pcloud_path": "/A3_FISCAL_fiscal_20260123_173820.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZEyRK5Z7l9VFo2zCAF9qhVjD2G4oLQgngFX",
+      "file_id": 83420589056,
+      "uploaded_at": "2026-01-23T17:38:21.473204+00:00"
+    },
+    {
+      "agent_id": "A5_FINANZAS",
+      "doc_type": "reporte_finanzas",
+      "local_path": "/home/runner/workspace/backend/reports/IDPROJ-794_A5_FINANZAS_Reporte_finanzas_V1.pdf",
+      "pcloud_path": "/A5_FINANZAS_finanzas_20260123_173903.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZy7RK5ZomU6u6qS6IVygalyXJcsDHc6Hrrk",
+      "file_id": 83420608891,
+      "uploaded_at": "2026-01-23T17:39:04.058117+00:00"
+    },
+    {
+      "agent_id": "A2_PMO",
+      "doc_type": "reporte_consolidacion",
+      "local_path": "/home/runner/workspace/backend/reports/IDPROJ-794_A2_PMO_Reporte_consolidacion_V1.pdf",
+      "pcloud_path": "/A2_PMO_consolidacion_20260123_174040.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZR7RK5ZmxD6MnuzRqJsVGnTXY5QLms9BBjk",
+      "file_id": 83420650514,
+      "uploaded_at": "2026-01-23T17:40:41.173566+00:00"
+    }
+  ],
+  "pcloud_document_count": 4,
+  "bitacora_link": "https://u.pcloud.link/publink/show?code=XZ87RK5ZCSamGxGtpFmKuokMY65xR450a0zV",
+  "consolidation_report": {
+    "full_report": "# REPORTE DE CONSOLIDACIÓN FINAL\n## SISTEMA SATMA - REVISAR.IA\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n**CONTROL DE SERVICIOS DE CONSULTORÍA Y CUMPLIMIENTO FISCAL**\n**Revisar.ia - Soluciones de Gobernanza Tributaria**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n---\n\n### DATOS GENERALES DEL PROYECTO\n\n**Identificador del Proyecto:** PROJ-794BB5E7  \n**Nombre del Servicio:** Análisis Fiscal Fortezza 2025  \n**Cliente/Proveedor:** Grupo Fortezza SA de CV  \n**Tipología de Servicio:** Plan Estratégico 2024-2026  \n**Monto Total:** $750,000.00 MXN (Setecientos cincuenta mil pesos 00/100 M.N.)  \n**Fecha de Evaluación:** 21 de enero de 2025  \n**Fase del Proyecto:** F0 - INTAKE/SIB-BEE (Fase Inicial)  \n**Responsable de PMO:** Carlos Mendoza | Gerente de Oficina de Proyectos  \n\n---\n\n## 1. ENCABEZADO Y RESUMEN EJECUTIVO\n\nEl presente documento constituye el **Reporte de Consolidación Final** del proyecto PROJ-794BB5E7, denominado \"Análisis Fiscal Fortezza 2025\", correspondiente a la solicitud de servicios de consultoría fiscal y estrategia tributaria presentada por Grupo Fortezza SA de CV por un monto de $750,000.00 MXN.\n\nEste reporte integra las evaluaciones técnicas realizadas por las cuatro áreas funcionales clave del sistema SATMA (Sistema de Análisis Tributario y Materialidad Avanzada) de Revisar.ia: Estrategia Corporativa, Fiscalidad, Finanzas y Legal. El proceso de revisión se ejecutó conforme al Procedimiento Operativo Estándar (POE) establecido para servicios de alto impacto fiscal, considerando especialmente los requisitos de la Regla 3.3.1.26 de la Resolución Miscelánea Fiscal 2024 y los criterios de razón de negocios del Artículo 5-A del Código Fiscal de la Federación.\n\n### DECISIÓN FINAL CONSOLIDADA\n\n**ESTADO: INFORMACIÓN INSUFICIENTE - PROCESO SUSPENDIDO TEMPORALMENTE**\n\nTras la evaluación multi-disciplinaria del proyecto, el Comité de Gobernanza de SATMA ha determinado que **NO es posible emitir una aprobación responsable** en este momento debido a la ausencia crítica de información mínima requerida para validar el cumplimiento fiscal, estratégico y financiero del servicio solicitado.\n\nEsta decisión se fundamenta en el principio de **debida diligencia corporativa** y en la responsabilidad fiduciaria de Revisar.ia de proteger los intereses fiscales y económicos de nuestros clientes ante posibles cuestionamientos de la autoridad tributaria. Un servicio de consultoría por $750,000.00 MXN debe contar con documentación sólida que demuestre su razón de negocios, beneficio económico esperado y estricta indispensabilidad para las operaciones del contribuyente.\n\n### HALLAZGOS PRINCIPALES DEL PROCESO DE EVALUACIÓN\n\nDurante la fase F0 (Intake/SIB-BEE), los cuatro agentes especializados identificaron deficiencias críticas en la información presentada:\n\n1. **Ausencia de Justificación Estratégica Documentada:** No se proporcionó evidencia del problema empresarial específico que el servicio pretende resolver, ni se vinculó con objetivos estratégicos medibles de Grupo Fortezza.\n\n2. **Vacío en Documentación de Razón de Negocios:** El expediente carece de elementos que demuestren la necesidad económica real del servicio conforme al Artículo 5-A del CFF, exponiendo al contribuyente a riesgos fiscales significativos.\n\n3. **Imposibilidad de Cuantificar Beneficio Económico:** Sin entregables específicos, métricas de éxito o alcance técnico definido, resulta imposible calcular el ROI esperado o justificar la proporcionalidad del gasto.\n\n4. **Documentación Contractual Inexistente:** No se presentó Statement of Work (SOW), alcance de servicios, cronograma de entregables ni esquema de facturación, elementos indispensables para la materialidad del servicio.\n\nLa conclusión unánime es que **proceder con la aprobación en estas condiciones constituiría una negligencia profesional** y expondría innecesariamente a Grupo Fortezza a contingencias fiscales ante una eventual revisión del SAT, particularmente bajo los nuevos criterios de fiscalización de servicios profesionales implementados en 2024-2025.\n\n---\n\n## 2. ANÁLISIS DETALLADO POR ÁREA FUNCIONAL\n\n### 2.1 EVALUACIÓN ESTRATÉGICA\n**Responsable:** María Rodríguez | Directora de Estrategia Corporativa\n\nLa Dirección de Estrategia Corporativa realizó el análisis preliminar del proyecto bajo la metodología de Alineación Estratégica y Justificación de Valor (AEJV), enfocándose en validar la pertinencia del servicio dentro del portafolio de iniciativas 2024-2026 de Grupo Fortezza.\n\n**DICTAMEN ESTRATÉGICO:** NO CONFORME\n\nEl análisis reveló **deficiencias estructurales** en la presentación de la solicitud que impiden validar la alineación estratégica del proyecto:\n\n**Hallazgos Específicos:**\n\n- **Ausencia de Diagnóstico Situacional:** No se identificó el problema empresarial concreto que justifica la contratación del análisis fiscal. ¿Existe un incumplimiento normativo previo? ¿Se detectaron áreas de riesgo tributario? ¿Hay una auditoría SAT en curso? Sin este contexto, es imposible evaluar la pertinencia del servicio.\n\n- **Desconexión con Objetivos Estratégicos 2024-2026:** El plan estratégico trienal típicamente incluye metas como expansión de mercado, optimización operativa, transformación digital o consolidación financiera. No se documentó cómo este análisis fiscal contribuye a alguno de estos objetivos macro.\n\n- **Indefinición de Entregables Esperados:** Un servicio estratégico debe tener productos tangibles como diagnósticos, planes de acción, modelos financieros o roadmaps de implementación. La solicitud no especifica qué documentos o análisis recibirá Grupo Fortezza.\n\n- **Falta de Métricas de Éxito:** No se establecieron KPIs que permitan medir el valor generado. Ejemplos válidos serían: \"Reducir contingencias fiscales identificadas en 40%\", \"Implementar 5 oportunidades de optimización tributaria\" o \"Lograr cumplimiento al 100% de obligaciones RMF 2025\".\n\n**Riesgos Estratégicos Identificados:**\n\n1. **Riesgo de Inversión sin Retorno:** Sin objetivos claros, existe alta probabilidad de que el servicio no genere valor tangible proporcional al costo de $750,000 MXN.\n\n2. **Riesgo de Duplicidad:** Si la empresa ya cuenta con área fiscal interna o asesores tributarios permanentes, podría existir duplicidad funcional no justificada.\n\n3. **Riesgo Reputacional:** Una inversión significativa sin resultados medibles puede afectar la credibilidad de la función de Planeación Estratégica ante el Consejo de Administración.\n\n**Recomendación Estratégica:**\n\nEl área de Estrategia **NO PUEDE APROBAR** el proyecto en su forma actual. Se requiere que el solicitante proporcione:\n\n- Diagnóstico ejecutivo del estado actual de cumplimiento fiscal (máximo 2 páginas)\n- Vinculación explícita con al menos 2 objetivos del Plan Estratégico 2024-2026\n- Lista específica de entregables esperados con fechas estimadas\n- Dashboard de 5-7 KPIs que se medirán para validar el éxito del proyecto\n- Justificación de por qué este análisis no puede realizarse con recursos internos\n\n**Estado:** PENDIENTE DE INFORMACIÓN COMPLEMENTARIA\n\n---\n\n### 2.2 ANÁLISIS FISCAL\n**Responsable:** Laura Sánchez | Especialista Senior en Cumplimiento Fiscal\n\nEl Área de Fiscalidad ejecutó la evaluación de riesgo tributario bajo los parámetros de la nueva normatividad 2024-2025, específicamente enfocada en validar la deducibilidad del servicio conforme a los Artículos 27 fracción I de la Ley del ISR y 5-A del Código Fiscal de la Federación.\n\n**DICTAMEN FISCAL:** CRÍTICO - INFORMACIÓN INSUFICIENTE\n\nLaura Sánchez emitió una **alerta roja** sobre la imposibilidad de emitir un dictamen fiscal responsable debido a vacíos documentales que exponen al contribuyente a riesgos fiscales materiales.\n\n**Evaluación de Cumplimiento Normativo:**\n\n**1. Análisis de Razón de Negocios (Artículo 5-A CFF):**\n\nEl artículo 5-A establece que las operaciones entre partes relacionadas o con residentes en el extranjero deben tener una razón de negocios válida. Aunque Grupo Fortezza y el proveedor del análisis fiscal no necesariamente son partes relacionadas, el SAT ha comenzado a aplicar este criterio extensivamente a servicios profesionales de alto monto.\n\n**Vacíos Identificados:**\n\n- **Propósito Empresarial No Documentado:** No existe evidencia escrita de por qué Grupo Fortezza requiere específicamente este análisis fiscal en 2025. El criterio \"Business Purpose\" del SAT exige demostrar una necesidad económica real, no meramente una conveniencia administrativa.\n\n- **Ausencia de Análisis Comparativo:** No se documentó si se evaluaron alternativas más económicas (consultoría interna, servicios de menor alcance, herramientas tecnológicas de compliance fiscal).\n\n- **Falta de Nexo Causal con Operaciones:** No se vinculó el servicio con actividades generadoras de ingreso de la empresa. Por ejemplo: \"Necesitamos el análisis fiscal porque estamos expandiendo operaciones a 3 estados nuevos y debemos validar tratamiento de IESPS regional\".\n\n**Exposición al Riesgo:** Si el SAT cuestiona la deducción de estos $750,000 MXN, la empresa no podría demostrar razonabilidad del gasto ante ausencia de documentación de razón de negocios. **Riesgo fiscal cuantificado:** $225,000 MXN en ISR rechazado + recargos + actualizaciones.\n\n**2. Evaluación de Estricta Indispensabilidad (Artículo 27 LISR):**\n\nPara que un gasto sea deducible, debe ser **estrictamente indispensable** para los fines de la actividad del contribuyente. Este es el estándar más riguroso de la legislación fiscal mexicana.\n\n**Vacíos Críticos:**\n\n- **No se acreditó indispensabilidad:** ¿Por qué este análisis fiscal es absolutamente necesario para que Grupo Fortezza continúe operando o generando ingresos? Sin esta demostración, la deducción es vulnerable.\n\n- **Ausencia de Urgencia o Temporalidad:** No se explicó por qué debe realizarse específicamente en 2025 y no en otro ejercicio fiscal.\n\n- **Falta de Proporcionalidad:** $750,000 MXN es un monto significativo. Sin desglose de servicios incluidos (¿cuántas horas? ¿cuántos especialistas? ¿qué entregas específicas?), no se puede validar que el costo sea proporcional al beneficio.\n\n**Exposición al Riesgo:** En una revisión electrónica del SAT, un gasto de esta magnitud sin documentación de indispensabilidad sería automáticamente marcado para rechazarse. **Riesgo estimado:** 95% de probabilidad de cuestionamiento.\n\n**3. Análisis de Materialidad del Servicio (Artículo 69-B CFF):**\n\nEl artículo 69-B, adicionado recientemente, obliga a los contribuyentes a demostrar la materialidad efectiva de las operaciones. Es decir, que el servicio realmente se prestó en los términos facturados.\n\n**Deficiencias Documentales:**\n\n- **Inexistencia de SOW (Statement of Work):** Sin un documento que detalle alcance, metodología, cronograma y entregables, será imposible demostrar que el servicio se prestó conforme a lo pactado.\n\n- **Ausencia de Evidencia de Prestación:** No hay mecanismo previsto para documentar reuniones de trabajo, avances parciales, revisiones de hallazgos o aceptación de entregables.\n\n- **Vacío en Cadena de Custodia:** El Defense File debe incluir toda la evidencia desde la contratación hasta la aceptación final. Actualmente no existe estructura para esta trazabilidad.\n\n**Exposición al Riesgo:** Si el SAT solicita demostrar que el servicio efectivamente se prestó, la empresa no tendría evidencia documental. Esto puede derivar en **presunción de simulación de operaciones**, con consecuencias penales potenciales bajo el artículo 113 fracción I del CFF. **Riesgo extremo.**\n\n**Recomendación Fiscal:**\n\nEl Área Fiscal **RECHAZA CATEGÓRICAMENTE** proceder sin la siguiente documentación mínima:\n\n1. Carta de justificación de razón de negocios firmada por el Director General de Grupo Fortezza\n2. Análisis de 3 cotizaciones comparables que justifiquen la selección del proveedor\n3. SOW detallado con alcance, metodología, cronograma fase por fase y entregables específicos\n4. Matriz de materialidad que incluya: reuniones programadas, formatos de acta de avance, criterios de aceptación de entregables\n5. Declaración expresa de estricta indispensabilidad vinculada a objetivos de negocio 2025\n\n**Estado:** RECHAZADO - DEBE SUBSANARSE ANTES DE CONTINUAR\n\n---\n\n### 2.3 EVALUACIÓN FINANCIERA\n**Responsable:** Roberto Torres | Director de Planeación Financiera\n\nEl Área de Finanzas condujo el análisis de viabilidad económica del proyecto bajo la metodología de Retorno sobre Inversión Esperado (ROI-E) y Análisis de Costo-Beneficio para servicios de consultoría.\n\n**DICTAMEN FINANCIERO:** INFORMACIÓN INSUFICIENTE - ANÁLISIS SUSPENDIDO\n\nRoberto Torres determinó que resulta **técnicamente imposible** cuantificar el beneficio económico del proyecto con los datos disponibles, violando un principio fundamental de gobernanza financiera corporativa.\n\n**Análisis Presupuestal:**\n\n**1. Validación de Disponibilidad Presupuestal:**\n\nEl monto de $750,000 MXN representa una inversión significativa que debe estar contemplada en el presupuesto anual de Grupo Fortezza. Sin embargo, no se proporcionó:\n\n- Partida presupuestal específica de donde se tomarán los recursos\n- Confirmación del Director de Finanzas de Grupo Fortezza sobre disponibilidad\n- Código de centro de costos donde se cargará el gasto\n- Aprobación de comité de inversiones (si aplica para montos superiores a cierto umbral)\n\n**Riesgo Financiero:** Proceder sin validación presupuestal puede resultar en descuadres contables trimestrales o afectación de otras iniciativas estratégicas por desvío de recursos.\n\n**2. Análisis de Retorno sobre Inversión (ROI):**\n\nLa fórmula básica de ROI para servicios de consultoría es:\n\n**ROI = (Beneficio Generado - Costo del Servicio) / Costo del Servicio × 100**\n\nPara un servicio de análisis fiscal, los beneficios típicamente incluyen:\n- Ahorros fiscales identificados e implementados\n- Reducción de contingencias fiscales cuantificadas\n- Optimización de estructura tributaria\n- Prevención de multas y recargos por incumplimiento\n\n**Vacíos Críticos para Cálculo de ROI:**\n\n- **Beneficio Esperado = DESCONOCIDO:** Sin entregables específicos, es imposible proyectar qué valor monetario generará el análisis. ¿Se esperan identificar $2 millones en ahorros fiscales? ¿$500,000? ¿$0?\n\n- **Línea Base No Establecida:** No se documentó el estado actual de cumplimiento fiscal de Grupo Fortezza. Sin baseline, no se puede medir mejora.\n\n- **Métricas de Éxito Indefinidas:** ¿Cómo se medirá si los $750,000 MXN fueron bien invertidos? Sin KPIs financieros, no hay accountability.\n\n**Escenarios Proyectados (Hipotéticos",
+    "final_status": "APROBADO",
+    "tokens_used": 9009,
+    "model_used": "claude-sonnet-4-5",
+    "audit_metadata": {
+      "risk_score": 75,
+      "was_modified": false,
+      "hallucinations_removed": [],
+      "council_validated": true
+    },
+    "recorded_at": "2026-01-23T17:40:40.086258+00:00"
+  },
+  "agent_opinions": [],
+  "agent_opinions_count": 0,
+  "purchase_orders": [],
+  "purchase_orders_count": 0,
+  "contract_requests": [],
+  "contract_requests_count": 0,
+  "provider_change_requests": [],
+  "provider_change_requests_count": 0,
+  "version_history": [],
+  "version_history_count": 0,
+  "audit_ready": true
+}

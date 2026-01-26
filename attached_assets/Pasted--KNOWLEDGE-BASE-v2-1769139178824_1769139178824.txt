@@ -1,0 +1,622 @@
+═══════════════════════════════════════════════════════════════════════════════
+📚 KNOWLEDGE BASE v2 OPERATIVA - ESTRUCTURA COMPLETA
+═══════════════════════════════════════════════════════════════════════════════
+
+PRINCIPIO FUNDAMENTAL:
+La KB NO es solo "biblioteca" - es el MÓDULO NORMATIVO que:
+• Provee [NORMA] literal (artículos, reglas, tesis)
+• Provee [INTERPRETACIÓN] acotada (cómo se usa en la plataforma)
+• Los agentes NUNCA "inventan" norma - solo leen de la KB
+
+═══════════════════════════════════════════════════════════════════════════════
+ESTRUCTURA DE CARPETAS
+═══════════════════════════════════════════════════════════════════════════════
+
+```
+kb/
+│
+├── 1_normativa/                    ← Leyes, reglamentos, tesis
+│   ├── cff/
+│   │   ├── CFF_5_INTERPRETACION.md
+│   │   ├── CFF_5A_RAZON_NEGOCIOS.md
+│   │   ├── CFF_27_REQUISITOS_RFC.md
+│   │   ├── CFF_29_29A_CFDI.md
+│   │   ├── CFF_32D_OPINION_CUMPLIMIENTO.md
+│   │   ├── CFF_69_LISTAS_PUBLICAS.md
+│   │   └── CFF_69B_EFOS_MATERIALIDAD.md
+│   │
+│   ├── lisr/
+│   │   ├── LISR_25_DEDUCCIONES_AUTORIZADAS.md
+│   │   ├── LISR_27_REQUISITOS_DEDUCCIONES.md
+│   │   └── LISR_28_GASTOS_NO_DEDUCIBLES.md
+│   │
+│   ├── liva/
+│   │   ├── LIVA_5_ACREDITAMIENTO_IVA.md
+│   │   └── LIVA_ARTICULOS_CLAVE.md
+│   │
+│   ├── nom151/
+│   │   └── NOM_151_SCFI_2016_TRAZABILIDAD.md
+│   │
+│   ├── rmf/
+│   │   └── RMF_2026_SERVICIOS_CFDI.md
+│   │
+│   └── jurisprudencia/
+│       ├── TESIS_IA_SCJN_2031639.md
+│       ├── TESIS_RAZON_NEGOCIOS_5A.md
+│       ├── TESIS_MATERIALIDAD_69B.md
+│       └── TESIS_ESTRICTA_INDISPENSABILIDAD.md
+│
+├── 2_pilares/                      ← Guías por cada pilar
+│   ├── razon_negocios/
+│   │   └── GUIA_A1_5A_CFF.md
+│   │
+│   ├── beneficio_economico/
+│   │   └── GUIA_A1_A5_BEE.md
+│   │
+│   ├── materialidad/
+│   │   └── GUIA_MATERIALIDAD_SERVICIOS.md
+│   │
+│   └── trazabilidad/
+│       └── GUIA_TRAZABILIDAD_NOM151.md
+│
+├── 3_tipologias/                   ← Por tipo de servicio
+│   ├── TIPO_CONSULTORIA_MACRO.md
+│   ├── TIPO_CONSULTORIA_ESTRATEGICA.md
+│   ├── TIPO_SOFTWARE_SAAS.md
+│   ├── TIPO_MARKETING_DIGITAL.md
+│   ├── TIPO_INTRAGRUPO_MANAGEMENT_FEE.md
+│   ├── TIPO_LEGAL_CORPORATIVO.md
+│   └── TIPO_ESG_COMPLIANCE.md
+│
+├── 4_efos_proveedores/             ← Due diligence y EFOS
+│   ├── CRITERIOS_EFOS_69B.md
+│   ├── GUIA_DD_PROVEEDOR.md
+│   └── POLITICA_INTERNA_PROVEEDORES.md
+│
+├── 5_plantillas/                   ← Templates y ejemplos
+│   ├── PLANTILLA_SIB_BEE.md
+│   ├── PLANTILLA_SOW.md
+│   ├── PLANTILLA_ACTA_ACEPTACION.md
+│   ├── PLANTILLA_DICTAMEN_A1.md
+│   ├── PLANTILLA_DICTAMEN_A3.md
+│   ├── PLANTILLA_DICTAMEN_A7.md
+│   └── EJEMPLO_DEFENSE_FILE_COMPLETO.md
+│
+└── KB_TAGS_REFERENCIAS.md          ← Índice maestro de tags
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+BLOQUE 1: NORMATIVA PRIMARIA Y SECUNDARIA
+═══════════════════════════════════════════════════════════════════════════════
+
+Carpeta: /kb/1_normativa/
+
+FORMATO ESTÁNDAR DE CADA ARCHIVO:
+
+```markdown
+# [NORMA] CFF – Artículo 69-B
+
+[Texto normativo relevante, extracto]
+
+**Referencia oficial:**  
+https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf
+
+---
+
+# [INTERPRETACIÓN EN REVISAR-IA]
+
+- **Ámbito de uso:**  
+  • A3: riesgo EFOS y deducibilidad  
+  • A6: evaluación de proveedores  
+  • A7: argumentación ante SAT/TFJA
+
+- **Límites:**  
+  • La plataforma NO presume automáticamente EFOS
+  • Solo marca señales y estatus en listas
+
+- **Buenas prácticas internas:**  
+  • Documentar due diligence previa
+  • Si proveedor pasa a definitivo, reactivar A3/A7
+```
+
+ARCHIVOS POR SUBCARPETA:
+
+/cff/ (7 archivos):
+┌─────────────────────────────────┬──────────────────────────────────────────┐
+│ Archivo                         │ Contenido                                │
+├─────────────────────────────────┼──────────────────────────────────────────┤
+│ CFF_5_INTERPRETACION.md         │ Interpretación estricta de normas        │
+│ CFF_5A_RAZON_NEGOCIOS.md        │ Razón de negocios (CRÍTICO)              │
+│ CFF_27_REQUISITOS_RFC.md        │ RFC y avisos                             │
+│ CFF_29_29A_CFDI.md              │ Requisitos de CFDI (CRÍTICO)             │
+│ CFF_32D_OPINION_CUMPLIMIENTO.md │ Opinión de cumplimiento                  │
+│ CFF_69_LISTAS_PUBLICAS.md       │ Contribuyentes incumplidos               │
+│ CFF_69B_EFOS_MATERIALIDAD.md    │ EFOS/EDOS y materialidad (CRÍTICO)       │
+└─────────────────────────────────┴──────────────────────────────────────────┘
+
+/lisr/ (3 archivos):
+┌─────────────────────────────────┬──────────────────────────────────────────┐
+│ Archivo                         │ Contenido                                │
+├─────────────────────────────────┼──────────────────────────────────────────┤
+│ LISR_25_DEDUCCIONES.md          │ Catálogo de deducciones autorizadas      │
+│ LISR_27_REQUISITOS.md           │ Fracciones I, III, IV, XVIII, XIX        │
+│ LISR_28_NO_DEDUCIBLES.md        │ Gastos no deducibles relevantes          │
+└─────────────────────────────────┴──────────────────────────────────────────┘
+
+/liva/ (2 archivos):
+┌─────────────────────────────────┬──────────────────────────────────────────┐
+│ LIVA_5_ACREDITAMIENTO.md        │ Requisitos acreditamiento IVA (CRÍTICO)  │
+│ LIVA_ARTICULOS_CLAVE.md         │ Otros artículos relevantes               │
+└─────────────────────────────────┴──────────────────────────────────────────┘
+
+/jurisprudencia/ (4 archivos):
+┌─────────────────────────────────┬──────────────────────────────────────────┐
+│ TESIS_IA_SCJN_2031639.md        │ IA como herramienta auxiliar (CRÍTICO)   │
+│ TESIS_RAZON_NEGOCIOS_5A.md      │ 2-3 tesis sobre RN                       │
+│ TESIS_MATERIALIDAD_69B.md       │ 2-3 tesis sobre materialidad             │
+│ TESIS_ESTRICTA_INDISPENS.md     │ 2-3 tesis sobre indispensabilidad        │
+└─────────────────────────────────┴──────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+BLOQUE 2: GUÍAS POR PILAR
+═══════════════════════════════════════════════════════════════════════════════
+
+Carpeta: /kb/2_pilares/
+
+/razon_negocios/GUIA_A1_5A_CFF.md:
+```markdown
+# Guía: Razón de Negocios (Pilar 1)
+
+## Definición interna
+La razón de negocios existe cuando el beneficio económico razonablemente 
+esperado es MAYOR que el beneficio fiscal.
+
+## Criterios de scoring A1
+
+| Nivel | Descripción | Score |
+|-------|-------------|-------|
+| CONFORME | RN clara, documentada, coherente con giro | 85-100 |
+| CONDICIONADA | RN existe pero requiere más evidencia | 60-84 |
+| NO CONFORME | RN débil o inexistente | 0-59 |
+
+## Preguntas obligatorias en SIB
+1. ¿Qué problema de negocio resuelve este servicio?
+2. ¿Qué pasa si NO se contrata?
+3. ¿Cuál es el beneficio económico esperado?
+4. ¿El beneficio es mayor al ahorro fiscal?
+
+## Ejemplos por tipología
+
+### Consultoría estratégica - CONFORME
+> "Contratamos estudio de mercado para evaluar expansión a 3 ciudades.
+> El estudio reveló que solo 1 era viable, evitando inversión de $50M
+> en 2 ubicaciones no rentables."
+
+### Marketing digital - CONDICIONADA  
+> "Campaña de branding institucional"
+> ⚠️ Falta vincular a métrica de negocio concreta
+
+## Vinculación normativa
+- @CFF_5A (texto legal)
+- @TESIS_RN (jurisprudencia)
+```
+
+/beneficio_economico/GUIA_A1_A5_BEE.md:
+```markdown
+# Guía: Beneficio Económico Esperado (Pilar 2)
+
+## Definición
+El BEE es la ganancia, ahorro o mejora cuantificable que el contribuyente
+espera obtener de la operación, independiente del beneficio fiscal.
+
+## Cómo A1 lo describe
+- Identificar el beneficio en términos de negocio
+- Vincular a métrica operativa (ventas, costos, eficiencia)
+
+## Cómo A5 lo cuantifica
+- Proyección financiera del impacto
+- Comparativo antes/después
+- ROI del proyecto
+
+## Ejemplos por sector
+
+### Gimnasio - Software de gestión
+BEE: Reducción de cancelaciones de 25% a 15% = +$2.4M anuales
+
+### Construcción - Consultoría de procesos
+BEE: Reducción de tiempos muertos 20% = $8M ahorro anual
+
+### Retail - Marketing digital
+BEE: Incremento tráfico web 40% → +15% conversión = +$5M ventas
+```
+
+/materialidad/GUIA_MATERIALIDAD_SERVICIOS.md:
+```markdown
+# Guía: Materialidad de Operaciones (Pilar 3)
+
+## Definición
+Evidencia de que la operación realmente ocurrió: el servicio se prestó,
+se recibió, se utilizó y generó el beneficio documentado.
+
+## Matriz de evidencia mínima por tipología
+
+### Consultoría
+| Evidencia | Obligatoria | Recomendada |
+|-----------|-------------|-------------|
+| Contrato firmado | ✅ | |
+| Minutas de reuniones | ✅ | |
+| Entregables (V1 → VF) | ✅ | |
+| Emails de retroalimentación | | ✅ |
+| Evidencia de implementación | ✅ | |
+
+### Software/SaaS
+| Evidencia | Obligatoria | Recomendada |
+|-----------|-------------|-------------|
+| Contrato/SOW | ✅ | |
+| Repositorio de código | ✅ | |
+| Tickets de desarrollo | | ✅ |
+| Pruebas UAT | ✅ | |
+| Acta de go-live | ✅ | |
+
+### Marketing digital
+| Evidencia | Obligatoria | Recomendada |
+|-----------|-------------|-------------|
+| Brief aprobado | ✅ | |
+| Creatividades/materiales | ✅ | |
+| Reportes de plataforma | ✅ | |
+| Métricas de resultados | ✅ | |
+| Acta de cierre | | ✅ |
+
+## Red flags de materialidad
+- Entregables genéricos sin personalización
+- Fechas inconsistentes
+- Falta de comunicación documentada
+- Sin evidencia de uso del servicio
+```
+
+/trazabilidad/GUIA_TRAZABILIDAD_NOM151.md:
+```markdown
+# Guía: Trazabilidad y Fecha Cierta (Pilar 4)
+
+## Definición
+Capacidad de demostrar QUÉ se hizo, CUÁNDO, POR QUIÉN, y que la 
+información NO ha sido alterada.
+
+## Base normativa
+@NOM151 - NOM-151-SCFI-2016
+
+## Qué debe tener sello de tiempo
+Por fase del flujo F0-F9:
+
+| Fase | Documento | Timestamp |
+|------|-----------|-----------|
+| F1 | SIB completado | ✅ |
+| F2 | Contrato firmado | ✅ |
+| F3 | CFDI recibido | ✅ (UUID tiene fecha) |
+| F5 | Entregables clave | ✅ |
+| F6 | Acta de aceptación | ✅ |
+| F8 | Pago realizado | ✅ (estado de cuenta) |
+
+## Cómo se registra en la plataforma
+- Cada acción genera registro con timestamp UTC
+- Hash SHA-256 de documentos
+- Versiones inmutables (V1, V2... VF)
+- Log de quién subió/modificó
+
+## Para Defense File
+La plataforma genera:
+- Timeline cronológico de toda la operación
+- Certificación de integridad de documentos
+- Cadena de custodia digital
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+BLOQUE 3: TIPOLOGÍAS DE SERVICIO
+═══════════════════════════════════════════════════════════════════════════════
+
+Carpeta: /kb/3_tipologias/
+
+FORMATO ESTÁNDAR DE CADA TIPOLOGÍA:
+
+```markdown
+# TIPO: [Nombre de la tipología]
+
+## 1. Descripción
+Qué se entiende internamente por este tipo de servicio.
+
+## 2. Riesgo fiscal inherente
+⬜ Bajo | ⬜ Medio | ☑️ Alto | ⬜ Muy alto
+
+### Ejemplos de operaciones típicas:
+- [Ejemplo 1]
+- [Ejemplo 2]
+
+## 3. Checklists por pilar
+
+### 3.1 Razón de negocios (A1)
+Preguntas obligatorias en SIB:
+□ [Pregunta específica para esta tipología]
+□ [Pregunta específica para esta tipología]
+
+### 3.2 Beneficio económico (A1/A5)
+Ejemplos de BEE aceptables:
+- [Ejemplo cuantificable]
+- [Ejemplo cuantificable]
+
+### 3.3 Materialidad (A3/A7)
+Evidencias mínimas:
+□ [Evidencia 1]
+□ [Evidencia 2]
+□ [Evidencia 3]
+
+### 3.4 Trazabilidad (A2/A7)
+Documentos con sello de tiempo obligatorio:
+□ [Documento 1]
+□ [Documento 2]
+
+## 4. Red flags típicos
+⚠️ [Red flag específico de esta tipología]
+⚠️ [Red flag específico de esta tipología]
+
+## 5. Notas para defensa (A7)
+### Argumentos estándar que funcionan:
+- [Argumento 1]
+- [Argumento 2]
+
+### Errores recurrentes a evitar:
+- [Error 1]
+- [Error 2]
+```
+
+TIPOLOGÍAS A CREAR:
+
+┌────────────────────────────────┬────────┬─────────────────────────────────┐
+│ Archivo                        │ Riesgo │ Notas                           │
+├────────────────────────────────┼────────┼─────────────────────────────────┤
+│ TIPO_CONSULTORIA_MACRO.md      │ Alto   │ Estudios de mercado, análisis   │
+│ TIPO_CONSULTORIA_ESTRATEGICA.md│ Alto   │ Transformación, reestructura    │
+│ TIPO_SOFTWARE_SAAS.md          │ Medio  │ Desarrollo, licencias, soporte  │
+│ TIPO_MARKETING_DIGITAL.md      │ Alto   │ Campañas, branding, medios      │
+│ TIPO_INTRAGRUPO_FEE.md         │ MuyAlto│ Management fees entre relaciona │
+│ TIPO_LEGAL_CORPORATIVO.md      │ Medio  │ Asesoría legal, contratos       │
+│ TIPO_ESG_COMPLIANCE.md         │ Medio  │ Sustentabilidad, cumplimiento   │
+│ TIPO_CAPACITACION.md           │ Medio  │ Cursos, entrenamientos          │
+│ TIPO_CONTABLE_FISCAL.md        │ Bajo   │ Contabilidad, auditoría         │
+│ TIPO_TI_INFRAESTRUCTURA.md     │ Bajo   │ Servidores, hosting, soporte    │
+└────────────────────────────────┴────────┴─────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+BLOQUE 4: EFOS Y PROVEEDORES
+═══════════════════════════════════════════════════════════════════════════════
+
+Carpeta: /kb/4_efos_proveedores/
+
+CRITERIOS_EFOS_69B.md:
+```markdown
+# Criterios EFOS - Artículo 69-B CFF
+
+## Resumen normativo
+El SAT puede presumir inexistencia de operaciones cuando el emisor:
+- No tiene activos, personal o infraestructura
+- No tiene capacidad material para prestar el servicio
+- Está no localizado
+
+## Señales EFOS (scoring A6)
+
+### Señales críticas (cada una = +30 puntos riesgo)
+- Publicado en lista 69-B definitivos
+- RFC cancelado
+- No localizado
+
+### Señales altas (cada una = +20 puntos)
+- Publicado en lista 69-B presuntos
+- Opinión 32-D negativa
+- Domicilio en zona de alto riesgo EFOS
+
+### Señales medias (cada una = +10 puntos)
+- Sin empleados registrados en IMSS
+- Antigüedad < 2 años
+- Sin presencia digital verificable
+
+### Interpretación del score
+| Score | Nivel | Acción |
+|-------|-------|--------|
+| 0-20 | Bajo | Proceder con DD estándar |
+| 21-40 | Medio | DD ampliada recomendada |
+| 41-60 | Alto | DD profunda obligatoria |
+| 61+ | Crítico | No operar o documentar exhaustivamente |
+
+## Documentar buena fe
+Para demostrar que el contribuyente actuó con diligencia:
+1. Verificación previa a contratación (32-D, 69-B)
+2. Validación de domicilio y capacidad
+3. Contrato formal con alcance detallado
+4. Comunicación documentada
+5. Entregables verificables
+```
+
+GUIA_DD_PROVEEDOR.md:
+```markdown
+# Guía de Due Diligence de Proveedores
+
+## Niveles de DD según monto y riesgo
+
+### DD Express (montos < $100,000 o riesgo bajo)
+□ Verificar RFC activo
+□ Consultar lista 69-B (no publicado)
+□ Verificar opinión 32-D vigente
+
+### DD Ampliada (montos $100,000 - $500,000 o riesgo medio)
+Todo lo anterior, más:
+□ Verificar domicilio fiscal
+□ Consultar empleados IMSS
+□ Verificar antigüedad RFC
+□ Buscar presencia digital
+
+### DD Profunda (montos > $500,000 o riesgo alto)
+Todo lo anterior, más:
+□ Solicitar estados financieros
+□ Verificar referencias comerciales
+□ Visita a instalaciones (si aplica)
+□ Análisis de capacidad operativa
+□ Revisión de contratos anteriores
+```
+
+POLITICA_INTERNA_PROVEEDORES.md:
+```markdown
+# Política Interna de Proveedores
+
+## Requisitos obligatorios
+
+### Siempre exigir:
+- Constancia de situación fiscal vigente
+- Opinión 32-D positiva (montos > $50,000)
+
+### Según tipo de servicio:
+- REPSE obligatorio si: subcontratación de personal
+- Permisos especiales si: servicios regulados
+
+## Protocolos de contingencia
+
+### Si proveedor aparece en lista PRESUNTOS:
+1. Notificar inmediatamente al cliente
+2. Suspender nuevas operaciones
+3. Documentar operaciones previas
+4. Preparar evidencia de materialidad
+5. Monitorear estatus (30 días)
+
+### Si proveedor pasa a DEFINITIVOS:
+1. Activar protocolo de defensa
+2. Compilar Defense File
+3. Evaluar autocorrección vs defensa
+4. El cliente tiene 30 días para acreditar materialidad
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+BLOQUE 5: PLANTILLAS Y EJEMPLOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Carpeta: /kb/5_plantillas/
+
+Archivos:
+- PLANTILLA_SIB_BEE.md → Formato del cuestionario inicial
+- PLANTILLA_SOW.md → Statement of Work por tipología
+- PLANTILLA_ACTA_ACEPTACION.md → Acta de recepción de servicios
+- PLANTILLA_DICTAMEN_A1.md → Salida estándar de A1
+- PLANTILLA_DICTAMEN_A3.md → Salida estándar de A3
+- PLANTILLA_DICTAMEN_A7.md → Salida estándar de A7
+- EJEMPLO_DEFENSE_FILE_COMPLETO.md → Caso completo de referencia
+
+Estas plantillas sirven como FEW-SHOT para los agentes.
+
+═══════════════════════════════════════════════════════════════════════════════
+CONSUMO DE KB POR AGENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────┬────────────────────────────────────────────────────────────────────┐
+│ Agente  │ Carpetas/Archivos que consume                                      │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│ A1      │ /1_normativa/cff/CFF_5A_RAZON_NEGOCIOS.md                          │
+│ Facturar│ /2_pilares/razon_negocios/GUIA_A1_5A_CFF.md                        │
+│         │ /2_pilares/beneficio_economico/GUIA_A1_A5_BEE.md                   │
+│         │ /3_tipologias/TIPO_*.md (para saber qué preguntar)                 │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│ A2      │ /1_normativa/nom151/NOM_151_SCFI_2016.md                           │
+│ Bibliot.│ /2_pilares/trazabilidad/GUIA_TRAZABILIDAD_NOM151.md                │
+│         │ /1_normativa/jurisprudencia/TESIS_IA_SCJN_2031639.md               │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│ A3      │ /1_normativa/lisr/LISR_25_DEDUCCIONES.md                           │
+│ Revisar │ /1_normativa/lisr/LISR_27_REQUISITOS.md                            │
+│         │ /1_normativa/lisr/LISR_28_NO_DEDUCIBLES.md                         │
+│         │ /1_normativa/cff/CFF_29_29A_CFDI.md                                │
+│         │ /1_normativa/cff/CFF_69B_EFOS_MATERIALIDAD.md                      │
+│         │ /1_normativa/liva/LIVA_5_ACREDITAMIENTO.md                         │
+│         │ /4_efos_proveedores/CRITERIOS_EFOS_69B.md                          │
+│         │ /2_pilares/materialidad/GUIA_MATERIALIDAD_SERVICIOS.md             │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│ A4      │ /1_normativa/nom151/NOM_151_SCFI_2016.md                           │
+│ Calcular│ /3_tipologias/TIPO_*.md (cláusulas recomendadas)                   │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│ A5      │ /2_pilares/beneficio_economico/GUIA_A1_A5_BEE.md                   │
+│ Investig│ /3_tipologias/TIPO_*.md (beneficios razonables por sector)         │
+│         │ /1_normativa/lisr/LISR_27_REQUISITOS.md (fracc. I, XIX)            │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│ A6      │ /4_efos_proveedores/CRITERIOS_EFOS_69B.md                          │
+│ Trafico │ /4_efos_proveedores/GUIA_DD_PROVEEDOR.md                           │
+│         │ /4_efos_proveedores/POLITICA_INTERNA_PROVEEDORES.md                │
+│         │ /1_normativa/cff/CFF_32D_OPINION_CUMPLIMIENTO.md                   │
+│         │ /1_normativa/cff/CFF_69_LISTAS_PUBLICAS.md                         │
+│         │ /1_normativa/cff/CFF_69B_EFOS_MATERIALIDAD.md                      │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│ A7      │ TODO (es el agente de defensa, necesita acceso completo)           │
+│ Auditar │ + /1_normativa/jurisprudencia/* (todas las tesis)                  │
+│         │ + /5_plantillas/EJEMPLO_DEFENSE_FILE_COMPLETO.md                   │
+└─────────┴────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST DE IMPLEMENTACIÓN POR PRIORIDAD
+═══════════════════════════════════════════════════════════════════════════════
+
+SEMANA 1 - NORMATIVA CRÍTICA (10 archivos):
+───────────────────────────────────────────
+□ CFF_5A_RAZON_NEGOCIOS.md
+□ CFF_69B_EFOS_MATERIALIDAD.md
+□ CFF_29_29A_CFDI.md
+□ LISR_27_REQUISITOS_DEDUCCIONES.md
+□ LIVA_5_ACREDITAMIENTO_IVA.md
+□ TESIS_IA_SCJN_2031639.md
+□ TESIS_RAZON_NEGOCIOS_5A.md
+□ TESIS_MATERIALIDAD_69B.md
+□ CRITERIOS_EFOS_69B.md
+□ KB_TAGS_REFERENCIAS.md (índice maestro)
+
+SEMANA 2 - PILARES Y GUÍAS (6 archivos):
+────────────────────────────────────────
+□ GUIA_A1_5A_CFF.md (razón de negocios)
+□ GUIA_A1_A5_BEE.md (beneficio económico)
+□ GUIA_MATERIALIDAD_SERVICIOS.md
+□ GUIA_TRAZABILIDAD_NOM151.md
+□ GUIA_DD_PROVEEDOR.md
+□ POLITICA_INTERNA_PROVEEDORES.md
+
+SEMANA 3 - TIPOLOGÍAS PRINCIPALES (5 archivos):
+───────────────────────────────────────────────
+□ TIPO_CONSULTORIA_MACRO.md
+□ TIPO_CONSULTORIA_ESTRATEGICA.md
+□ TIPO_SOFTWARE_SAAS.md
+□ TIPO_MARKETING_DIGITAL.md
+□ TIPO_INTRAGRUPO_MANAGEMENT_FEE.md
+
+SEMANA 4 - PLANTILLAS Y COMPLETAR:
+──────────────────────────────────
+□ PLANTILLA_DICTAMEN_A1.md
+□ PLANTILLA_DICTAMEN_A3.md
+□ PLANTILLA_DICTAMEN_A7.md
+□ EJEMPLO_DEFENSE_FILE_COMPLETO.md
+□ Resto de normativa secundaria
+□ Resto de tipologías
+
+═══════════════════════════════════════════════════════════════════════════════
+PÁGINA PÚBLICA: BASE JURÍDICA Y METODOLOGÍA
+═══════════════════════════════════════════════════════════════════════════════
+
+Para la web revisar-ia.com, sección pública con:
+
+1. LISTADO DE NORMAS BASE
+   • CFF (Arts. 5, 5-A, 29, 29-A, 69-B)
+   • LISR (Arts. 25, 27, 28)
+   • LIVA (Art. 5)
+   • NOM-151-SCFI-2016
+   • RMF vigente
+
+2. PRINCIPIOS DE DISEÑO
+   • 4 pilares: RN, BEE, Materialidad, Trazabilidad
+   • Flujo F0-F9
+   • IA como herramienta auxiliar (Tesis SCJN Registro 2031639)
+
+3. DISCLAIMER TÉCNICO
+   • La plataforma es auxiliar técnico, no dictamina
+   • Decisiones finales corresponden al contribuyente/asesor
+   • Cumplimiento de normatividad de protección de datos
+
+═══════════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,943 @@
+═══════════════════════════════════════════════════════════════════════════════
+📁 SISTEMA DE DOCUMENTACIÓN DEFENSE FILES EN pCLOUD
+═══════════════════════════════════════════════════════════════════════════════
+
+OBJETIVO: Documentar TODA acción de CADA agente en pCloud para crear
+expedientes de defensa fiscal completos y auditables.
+
+CADA INTERACCIÓN GENERA EVIDENCIA:
+• Conversaciones con agentes → Bitácora JSON + transcripción
+• Emails enviados → Copia del email + metadata
+• Documentos generados → Archivo + hash de integridad
+• Consultas RAG → Fuentes citadas + chunks utilizados
+• Diagnósticos → Reportes completos con timestamps
+
+═══════════════════════════════════════════════════════════════════════════════
+ESTRUCTURA DE CARPETAS EN pCLOUD
+═══════════════════════════════════════════════════════════════════════════════
+
+```
+pCloud/
+└── Revisar.IA/
+    └── Defense_Files/
+        └── {Cliente_RFC}/
+            └── {Año}/
+                └── {Proyecto_ID}_{Nombre}/
+                    │
+                    ├── 📁 00_Metadata/
+                    │   ├── proyecto_info.json
+                    │   ├── timeline_completo.json
+                    │   └── participantes.json
+                    │
+                    ├── 📁 A1_Facturar.IA/
+                    │   ├── conversaciones/
+                    │   │   └── {timestamp}_chat.json
+                    │   ├── analisis_cfdi/
+                    │   │   └── {uuid}_analisis.json
+                    │   ├── emails_enviados/
+                    │   │   └── {timestamp}_email.eml
+                    │   └── bitacora.json
+                    │
+                    ├── 📁 A2_Bibliotecar.IA/
+                    │   ├── conversaciones/
+                    │   ├── documentos_consultados/
+                    │   │   └── {doc_id}_consulta.json
+                    │   ├── chunks_utilizados/
+                    │   │   └── {query_hash}_chunks.json
+                    │   ├── fuentes_citadas/
+                    │   └── bitacora.json
+                    │
+                    ├── 📁 A3_Revisar.IA/
+                    │   ├── revisiones/
+                    │   │   └── {timestamp}_revision.json
+                    │   ├── hallazgos/
+                    │   ├── recomendaciones/
+                    │   └── bitacora.json
+                    │
+                    ├── 📁 A4_Trafico.IA/
+                    │   ├── reportes_sistema/
+                    │   │   └── {fecha}_reporte.json
+                    │   ├── emails_enviados/
+                    │   ├── alertas/
+                    │   └── bitacora.json
+                    │
+                    ├── 📁 A5_Disenar.IA/
+                    │   ├── auditorias_ui/
+                    │   └── bitacora.json
+                    │
+                    ├── 📁 A6_Onboarding/
+                    │   ├── investigaciones/
+                    │   │   └── {empresa}_deep_research.json
+                    │   ├── clientes_creados/
+                    │   └── bitacora.json
+                    │
+                    ├── 📁 A7_Diagnostico/
+                    │   ├── verificaciones/
+                    │   └── bitacora.json
+                    │
+                    ├── 📁 Documentos_Generados/
+                    │   ├── reportes/
+                    │   ├── cartas/
+                    │   ├── calculos/
+                    │   └── anexos/
+                    │
+                    ├── 📁 Evidencia_Soporte/
+                    │   ├── screenshots/
+                    │   ├── logs_sistema/
+                    │   └── certificados/
+                    │
+                    └── 📁 _Defense_File_Final/
+                        ├── defense_file_v1.pdf
+                        ├── indice_evidencias.xlsx
+                        ├── timeline_ejecutivo.pdf
+                        └── checksums.sha256
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 1: CONFIGURACIÓN DE pCLOUD API
+═══════════════════════════════════════════════════════════════════════════════
+
+### 1.1 Obtener credenciales de pCloud
+
+1. Ir a https://my.pcloud.com/
+2. Settings → API → Create App
+3. Obtener: App Key, App Secret
+4. Generar Access Token (OAuth flow o direct)
+
+### 1.2 Variables de entorno
+
+```bash
+# En Replit Secrets agregar:
+PCLOUD_ACCESS_TOKEN=tu_token_aqui
+PCLOUD_FOLDER_ID=id_de_carpeta_raiz  # Carpeta "Revisar.IA" en pCloud
+```
+
+### 1.3 Crear archivo de configuración
+
+Crear: backend/config/pcloud_config.py
+
+```python
+"""
+Configuración de pCloud para Defense Files
+"""
+import os
+
+PCLOUD_CONFIG = {
+    'access_token': os.environ.get('PCLOUD_ACCESS_TOKEN'),
+    'api_base': 'https://api.pcloud.com',
+    'root_folder_id': os.environ.get('PCLOUD_FOLDER_ID'),
+    'root_path': '/Revisar.IA/Defense_Files',
+}
+
+# Estructura de agentes
+AGENTES = {
+    'A1': {'nombre': 'Facturar.IA', 'carpeta': 'A1_Facturar.IA'},
+    'A2': {'nombre': 'Bibliotecar.IA', 'carpeta': 'A2_Bibliotecar.IA'},
+    'A3': {'nombre': 'Revisar.IA', 'carpeta': 'A3_Revisar.IA'},
+    'A4': {'nombre': 'Trafico.IA', 'carpeta': 'A4_Trafico.IA'},
+    'A5': {'nombre': 'Disenar.IA', 'carpeta': 'A5_Disenar.IA'},
+    'A6': {'nombre': 'Onboarding', 'carpeta': 'A6_Onboarding'},
+    'A7': {'nombre': 'Diagnostico', 'carpeta': 'A7_Diagnostico'},
+}
+
+# Tipos de eventos a documentar
+TIPOS_EVENTO = [
+    'conversacion',
+    'documento_generado',
+    'documento_consultado',
+    'email_enviado',
+    'analisis_realizado',
+    'alerta_generada',
+    'verificacion',
+]
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 2: SERVICIO DE pCLOUD
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/services/pcloud/pcloud_service.py
+
+```python
+"""
+Servicio de integración con pCloud API
+"""
+import os
+import requests
+import json
+import hashlib
+from datetime import datetime
+from typing import Optional, Dict, Any, List
+from config.pcloud_config import PCLOUD_CONFIG
+
+class PCloudService:
+    
+    def __init__(self):
+        self.token = PCLOUD_CONFIG['access_token']
+        self.api_base = PCLOUD_CONFIG['api_base']
+        self.root_path = PCLOUD_CONFIG['root_path']
+        
+        if not self.token:
+            print("⚠️ PCLOUD_ACCESS_TOKEN no configurado")
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # OPERACIONES BÁSICAS
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def _request(self, endpoint: str, params: dict = None, files: dict = None) -> dict:
+        """Realiza request a pCloud API"""
+        if not self.token:
+            return {'error': 'Token no configurado'}
+        
+        url = f"{self.api_base}/{endpoint}"
+        params = params or {}
+        params['access_token'] = self.token
+        
+        try:
+            if files:
+                response = requests.post(url, params=params, files=files, timeout=60)
+            else:
+                response = requests.get(url, params=params, timeout=30)
+            
+            return response.json()
+            
+        except Exception as e:
+            return {'error': str(e)}
+    
+    def crear_carpeta(self, path: str) -> dict:
+        """Crea una carpeta en pCloud (y todas las intermedias)"""
+        return self._request('createfolderifnotexists', {'path': path})
+    
+    def subir_archivo(self, path: str, contenido: bytes, filename: str) -> dict:
+        """Sube un archivo a pCloud"""
+        # Primero crear la carpeta si no existe
+        self.crear_carpeta(path)
+        
+        files = {'file': (filename, contenido)}
+        return self._request('uploadfile', {'path': path}, files=files)
+    
+    def subir_json(self, path: str, filename: str, data: dict) -> dict:
+        """Sube un archivo JSON a pCloud"""
+        contenido = json.dumps(data, indent=2, ensure_ascii=False, default=str)
+        return self.subir_archivo(path, contenido.encode('utf-8'), filename)
+    
+    def listar_carpeta(self, path: str) -> dict:
+        """Lista contenido de una carpeta"""
+        return self._request('listfolder', {'path': path})
+    
+    def obtener_link(self, path: str) -> Optional[str]:
+        """Obtiene link público de un archivo"""
+        result = self._request('getfilepublink', {'path': path})
+        if 'link' in result:
+            return result['link']
+        return None
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # ESTRUCTURA DE DEFENSE FILES
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def crear_estructura_proyecto(self, cliente_rfc: str, año: int, 
+                                   proyecto_id: int, proyecto_nombre: str) -> dict:
+        """Crea toda la estructura de carpetas para un proyecto"""
+        
+        # Sanitizar nombre
+        nombre_safe = self._sanitizar_nombre(proyecto_nombre)
+        
+        base_path = f"{self.root_path}/{cliente_rfc}/{año}/{proyecto_id}_{nombre_safe}"
+        
+        carpetas = [
+            f"{base_path}/00_Metadata",
+            f"{base_path}/A1_Facturar.IA/conversaciones",
+            f"{base_path}/A1_Facturar.IA/analisis_cfdi",
+            f"{base_path}/A1_Facturar.IA/emails_enviados",
+            f"{base_path}/A2_Bibliotecar.IA/conversaciones",
+            f"{base_path}/A2_Bibliotecar.IA/documentos_consultados",
+            f"{base_path}/A2_Bibliotecar.IA/chunks_utilizados",
+            f"{base_path}/A2_Bibliotecar.IA/fuentes_citadas",
+            f"{base_path}/A3_Revisar.IA/revisiones",
+            f"{base_path}/A3_Revisar.IA/hallazgos",
+            f"{base_path}/A3_Revisar.IA/recomendaciones",
+            f"{base_path}/A4_Trafico.IA/reportes_sistema",
+            f"{base_path}/A4_Trafico.IA/emails_enviados",
+            f"{base_path}/A4_Trafico.IA/alertas",
+            f"{base_path}/A5_Disenar.IA/auditorias_ui",
+            f"{base_path}/A6_Onboarding/investigaciones",
+            f"{base_path}/A6_Onboarding/clientes_creados",
+            f"{base_path}/A7_Diagnostico/verificaciones",
+            f"{base_path}/Documentos_Generados/reportes",
+            f"{base_path}/Documentos_Generados/cartas",
+            f"{base_path}/Documentos_Generados/calculos",
+            f"{base_path}/Documentos_Generados/anexos",
+            f"{base_path}/Evidencia_Soporte/screenshots",
+            f"{base_path}/Evidencia_Soporte/logs_sistema",
+            f"{base_path}/Evidencia_Soporte/certificados",
+            f"{base_path}/_Defense_File_Final",
+        ]
+        
+        resultados = []
+        for carpeta in carpetas:
+            result = self.crear_carpeta(carpeta)
+            resultados.append({'path': carpeta, 'result': result})
+        
+        # Crear archivo de metadata inicial
+        metadata = {
+            'proyecto_id': proyecto_id,
+            'nombre': proyecto_nombre,
+            'cliente_rfc': cliente_rfc,
+            'año': año,
+            'created_at': datetime.now().isoformat(),
+            'estructura_version': '1.0',
+            'agentes_activos': list(AGENTES.keys())
+        }
+        
+        self.subir_json(f"{base_path}/00_Metadata", "proyecto_info.json", metadata)
+        
+        # Inicializar timeline
+        timeline = {
+            'proyecto_id': proyecto_id,
+            'eventos': [],
+            'created_at': datetime.now().isoformat()
+        }
+        self.subir_json(f"{base_path}/00_Metadata", "timeline_completo.json", timeline)
+        
+        return {
+            'success': True,
+            'base_path': base_path,
+            'carpetas_creadas': len(carpetas)
+        }
+    
+    def _sanitizar_nombre(self, nombre: str) -> str:
+        """Sanitiza nombre para usar en rutas"""
+        import re
+        # Remover caracteres no permitidos
+        nombre = re.sub(r'[<>:"/\\|?*]', '', nombre)
+        # Reemplazar espacios con guiones bajos
+        nombre = nombre.replace(' ', '_')
+        # Limitar longitud
+        return nombre[:50]
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # OBTENER RUTA DE PROYECTO
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def get_proyecto_path(self, cliente_rfc: str, año: int, 
+                          proyecto_id: int, proyecto_nombre: str) -> str:
+        """Obtiene la ruta base de un proyecto"""
+        nombre_safe = self._sanitizar_nombre(proyecto_nombre)
+        return f"{self.root_path}/{cliente_rfc}/{año}/{proyecto_id}_{nombre_safe}"
+
+
+# Instancia global
+pcloud = PCloudService()
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 3: SERVICIO DE DOCUMENTACIÓN DE AGENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/services/pcloud/defense_file_service.py
+
+```python
+"""
+Servicio de Documentación para Defense Files
+Registra todas las acciones de cada agente
+"""
+import json
+import hashlib
+from datetime import datetime
+from typing import Dict, Any, Optional, List
+from dataclasses import dataclass, asdict
+from enum import Enum
+
+from services.pcloud.pcloud_service import pcloud
+from config.pcloud_config import AGENTES
+
+class TipoEvento(Enum):
+    CONVERSACION = 'conversacion'
+    DOCUMENTO_GENERADO = 'documento_generado'
+    DOCUMENTO_CONSULTADO = 'documento_consultado'
+    EMAIL_ENVIADO = 'email_enviado'
+    ANALISIS = 'analisis'
+    ALERTA = 'alerta'
+    VERIFICACION = 'verificacion'
+    BUSQUEDA_RAG = 'busqueda_rag'
+
+@dataclass
+class EventoDefenseFile:
+    timestamp: str
+    agente: str
+    tipo: str
+    usuario_email: str
+    descripcion: str
+    datos: Dict[str, Any]
+    hash_integridad: str = None
+    
+    def __post_init__(self):
+        if not self.hash_integridad:
+            contenido = json.dumps({
+                'timestamp': self.timestamp,
+                'agente': self.agente,
+                'tipo': self.tipo,
+                'datos': self.datos
+            }, sort_keys=True)
+            self.hash_integridad = hashlib.sha256(contenido.encode()).hexdigest()
+
+
+class DefenseFileService:
+    
+    def __init__(self):
+        self.pcloud = pcloud
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # REGISTRAR EVENTOS POR AGENTE
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def registrar_evento(self, 
+                         proyecto_path: str,
+                         agente_id: str,
+                         tipo: TipoEvento,
+                         usuario_email: str,
+                         descripcion: str,
+                         datos: Dict[str, Any],
+                         archivo_adjunto: bytes = None,
+                         nombre_adjunto: str = None) -> Dict:
+        """Registra un evento de cualquier agente en el Defense File"""
+        
+        timestamp = datetime.now()
+        timestamp_str = timestamp.strftime('%Y%m%d_%H%M%S')
+        
+        # Crear evento
+        evento = EventoDefenseFile(
+            timestamp=timestamp.isoformat(),
+            agente=agente_id,
+            tipo=tipo.value,
+            usuario_email=usuario_email,
+            descripcion=descripcion,
+            datos=datos
+        )
+        
+        # Obtener carpeta del agente
+        agente_info = AGENTES.get(agente_id, {'carpeta': agente_id})
+        carpeta_agente = f"{proyecto_path}/{agente_info['carpeta']}"
+        
+        # Determinar subcarpeta según tipo
+        subcarpetas = {
+            TipoEvento.CONVERSACION: 'conversaciones',
+            TipoEvento.DOCUMENTO_GENERADO: 'documentos_generados',
+            TipoEvento.DOCUMENTO_CONSULTADO: 'documentos_consultados',
+            TipoEvento.EMAIL_ENVIADO: 'emails_enviados',
+            TipoEvento.ANALISIS: 'analisis_cfdi',
+            TipoEvento.ALERTA: 'alertas',
+            TipoEvento.VERIFICACION: 'verificaciones',
+            TipoEvento.BUSQUEDA_RAG: 'chunks_utilizados',
+        }
+        
+        subcarpeta = subcarpetas.get(tipo, 'otros')
+        path_completo = f"{carpeta_agente}/{subcarpeta}"
+        
+        # Subir evento como JSON
+        filename = f"{timestamp_str}_{tipo.value}.json"
+        result = self.pcloud.subir_json(path_completo, filename, asdict(evento))
+        
+        # Si hay archivo adjunto, subirlo también
+        if archivo_adjunto and nombre_adjunto:
+            self.pcloud.subir_archivo(path_completo, archivo_adjunto, nombre_adjunto)
+        
+        # Actualizar bitácora del agente
+        self._actualizar_bitacora(carpeta_agente, evento)
+        
+        # Actualizar timeline general
+        self._actualizar_timeline(proyecto_path, evento)
+        
+        return {
+            'success': True,
+            'evento_id': evento.hash_integridad[:12],
+            'path': f"{path_completo}/{filename}",
+            'timestamp': timestamp.isoformat()
+        }
+    
+    def _actualizar_bitacora(self, carpeta_agente: str, evento: EventoDefenseFile):
+        """Actualiza la bitácora del agente"""
+        # Por ahora, agregar entrada al archivo de bitácora
+        # En producción, descargar, agregar, y resubir
+        bitacora_entry = {
+            'timestamp': evento.timestamp,
+            'tipo': evento.tipo,
+            'descripcion': evento.descripcion,
+            'hash': evento.hash_integridad[:12]
+        }
+        
+        # Crear/actualizar bitacora.json
+        # Nota: pCloud no tiene append, habría que descargar y resubir
+        # Por simplicidad, creamos un archivo por día
+        fecha = datetime.now().strftime('%Y%m%d')
+        filename = f"bitacora_{fecha}.json"
+        
+        self.pcloud.subir_json(carpeta_agente, filename, bitacora_entry)
+    
+    def _actualizar_timeline(self, proyecto_path: str, evento: EventoDefenseFile):
+        """Actualiza el timeline general del proyecto"""
+        timeline_entry = {
+            'timestamp': evento.timestamp,
+            'agente': evento.agente,
+            'tipo': evento.tipo,
+            'descripcion': evento.descripcion,
+            'hash': evento.hash_integridad[:12]
+        }
+        
+        fecha = datetime.now().strftime('%Y%m%d')
+        filename = f"timeline_{fecha}.json"
+        
+        self.pcloud.subir_json(f"{proyecto_path}/00_Metadata", filename, timeline_entry)
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # MÉTODOS ESPECÍFICOS POR AGENTE
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def registrar_conversacion_facturar(self, proyecto_path: str, usuario: str,
+                                         mensaje_usuario: str, respuesta_ia: str,
+                                         cfdis_analizados: List[str] = None) -> Dict:
+        """Registra una conversación con Facturar.IA"""
+        return self.registrar_evento(
+            proyecto_path=proyecto_path,
+            agente_id='A1',
+            tipo=TipoEvento.CONVERSACION,
+            usuario_email=usuario,
+            descripcion=f"Conversación sobre {len(cfdis_analizados or [])} CFDIs",
+            datos={
+                'mensaje_usuario': mensaje_usuario,
+                'respuesta_ia': respuesta_ia,
+                'cfdis_analizados': cfdis_analizados or [],
+                'longitud_respuesta': len(respuesta_ia)
+            }
+        )
+    
+    def registrar_conversacion_biblioteca(self, proyecto_path: str, usuario: str,
+                                           query: str, respuesta: str,
+                                           chunks_usados: List[Dict],
+                                           documentos_citados: List[str]) -> Dict:
+        """Registra una conversación con Bibliotecar.IA incluyendo RAG"""
+        return self.registrar_evento(
+            proyecto_path=proyecto_path,
+            agente_id='A2',
+            tipo=TipoEvento.BUSQUEDA_RAG,
+            usuario_email=usuario,
+            descripcion=f"Consulta RAG: {query[:50]}...",
+            datos={
+                'query': query,
+                'respuesta': respuesta,
+                'chunks_utilizados': chunks_usados,
+                'documentos_citados': documentos_citados,
+                'num_chunks': len(chunks_usados)
+            }
+        )
+    
+    def registrar_documento_cargado(self, proyecto_path: str, usuario: str,
+                                     documento_nombre: str, documento_id: int,
+                                     num_chunks: int, categoria: str) -> Dict:
+        """Registra cuando se carga un documento a la biblioteca"""
+        return self.registrar_evento(
+            proyecto_path=proyecto_path,
+            agente_id='A2',
+            tipo=TipoEvento.DOCUMENTO_CONSULTADO,
+            usuario_email=usuario,
+            descripcion=f"Documento cargado: {documento_nombre}",
+            datos={
+                'documento_id': documento_id,
+                'nombre': documento_nombre,
+                'chunks_generados': num_chunks,
+                'categoria': categoria
+            }
+        )
+    
+    def registrar_email_trafico(self, proyecto_path: str, 
+                                 destinatario: str, asunto: str,
+                                 contenido_html: str, tipo_reporte: str) -> Dict:
+        """Registra un email enviado por Tráfico.IA"""
+        return self.registrar_evento(
+            proyecto_path=proyecto_path,
+            agente_id='A4',
+            tipo=TipoEvento.EMAIL_ENVIADO,
+            usuario_email='sistema',
+            descripcion=f"Email de {tipo_reporte} enviado a {destinatario}",
+            datos={
+                'destinatario': destinatario,
+                'asunto': asunto,
+                'tipo_reporte': tipo_reporte,
+                'longitud_contenido': len(contenido_html)
+            },
+            archivo_adjunto=contenido_html.encode('utf-8'),
+            nombre_adjunto=f"email_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+        )
+    
+    def registrar_alerta(self, proyecto_path: str, 
+                         agente_id: str, severidad: str,
+                         mensaje: str, detalles: Dict) -> Dict:
+        """Registra una alerta generada por cualquier agente"""
+        return self.registrar_evento(
+            proyecto_path=proyecto_path,
+            agente_id=agente_id,
+            tipo=TipoEvento.ALERTA,
+            usuario_email='sistema',
+            descripcion=f"Alerta {severidad}: {mensaje[:50]}",
+            datos={
+                'severidad': severidad,
+                'mensaje': mensaje,
+                'detalles': detalles
+            }
+        )
+    
+    def registrar_diagnostico(self, proyecto_path: str,
+                               resultado: Dict, porcentaje: int) -> Dict:
+        """Registra un diagnóstico del sistema"""
+        return self.registrar_evento(
+            proyecto_path=proyecto_path,
+            agente_id='A7',
+            tipo=TipoEvento.VERIFICACION,
+            usuario_email='sistema',
+            descripcion=f"Diagnóstico del sistema: {porcentaje}% operativo",
+            datos={
+                'porcentaje_operativo': porcentaje,
+                'resultado_completo': resultado
+            }
+        )
+    
+    def registrar_onboarding(self, proyecto_path: str, usuario: str,
+                              empresa_nombre: str, datos_investigados: Dict) -> Dict:
+        """Registra una investigación de onboarding"""
+        return self.registrar_evento(
+            proyecto_path=proyecto_path,
+            agente_id='A6',
+            tipo=TipoEvento.ANALISIS,
+            usuario_email=usuario,
+            descripcion=f"Deep Research: {empresa_nombre}",
+            datos={
+                'empresa': empresa_nombre,
+                'datos_encontrados': datos_investigados
+            }
+        )
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # GENERAR DEFENSE FILE FINAL
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def generar_indice_evidencias(self, proyecto_path: str) -> Dict:
+        """Genera un índice de todas las evidencias del proyecto"""
+        # Listar todas las carpetas y archivos
+        estructura = self.pcloud.listar_carpeta(proyecto_path)
+        
+        indice = {
+            'proyecto_path': proyecto_path,
+            'generado_at': datetime.now().isoformat(),
+            'agentes': {},
+            'total_archivos': 0,
+            'total_eventos': 0
+        }
+        
+        # Recorrer estructura y contar
+        # (En implementación real, recursivamente listar todo)
+        
+        return indice
+    
+    def generar_checksums(self, proyecto_path: str) -> Dict:
+        """Genera checksums de todos los archivos para integridad"""
+        # En implementación real, descargar cada archivo y calcular SHA256
+        return {
+            'generado_at': datetime.now().isoformat(),
+            'proyecto_path': proyecto_path,
+            'checksums': []
+        }
+
+
+# Instancia global
+defense_file = DefenseFileService()
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 4: INTEGRAR CON LOS AGENTES EXISTENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+### 4.1 Integrar con Facturar.IA
+
+En backend/routes/facturar_routes.py, agregar después de cada respuesta:
+
+```python
+from services.pcloud.defense_file_service import defense_file
+
+@facturar_bp.route('/chat', methods=['POST'])
+def chat_facturar():
+    data = request.get_json()
+    mensaje = data.get('message', '')
+    proyecto_path = data.get('proyecto_path')  # Pasar desde frontend
+    usuario = data.get('usuario_email', 'anonimo')
+    
+    # ... lógica existente de chat ...
+    respuesta = generar_respuesta_facturar(mensaje)
+    
+    # ═══ DOCUMENTAR EN DEFENSE FILE ═══
+    if proyecto_path:
+        defense_file.registrar_conversacion_facturar(
+            proyecto_path=proyecto_path,
+            usuario=usuario,
+            mensaje_usuario=mensaje,
+            respuesta_ia=respuesta,
+            cfdis_analizados=cfdis_encontrados  # si aplica
+        )
+    
+    return jsonify({'response': respuesta})
+```
+
+### 4.2 Integrar con Bibliotecar.IA
+
+```python
+from services.pcloud.defense_file_service import defense_file
+
+@biblioteca_bp.route('/chat', methods=['POST'])
+def chat_biblioteca():
+    data = request.get_json()
+    mensaje = data.get('message', '')
+    proyecto_path = data.get('proyecto_path')
+    usuario = data.get('usuario_email', 'anonimo')
+    
+    # ... lógica existente de RAG ...
+    chunks_usados = buscar_chunks_relevantes(mensaje)
+    respuesta = generar_respuesta_con_rag(mensaje, chunks_usados)
+    
+    # ═══ DOCUMENTAR EN DEFENSE FILE ═══
+    if proyecto_path:
+        defense_file.registrar_conversacion_biblioteca(
+            proyecto_path=proyecto_path,
+            usuario=usuario,
+            query=mensaje,
+            respuesta=respuesta,
+            chunks_usados=[{'id': c.id, 'contenido': c.contenido[:200]} for c in chunks_usados],
+            documentos_citados=[c.documento.nombre for c in chunks_usados]
+        )
+    
+    return jsonify({'response': respuesta})
+```
+
+### 4.3 Integrar con Tráfico.IA
+
+```python
+from services.pcloud.defense_file_service import defense_file
+
+def enviar_reporte(reporte: dict, tipo: str):
+    # ... lógica existente de envío ...
+    enviado = email_service.enviar_informe(reporte)
+    
+    # ═══ DOCUMENTAR EN DEFENSE FILE ═══
+    # Obtener proyecto activo del contexto
+    proyecto_path = obtener_proyecto_activo()
+    if proyecto_path:
+        defense_file.registrar_email_trafico(
+            proyecto_path=proyecto_path,
+            destinatario='santiago@satma.mx',
+            asunto=f'Reporte {tipo}',
+            contenido_html=email_service._generar_html_informe(reporte),
+            tipo_reporte=tipo
+        )
+    
+    return enviado
+```
+
+### 4.4 Integrar con Upload de Documentos
+
+```python
+from services.pcloud.defense_file_service import defense_file
+
+@biblioteca_bp.route('/upload', methods=['POST'])
+def upload_documento():
+    # ... lógica existente ...
+    doc_id = guardar_documento(filename, contenido, categoria)
+    num_chunks = procesar_documento_rag(doc_id, contenido)
+    
+    # ═══ DOCUMENTAR EN DEFENSE FILE ═══
+    proyecto_path = request.form.get('proyecto_path')
+    usuario = request.form.get('usuario_email', 'anonimo')
+    
+    if proyecto_path:
+        defense_file.registrar_documento_cargado(
+            proyecto_path=proyecto_path,
+            usuario=usuario,
+            documento_nombre=filename,
+            documento_id=doc_id,
+            num_chunks=num_chunks,
+            categoria=categoria
+        )
+    
+    return jsonify({'success': True, 'documento_id': doc_id})
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 5: ENDPOINTS API PARA DEFENSE FILES
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/routes/defense_file_routes.py
+
+```python
+from flask import Blueprint, jsonify, request
+from services.pcloud.pcloud_service import pcloud
+from services.pcloud.defense_file_service import defense_file
+
+defense_bp = Blueprint('defense', __name__)
+
+@defense_bp.route('/crear-proyecto', methods=['POST'])
+def crear_proyecto_defense():
+    """Crea estructura de Defense File para un proyecto"""
+    data = request.get_json()
+    
+    cliente_rfc = data.get('cliente_rfc')
+    año = data.get('año', datetime.now().year)
+    proyecto_id = data.get('proyecto_id')
+    proyecto_nombre = data.get('proyecto_nombre')
+    
+    if not all([cliente_rfc, proyecto_id, proyecto_nombre]):
+        return jsonify({'error': 'Faltan campos requeridos'}), 400
+    
+    resultado = pcloud.crear_estructura_proyecto(
+        cliente_rfc, año, proyecto_id, proyecto_nombre
+    )
+    
+    return jsonify(resultado)
+
+
+@defense_bp.route('/proyecto/<path:proyecto_path>/timeline', methods=['GET'])
+def obtener_timeline(proyecto_path):
+    """Obtiene el timeline de eventos del proyecto"""
+    # Listar archivos de timeline en 00_Metadata
+    return jsonify({'timeline': []})
+
+
+@defense_bp.route('/proyecto/<path:proyecto_path>/indice', methods=['GET'])
+def obtener_indice(proyecto_path):
+    """Genera índice de evidencias"""
+    indice = defense_file.generar_indice_evidencias(proyecto_path)
+    return jsonify(indice)
+
+
+@defense_bp.route('/proyecto/<path:proyecto_path>/exportar', methods=['POST'])
+def exportar_defense_file(proyecto_path):
+    """Genera el Defense File final en PDF"""
+    # TODO: Generar PDF con todo el contenido
+    return jsonify({'mensaje': 'Exportación en desarrollo'})
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 6: FRONTEND - SELECTOR DE PROYECTO
+═══════════════════════════════════════════════════════════════════════════════
+
+El frontend debe enviar proyecto_path en cada request:
+
+```javascript
+// Hook para obtener proyecto activo
+const useProyectoActivo = () => {
+  const [proyecto, setProyecto] = useState(null);
+  
+  useEffect(() => {
+    // Obtener de localStorage o contexto
+    const proyectoGuardado = localStorage.getItem('proyecto_activo');
+    if (proyectoGuardado) {
+      setProyecto(JSON.parse(proyectoGuardado));
+    }
+  }, []);
+  
+  return proyecto;
+};
+
+// Usar en cada componente de chat
+const ChatBiblioteca = () => {
+  const proyecto = useProyectoActivo();
+  
+  const enviarMensaje = async (mensaje) => {
+    const response = await fetch('/api/biblioteca/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: mensaje,
+        proyecto_path: proyecto?.path,  // ← Incluir siempre
+        usuario_email: user.email
+      })
+    });
+    // ...
+  };
+};
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 7: INSTALAR DEPENDENCIAS
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+pip install requests --break-system-packages
+```
+
+(requests ya debería estar instalado, pero verificar)
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 8: CONFIGURAR pCLOUD
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Ir a https://my.pcloud.com/
+2. Crear carpeta "Revisar.IA" → "Defense_Files"
+3. Ir a Settings → Create new App
+4. Obtener Access Token
+5. En Replit Secrets:
+   PCLOUD_ACCESS_TOKEN = tu_token
+   
+═══════════════════════════════════════════════════════════════════════════════
+FASE 9: PRUEBAS
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+# Crear proyecto de prueba
+curl -X POST http://localhost:5000/api/defense/crear-proyecto \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cliente_rfc": "TEST123456ABC",
+    "año": 2025,
+    "proyecto_id": 1,
+    "proyecto_nombre": "Auditoria Fiscal Q1"
+  }'
+
+# Verificar en pCloud que se crearon las carpetas
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Crear cuenta de desarrollador en pCloud
+□ Obtener Access Token
+□ Agregar PCLOUD_ACCESS_TOKEN a Secrets
+□ Crear backend/config/pcloud_config.py
+□ Crear backend/services/pcloud/pcloud_service.py
+□ Crear backend/services/pcloud/defense_file_service.py
+□ Crear backend/routes/defense_file_routes.py
+□ Registrar blueprint en main.py
+□ Integrar con Facturar.IA (agregar llamada a defense_file)
+□ Integrar con Bibliotecar.IA
+□ Integrar con Tráfico.IA
+□ Integrar con Upload de documentos
+□ Probar crear estructura de proyecto
+□ Verificar que se crean archivos en pCloud
+□ Verificar timeline se actualiza
+
+═══════════════════════════════════════════════════════════════════════════════
+RESULTADO FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+Después de implementar:
+
+1. Cada conversación con cualquier agente → Se guarda en pCloud
+2. Cada email enviado → Copia en pCloud
+3. Cada documento cargado → Registro en pCloud
+4. Cada búsqueda RAG → Chunks utilizados documentados
+5. Timeline completo → Auditable y con hashes de integridad
+
+Todo queda listo para generar el Defense File final con:
+- Cronología completa de acciones
+- Evidencia de cada consulta
+- Fuentes citadas
+- Documentos generados
+- Integridad verificable (SHA256)

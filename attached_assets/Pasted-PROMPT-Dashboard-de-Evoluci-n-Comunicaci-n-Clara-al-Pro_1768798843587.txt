@@ -1,0 +1,867 @@
+PROMPT: Dashboard de Evolución + Comunicación Clara al Proveedor
+=============================================================================
+TOON: EVOLUCIÓN DE PROYECTOS + COMUNICACIÓN CLARA AL PROVEEDOR
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta todas las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. SOLO EJECUTA.
+
+CONTEXTO: El sistema rechaza proyectos pero NO le dice al proveedor 
+exactamente qué necesita entregar para pasar al 100%. Necesitamos:
+1. Dashboard que muestre evolución de versiones de cada proyecto
+2. Comunicación clara al proveedor con checklist específico de lo que falta
+
+=============================================================================
+PASO 1: CREAR COMPONENTE DE EVOLUCIÓN DE VERSIONES
+=============================================================================
+
+Crea archivo "frontend/src/components/EvolucionProyecto.jsx":
+
+import React, { useState, useEffect } from 'react';
+
+function EvolucionProyecto({ proyectoId }) {
+  const [versiones, setVersiones] = useState([]);
+  const [versionSeleccionada, setVersionSeleccionada] = useState(null);
+  const [comparando, setComparando] = useState(false);
+  const [versionA, setVersionA] = useState(null);
+  const [versionB, setVersionB] = useState(null);
+  const [diferencias, setDiferencias] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    cargarVersiones();
+  }, [proyectoId]);
+
+  async function cargarVersiones() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/versioning/proyectos/${proyectoId}/versiones`);
+      const data = await res.json();
+      setVersiones(data.versiones || data || []);
+      if (data.length > 0) {
+        setVersionSeleccionada(data[data.length - 1]); // Última versión
+      }
+    } catch (error) {
+      console.error('Error cargando versiones:', error);
+    }
+    setLoading(false);
+  }
+
+  async function compararVersiones() {
+    if (!versionA || !versionB) return;
+    
+    try {
+      const res = await fetch(
+        `/api/versioning/proyectos/${proyectoId}/versiones/${versionA}/comparar/${versionB}`
+      );
+      const data = await res.json();
+      setDiferencias(data);
+    } catch (error) {
+      console.error('Error comparando:', error);
+    }
+  }
+
+  const getEstadoColor = (estado) => {
+    const colores = {
+      'APROBADO': 'bg-green-100 text-green-800 border-green-300',
+      'RECHAZADO': 'bg-red-100 text-red-800 border-red-300',
+      'REQUIERE_AJUSTES': 'bg-yellow-100 text-yellow-800 border-yellow-300',
+      'EN_REVISION': 'bg-blue-100 text-blue-800 border-blue-300',
+      'PENDIENTE': 'bg-gray-100 text-gray-800 border-gray-300'
+    };
+    return colores[estado] || colores['PENDIENTE'];
+  };
+
+  const getRiskScoreColor = (score) => {
+    if (score < 40) return 'text-green-600';
+    if (score < 60) return 'text-yellow-600';
+    if (score < 80) return 'text-orange-600';
+    return 'text-red-600';
+  };
+
+  const calcularProgreso = (version) => {
+    const checklist = version.checklist_cumplimiento || {};
+    const total = Object.keys(checklist).length || 1;
+    const cumplidos = Object.values(checklist).filter(v => v === true).length;
+    return Math.round((cumplidos / total) * 100);
+  };
+
+  if (loading) {
+    return <div className="p-6 text-center">Cargando evolución del proyecto...</div>;
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-lg p-6">
+      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+        📈 Evolución del Proyecto
+        <span className="text-sm font-normal text-gray-500">
+          ({versiones.length} versiones)
+        </span>
+      </h2>
+
+      {/* Timeline de versiones */}
+      <div className="relative mb-8">
+        <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" />
+        
+        {versiones.map((version, index) => {
+          const progreso = calcularProgreso(version);
+          const esUltima = index === versiones.length - 1;
+          
+          return (
+            <div 
+              key={version.id || index}
+              className={`relative pl-10 pb-6 cursor-pointer transition-all
+                ${versionSeleccionada?.id === version.id ? 'bg-blue-50 -mx-4 px-14 py-4 rounded-lg' : ''}
+              `}
+              onClick={() => setVersionSeleccionada(version)}
+            >
+              {/* Nodo del timeline */}
+              <div className={`
+                absolute left-2 w-5 h-5 rounded-full border-2 
+                ${esUltima ? 'bg-blue-500 border-blue-500' : 'bg-white border-gray-300'}
+              `}>
+                {esUltima && <div className="absolute inset-1 bg-white rounded-full" />}
+              </div>
+              
+              {/* Contenido de la versión */}
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">
+                      Versión {version.numero_version || index + 1}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs border ${getEstadoColor(version.estado)}`}>
+                      {version.estado || 'PENDIENTE'}
+                    </span>
+                    {esUltima && (
+                      <span className="px-2 py-0.5 bg-blue-500 text-white rounded-full text-xs">
+                        Actual
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="text-sm text-gray-500 mt-1">
+                    {new Date(version.fecha_creacion).toLocaleDateString('es-MX', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </div>
+                  
+                  {version.motivo_version && (
+                    <div className="text-sm mt-1 text-gray-600">
+                      📝 {version.motivo_version}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="text-right">
+                  {/* Risk Score */}
+                  <div className={`text-2xl font-bold ${getRiskScoreColor(version.risk_score || 0)}`}>
+                    {version.risk_score || 0}
+                    <span className="text-sm text-gray-400">/100</span>
+                  </div>
+                  
+                  {/* Barra de progreso de cumplimiento */}
+                  <div className="w-32 mt-2">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span>Cumplimiento</span>
+                      <span>{progreso}%</span>
+                    </div>
+                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full transition-all ${
+                          progreso === 100 ? 'bg-green-500' :
+                          progreso >= 80 ? 'bg-yellow-500' :
+                          'bg-red-500'
+                        }`}
+                        style={{ width: `${progreso}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cambios respecto a versión anterior */}
+              {version.cambios_vs_anterior && version.cambios_vs_anterior.length > 0 && (
+                <div className="mt-3 pl-4 border-l-2 border-gray-200">
+                  <div className="text-xs text-gray-500 mb-1">Cambios en esta versión:</div>
+                  {version.cambios_vs_anterior.slice(0, 3).map((cambio, i) => (
+                    <div key={i} className="text-sm flex items-center gap-1">
+                      <span className={
+                        cambio.tipo === 'AGREGADO' ? 'text-green-600' :
+                        cambio.tipo === 'MODIFICADO' ? 'text-blue-600' :
+                        'text-red-600'
+                      }>
+                        {cambio.tipo === 'AGREGADO' ? '➕' : 
+                         cambio.tipo === 'MODIFICADO' ? '✏️' : '➖'}
+                      </span>
+                      {cambio.descripcion}
+                    </div>
+                  ))}
+                  {version.cambios_vs_anterior.length > 3 && (
+                    <div className="text-xs text-gray-400">
+                      +{version.cambios_vs_anterior.length - 3} cambios más
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Comparador de versiones */}
+      <div className="border-t pt-4">
+        <div className="flex items-center gap-4 mb-4">
+          <button
+            onClick={() => setComparando(!comparando)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all
+              ${comparando 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }
+            `}
+          >
+            🔍 {comparando ? 'Cancelar comparación' : 'Comparar versiones'}
+          </button>
+        </div>
+
+        {comparando && (
+          <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div>
+              <label className="block text-sm font-medium mb-2">Versión A</label>
+              <select
+                value={versionA || ''}
+                onChange={(e) => setVersionA(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2"
+              >
+                <option value="">Seleccionar...</option>
+                {versiones.map((v, i) => (
+                  <option key={v.id || i} value={v.numero_version || i + 1}>
+                    Versión {v.numero_version || i + 1}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Versión B</label>
+              <select
+                value={versionB || ''}
+                onChange={(e) => setVersionB(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2"
+              >
+                <option value="">Seleccionar...</option>
+                {versiones.map((v, i) => (
+                  <option key={v.id || i} value={v.numero_version || i + 1}>
+                    Versión {v.numero_version || i + 1}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <button
+                onClick={compararVersiones}
+                disabled={!versionA || !versionB}
+                className="w-full py-2 bg-blue-500 text-white rounded-lg disabled:bg-gray-300"
+              >
+                Comparar
+              </button>
+            </div>
+            
+            {diferencias && (
+              <div className="col-span-2 mt-4 p-4 bg-white rounded-lg border">
+                <h4 className="font-semibold mb-2">Diferencias encontradas:</h4>
+                {diferencias.campos_modificados?.map((campo, i) => (
+                  <div key={i} className="text-sm py-1 border-b last:border-0">
+                    <span className="font-medium">{campo.campo}:</span>
+                    <span className="text-red-500 line-through ml-2">{campo.valor_anterior}</span>
+                    <span className="text-green-500 ml-2">→ {campo.valor_nuevo}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default EvolucionProyecto;
+
+=============================================================================
+PASO 2: CREAR COMPONENTE DE CHECKLIST PARA PROVEEDOR
+=============================================================================
+
+Crea archivo "frontend/src/components/ChecklistProveedor.jsx":
+
+import React, { useState, useEffect } from 'react';
+
+function ChecklistProveedor({ proyectoId, tipologia, faseActual }) {
+  const [checklist, setChecklist] = useState([]);
+  const [documentos, setDocumentos] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    cargarDatos();
+  }, [proyectoId, tipologia, faseActual]);
+
+  async function cargarDatos() {
+    setLoading(true);
+    try {
+      // Cargar checklist requerido
+      const checkRes = await fetch(
+        `/api/checklists/tipologia/${tipologia}/fase/${faseActual}`
+      );
+      const checkData = await checkRes.json();
+      
+      // Cargar documentos existentes
+      const docsRes = await fetch(`/api/proyectos/${proyectoId}/documentos`);
+      const docsData = await docsRes.json();
+      
+      setChecklist(checkData.items || checkData || []);
+      setDocumentos(docsData.documentos || docsData || []);
+    } catch (error) {
+      console.error('Error:', error);
+    }
+    setLoading(false);
+  }
+
+  // Verificar si un documento está cargado
+  const documentoCargado = (item) => {
+    const itemLower = item.documento?.toLowerCase() || item.toLowerCase();
+    return documentos.some(doc => {
+      const tipoLower = (doc.tipo || '').toLowerCase();
+      const descLower = (doc.descripcion || '').toLowerCase();
+      return tipoLower.includes(itemLower) || descLower.includes(itemLower) ||
+             itemLower.includes(tipoLower);
+    });
+  };
+
+  // Calcular progreso
+  const itemsObligatorios = checklist.filter(item => item.obligatorio !== false);
+  const itemsCumplidos = itemsObligatorios.filter(item => documentoCargado(item));
+  const progreso = itemsObligatorios.length > 0 
+    ? Math.round((itemsCumplidos.length / itemsObligatorios.length) * 100)
+    : 0;
+
+  if (loading) {
+    return <div className="p-4 text-center">Cargando checklist...</div>;
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+      {/* Header con progreso */}
+      <div className={`p-6 ${progreso === 100 ? 'bg-green-500' : 'bg-gradient-to-r from-blue-500 to-blue-600'} text-white`}>
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold">
+              {progreso === 100 ? '✅ Checklist Completo' : '📋 Checklist de Documentación'}
+            </h2>
+            <p className="text-sm opacity-90 mt-1">
+              {tipologia?.replace(/_/g, ' ')} - Fase {faseActual}
+            </p>
+          </div>
+          <div className="text-right">
+            <div className="text-4xl font-bold">{progreso}%</div>
+            <div className="text-sm opacity-90">
+              {itemsCumplidos.length} de {itemsObligatorios.length} documentos
+            </div>
+          </div>
+        </div>
+        
+        {/* Barra de progreso */}
+        <div className="mt-4 h-3 bg-white/30 rounded-full overflow-hidden">
+          <div 
+            className={`h-full transition-all duration-500 ${
+              progreso === 100 ? 'bg-white' : 'bg-white'
+            }`}
+            style={{ width: `${progreso}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Lista de documentos */}
+      <div className="p-4">
+        {progreso < 100 && (
+          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="font-semibold text-yellow-800 mb-2">
+              ⚠️ Documentos Pendientes para Avanzar
+            </div>
+            <p className="text-sm text-yellow-700">
+              Complete los siguientes documentos para que el proyecto pueda avanzar a la siguiente fase.
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {checklist.map((item, index) => {
+            const cumplido = documentoCargado(item);
+            const esObligatorio = item.obligatorio !== false;
+            
+            return (
+              <div 
+                key={index}
+                className={`p-4 rounded-lg border-2 transition-all ${
+                  cumplido 
+                    ? 'bg-green-50 border-green-200' 
+                    : esObligatorio
+                      ? 'bg-red-50 border-red-200'
+                      : 'bg-gray-50 border-gray-200'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  {/* Icono de estado */}
+                  <div className={`
+                    w-8 h-8 rounded-full flex items-center justify-center text-lg
+                    ${cumplido 
+                      ? 'bg-green-500 text-white' 
+                      : esObligatorio 
+                        ? 'bg-red-100 text-red-500'
+                        : 'bg-gray-200 text-gray-500'
+                    }
+                  `}>
+                    {cumplido ? '✓' : esObligatorio ? '!' : '○'}
+                  </div>
+                  
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`font-medium ${cumplido ? 'text-green-800' : 'text-gray-800'}`}>
+                        {item.documento || item.nombre || item}
+                      </span>
+                      {esObligatorio && !cumplido && (
+                        <span className="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">
+                          OBLIGATORIO
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Criterio de validación */}
+                    {item.criterio_validacion && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        📌 {item.criterio_validacion}
+                      </p>
+                    )}
+                    
+                    {/* Ejemplo bueno/malo */}
+                    {!cumplido && item.ejemplo_valido && (
+                      <div className="mt-2 text-xs">
+                        <div className="text-green-600">
+                          ✅ Ejemplo válido: {item.ejemplo_valido}
+                        </div>
+                        {item.ejemplo_invalido && (
+                          <div className="text-red-600 mt-1">
+                            ❌ Evitar: {item.ejemplo_invalido}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Responsable */}
+                    {item.responsable && (
+                      <div className="text-xs text-gray-500 mt-2">
+                        👤 Responsable: {item.responsable}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Botón de acción */}
+                  {!cumplido && (
+                    <button
+                      onClick={() => {/* Abrir modal de carga */}}
+                      className="px-3 py-1.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600"
+                    >
+                      Cargar
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Resumen para comunicar al proveedor */}
+      {progreso < 100 && (
+        <div className="p-4 bg-gray-50 border-t">
+          <button
+            onClick={() => {/* Enviar email al proveedor */}}
+            className="w-full py-3 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 flex items-center justify-center gap-2"
+          >
+            📧 Enviar Checklist al Proveedor
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default ChecklistProveedor;
+
+=============================================================================
+PASO 3: CREAR SERVICIO DE NOTIFICACIÓN DETALLADA AL PROVEEDOR
+=============================================================================
+
+Crea archivo "backend/services/notificacion_proveedor_service.py":
+
+"""
+Servicio para notificar al proveedor exactamente qué necesita entregar.
+Genera un checklist claro y específico para que pase al 100%.
+"""
+
+from typing import Dict, List
+from datetime import datetime, timedelta
+from config.reglas_tipologia import get_checklist_obligatorio, get_reglas_tipologia
+from services.dreamhost_email_service import DreamHostEmailService
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+async def generar_checklist_para_proveedor(
+    proyecto: Dict,
+    documentos_existentes: List[Dict]
+) -> Dict:
+    """
+    Genera un checklist detallado de lo que el proveedor necesita entregar.
+    
+    Returns:
+        {
+            "completo": bool,
+            "progreso_porcentaje": int,
+            "items_pendientes": [...],
+            "items_cumplidos": [...],
+            "mensaje_proveedor": str
+        }
+    """
+    
+    tipologia = proyecto.get("tipologia", "")
+    fase = proyecto.get("fase_actual", "F0")
+    
+    # Obtener checklist de la tipología
+    checklist = get_checklist_obligatorio(tipologia, fase)
+    
+    if not checklist:
+        return {
+            "completo": True,
+            "progreso_porcentaje": 100,
+            "items_pendientes": [],
+            "items_cumplidos": [],
+            "mensaje_proveedor": "No hay documentos requeridos para esta fase."
+        }
+    
+    items_pendientes = []
+    items_cumplidos = []
+    
+    for item in checklist:
+        if not item.get("obligatorio", True):
+            continue
+            
+        doc_nombre = item.get("documento", "").lower()
+        
+        # Verificar si existe
+        encontrado = any(
+            doc_nombre in (doc.get("tipo", "") + doc.get("descripcion", "")).lower()
+            for doc in documentos_existentes
+        )
+        
+        if encontrado:
+            items_cumplidos.append({
+                "documento": item.get("documento"),
+                "estado": "CUMPLIDO"
+            })
+        else:
+            items_pendientes.append({
+                "documento": item.get("documento"),
+                "criterio": item.get("criterio_validacion", ""),
+                "ejemplo_valido": item.get("ejemplo_valido", ""),
+                "ejemplo_invalido": item.get("ejemplo_invalido", ""),
+                "criticidad": item.get("criticidad", "ALTA"),
+                "estado": "PENDIENTE"
+            })
+    
+    total = len(items_cumplidos) + len(items_pendientes)
+    progreso = int((len(items_cumplidos) / total) * 100) if total > 0 else 100
+    
+    # Generar mensaje para el proveedor
+    mensaje = _generar_mensaje_proveedor(
+        proyecto=proyecto,
+        items_pendientes=items_pendientes,
+        progreso=progreso
+    )
+    
+    return {
+        "completo": len(items_pendientes) == 0,
+        "progreso_porcentaje": progreso,
+        "items_pendientes": items_pendientes,
+        "items_cumplidos": items_cumplidos,
+        "mensaje_proveedor": mensaje
+    }
+
+
+def _generar_mensaje_proveedor(
+    proyecto: Dict,
+    items_pendientes: List[Dict],
+    progreso: int
+) -> str:
+    """Genera mensaje claro y específico para el proveedor"""
+    
+    if not items_pendientes:
+        return f"""
+Estimado Proveedor,
+
+Le informamos que la documentación del proyecto "{proyecto.get('nombre', proyecto.get('name', 'N/A'))}" 
+está COMPLETA al 100%.
+
+El expediente está listo para avanzar a la siguiente fase de validación.
+
+Atentamente,
+Sistema de Auditoría Durezza 4.0
+"""
+    
+    fecha_limite = (datetime.now() + timedelta(days=7)).strftime("%d/%m/%Y")
+    
+    mensaje = f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 DOCUMENTACIÓN REQUERIDA - ACCIÓN NECESARIA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Estimado Proveedor,
+
+Para el proyecto "{proyecto.get('nombre', proyecto.get('name', 'N/A'))}" necesitamos que nos 
+proporcione la siguiente documentación para poder continuar con el proceso de validación.
+
+📊 PROGRESO ACTUAL: {progreso}% ({len(items_pendientes)} documentos pendientes)
+
+📅 FECHA LÍMITE: {fecha_limite}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📁 DOCUMENTOS REQUERIDOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"""
+    
+    for i, item in enumerate(items_pendientes, 1):
+        criticidad_emoji = "🔴" if item.get("criticidad") == "MAXIMA" else "🟠" if item.get("criticidad") == "ALTA" else "🟡"
+        
+        mensaje += f"""
+{i}. {criticidad_emoji} {item['documento']}
+   ────────────────────────────────────────────────────
+   📌 Criterio de aceptación:
+      {item.get('criterio', 'Documento requerido para cumplimiento SAT')}
+"""
+        
+        if item.get("ejemplo_valido"):
+            mensaje += f"""
+   ✅ Ejemplo VÁLIDO:
+      {item['ejemplo_valido']}
+"""
+        
+        if item.get("ejemplo_invalido"):
+            mensaje += f"""
+   ❌ Ejemplo NO VÁLIDO (evitar):
+      {item['ejemplo_invalido']}
+"""
+
+    mensaje += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ IMPORTANTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Esta documentación es necesaria para cumplir con los requisitos de:
+• Art. 5-A CFF (Razón de Negocios)
+• Art. 69-B CFF (Materialidad del Servicio)
+• Art. 27 LISR (Deducibilidad)
+
+Sin esta documentación, NO será posible:
+• Aprobar el expediente de defensa
+• Proceder con la facturación
+• Liberar el pago correspondiente
+
+Por favor envíe la documentación antes del {fecha_limite}.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Para cualquier duda, responda a este correo.
+
+Atentamente,
+Sistema de Auditoría Durezza 4.0
+revisar-ia.com
+"""
+    
+    return mensaje
+
+
+async def enviar_checklist_a_proveedor(
+    proyecto: Dict,
+    proveedor_email: str,
+    documentos_existentes: List[Dict],
+    db
+) -> Dict:
+    """
+    Envía email al proveedor con checklist detallado de lo que falta.
+    """
+    
+    # Generar checklist
+    checklist = await generar_checklist_para_proveedor(proyecto, documentos_existentes)
+    
+    if checklist["completo"]:
+        return {
+            "enviado": False,
+            "razon": "Documentación completa, no hay pendientes"
+        }
+    
+    # Enviar email
+    email_service = DreamHostEmailService()
+    
+    await email_service.send_email(
+        from_agent="A8_AUDITOR",
+        to_email=proveedor_email,
+        subject=f"[ACCIÓN REQUERIDA] Documentación Pendiente - {proyecto.get('nombre', proyecto.get('name', 'Proyecto'))}",
+        body=checklist["mensaje_proveedor"]
+    )
+    
+    # Registrar en bitácora
+    # ... registro en DB ...
+    
+    logger.info(
+        f"Checklist enviado a proveedor {proveedor_email} - "
+        f"Proyecto: {proyecto.get('id')} - "
+        f"Pendientes: {len(checklist['items_pendientes'])}"
+    )
+    
+    return {
+        "enviado": True,
+        "proveedor_email": proveedor_email,
+        "items_pendientes": len(checklist["items_pendientes"]),
+        "progreso": checklist["progreso_porcentaje"]
+    }
+
+=============================================================================
+PASO 4: CREAR ENDPOINT PARA ENVIAR CHECKLIST AL PROVEEDOR
+=============================================================================
+
+Agrega en "backend/routes/proyectos.py" o similar:
+
+from services.notificacion_proveedor_service import (
+    generar_checklist_para_proveedor,
+    enviar_checklist_a_proveedor
+)
+
+@router.get("/proyectos/{proyecto_id}/checklist-proveedor")
+async def obtener_checklist_proveedor(proyecto_id: str):
+    """Obtiene el checklist de documentos pendientes para el proveedor"""
+    
+    proyecto = await obtener_proyecto(proyecto_id)
+    documentos = await obtener_documentos_proyecto(proyecto_id)
+    
+    checklist = await generar_checklist_para_proveedor(proyecto, documentos)
+    
+    return checklist
+
+
+@router.post("/proyectos/{proyecto_id}/enviar-checklist-proveedor")
+async def enviar_checklist_proveedor(proyecto_id: str, proveedor_email: str = None):
+    """Envía el checklist de documentos pendientes al proveedor"""
+    
+    proyecto = await obtener_proyecto(proyecto_id)
+    documentos = await obtener_documentos_proyecto(proyecto_id)
+    
+    # Usar email del proveedor del proyecto si no se especifica
+    email = proveedor_email or proyecto.get("proveedor_email") or proyecto.get("sponsor_email")
+    
+    if not email:
+        raise HTTPException(
+            status_code=400,
+            detail="No se encontró email del proveedor"
+        )
+    
+    resultado = await enviar_checklist_a_proveedor(
+        proyecto=proyecto,
+        proveedor_email=email,
+        documentos_existentes=documentos,
+        db=db
+    )
+    
+    return resultado
+
+=============================================================================
+PASO 5: INTEGRAR COMPONENTES EN DASHBOARD
+=============================================================================
+
+Actualiza el dashboard principal para incluir la evolución y checklist.
+
+En el componente de detalle de proyecto, agregar:
+
+import EvolucionProyecto from './EvolucionProyecto';
+import ChecklistProveedor from './ChecklistProveedor';
+
+// En el JSX del detalle:
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <EvolucionProyecto proyectoId={proyecto.id} />
+  <ChecklistProveedor 
+    proyectoId={proyecto.id}
+    tipologia={proyecto.tipologia}
+    faseActual={proyecto.fase_actual}
+  />
+</div>
+
+=============================================================================
+PASO 6: VERIFICACIÓN
+=============================================================================
+
+Verifica que:
+
+1. GET /api/proyectos/{id}/checklist-proveedor retorna items pendientes
+2. POST /api/proyectos/{id}/enviar-checklist-proveedor envía email
+3. El email incluye cada documento faltante con criterio y ejemplos
+4. El componente EvolucionProyecto muestra timeline de versiones
+5. El componente ChecklistProveedor muestra progreso y pendientes
+
+=============================================================================
+FIN - COMUNICACIÓN CLARA AL PROVEEDOR
+=============================================================================
+
+Este prompt crea:
+
+EvolucionProyecto: Timeline visual de todas las versiones con cambios entre cada una
+ChecklistProveedor: Muestra exactamente qué falta con ejemplos de qué es válido y qué no
+Servicio de notificación: Genera email claro con cada documento faltante, criterio de aceptación, y ejemplos
+El proveedor recibirá algo como:
+
+1. 🔴 Modelo Paramétrico (Excel)
+   📌 CRÍTICO: Archivo Excel con fórmulas activas o Dashboard
+   ✅ Ejemplo VÁLIDO: Modelo_Parametrico.xlsx con proyecciones
+   ❌ Evitar: Solo PDF sin herramienta de trabajo
+
+2. 🟠 Manual Metodológico
+   📌 Explicación técnica de cómo se construyó el análisis
+   ✅ Ejemplo VÁLIDO: Manual con fuentes, metodología, supuestos
+
+¿Lo copio a Replit después de que termine el prompt anterior?
+
+Ya te di ese prompt arriba (el de Evolución de Proyectos + Comunicación Clara al Proveedor).
+
+Pero veo que lo mandaste dos veces el mismo mensaje. ¿Quieres que:
+
+Te lo simplifique en un prompt más corto/directo?
+Esperar a que Replit termine el prompt de integración E2E y luego correr este?
+Algo adicional que no haya cubierto?
+Lo que el prompt que te di hace:
+
+Componente	Función
+EvolucionProyecto.jsx	Timeline visual de versiones con risk score, progreso, y cambios entre versiones
+ChecklistProveedor.jsx	Muestra exactamente qué documentos faltan con ejemplos válidos/inválidos
+notificacion_proveedor_service.py	Genera email detallado con cada documento faltante, criterio, ejemplos
+Endpoints	GET /checklist-proveedor y POST /enviar-checklist-proveedor
+El proveedor recibe un email con:
+
+Lista numerada de cada documento faltante
+Criterio de aceptación específico
+Ejemplo de qué SÍ es válido
+Ejemplo de qué NO es válido
+Fecha límite
+Advertencia de que sin esto no hay pago

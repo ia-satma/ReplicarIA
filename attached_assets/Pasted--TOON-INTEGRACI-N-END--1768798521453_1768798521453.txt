@@ -1,0 +1,580 @@
+=============================================================================
+TOON: INTEGRACIÓN END-TO-END - CONECTAR TODOS LOS COMPONENTES
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta todas las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. SOLO EJECUTA.
+
+CONTEXTO CRÍTICO: La auditoría reveló que los componentes están construidos
+pero NO conectados. Este prompt integra:
+1. Inyección de contexto → Deliberaciones
+2. Validación de outputs → Después de cada deliberación  
+3. Checklist por tipología → Antes de avanzar fase
+4. Risk score por pilar → Persistir en Project
+
+=============================================================================
+PASO 1: INTEGRAR INYECCIÓN DE CONTEXTO EN DELIBERACIONES
+=============================================================================
+
+Modifica "backend/services/deliberation_orchestrator.py":
+
+1.1 Agregar imports al inicio del archivo:
+
+from services.inyeccion_contexto_service import (
+    construir_contexto_completo_para_agente,
+    generar_system_prompt_con_contexto
+)
+from config.reglas_tipologia import get_reglas_tipologia
+from context.contexto_global import get_contexto_global
+
+1.2 Buscar la función que ejecuta deliberaciones de agentes (puede llamarse
+    execute_agent_deliberation, run_deliberation, deliberate, o similar).
+    
+    ANTES de la llamada al LLM, agregar:
+
+async def _preparar_contexto_agente(self, agent_id: str, project: dict, proveedor: dict = None):
+    """Prepara contexto completo para el agente incluyendo normativo y reglas"""
+    
+    # Obtener documentos del proyecto
+    documentos = await self._obtener_documentos_proyecto(project.get("id"))
+    
+    # Obtener deliberaciones previas
+    deliberaciones_previas = await self._obtener_deliberaciones_proyecto(project.get("id"))
+    
+    # Construir contexto completo
+    contexto = construir_contexto_completo_para_agente(
+        agente_id=agent_id,
+        proyecto=project,
+        proveedor=proveedor,
+        documentos=documentos,
+        deliberaciones_previas=deliberaciones_previas
+    )
+    
+    # Generar system prompt con contexto inyectado
+    system_prompt = generar_system_prompt_con_contexto(agent_id, contexto)
+    
+    return contexto, system_prompt
+
+1.3 Modificar la función de deliberación para usar el nuevo contexto:
+
+    Buscar donde se construye el prompt para el LLM y reemplazar con:
+
+# ANTES (ejemplo de código existente):
+# system_prompt = agent_config.get("system_prompt", "")
+# response = await self.call_llm(system_prompt, user_message)
+
+# DESPUÉS:
+contexto, system_prompt = await self._preparar_contexto_agente(
+    agent_id=agent_id,
+    project=project_data,
+    proveedor=proveedor_data
+)
+
+# Llamar al LLM con contexto completo
+response = await self.call_llm(system_prompt, user_message)
+
+# Guardar contexto usado en la deliberación para trazabilidad
+deliberation_record["contexto_inyectado"] = {
+    "tipologia": contexto.get("tipologia", {}).get("id"),
+    "fase": contexto.get("_meta", {}).get("fase_actual"),
+    "reglas_aplicadas": len(contexto.get("tipologia", {}).get("reglas_auditoria", [])),
+    "checklist_items": len(contexto.get("checklist_fase_actual", []))
+}
+
+=============================================================================
+PASO 2: INTEGRAR VALIDACIÓN DE OUTPUTS DESPUÉS DE DELIBERACIÓN
+=============================================================================
+
+2.1 Agregar import en deliberation_orchestrator.py:
+
+from validation.validation_service import validar_output_agente, validar_y_corregir
+
+2.2 Después de recibir respuesta del LLM, agregar validación:
+
+# Después de: response = await self.call_llm(...)
+
+# Parsear respuesta del LLM a dict
+try:
+    output_dict = self._parse_llm_response(response)
+except Exception as e:
+    logger.error(f"Error parseando respuesta de {agent_id}: {e}")
+    output_dict = {"raw_response": response}
+
+# Validar output contra schema del agente
+validation_result = validar_output_agente(agent_id, output_dict)
+
+if not validation_result.get("valido", False):
+    logger.warning(
+        f"Output de {agent_id} inválido: {validation_result.get('errores', [])}"
+    )
+    
+    # Intentar corrección automática
+    output_corregido = validar_y_corregir(output_dict)
+    
+    # Re-validar
+    validation_result_2 = validar_output_agente(agent_id, output_corregido)
+    
+    if validation_result_2.get("valido", False):
+        output_dict = output_corregido
+        logger.info(f"Output de {agent_id} corregido automáticamente")
+    else:
+        # Marcar deliberación como incompleta
+        deliberation_record["validation_status"] = "INVALID"
+        deliberation_record["validation_errors"] = validation_result.get("errores", [])
+        logger.error(f"Output de {agent_id} no pudo ser corregido")
+else:
+    deliberation_record["validation_status"] = "VALID"
+
+# Guardar output validado
+deliberation_record["output_validado"] = output_dict
+
+=============================================================================
+PASO 3: INTEGRAR CHECKLIST POR TIPOLOGÍA EN AVANCE DE FASE
+=============================================================================
+
+Modifica "backend/services/fase_service.py":
+
+3.1 Agregar imports:
+
+from config.reglas_tipologia import (
+    validar_checklist_fase,
+    get_checklist_obligatorio
+)
+
+3.2 Modificar la función de verificación de avance (puede llamarse
+    puede_avanzar_fase, verificar_avance, check_phase_advance, etc.):
+
+async def verificar_avance_fase_completo(
+    proyecto_id: str, 
+    fase_destino: str,
+    db
+) -> dict:
+    """
+    Verifica si un proyecto puede avanzar a la siguiente fase.
+    Incluye: candados duros + checklist por tipología.
+    """
+    
+    # Obtener proyecto
+    proyecto = await obtener_proyecto(proyecto_id, db)
+    tipologia = proyecto.get("tipologia", "")
+    fase_actual = proyecto.get("fase_actual", "F0")
+    
+    bloqueos = []
+    
+    # 1. Verificar candados duros (F2, F6, F8)
+    if fase_destino in ["F2", "F6", "F8"]:
+        resultado_candado = await verificar_candado_antes_de_avanzar(proyecto, fase_destino)
+        if not resultado_candado.get("puede_avanzar", False):
+            bloqueos.extend(resultado_candado.get("bloqueos", []))
+    
+    # 2. Verificar checklist por tipología (NUEVO)
+    if tipologia:
+        documentos = await obtener_documentos_proyecto(proyecto_id, db)
+        resultado_checklist = validar_checklist_fase(
+            tipologia_id=tipologia,
+            fase=fase_actual,  # Validar fase que se está completando
+            documentos_cargados=documentos
+        )
+        
+        if not resultado_checklist.get("cumple", True):
+            for faltante in resultado_checklist.get("faltantes", []):
+                bloqueos.append(
+                    f"[CHECKLIST {tipologia}] Falta: {faltante['documento']} - "
+                    f"Criterio: {faltante.get('criterio', 'N/A')}"
+                )
+    
+    puede_avanzar = len(bloqueos) == 0
+    
+    return {
+        "puede_avanzar": puede_avanzar,
+        "bloqueos": bloqueos,
+        "fase_actual": fase_actual,
+        "fase_destino": fase_destino,
+        "tipologia": tipologia,
+        "checklist_validado": True
+    }
+
+3.3 Actualizar el endpoint de avance de fase en "backend/routes/fases.py":
+
+@router.post("/proyectos/{proyecto_id}/fase/avanzar")
+async def avanzar_fase(proyecto_id: str):
+    """Avanza un proyecto a la siguiente fase con validación completa"""
+    
+    proyecto = await obtener_proyecto(proyecto_id)
+    fase_siguiente = obtener_fase_siguiente(proyecto.get("fase_actual"))
+    
+    # Verificación completa (candados + checklist)
+    resultado = await verificar_avance_fase_completo(
+        proyecto_id=proyecto_id,
+        fase_destino=fase_siguiente,
+        db=db
+    )
+    
+    if not resultado["puede_avanzar"]:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "AVANCE_BLOQUEADO",
+                "fase_actual": resultado["fase_actual"],
+                "fase_destino": resultado["fase_destino"],
+                "bloqueos": resultado["bloqueos"],
+                "tipologia": resultado["tipologia"]
+            }
+        )
+    
+    # Proceder con el avance
+    # ... código existente de avance ...
+
+=============================================================================
+PASO 4: PERSISTIR RISK SCORE POR PILAR EN PROJECT
+=============================================================================
+
+4.1 Verificar que el modelo Project tenga los campos (si no, agregarlos):
+
+En "backend/models/durezza_models.py" o donde esté el modelo Project:
+
+class Project(BaseModel):
+    # ... campos existentes ...
+    
+    # Risk Score desglosado (agregar si no existen)
+    risk_score_total: Optional[int] = 0
+    risk_score_razon_negocios: Optional[int] = 0
+    risk_score_beneficio_economico: Optional[int] = 0
+    risk_score_materialidad: Optional[int] = 0
+    risk_score_trazabilidad: Optional[int] = 0
+
+4.2 Crear función para actualizar risk score después de A3_FISCAL:
+
+En "backend/services/scoring_service.py" o crear nuevo archivo:
+
+async def actualizar_risk_score_proyecto(
+    proyecto_id: str,
+    risk_score_total: int,
+    desglose: dict,
+    db
+):
+    """
+    Actualiza el risk score del proyecto después de deliberación de A3_FISCAL.
+    
+    Args:
+        desglose: {
+            "razon_negocios": int,
+            "beneficio_economico": int,
+            "materialidad": int,
+            "trazabilidad": int
+        }
+    """
+    
+    update_data = {
+        "risk_score_total": risk_score_total,
+        "risk_score_razon_negocios": desglose.get("razon_negocios", 0),
+        "risk_score_beneficio_economico": desglose.get("beneficio_economico", 0),
+        "risk_score_materialidad": desglose.get("materialidad", 0),
+        "risk_score_trazabilidad": desglose.get("trazabilidad", 0),
+        "risk_score_updated_at": datetime.utcnow()
+    }
+    
+    # Actualizar en MongoDB
+    await db.projects.update_one(
+        {"id": proyecto_id},
+        {"$set": update_data}
+    )
+    
+    logger.info(
+        f"Risk score actualizado para {proyecto_id}: "
+        f"Total={risk_score_total}, "
+        f"RN={desglose.get('razon_negocios')}, "
+        f"BE={desglose.get('beneficio_economico')}, "
+        f"MA={desglose.get('materialidad')}, "
+        f"TR={desglose.get('trazabilidad')}"
+    )
+    
+    return update_data
+
+4.3 Integrar actualización después de deliberación de A3_FISCAL:
+
+En deliberation_orchestrator.py, después de la deliberación de A3:
+
+# Después de deliberación de A3_FISCAL
+if agent_id == "A3_FISCAL" and output_dict:
+    # Extraer risk score del output
+    risk_total = output_dict.get("risk_score_total", 0)
+    
+    # Extraer desglose por pilar
+    conclusion_pilares = output_dict.get("conclusion_por_pilar", {})
+    desglose = {
+        "razon_negocios": conclusion_pilares.get("razon_negocios", {}).get("score", 0),
+        "beneficio_economico": conclusion_pilares.get("beneficio_economico", {}).get("score", 0),
+        "materialidad": conclusion_pilares.get("materialidad", {}).get("score", 0),
+        "trazabilidad": conclusion_pilares.get("trazabilidad", {}).get("score", 0)
+    }
+    
+    # Persistir en proyecto
+    await actualizar_risk_score_proyecto(
+        proyecto_id=project_data.get("id"),
+        risk_score_total=risk_total,
+        desglose=desglose,
+        db=self.db
+    )
+
+=============================================================================
+PASO 5: INCLUIR EXTRACTO NORMATIVO EN EMAILS
+=============================================================================
+
+Modifica "backend/services/dreamhost_email_service.py":
+
+5.1 Agregar función para generar extracto normativo:
+
+def _generar_extracto_normativo(tipologia: str) -> str:
+    """Genera extracto normativo relevante para incluir en emails"""
+    
+    extracto = """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MARCO NORMATIVO APLICABLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 Art. 5-A CFF (Razón de Negocios)
+   Los actos jurídicos deben tener razón de negocios cuando el 
+   beneficio económico sea mayor al beneficio fiscal.
+
+📋 Art. 69-B CFF (Operaciones Inexistentes)
+   Se presume inexistencia si el emisor carece de activos, personal
+   o infraestructura para prestar los servicios.
+
+📋 Art. 27 LISR (Deducibilidad)
+   Las deducciones deben ser estrictamente indispensables y estar
+   amparadas con CFDI.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+    
+    # Agregar alertas específicas de tipología
+    from config.reglas_tipologia import get_reglas_tipologia
+    reglas = get_reglas_tipologia(tipologia)
+    
+    if reglas:
+        alertas = reglas.get("contexto_inyeccion_agentes", {}).get("A3_FISCAL", {}).get("alertas_tipologia", [])
+        if alertas:
+            extracto += "\n⚠️ ALERTAS PARA ESTA TIPOLOGÍA:\n"
+            for alerta in alertas:
+                extracto += f"   • {alerta}\n"
+    
+    return extracto
+
+5.2 Modificar la función de envío de email de deliberación:
+
+Buscar la función que envía emails de deliberación (send_deliberation_email,
+notify_agent, o similar) y agregar el extracto normativo:
+
+async def send_deliberation_email(
+    from_agent: str,
+    to_agent: str,
+    project: dict,
+    deliberation: dict,
+    include_normativo: bool = True
+):
+    """Envía email de deliberación entre agentes"""
+    
+    tipologia = project.get("tipologia", "")
+    
+    # Construir cuerpo del email
+    body = f"""
+Proyecto: {project.get('name', 'N/A')}
+Tipología: {tipologia}
+Fase: {project.get('fase_actual', 'N/A')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DELIBERACIÓN DE {from_agent}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Decisión: {deliberation.get('decision', 'N/A')}
+Risk Score: {deliberation.get('risk_score', 'N/A')}/100
+
+Análisis:
+{deliberation.get('analysis', 'Sin análisis')}
+"""
+    
+    # Agregar extracto normativo
+    if include_normativo:
+        body += _generar_extracto_normativo(tipologia)
+    
+    # Agregar checklist de documentos faltantes si hay
+    if deliberation.get("documentos_faltantes"):
+        body += "\n\n📁 DOCUMENTOS PENDIENTES:\n"
+        for doc in deliberation.get("documentos_faltantes", []):
+            body += f"   ❌ {doc}\n"
+    
+    # Enviar email
+    await self._send_email(
+        from_email=self.agent_emails.get(from_agent),
+        to_email=self.agent_emails.get(to_agent),
+        subject=f"[DELIBERACIÓN] {project.get('name')} - {from_agent}",
+        body=body
+    )
+
+=============================================================================
+PASO 6: ACTUALIZAR DEFENSE FILE CON RISK SCORE
+=============================================================================
+
+Modifica "backend/services/defense_file_service.py":
+
+6.1 Agregar risk score al Defense File cuando se crea/actualiza:
+
+async def actualizar_defense_file_con_risk_score(
+    proyecto_id: str,
+    db
+):
+    """Actualiza el Defense File con el risk score del proyecto"""
+    
+    # Obtener proyecto con risk score
+    proyecto = await obtener_proyecto(proyecto_id, db)
+    
+    # Actualizar Defense File
+    await db.defense_files.update_one(
+        {"project_id": proyecto_id},
+        {"$set": {
+            "risk_score_total": proyecto.get("risk_score_total", 0),
+            "risk_score_desglose": {
+                "razon_negocios": proyecto.get("risk_score_razon_negocios", 0),
+                "beneficio_economico": proyecto.get("risk_score_beneficio_economico", 0),
+                "materialidad": proyecto.get("risk_score_materialidad", 0),
+                "trazabilidad": proyecto.get("risk_score_trazabilidad", 0)
+            },
+            "risk_score_updated_at": datetime.utcnow()
+        }}
+    )
+
+=============================================================================
+PASO 7: CREAR TESTS DE INTEGRACIÓN
+=============================================================================
+
+Crea archivo "backend/tests/test_integracion_e2e.py":
+
+import pytest
+from services.inyeccion_contexto_service import construir_contexto_completo_para_agente
+from validation.validation_service import validar_output_agente
+from config.reglas_tipologia import validar_checklist_fase
+from services.fase_service import verificar_avance_fase_completo
+
+class TestIntegracionE2E:
+    """Tests de integración end-to-end"""
+    
+    def test_contexto_completo_incluye_normativo(self):
+        """El contexto debe incluir marco normativo"""
+        proyecto = {
+            "id": "test-001",
+            "nombre": "Test E2E",
+            "tipologia": "CONSULTORIA_MACRO_ESTRATEGIA",
+            "fase_actual": "F5"
+        }
+        
+        contexto = construir_contexto_completo_para_agente(
+            agente_id="A3_FISCAL",
+            proyecto=proyecto
+        )
+        
+        assert "contexto_normativo" in contexto
+        assert "cff_5a" in contexto["contexto_normativo"]
+        assert "cff_69b" in contexto["contexto_normativo"]
+    
+    def test_contexto_incluye_reglas_tipologia(self):
+        """El contexto debe incluir reglas de la tipología"""
+        proyecto = {
+            "id": "test-002",
+            "tipologia": "CONSULTORIA_MACRO_ESTRATEGIA",
+            "fase_actual": "F5"
+        }
+        
+        contexto = construir_contexto_completo_para_agente(
+            agente_id="A3_FISCAL",
+            proyecto=proyecto
+        )
+        
+        assert "tipologia" in contexto
+        assert "reglas_auditoria" in contexto["tipologia"]
+        assert len(contexto["tipologia"]["reglas_auditoria"]) > 0
+    
+    def test_contexto_incluye_checklist_fase(self):
+        """El contexto debe incluir checklist de la fase actual"""
+        proyecto = {
+            "id": "test-003",
+            "tipologia": "CONSULTORIA_MACRO_ESTRATEGIA",
+            "fase_actual": "F5"
+        }
+        
+        contexto = construir_contexto_completo_para_agente(
+            agente_id="A3_FISCAL",
+            proyecto=proyecto
+        )
+        
+        assert "checklist_fase_actual" in contexto
+        # F5 debe tener Informe Final, Modelo, Manual
+        nombres = [item["documento"] for item in contexto["checklist_fase_actual"]]
+        assert "Informe Final Integrado" in nombres or any("Informe" in n for n in nombres)
+    
+    def test_validacion_a3_rechaza_sin_checklist_minimo(self):
+        """A3_FISCAL debe requerir mínimo 3 items en checklist"""
+        output_invalido = {
+            "decision": "APROBAR",
+            "risk_score_total": 20,
+            "conclusion_por_pilar": {},
+            "checklist_evidencia_exigible": [
+                {"item": "Solo uno", "presente": True}
+            ],
+            "justificacion": "Test"
+        }
+        
+        resultado = validar_output_agente("A3_FISCAL", output_invalido)
+        
+        assert resultado["valido"] == False
+        assert any("checklist" in str(e).lower() for e in resultado.get("errores", []))
+    
+    def test_checklist_tipologia_bloquea_sin_modelo(self):
+        """F5 de Consultoría Macro debe bloquear sin Modelo/Excel"""
+        documentos = [
+            {"tipo": "INFORME_FINAL", "descripcion": "Informe PDF"}
+            # Falta Modelo y Manual
+        ]
+        
+        resultado = validar_checklist_fase(
+            tipologia_id="CONSULTORIA_MACRO_ESTRATEGIA",
+            fase="F5",
+            documentos_cargados=documentos
+        )
+        
+        assert resultado["cumple"] == False
+        assert len(resultado["faltantes"]) >= 2
+        
+        # Verificar que Modelo está en faltantes
+        faltantes_nombres = [f["documento"] for f in resultado["faltantes"]]
+        assert any("Modelo" in n or "Herramienta" in n for n in faltantes_nombres)
+
+=============================================================================
+PASO 8: VERIFICACIÓN FINAL
+=============================================================================
+
+Ejecuta los siguientes comandos para verificar:
+
+1. Tests de integración:
+   python -m pytest tests/test_integracion_e2e.py -v
+
+2. Verificar que deliberation_orchestrator importa los nuevos servicios:
+   grep -n "inyeccion_contexto_service" backend/services/deliberation_orchestrator.py
+
+3. Verificar que fase_service usa validar_checklist_fase:
+   grep -n "validar_checklist_fase" backend/services/fase_service.py
+
+4. Verificar que los emails incluyen normativo:
+   grep -n "_generar_extracto_normativo" backend/services/dreamhost_email_service.py
+
+Reporta:
+- Tests de integración: [X pasaron / Y fallaron]
+- Inyección de contexto integrada: [SÍ/NO]
+- Validación de outputs integrada: [SÍ/NO]
+- Checklist en avance de fase: [SÍ/NO]
+- Risk score persistido: [SÍ/NO]
+- Emails con normativo: [SÍ/NO]
+
+=============================================================================
+FIN - INTEGRACIÓN END-TO-END COMPLETADA
+=============================================================================

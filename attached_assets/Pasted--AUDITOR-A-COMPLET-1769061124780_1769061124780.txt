@@ -1,0 +1,422 @@
+═══════════════════════════════════════════════════════════════════════════════
+🔴 AUDITORÍA COMPLETA DEL SISTEMA - MODO HONESTIDAD BRUTAL 🔴
+═══════════════════════════════════════════════════════════════════════════════
+
+INSTRUCCIÓN PARA REPLIT AGENT:
+
+NECESITO QUE HAGAS UNA AUDITORÍA 100% HONESTA DEL SISTEMA.
+NO QUIERO RESPUESTAS OPTIMISTAS NI "YA CASI ESTÁ".
+QUIERO LA VERDAD CRUDA SOBRE QUÉ FUNCIONA Y QUÉ NO.
+
+EJECUTA CADA VERIFICACIÓN Y REPORTA CON ESTE FORMATO:
+
+✅ FUNCIONA - [descripción de qué hace correctamente]
+⚠️ PARCIAL - [qué funciona y qué falta]
+❌ NO FUNCIONA - [descripción del error exacto]
+🔴 NO EXISTE - [nunca se implementó]
+
+═══════════════════════════════════════════════════════════════════════════════
+SECCIÓN 1: VERIFICACIÓN DE BASE DE DATOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Ejecuta estas queries y reporta el resultado EXACTO:
+
+```sql
+-- 1.1 ¿Qué tablas existen?
+SELECT table_name FROM information_schema.tables 
+WHERE table_schema = 'public' ORDER BY table_name;
+
+-- 1.2 ¿Hay usuarios en la tabla usuarios?
+SELECT COUNT(*) as total, 
+       COUNT(CASE WHEN activo = true THEN 1 END) as activos
+FROM usuarios;
+
+-- 1.3 ¿Hay clientes en la tabla clientes?
+SELECT COUNT(*) as total,
+       COUNT(CASE WHEN estado = 'pendiente' THEN 1 END) as pendientes,
+       COUNT(CASE WHEN estado = 'aprobado' THEN 1 END) as aprobados
+FROM clientes;
+
+-- 1.4 ¿Existe la tabla de knowledge base?
+SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'kb_documentos');
+SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'kb_chunks');
+
+-- 1.5 ¿Hay documentos en el knowledge base?
+SELECT COUNT(*) FROM kb_documentos WHERE activo = true;
+SELECT COUNT(*) FROM kb_chunks;
+
+-- 1.6 ¿Existe extensión pgvector para embeddings?
+SELECT EXISTS (SELECT FROM pg_extension WHERE extname = 'vector');
+
+-- 1.7 ¿Hay embeddings generados?
+SELECT COUNT(*) FROM kb_chunks WHERE embedding IS NOT NULL;
+```
+
+REPORTA:
+| Tabla | Existe | Registros | Estado |
+|-------|--------|-----------|--------|
+| usuarios | | | |
+| clientes | | | |
+| empresas | | | |
+| kb_documentos | | | |
+| kb_chunks | | | |
+| kb_chunk_agente | | | |
+| codigos_acceso | | | |
+| ... | | | |
+
+═══════════════════════════════════════════════════════════════════════════════
+SECCIÓN 2: VERIFICACIÓN DE ENDPOINTS API
+═══════════════════════════════════════════════════════════════════════════════
+
+Ejecuta cada curl y reporta el resultado EXACTO (código HTTP + respuesta):
+
+```bash
+# 2.1 Health check básico
+curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/api/health
+
+# 2.2 Login con contraseña
+curl -X POST http://localhost:5000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"santiago@satma.mx","password":"Admin2024!"}'
+
+# 2.3 Solicitar OTP
+curl -X POST http://localhost:5000/api/auth/otp/request-code \
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo@revisar-ia.com"}'
+
+# 2.4 Crear cliente
+curl -X POST http://localhost:5000/api/clientes \
+  -H "Content-Type: application/json" \
+  -d '{"nombre":"TEST AUDITORIA","rfc":"XAXX010101000"}'
+
+# 2.5 Listar clientes
+curl http://localhost:5000/api/clientes
+
+# 2.6 Stats de biblioteca
+curl http://localhost:5000/api/biblioteca/stats
+
+# 2.7 Chat de biblioteca
+curl -X POST http://localhost:5000/api/biblioteca/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"hola"}'
+
+# 2.8 Chat de Facturar.IA
+curl -X POST http://localhost:5000/api/facturar/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"hola"}'
+
+# 2.9 Onboarding investigar
+curl -X POST http://localhost:5000/api/onboarding/investigar \
+  -H "Content-Type: application/json" \
+  -d '{"sitio_web":"google.com"}'
+
+# 2.10 Agentes status
+curl http://localhost:5000/api/agents/status
+```
+
+REPORTA:
+| Endpoint | Método | Status | Respuesta | Funciona |
+|----------|--------|--------|-----------|----------|
+| /api/health | GET | | | |
+| /api/auth/login | POST | | | |
+| /api/auth/otp/request-code | POST | | | |
+| /api/clientes | POST | | | |
+| /api/clientes | GET | | | |
+| /api/biblioteca/stats | GET | | | |
+| /api/biblioteca/chat | POST | | | |
+| /api/biblioteca/upload | POST | | | |
+| /api/facturar/chat | POST | | | |
+| /api/voice/tts | POST | | | |
+| /api/onboarding/investigar | POST | | | |
+| /api/agents/status | GET | | | |
+| /api/admin/clientes | GET | | | |
+
+═══════════════════════════════════════════════════════════════════════════════
+SECCIÓN 3: VERIFICACIÓN DE ARCHIVOS DE CÓDIGO
+═══════════════════════════════════════════════════════════════════════════════
+
+Verifica si estos archivos EXISTEN y tienen contenido funcional:
+
+```bash
+# Backend - Rutas
+ls -la server/routes/
+cat server/routes/clientes.ts | head -50
+cat server/routes/biblioteca.ts | head -50
+cat server/routes/facturar.ts | head -50
+cat server/routes/voice.ts | head -50
+cat server/routes/onboarding.ts | head -50
+cat server/routes/agents.ts | head -50
+
+# Backend - Servicios
+ls -la server/services/
+ls -la server/services/ai/
+ls -la server/services/biblioteca/
+
+# Backend - Registro de rutas en index
+grep -n "app.use.*api" server/index.ts
+
+# Frontend - Componentes
+ls -la frontend/src/components/
+ls -la frontend/src/pages/
+```
+
+REPORTA:
+| Archivo | Existe | Líneas | Importado en index.ts | Funcional |
+|---------|--------|--------|----------------------|-----------|
+| server/routes/clientes.ts | | | | |
+| server/routes/biblioteca.ts | | | | |
+| server/routes/facturar.ts | | | | |
+| server/routes/voice.ts | | | | |
+| server/routes/onboarding.ts | | | | |
+| server/routes/agents.ts | | | | |
+| server/routes/admin/clientes.ts | | | | |
+| server/services/ai/deepResearch.ts | | | | |
+| server/services/ai/modelRouter.ts | | | | |
+| server/services/biblioteca/procesadorDocumentos.ts | | | | |
+| server/services/biblioteca/embeddings.ts | | | | |
+| server/services/clienteContexto.ts | | | | |
+| server/agents/orchestrator.ts | | | | |
+
+═══════════════════════════════════════════════════════════════════════════════
+SECCIÓN 4: VERIFICACIÓN DE VARIABLES DE ENTORNO
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+# Verificar que existen (NO mostrar valores completos por seguridad)
+echo "DATABASE_URL: ${DATABASE_URL:+SET}"
+echo "ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:+SET}"
+echo "OPENAI_API_KEY: ${OPENAI_API_KEY:+SET}"
+echo "GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY:+SET}"
+echo "ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:+SET}"
+echo "JWT_SECRET: ${JWT_SECRET:+SET}"
+echo "RESEND_API_KEY: ${RESEND_API_KEY:+SET}"
+echo "DREAMHOST_EMAIL_PASSWORD: ${DREAMHOST_EMAIL_PASSWORD:+SET}"
+```
+
+REPORTA:
+| Variable | Configurada | Necesaria Para |
+|----------|-------------|----------------|
+| DATABASE_URL | | Conexión a BD |
+| ANTHROPIC_API_KEY | | Claude, Agentes |
+| OPENAI_API_KEY | | Embeddings |
+| GOOGLE_AI_API_KEY | | Gemini, Deep Research |
+| ELEVENLABS_API_KEY | | Voz |
+| JWT_SECRET | | Autenticación |
+| RESEND_API_KEY | | Emails |
+
+═══════════════════════════════════════════════════════════════════════════════
+SECCIÓN 5: VERIFICACIÓN DE FRONTEND - CADA BOTÓN Y ENLACE
+═══════════════════════════════════════════════════════════════════════════════
+
+NAVEGA por la aplicación y verifica CADA elemento interactivo:
+
+### 5.1 PANTALLA DE LOGIN
+| Elemento | Funciona | Error/Problema |
+|----------|----------|----------------|
+| Input email | | |
+| Input password | | |
+| Botón "Iniciar Sesión" | | |
+| Link "Solicitar código OTP" | | |
+| Botón "Enviar código" | | |
+| Input código OTP | | |
+| Botón "Verificar código" | | |
+
+### 5.2 SIDEBAR/MENÚ PRINCIPAL
+| Elemento | Ruta | Funciona | Muestra contenido correcto |
+|----------|------|----------|---------------------------|
+| Dashboard | /dashboard | | |
+| Clientes | /clientes | | |
+| Proyectos | /proyectos | | |
+| Bibliotecar.IA | /biblioteca | | |
+| Facturar.IA | /facturar | | |
+| Configuración | /config | | |
+| Usuarios | /usuarios | | |
+| Admin Clientes | /admin/clientes | | |
+
+### 5.3 MÓDULO DE CLIENTES
+| Elemento | Funciona | Error/Problema |
+|----------|----------|----------------|
+| Botón "Nuevo Cliente" | | |
+| Formulario se abre | | |
+| Campos se llenan | | |
+| Botón "Confirmar y Crear Cliente" | | |
+| Cliente aparece en lista | | |
+| Editar cliente | | |
+| Eliminar cliente | | |
+
+### 5.4 BIBLIOTECAR.IA
+| Elemento | Funciona | Error/Problema |
+|----------|----------|----------------|
+| Chat responde | | |
+| Botón "Cargar documento" | | |
+| Upload de PDF funciona | | |
+| Documento se procesa | | |
+| Métricas se actualizan | | |
+| Chunks se crean | | |
+| Categorías muestran % correcto | | |
+
+### 5.5 FACTURAR.IA
+| Elemento | Funciona | Error/Problema |
+|----------|----------|----------------|
+| Chat responde | | |
+| Botón de voz | | |
+| Micrófono funciona | | |
+| Audio se reproduce | | |
+| Sugerencias de claves SAT | | |
+
+### 5.6 ONBOARDING INTELIGENTE (si existe)
+| Elemento | Funciona | Error/Problema |
+|----------|----------|----------------|
+| Input de sitio web | | |
+| Deep Research se ejecuta | | |
+| Campos se auto-completan | | |
+| Confirmación funciona | | |
+
+═══════════════════════════════════════════════════════════════════════════════
+SECCIÓN 6: VERIFICACIÓN DE FLUJOS COMPLETOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Prueba estos flujos de principio a fin:
+
+### FLUJO 1: Login → Dashboard
+1. Abrir la app
+2. Ingresar email y contraseña
+3. Click en login
+4. Ver dashboard
+RESULTADO: [ ] Completo [ ] Falla en paso ___
+
+### FLUJO 2: Crear Cliente Completo
+1. Ir a Clientes
+2. Click Nuevo Cliente
+3. Llenar formulario
+4. Click Confirmar
+5. Ver cliente en lista
+RESULTADO: [ ] Completo [ ] Falla en paso ___
+
+### FLUJO 3: Subir Documento a Biblioteca
+1. Ir a Bibliotecar.IA
+2. Click Cargar documento
+3. Seleccionar PDF
+4. Esperar procesamiento
+5. Ver métricas actualizadas
+6. Ver chunks creados
+RESULTADO: [ ] Completo [ ] Falla en paso ___
+
+### FLUJO 4: Chat con Agente
+1. Ir a cualquier módulo con chat
+2. Escribir mensaje
+3. Recibir respuesta
+RESULTADO: [ ] Completo [ ] Falla en paso ___
+
+### FLUJO 5: Deep Research (si existe)
+1. Ir a Onboarding
+2. Ingresar URL de empresa
+3. Esperar investigación
+4. Ver formulario auto-completado
+5. Confirmar y crear
+RESULTADO: [ ] Completo [ ] Falla en paso ___
+
+═══════════════════════════════════════════════════════════════════════════════
+SECCIÓN 7: ERRORES EN CONSOLA
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+# Ver errores recientes del servidor
+tail -100 /var/log/app.log 2>/dev/null || echo "No hay archivo de log"
+
+# Ver errores de npm
+cat ~/.npm/_logs/*.log 2>/dev/null | tail -50
+
+# Errores de TypeScript
+npx tsc --noEmit 2>&1 | head -50
+```
+
+Abre la consola del navegador (F12) y reporta TODOS los errores JavaScript:
+- Errores rojos
+- Warnings amarillos
+- Network requests fallidos
+
+═══════════════════════════════════════════════════════════════════════════════
+SECCIÓN 8: DEPENDENCIAS
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+# Verificar dependencias instaladas
+npm ls @anthropic-ai/sdk
+npm ls @google/generative-ai
+npm ls openai
+npm ls pg
+npm ls express
+npm ls multer
+npm ls pdf-parse
+npm ls bcryptjs
+npm ls jsonwebtoken
+
+# Verificar si hay dependencias faltantes
+npm ls 2>&1 | grep "UNMET"
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+SECCIÓN 9: RESUMEN EJECUTIVO
+═══════════════════════════════════════════════════════════════════════════════
+
+Después de todas las verificaciones, genera este resumen:
+
+## ESTADO GENERAL DEL SISTEMA
+
+### ✅ FUNCIONA CORRECTAMENTE (listo para producción)
+1. [lista]
+
+### ⚠️ FUNCIONA PARCIALMENTE (necesita ajustes)
+1. [lista con descripción de qué falta]
+
+### ❌ NO FUNCIONA (bloqueado)
+1. [lista con error específico]
+
+### 🔴 NO IMPLEMENTADO (no existe el código)
+1. [lista]
+
+### 🔑 VARIABLES DE ENTORNO FALTANTES
+1. [lista]
+
+### 📦 DEPENDENCIAS FALTANTES
+1. [lista]
+
+## PRIORIDAD DE ARREGLOS
+
+### CRÍTICO (bloquea demos)
+1. [qué arreglar primero]
+
+### ALTO (afecta funcionalidad core)
+1. [lista]
+
+### MEDIO (mejoras importantes)
+1. [lista]
+
+### BAJO (nice to have)
+1. [lista]
+
+## ESTIMACIÓN DE TRABAJO
+- Arreglos críticos: X horas
+- Arreglos altos: X horas
+- Total para 100% operativo: X horas
+
+═══════════════════════════════════════════════════════════════════════════════
+INSTRUCCIONES FINALES PARA REPLIT AGENT
+═══════════════════════════════════════════════════════════════════════════════
+
+1. EJECUTA TODAS las verificaciones de las secciones 1-8
+2. NO OMITAS NADA aunque parezca que funciona
+3. SÉ BRUTALMENTE HONESTO - prefiero saber que algo no funciona
+4. Si algo da error, muestra el ERROR COMPLETO
+5. No digas "debería funcionar" - PRUÉBALO y dime si funciona
+6. Genera el RESUMEN EJECUTIVO con la verdad absoluta
+7. Dame los comandos EXACTOS para arreglar cada problema
+
+QUIERO SABER:
+- ¿Puedo hacer una demo HOY? Si no, ¿qué falta?
+- ¿Qué porcentaje del sistema está realmente operativo?
+- ¿Cuáles son los 3 problemas más críticos?
+
+NO ME DIGAS LO QUE QUIERO ESCUCHAR.
+DIME LA VERDAD.

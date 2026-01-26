@@ -1,0 +1,886 @@
+# FASE 2: SISTEMA DE CONTEXTO GLOBAL
+## Prompt TOON para Replit
+
+```
+=============================================================================
+TOON FASE 2: CONTEXTO GLOBAL - NORMATIVA, TIPOLOGÍAS Y POE F0-F9
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta todas las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. SOLO EJECUTA.
+
+PRERREQUISITO: La Fase 1 (Base de Datos) debe estar completada.
+
+CONTEXTO: El sistema de auditoría de intangibles necesita un "contexto global"
+que todos los agentes compartan. Este contexto incluye: la normativa fiscal
+mexicana aplicable, las tipologías de servicios/intangibles con sus características,
+los umbrales de revisión humana, y el Procedimiento Operativo Estándar (POE)
+de fases F0-F9.
+
+=============================================================================
+PASO 1: CREAR ARCHIVO DE CONTEXTO NORMATIVO FISCAL
+=============================================================================
+
+Crea un archivo llamado "contextoNormativoFiscal.js" (o el equivalente en tu
+stack) con el siguiente contenido:
+
+const CONTEXTO_NORMATIVO = {
+  
+  CFF: {
+    articulo_5A: {
+      nombre: "Razón de negocios y beneficio económico",
+      texto_clave: "Los actos jurídicos que carezcan de una razón de negocios y que generen un beneficio fiscal directo o indirecto tendrán los efectos fiscales que correspondan a los que se habrían realizado para la obtención del beneficio económico razonablemente esperado por el contribuyente.",
+      aplicacion_sistema: "Todo proyecto de servicio/intangible debe demostrar que tiene una justificación económica real más allá del ahorro o beneficio fiscal. El sistema debe verificar que existe un objetivo económico concreto, medible, con horizonte temporal definido.",
+      criterios_evaluacion: [
+        "¿El servicio está vinculado al giro del contribuyente?",
+        "¿Existe un objetivo económico específico y cuantificable?",
+        "¿El monto es proporcional al beneficio esperado y escala del negocio?",
+        "¿Hay un ROI razonablemente esperado documentado?",
+        "¿El horizonte temporal del beneficio es congruente con la naturaleza del servicio?"
+      ],
+      consecuencias_incumplimiento: "La autoridad puede recaracterizar la operación y negar efectos fiscales favorables, incluyendo deducciones."
+    },
+    
+    articulo_69B: {
+      nombre: "Operaciones inexistentes y materialidad",
+      texto_clave: "Cuando la autoridad fiscal detecte que un contribuyente ha estado emitiendo comprobantes sin contar con los activos, personal, infraestructura o capacidad material para prestar los servicios o producir, comercializar o entregar los bienes que amparan tales comprobantes...",
+      aplicacion_sistema: "El sistema debe verificar que existe evidencia concreta de que el servicio se prestó realmente. No basta con tener contrato y CFDI; se requieren entregables, minutas, cronogramas, logs de trabajo, y coherencia entre todos los documentos.",
+      criterios_evaluacion: [
+        "¿Existe contrato/SOW con objeto, alcance y entregables claros?",
+        "¿Hay entregables tangibles que demuestren la ejecución?",
+        "¿Existen minutas o registros de sesiones de trabajo?",
+        "¿El CFDI es específico (no 'servicios profesionales varios')?",
+        "¿Hay coherencia entre contrato, entregables, CFDI y pago?",
+        "¿Se puede reconstruir un timeline lógico de la operación?"
+      ],
+      consecuencias_incumplimiento: "Inclusión en lista de operaciones inexistentes, no deducibilidad del gasto, posible delito fiscal."
+    },
+    
+    articulo_69B_bis: {
+      nombre: "Transmisión indebida de pérdidas fiscales",
+      aplicacion_sistema: "Identificar si los servicios o intangibles forman parte de un esquema para transmitir pérdidas entre partes relacionadas."
+    }
+  },
+  
+  LISR: {
+    articulo_27: {
+      nombre: "Requisitos de las deducciones",
+      texto_clave: "Las deducciones autorizadas deberán reunir los siguientes requisitos: I. Ser estrictamente indispensables para los fines de la actividad del contribuyente...",
+      aplicacion_sistema: "El gasto en servicios/intangibles debe ser estrictamente indispensable para la actividad preponderante del contribuyente. No basta con que sea 'útil' o 'conveniente'; debe demostrarse que sin él la operación del negocio se vería afectada.",
+      criterios_evaluacion: [
+        "¿El servicio se relaciona directamente con la actividad preponderante?",
+        "¿Es un gasto que cualquier empresa del mismo giro haría?",
+        "¿Existe justificación de por qué no se hace internamente?",
+        "¿El resultado del servicio se usa efectivamente en el negocio?"
+      ],
+      consecuencias_incumplimiento: "Rechazo de la deducción, ajuste al ISR, actualizaciones, recargos y posibles multas."
+    },
+    
+    articulo_28_fracciones: {
+      nombre: "Gastos no deducibles relacionados",
+      aplicacion_sistema: "Verificar que el gasto no caiga en supuestos de no deducibilidad como pagos a EFOS, gastos sin requisitos fiscales, etc."
+    }
+  },
+  
+  NOM_151: {
+    nombre: "Conservación de mensajes de datos y digitalización",
+    aplicacion_sistema: "Todos los documentos del Defense File deben tener: integridad verificable (hash SHA-256), fecha cierta (timestamp confiable), y conservación adecuada. El sistema debe calcular y almacenar hashes de integridad para cada documento.",
+    criterios_evaluacion: [
+      "¿Los documentos tienen fecha cierta verificable?",
+      "¿Se puede demostrar que no han sido alterados?",
+      "¿Existe un expediente digital estructurado?",
+      "¿Se puede reconstruir la secuencia temporal de eventos?"
+    ]
+  },
+  
+  RMF: {
+    intangibles_dificiles_valorar: {
+      nombre: "Reglas para activos intangibles difíciles de valorar",
+      aplicacion_sistema: "Para servicios que generan intangibles (software, estudios, metodologías), se requiere documentación detallada sobre valoración, supuestos utilizados, y metodología. Especialmente relevante en operaciones con partes relacionadas.",
+      documentacion_requerida: [
+        "Descripción detallada del intangible",
+        "Metodología de valoración aplicada",
+        "Supuestos y proyecciones utilizadas",
+        "Comparables de mercado si existen",
+        "Justificación del precio pactado"
+      ]
+    },
+    
+    esquemas_reportables: {
+      nombre: "Esquemas reportables",
+      aplicacion_sistema: "Identificar si la operación podría constituir un esquema reportable, especialmente en: operaciones con partes relacionadas, transferencias de intangibles, y estructuras que generan beneficios fiscales significativos."
+    },
+    
+    precios_transferencia: {
+      nombre: "Documentación de precios de transferencia",
+      aplicacion_sistema: "Para operaciones intra-grupo o con partes relacionadas, verificar existencia de estudio de TP, método aplicado, y comparables."
+    }
+  }
+};
+
+module.exports = { CONTEXTO_NORMATIVO };
+
+=============================================================================
+PASO 2: CREAR ARCHIVO DE TIPOLOGÍAS DE SERVICIO
+=============================================================================
+
+Crea un archivo llamado "tipologiasServicio.js" con el siguiente contenido:
+
+const TIPOLOGIAS_SERVICIO = {
+  
+  CONSULTORIA_ESTRATEGICA: {
+    nombre: "Consultoría estratégica / de negocio",
+    descripcion: "Servicios de asesoría en estrategia, gestión, transformación organizacional, planeación de negocios.",
+    ejemplos: [
+      "Planeación estratégica",
+      "Diagnóstico organizacional",
+      "Diseño de modelo de negocio",
+      "Consultoría de gestión del cambio",
+      "Asesoría en gobierno corporativo"
+    ],
+    riesgo_fiscal_inherente: "MEDIO-ALTO",
+    razon: "Los entregables suelen ser intangibles (presentaciones, recomendaciones) y es difícil demostrar materialidad sin buena documentación.",
+    foco_de_revision: [
+      "Vinculación clara con problema/oportunidad del negocio",
+      "Entregables tangibles y específicos",
+      "KPIs de éxito medibles",
+      "Evidencia de implementación de recomendaciones"
+    ],
+    documentos_tipicos: [
+      "Propuesta/SOW con alcance detallado",
+      "Metodología documentada",
+      "Diagnóstico o análisis inicial",
+      "Presentaciones de avance",
+      "Informe final con recomendaciones",
+      "Plan de acción derivado",
+      "Minutas de sesiones de trabajo"
+    ],
+    alertas_especiales: [
+      "Descripciones vagas como 'asesoría general'",
+      "Montos desproporcionados vs alcance",
+      "Ausencia de entregables tangibles"
+    ]
+  },
+  
+  CONSULTORIA_MACRO_MERCADO: {
+    nombre: "Estudios macroeconómicos, de mercado, regulatorios",
+    descripcion: "Estudios especializados que analizan entorno macro, mercado, regulación, tendencias, para informar decisiones de negocio.",
+    ejemplos: [
+      "Estudio de mercado",
+      "Análisis macroeconómico sectorial",
+      "Estudios regulatorios y de impacto normativo",
+      "Estudios de factibilidad",
+      "Análisis de competencia"
+    ],
+    riesgo_fiscal_inherente: "MEDIO",
+    razon: "Generalmente producen entregables documentales claros, pero el vínculo con beneficio económico puede ser indirecto.",
+    foco_de_revision: [
+      "Uso real del estudio en decisiones de negocio",
+      "Conexión con Plan Estratégico",
+      "Metodología y fuentes verificables",
+      "ROI aunque sea indirecto"
+    ],
+    documentos_tipicos: [
+      "Contrato/SOW con entregables listados",
+      "Informe final con metodología y fuentes",
+      "Modelo cuantitativo/paramétrico",
+      "Dashboard o herramientas de visualización",
+      "Manual metodológico para replicar",
+      "Minutas de sesiones de trabajo",
+      "Presentaciones ejecutivas"
+    ],
+    alertas_especiales: [
+      "Estudios genéricos sin foco en el negocio específico",
+      "Ausencia de conexión con decisiones concretas",
+      "Falta de uso posterior del estudio"
+    ]
+  },
+  
+  SOFTWARE_SAAS_DESARROLLO: {
+    nombre: "Desarrollo de software, licencias, SaaS",
+    descripcion: "Servicios de desarrollo de software a la medida, licenciamiento, suscripciones SaaS, implementación de sistemas.",
+    ejemplos: [
+      "Desarrollo de aplicaciones a la medida",
+      "Implementación de ERP/CRM",
+      "Licencias de software",
+      "Suscripciones SaaS",
+      "Mantenimiento y soporte de sistemas"
+    ],
+    riesgo_fiscal_inherente: "MEDIO",
+    razon: "Generalmente hay evidencia tangible (código, sistemas funcionando), pero la valuación puede ser compleja si se capitaliza.",
+    foco_de_revision: [
+      "Evidencia de desarrollo real (commits, tickets, sprints)",
+      "Pruebas de uso efectivo del sistema",
+      "Valuación correcta si se capitaliza como activo",
+      "Coherencia entre desarrollo y precio pagado"
+    ],
+    documentos_tipicos: [
+      "Contrato de desarrollo o licencia",
+      "Especificaciones funcionales/técnicas",
+      "Bitácora de desarrollo (tickets, commits)",
+      "Evidencia de pruebas/QA",
+      "Manual de usuario y técnico",
+      "Logs de uso del sistema",
+      "Acta de aceptación"
+    ],
+    alertas_especiales: [
+      "Sistemas que nunca se usan",
+      "Desarrollo sin especificaciones previas",
+      "Precios muy altos sin justificación técnica",
+      "Capitalización incorrecta vs gasto"
+    ]
+  },
+  
+  MARKETING_BRANDING: {
+    nombre: "Marketing digital, branding, campañas publicitarias",
+    descripcion: "Servicios de mercadotecnia, publicidad, construcción de marca, campañas digitales, relaciones públicas.",
+    ejemplos: [
+      "Campañas de publicidad digital",
+      "Branding y diseño de identidad",
+      "Social media marketing",
+      "SEO/SEM",
+      "Producción de contenidos",
+      "Relaciones públicas"
+    ],
+    riesgo_fiscal_inherente: "ALTO",
+    razon: "Es una de las categorías más cuestionadas por SAT. Dificultad para demostrar que las campañas realmente se ejecutaron y generaron valor.",
+    foco_de_revision: [
+      "Evidencia de ejecución real de campañas",
+      "Reportes de plataformas (Meta, Google, etc.)",
+      "KPIs y resultados medibles",
+      "Relación con ingresos o estrategia comercial"
+    ],
+    documentos_tipicos: [
+      "Contrato con tipo de campaña, medios, KPIs",
+      "Brief creativo aprobado",
+      "Capturas de anuncios publicados",
+      "Reportes de plataformas publicitarias",
+      "Métricas de resultados (impresiones, clics, conversiones)",
+      "Análisis de ROI de campaña",
+      "Facturas de medios/terceros"
+    ],
+    alertas_especiales: [
+      "Campañas sin evidencia de publicación",
+      "Ausencia de reportes de plataformas",
+      "KPIs no verificables",
+      "Montos altos sin correlación con alcance",
+      "Servicios 'de posicionamiento' vagos"
+    ]
+  },
+  
+  INTRAGRUPO_MANAGEMENT_FEE: {
+    nombre: "Servicios intra-grupo, management fees, soporte corporativo",
+    descripcion: "Servicios prestados entre empresas del mismo grupo: administración centralizada, soporte corporativo, regalías, fees de gestión.",
+    ejemplos: [
+      "Management fees",
+      "Servicios administrativos compartidos",
+      "Soporte de TI centralizado",
+      "Regalías por uso de marca",
+      "Servicios de tesorería centralizada",
+      "Servicios de recursos humanos compartidos"
+    ],
+    riesgo_fiscal_inherente: "MUY ALTO",
+    razon: "Altamente escrutados por SAT. Riesgo de precios de transferencia, duplicidad de funciones, erosión de base gravable.",
+    foco_de_revision: [
+      "Documentación completa de precios de transferencia",
+      "Demostración de que los servicios se prestan realmente",
+      "Inexistencia de duplicidad de funciones",
+      "Beneficio real para la receptora del servicio",
+      "Método de TP y comparables"
+    ],
+    documentos_tipicos: [
+      "Contrato de servicios intra-grupo",
+      "Estudio de precios de transferencia",
+      "Desglose de servicios y base de asignación",
+      "Reportes periódicos de servicios prestados",
+      "Registro de horas por servicio",
+      "Minutas de comités de gestión",
+      "Evidencia de capacidad del prestador"
+    ],
+    alertas_especiales: [
+      "Servicios genéricos 'de gestión' sin desglose",
+      "Ausencia de estudio de TP",
+      "Duplicidad con funciones internas",
+      "Prestador sin capacidad real (EFOS potencial)",
+      "Bases de asignación arbitrarias"
+    ],
+    revision_humana_obligatoria: true
+  },
+  
+  SERVICIOS_ESG_CUMPLIMIENTO: {
+    nombre: "Servicios de ESG, cumplimiento, sostenibilidad",
+    descripcion: "Consultoría en temas ambientales, sociales, de gobierno corporativo, compliance, certificaciones.",
+    ejemplos: [
+      "Diagnóstico ESG",
+      "Implementación de sistemas de compliance",
+      "Certificaciones ambientales",
+      "Reportes de sostenibilidad",
+      "Due diligence de cumplimiento"
+    ],
+    riesgo_fiscal_inherente: "MEDIO",
+    razon: "Área relativamente nueva, pero generalmente produce entregables tangibles. El reto es demostrar necesidad/indispensabilidad.",
+    foco_de_revision: [
+      "Vinculación con requisitos regulatorios o de mercado",
+      "Entregables concretos (reportes, certificaciones)",
+      "Uso real de los resultados"
+    ],
+    documentos_tipicos: [
+      "Contrato con alcance específico",
+      "Diagnóstico o gap analysis",
+      "Plan de acción",
+      "Reportes de implementación",
+      "Certificaciones obtenidas",
+      "Evidencia de auditorías"
+    ]
+  },
+  
+  REESTRUCTURAS: {
+    nombre: "Servicios relacionados con reestructuras corporativas",
+    descripcion: "Asesoría en fusiones, escisiones, adquisiciones, reestructuras societarias, valuaciones.",
+    ejemplos: [
+      "Due diligence financiero/legal/fiscal",
+      "Valuación de empresas",
+      "Asesoría en M&A",
+      "Diseño de estructuras corporativas",
+      "Integración post-fusión"
+    ],
+    riesgo_fiscal_inherente: "MUY ALTO",
+    razon: "Operaciones de alto monto y complejidad, frecuentemente involucran partes relacionadas y pueden tener implicaciones fiscales significativas.",
+    foco_de_revision: [
+      "Valuaciones con metodología sólida",
+      "Independencia de los asesores",
+      "Razón de negocios de la reestructura",
+      "Implicaciones fiscales documentadas"
+    ],
+    revision_humana_obligatoria: true
+  },
+  
+  OTROS: {
+    nombre: "Otros servicios no clasificados",
+    descripcion: "Servicios que no encajan en las categorías anteriores.",
+    riesgo_fiscal_inherente: "VARIABLE",
+    foco_de_revision: [
+      "Aplicar criterios generales de los 4 pilares",
+      "Evaluar caso por caso"
+    ],
+    requiere_tipificacion_manual: true
+  }
+};
+
+module.exports = { TIPOLOGIAS_SERVICIO };
+
+=============================================================================
+PASO 3: CREAR ARCHIVO DE UMBRALES DE REVISIÓN HUMANA
+=============================================================================
+
+Crea un archivo llamado "umbralesRevision.js" con el siguiente contenido:
+
+const UMBRALES_REVISION_HUMANA = {
+  
+  por_monto: {
+    umbral_obligatorio: 5000000,
+    descripcion: "Proyectos con monto >= 5 millones MXN requieren revisión humana obligatoria de Fiscal y Legal antes de F2 y F6.",
+    moneda: "MXN"
+  },
+  
+  por_risk_score: {
+    obligatorio: {
+      umbral: 60,
+      descripcion: "Proyectos con risk_score >= 60 requieren revisión humana obligatoria."
+    },
+    discrecional: {
+      rango_min: 40,
+      rango_max: 59,
+      descripcion: "Proyectos con risk_score entre 40-59 quedan a discreción del PMO según tipo de servicio."
+    },
+    automatizado: {
+      umbral_max: 39,
+      descripcion: "Proyectos con risk_score < 40 pueden procesarse de forma automatizada, salvo excepciones por tipo."
+    }
+  },
+  
+  por_tipologia: {
+    siempre_humano: [
+      "INTRAGRUPO_MANAGEMENT_FEE",
+      "REESTRUCTURAS"
+    ],
+    descripcion: "Estos tipos de servicio SIEMPRE requieren revisión humana de Fiscal y Legal, independientemente de monto o score."
+  },
+  
+  por_proveedor: {
+    parte_relacionada: {
+      requiere_revision: true,
+      descripcion: "Cualquier operación con parte relacionada requiere revisión humana adicional y validación de TP."
+    },
+    alerta_efos: {
+      requiere_revision: true,
+      descripcion: "Proveedores con alerta EFOS activa requieren revisión humana y análisis de riesgo especial."
+    },
+    primera_vez: {
+      requiere_revision: true,
+      umbral_monto: 1000000,
+      descripcion: "Primera operación con un proveedor nuevo por monto > 1M requiere validación adicional."
+    }
+  },
+  
+  fases_criticas: {
+    F2: {
+      descripcion: "Antes de iniciar ejecución",
+      requiere_revision_si: ["monto >= umbral", "risk_score >= 60", "tipologia en siempre_humano", "parte_relacionada"]
+    },
+    F6: {
+      descripcion: "Antes de emitir VBC y autorizar pago",
+      requiere_revision_si: ["siempre", "es la puerta antes del compromiso fiscal"]
+    }
+  }
+};
+
+function requiereRevisionHumana(proyecto, riskScore, proveedor) {
+  
+  // Por monto
+  if (proyecto.monto >= UMBRALES_REVISION_HUMANA.por_monto.umbral_obligatorio) {
+    return {
+      requiere: true,
+      razon: "Monto >= " + UMBRALES_REVISION_HUMANA.por_monto.umbral_obligatorio + " MXN"
+    };
+  }
+  
+  // Por risk_score
+  if (riskScore >= UMBRALES_REVISION_HUMANA.por_risk_score.obligatorio.umbral) {
+    return {
+      requiere: true,
+      razon: "Risk score >= " + UMBRALES_REVISION_HUMANA.por_risk_score.obligatorio.umbral
+    };
+  }
+  
+  // Por tipología
+  if (UMBRALES_REVISION_HUMANA.por_tipologia.siempre_humano.includes(proyecto.tipologia)) {
+    return {
+      requiere: true,
+      razon: "Tipología " + proyecto.tipologia + " requiere revisión humana obligatoria"
+    };
+  }
+  
+  // Por proveedor
+  if (proveedor.tipo_relacion !== 'TERCERO_INDEPENDIENTE') {
+    return {
+      requiere: true,
+      razon: "Operación con parte relacionada: " + proveedor.tipo_relacion
+    };
+  }
+  
+  if (proveedor.alerta_efos) {
+    return {
+      requiere: true,
+      razon: "Proveedor con alerta EFOS activa"
+    };
+  }
+  
+  // No requiere
+  return {
+    requiere: false,
+    razon: null
+  };
+}
+
+module.exports = { UMBRALES_REVISION_HUMANA, requiereRevisionHumana };
+
+=============================================================================
+PASO 4: CREAR ARCHIVO DE POE FASES F0-F9
+=============================================================================
+
+Crea un archivo llamado "poeFases.js" con el siguiente contenido:
+
+const POE_FASES = {
+  
+  F0: {
+    nombre: "Aprobación - Definir BEE y elegibilidad",
+    objetivo: "Validar que el proyecto tiene razón de negocios y beneficio económico esperado suficientes para iniciar.",
+    
+    documentos_minimos: [
+      {
+        nombre: "SIB con BEE",
+        descripcion: "Service Initiation Brief que incluya: objetivo del servicio, Beneficio Económico Esperado (BEE) con ROI estimado y horizonte temporal, vinculación con Plan Estratégico.",
+        obligatorio: true
+      },
+      {
+        nombre: "Evaluación inicial de riesgo fiscal",
+        descripcion: "Análisis preliminar de A3-Fiscal sobre los 4 pilares y risk_score inicial.",
+        obligatorio: true
+      }
+    ],
+    
+    agentes_obligatorios: ["A1_SPONSOR", "A3_FISCAL", "SUB_TIPIFICACION"],
+    
+    condicion_avance: "BEE definido con objetivo económico específico + evaluación inicial de riesgo fiscal completada + tipología asignada. A1 y A3 deben tener decisión APROBAR o APROBAR_CONDICIONES.",
+    
+    bloqueos: [
+      "BEE inexistente o con objetivo económico no cuantificable",
+      "Falta de vínculo razonable con el negocio",
+      "Señales claras de simulación o EFOS en el proveedor",
+      "A3-Fiscal con decisión RECHAZAR"
+    ],
+    
+    resultado_esperado: "Proyecto clasificado (tipología asignada), BEE documentado, risk_score inicial calculado, decisión de proceder o no."
+  },
+  
+  F1: {
+    nombre: "Pre-contratación / SOW inicial",
+    objetivo: "Formalizar el alcance del servicio antes de iniciar ejecución.",
+    
+    documentos_minimos: [
+      {
+        nombre: "SOW / Orden de trabajo",
+        descripcion: "Documento con: objeto claro, alcance general, lista de entregables esperados, esquema de honorarios/hitos, criterios de aceptación preliminares.",
+        obligatorio: true
+      },
+      {
+        nombre: "Registro de fecha cierta/trazabilidad",
+        descripcion: "Mecanismo de timestamp o registro que demuestre cuándo se formalizó el SOW.",
+        obligatorio: true
+      }
+    ],
+    
+    agentes_obligatorios: ["A4_LEGAL"],
+    
+    condicion_avance: "SOW/orden aprobado por Legal con objeto, alcance, entregables y esquema de precio claros. Sin vicios formales graves.",
+    
+    bloqueos: [
+      "Objeto ambiguo o ininteligible",
+      "Ausencia total de esquema de precio/honorarios",
+      "Entregables no especificados",
+      "Problemas formales graves (partes incorrectas, representante sin facultades)"
+    ],
+    
+    resultado_esperado: "SOW/orden de trabajo formalizado y validado por Legal, listo para confirmación de presupuesto."
+  },
+  
+  F2: {
+    nombre: "Validación previa al inicio de ejecución",
+    objetivo: "Confirmar que hay presupuesto y que se puede proceder a ejecutar el servicio.",
+    
+    documentos_minimos: [
+      {
+        nombre: "Confirmación de presupuesto",
+        descripcion: "Validación de Finanzas de que existe presupuesto disponible para el proyecto.",
+        obligatorio: true
+      },
+      {
+        nombre: "Revisión humana si aplica",
+        descripcion: "Si el proyecto excede umbrales, documentar la revisión y aprobación humana.",
+        obligatorio: false
+      }
+    ],
+    
+    agentes_obligatorios: ["A5_FINANZAS", "A2_PMO"],
+    
+    condicion_avance: "F0 y F1 completados + presupuesto confirmado + revisión humana obtenida si aplica.",
+    
+    bloqueos: [
+      "Sin presupuesto disponible",
+      "Riesgo fiscal alto sin revisión humana que lo asuma/mitigue",
+      "F0 o F1 no completados",
+      "Roles responsables no han dado 'go'"
+    ],
+    
+    es_candado_duro: true,
+    candado_descripcion: "NINGÚN PROVEEDOR PUEDE INICIAR TRABAJOS si el proyecto no ha alcanzado F2 COMPLETADA.",
+    
+    resultado_esperado: "Autorización para que el proveedor inicie ejecución del servicio."
+  },
+  
+  F3: {
+    nombre: "Ejecución inicial / Primera versión del entregable",
+    objetivo: "Registrar el inicio de la ejecución y obtener primera versión del entregable.",
+    
+    documentos_minimos: [
+      {
+        nombre: "Entregable V1",
+        descripcion: "Primera versión identificable del entregable (borrador, versión preliminar).",
+        obligatorio: true
+      },
+      {
+        nombre: "Logs/evidencias de actividades",
+        descripcion: "Minutas de kick-off, correos de inicio, cronograma de trabajo.",
+        obligatorio: true
+      }
+    ],
+    
+    agentes_obligatorios: ["A6_PROVEEDOR"],
+    
+    condicion_avance: "Al menos una versión de entregable con rastro documental de inicio de actividades.",
+    
+    bloqueos: [
+      "No hay entregable identificable",
+      "No hay rastro documental de ejecución"
+    ],
+    
+    resultado_esperado: "Evidencia de que el servicio comenzó a ejecutarse, con entregable preliminar."
+  },
+  
+  F4: {
+    nombre: "Revisión iterativa",
+    objetivo: "Proceso de ajuste del entregable hasta que cumpla criterios de calidad.",
+    
+    documentos_minimos: [
+      {
+        nombre: "Versiones sucesivas del entregable",
+        descripcion: "V1, V1.2, V2, etc. con registro de cambios.",
+        obligatorio: true
+      },
+      {
+        nombre: "Registro de ajustes",
+        descripcion: "Documentación de observaciones recibidas y cómo se atendieron.",
+        obligatorio: true
+      }
+    ],
+    
+    agentes_obligatorios: ["A1_SPONSOR", "A3_FISCAL", "A5_FINANZAS"],
+    
+    condicion_avance: "Entregable cumple criterios estratégicos mínimos, consistencia económica y calidad técnica suficiente según los agentes.",
+    
+    bloqueos: [
+      "Brechas graves persistentes en uno o más pilares",
+      "Incapacidad del proveedor para atender observaciones críticas"
+    ],
+    
+    resultado_esperado: "Entregable refinado que cumple criterios de los agentes, listo para aceptación técnica."
+  },
+  
+  F5: {
+    nombre: "Entrega final / Aceptación técnica",
+    objetivo: "Formalizar la aceptación del entregable final.",
+    
+    documentos_minimos: [
+      {
+        nombre: "Entregable final",
+        descripcion: "Versión definitiva del entregable, completa y versionada.",
+        obligatorio: true
+      },
+      {
+        nombre: "Acta de aceptación técnica",
+        descripcion: "Documento donde la unidad usuaria acepta formalmente el entregable.",
+        obligatorio: true
+      }
+    ],
+    
+    agentes_obligatorios: ["A1_SPONSOR", "SUB_MATERIALIDAD"],
+    
+    condicion_avance: "Entregable completo + acta de aceptación técnica firmada + matriz de materialidad actualizada.",
+    
+    bloqueos: [
+      "Entregable incongruente con SOW",
+      "Desacuerdos técnicos sin resolver",
+      "Falta de aceptación técnica formal"
+    ],
+    
+    resultado_esperado: "Entregable aceptado, listo para validación fiscal/legal."
+  },
+  
+  F6: {
+    nombre: "Visto Bueno Fiscal/Legal (VBC)",
+    objetivo: "Obtener aprobación fiscal y legal antes de comprometer el pago.",
+    
+    documentos_minimos: [
+      {
+        nombre: "Matriz de materialidad completa",
+        descripcion: "Tabla que vincula cada hecho relevante con su evidencia, verificando completitud.",
+        obligatorio: true
+      },
+      {
+        nombre: "Contrato/anexo final",
+        descripcion: "Documento contractual definitivo que refleja la realidad del servicio.",
+        obligatorio: true
+      },
+      {
+        nombre: "VBC Fiscal",
+        descripcion: "Documento de A3-Fiscal aprobando el proyecto desde perspectiva tributaria.",
+        obligatorio: true
+      },
+      {
+        nombre: "VBC Legal",
+        descripcion: "Documento de A4-Legal aprobando el proyecto desde perspectiva jurídica.",
+        obligatorio: true
+      }
+    ],
+    
+    agentes_obligatorios: ["A3_FISCAL", "A4_LEGAL", "SUB_MATERIALIDAD"],
+    
+    condicion_avance: "Matriz de materialidad completa (>80%) + VBC de Fiscal + VBC de Legal + contrato final alineado con realidad.",
+    
+    bloqueos: [
+      "Falta de evidencia clave de ejecución",
+      "Contradicciones graves entre SIB, SOW, entregables y contrato",
+      "Riesgo fiscal que Fiscal califique como inaceptable",
+      "A3 o A4 con decisión distinta a APROBAR"
+    ],
+    
+    es_candado_duro: true,
+    candado_descripcion: "NO SE PUEDE EMITIR CFDI NI AUTORIZAR PAGO sin F6 completada con VBC de Fiscal y Legal.",
+    
+    resultado_esperado: "Proyecto aprobado fiscalmente, listo para facturación y pago."
+  },
+  
+  F7: {
+    nombre: "Auditoría interna / Control",
+    objetivo: "Verificar que todo el proceso se siguió correctamente.",
+    
+    documentos_minimos: [
+      {
+        nombre: "Informe de auditoría interna",
+        descripcion: "Revisión de que se siguió el POE, el Defense File está completo, no se omitieron revisiones.",
+        obligatorio: true
+      }
+    ],
+    
+    agentes_obligatorios: ["A2_PMO"],
+    
+    condicion_avance: "Informe de auditoría confirma que el POE se siguió correctamente y Defense File está completo.",
+    
+    bloqueos: [
+      "Omisiones detectadas en fases previas",
+      "Defense File incompleto",
+      "Se detecta que se saltaron revisiones humanas obligatorias"
+    ],
+    
+    resultado_esperado: "Confirmación de que el proyecto cumple con controles internos."
+  },
+  
+  F8: {
+    nombre: "CFDI y pago (3-way match)",
+    objetivo: "Ejecutar el pago con validación de 3-way match.",
+    
+    documentos_minimos: [
+      {
+        nombre: "CFDI específico",
+        descripcion: "Factura con descripción que coincida con contrato y entregables (no genérica).",
+        obligatorio: true
+      },
+      {
+        nombre: "Comprobante de pago",
+        descripcion: "Evidencia de transferencia bancaria.",
+        obligatorio: true
+      },
+      {
+        nombre: "Conciliación contable",
+        descripcion: "Registro contable del gasto.",
+        obligatorio: true
+      }
+    ],
+    
+    agentes_obligatorios: ["A5_FINANZAS"],
+    
+    condicion_avance: "CFDI coincide con objeto y monto del contrato + pago realizado por medios trazables + registro contable completo.",
+    
+    bloqueos: [
+      "CFDI genérico ('servicios profesionales varios')",
+      "CFDI incongruente con contrato",
+      "Pago pretendido sin VBC o sin F7 completo"
+    ],
+    
+    es_candado_duro: true,
+    candado_descripcion: "NO SE PUEDE LIBERAR PAGO sin 3-way match validado y VBC previo.",
+    
+    resultado_esperado: "Pago ejecutado y registrado correctamente."
+  },
+  
+  F9: {
+    nombre: "Post-implementación / Verificación del BEE",
+    objetivo: "Evaluar si el beneficio económico esperado se está materializando.",
+    
+    documentos_minimos: [
+      {
+        nombre: "Informe de seguimiento BEE",
+        descripcion: "Análisis de si los beneficios esperados se están cumpliendo, con explicación de desviaciones.",
+        obligatorio: true
+      }
+    ],
+    
+    agentes_obligatorios: ["A1_SPONSOR"],
+    
+    condicion_avance: "Al menos una revisión ex post documentada.",
+    
+    bloqueos: [
+      "Ausencia total de revisión ex post en proyectos de alto impacto"
+    ],
+    
+    periodicidad: "6, 12 o 24 meses después del cierre según tipo de proyecto",
+    
+    resultado_esperado: "Documentación de si el BEE se cumplió, aprendizajes para futuros proyectos."
+  }
+};
+
+function obtenerConfigFase(fase) {
+  return POE_FASES[fase] || null;
+}
+
+function esCandadoDuro(fase) {
+  return POE_FASES[fase]?.es_candado_duro === true;
+}
+
+function getBloqueosFase(fase) {
+  return POE_FASES[fase]?.bloqueos || [];
+}
+
+module.exports = { POE_FASES, obtenerConfigFase, esCandadoDuro, getBloqueosFase };
+
+=============================================================================
+PASO 5: CREAR ARCHIVO DE CONTEXTO GLOBAL UNIFICADO
+=============================================================================
+
+Crea un archivo llamado "contextoGlobal.js" que exporte todo:
+
+const { CONTEXTO_NORMATIVO } = require('./contextoNormativoFiscal');
+const { TIPOLOGIAS_SERVICIO } = require('./tipologiasServicio');
+const { UMBRALES_REVISION_HUMANA, requiereRevisionHumana } = require('./umbralesRevision');
+const { POE_FASES, obtenerConfigFase, esCandadoDuro, getBloqueosFase } = require('./poeFases');
+
+const CONTEXTO_GLOBAL = {
+  normativo: CONTEXTO_NORMATIVO,
+  tipologias: TIPOLOGIAS_SERVICIO,
+  umbrales: UMBRALES_REVISION_HUMANA,
+  poe: POE_FASES
+};
+
+module.exports = {
+  CONTEXTO_GLOBAL,
+  CONTEXTO_NORMATIVO,
+  TIPOLOGIAS_SERVICIO,
+  UMBRALES_REVISION_HUMANA,
+  POE_FASES,
+  requiereRevisionHumana,
+  obtenerConfigFase,
+  esCandadoDuro,
+  getBloqueosFase
+};
+
+=============================================================================
+PASO 6: VERIFICACIÓN
+=============================================================================
+
+Al terminar, verifica:
+
+1. Todos los archivos se crearon correctamente
+2. Los exports/imports funcionan
+3. Puedes acceder a CONTEXTO_GLOBAL.normativo.CFF.articulo_5A
+4. Puedes llamar requiereRevisionHumana(proyecto, riskScore, proveedor)
+5. Puedes obtener la configuración de cualquier fase con obtenerConfigFase('F6')
+
+Si algo falla, corregirlo antes de continuar a Fase 3.
+
+=============================================================================
+FIN FASE 2
+=============================================================================
+```
+
+## Verificación Post-Implementación
+
+Después de ejecutar este prompt, verifica:
+
+1. ¿Se crearon todos los archivos de contexto?
+2. ¿Los módulos se exportan/importan correctamente?
+3. ¿Puedes acceder a la normativa fiscal desde cualquier parte?
+4. ¿Las funciones auxiliares (requiereRevisionHumana, obtenerConfigFase) funcionan?
+5. ¿El contexto global unificado tiene acceso a todo?
+
+Este contexto global es el "cerebro" del sistema que todos los agentes compartirán.

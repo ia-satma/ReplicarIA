@@ -1,0 +1,1477 @@
+═══════════════════════════════════════════════════════════════════════════════
+🎨 DISEÑAR.IA - AGENTE AUTÓNOMO DE DISEÑO GRÁFICO
+═══════════════════════════════════════════════════════════════════════════════
+
+MISIÓN: Asegurar que TODA la plataforma cumpla con los estándares de diseño
+de la marca, optimización móvil, y mejores prácticas de UX/UI.
+
+FUNCIONES:
+• Auditoría continua de colorimetría y tipografías
+• Verificación de responsive design (móvil-first)
+• Detección de inconsistencias visuales
+• Sugerencias de mejora con nuevas tecnologías
+• Generación de reportes de cumplimiento
+• Auto-corrección de problemas detectados
+
+═══════════════════════════════════════════════════════════════════════════════
+DISEÑO DE LA INTERFAZ DE DISEÑAR.IA
+═══════════════════════════════════════════════════════════════════════════════
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  🎨 Diseñar.IA                                         [⚡ Auditar Ahora]  │
+│  Guardián del Diseño y la Experiencia de Usuario                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Estado del Diseño: 🟢 92% Compatible    Última auditoría: Hace 2 horas    │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─ 🎨 COLORIMETRÍA ────────────────────────────────────────── 95% ──────┐ │
+│  │                                                                        │ │
+│  │  Colores de Marca                    Uso en la App                     │ │
+│  │  ┌──────┐ #0891B2 Cyan Primary      ████████████████ 45 elementos     │ │
+│  │  └──────┘                                                              │ │
+│  │  ┌──────┐ #10B981 Green Success     ████████████ 32 elementos         │ │
+│  │  └──────┘                                                              │ │
+│  │  ┌──────┐ #1F2937 Gray Dark         ████████████████████ 89 elementos │ │
+│  │  └──────┘                                                              │ │
+│  │                                                                        │ │
+│  │  ⚠️ 3 colores fuera de paleta detectados:                             │ │
+│  │     • #FF0000 en ErrorBanner.jsx → Sugerir #EF4444                    │ │
+│  │     • #0000FF en Link.jsx → Sugerir #0891B2                           │ │
+│  │                                                                        │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│  ┌─ 📱 RESPONSIVE / MÓVIL ──────────────────────────────────── 88% ──────┐ │
+│  │                                                                        │ │
+│  │  ✅ 42 componentes optimizados para móvil                             │ │
+│  │  ⚠️ 6 componentes con problemas:                                      │ │
+│  │     • AdminClientes.jsx - Tabla no scrolleable                        │ │
+│  │     • DiagnosticoSistema.jsx - Texto muy pequeño en móvil            │ │
+│  │     • EstadoAcervo.jsx - Botones muy juntos en pantalla pequeña      │ │
+│  │                                                                        │ │
+│  │  [📱 Ver Preview Móvil] [🔧 Auto-Corregir]                            │ │
+│  │                                                                        │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│  ┌─ 🔤 TIPOGRAFÍAS ─────────────────────────────────────────── 100% ─────┐ │
+│  │                                                                        │ │
+│  │  Inter (Principal)     ████████████████████ Títulos, UI               │ │
+│  │  JetBrains Mono        ████████ Código, datos técnicos                │ │
+│  │                                                                        │ │
+│  │  ✅ Todas las fuentes cargadas correctamente                          │ │
+│  │  ✅ Jerarquía tipográfica consistente                                 │ │
+│  │                                                                        │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│  ┌─ 🚀 NUEVAS TECNOLOGÍAS SUGERIDAS ────────────────────────────────────┐ │
+│  │                                                                        │ │
+│  │  💡 Framer Motion - Animaciones fluidas para transiciones            │ │
+│  │     Impacto: +15% percepción de calidad                               │ │
+│  │     [Ver Demo] [Implementar]                                          │ │
+│  │                                                                        │ │
+│  │  💡 CSS Container Queries - Mejor responsive                          │ │
+│  │     Impacto: Componentes auto-adaptables                              │ │
+│  │     [Ver Demo] [Implementar]                                          │ │
+│  │                                                                        │ │
+│  │  💡 View Transitions API - Transiciones entre páginas                 │ │
+│  │     Impacto: UX tipo app nativa                                       │ │
+│  │     [Ver Demo] [Implementar]                                          │ │
+│  │                                                                        │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 1: CONFIGURACIÓN DEL DESIGN SYSTEM
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: server/config/design_system.py
+
+```python
+"""
+DESIGN SYSTEM - REVISAR.IA / DUREZZA / FACTURAR.IA
+Configuración centralizada de todos los elementos de diseño
+"""
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PALETA DE COLORES OFICIAL
+# ═══════════════════════════════════════════════════════════════════════════
+
+COLORES = {
+    # Primarios
+    'primary': {
+        'cyan': {
+            '50': '#ECFEFF',
+            '100': '#CFFAFE',
+            '200': '#A5F3FC',
+            '300': '#67E8F9',
+            '400': '#22D3EE',
+            '500': '#06B6D4',  # Principal
+            '600': '#0891B2',  # Hover
+            '700': '#0E7490',
+            '800': '#155E75',
+            '900': '#164E63',
+        },
+        'default': '#0891B2',
+        'hover': '#0E7490',
+        'light': '#22D3EE',
+    },
+    
+    # Secundarios
+    'secondary': {
+        'green': {
+            '400': '#34D399',
+            '500': '#10B981',  # Success
+            '600': '#059669',
+        },
+        'yellow': {
+            '400': '#FBBF24',
+            '500': '#F59E0B',  # Warning
+            '600': '#D97706',
+        },
+        'red': {
+            '400': '#F87171',
+            '500': '#EF4444',  # Error/Danger
+            '600': '#DC2626',
+        },
+    },
+    
+    # Neutrales (Gray scale)
+    'neutral': {
+        '50': '#F9FAFB',
+        '100': '#F3F4F6',
+        '200': '#E5E7EB',
+        '300': '#D1D5DB',
+        '400': '#9CA3AF',
+        '500': '#6B7280',
+        '600': '#4B5563',
+        '700': '#374151',
+        '800': '#1F2937',  # Fondo principal dark
+        '900': '#111827',  # Fondo más oscuro
+        '950': '#030712',
+    },
+    
+    # Especiales
+    'background': {
+        'dark': '#0F172A',      # Fondo principal
+        'card': '#1E293B',      # Tarjetas
+        'elevated': '#334155',  # Elementos elevados
+    },
+    
+    # Estados
+    'states': {
+        'success': '#10B981',
+        'warning': '#F59E0B',
+        'error': '#EF4444',
+        'info': '#0891B2',
+    }
+}
+
+# Colores PROHIBIDOS (legacy o fuera de marca)
+COLORES_PROHIBIDOS = [
+    '#FF0000',  # Rojo puro - usar #EF4444
+    '#00FF00',  # Verde puro - usar #10B981
+    '#0000FF',  # Azul puro - usar #0891B2
+    '#FFFF00',  # Amarillo puro - usar #F59E0B
+    '#FF00FF',  # Magenta - no usar
+    '#00FFFF',  # Cyan puro - usar #06B6D4
+    'red', 'green', 'blue', 'yellow',  # Nombres CSS genéricos
+]
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TIPOGRAFÍAS
+# ═══════════════════════════════════════════════════════════════════════════
+
+TIPOGRAFIAS = {
+    'principal': {
+        'familia': 'Inter',
+        'fallback': 'system-ui, -apple-system, sans-serif',
+        'weights': [400, 500, 600, 700],
+        'uso': 'Textos generales, UI, títulos'
+    },
+    'codigo': {
+        'familia': 'JetBrains Mono',
+        'fallback': 'Consolas, Monaco, monospace',
+        'weights': [400, 500],
+        'uso': 'Código, datos técnicos, RFCs, montos'
+    },
+    'display': {
+        'familia': 'Inter',
+        'fallback': 'system-ui, sans-serif',
+        'weights': [700, 800],
+        'uso': 'Headlines grandes, marketing'
+    }
+}
+
+# Tamaños de texto
+TAMANOS_TEXTO = {
+    'xs': '0.75rem',    # 12px
+    'sm': '0.875rem',   # 14px
+    'base': '1rem',     # 16px
+    'lg': '1.125rem',   # 18px
+    'xl': '1.25rem',    # 20px
+    '2xl': '1.5rem',    # 24px
+    '3xl': '1.875rem',  # 30px
+    '4xl': '2.25rem',   # 36px
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ESPACIADO Y LAYOUT
+# ═══════════════════════════════════════════════════════════════════════════
+
+ESPACIADO = {
+    '0': '0',
+    '1': '0.25rem',   # 4px
+    '2': '0.5rem',    # 8px
+    '3': '0.75rem',   # 12px
+    '4': '1rem',      # 16px
+    '5': '1.25rem',   # 20px
+    '6': '1.5rem',    # 24px
+    '8': '2rem',      # 32px
+    '10': '2.5rem',   # 40px
+    '12': '3rem',     # 48px
+    '16': '4rem',     # 64px
+}
+
+BORDES = {
+    'radius': {
+        'none': '0',
+        'sm': '0.25rem',    # 4px
+        'default': '0.5rem', # 8px
+        'md': '0.75rem',    # 12px
+        'lg': '1rem',       # 16px
+        'xl': '1.5rem',     # 24px
+        'full': '9999px',
+    },
+    'width': {
+        'default': '1px',
+        'thick': '2px',
+    }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# BREAKPOINTS RESPONSIVE
+# ═══════════════════════════════════════════════════════════════════════════
+
+BREAKPOINTS = {
+    'xs': '320px',   # Móviles pequeños
+    'sm': '640px',   # Móviles grandes
+    'md': '768px',   # Tablets
+    'lg': '1024px',  # Laptops
+    'xl': '1280px',  # Desktop
+    '2xl': '1536px', # Desktop grande
+}
+
+# Reglas de responsive
+REGLAS_RESPONSIVE = {
+    'touch_target_min': '44px',  # Mínimo para elementos tocables
+    'font_size_min_mobile': '14px',
+    'padding_mobile': '16px',
+    'max_width_content': '1280px',
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# COMPONENTES UI
+# ═══════════════════════════════════════════════════════════════════════════
+
+COMPONENTES = {
+    'button': {
+        'padding': '0.75rem 1.5rem',
+        'border_radius': '0.5rem',
+        'font_weight': '600',
+        'min_height': '44px',  # Accesibilidad touch
+        'variantes': ['primary', 'secondary', 'outline', 'ghost', 'danger']
+    },
+    'input': {
+        'padding': '0.75rem 1rem',
+        'border_radius': '0.5rem',
+        'border_color': COLORES['neutral']['600'],
+        'focus_color': COLORES['primary']['default'],
+        'min_height': '44px',
+    },
+    'card': {
+        'padding': '1.5rem',
+        'border_radius': '0.75rem',
+        'background': COLORES['background']['card'],
+        'border': f"1px solid {COLORES['neutral']['700']}",
+    },
+    'modal': {
+        'padding': '1.5rem',
+        'border_radius': '1rem',
+        'max_width': '32rem',
+        'backdrop': 'rgba(0, 0, 0, 0.8)',
+    }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ANIMACIONES
+# ═══════════════════════════════════════════════════════════════════════════
+
+ANIMACIONES = {
+    'duracion': {
+        'fast': '150ms',
+        'normal': '300ms',
+        'slow': '500ms',
+    },
+    'easing': {
+        'default': 'cubic-bezier(0.4, 0, 0.2, 1)',
+        'in': 'cubic-bezier(0.4, 0, 1, 1)',
+        'out': 'cubic-bezier(0, 0, 0.2, 1)',
+        'bounce': 'cubic-bezier(0.68, -0.55, 0.265, 1.55)',
+    }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ICONOS
+# ═══════════════════════════════════════════════════════════════════════════
+
+ICONOS = {
+    'libreria': 'Lucide React',  # Librería principal
+    'fallback': 'Heroicons',
+    'tamano_default': '20px',
+    'tamano_small': '16px',
+    'tamano_large': '24px',
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ACCESIBILIDAD
+# ═══════════════════════════════════════════════════════════════════════════
+
+ACCESIBILIDAD = {
+    'contraste_minimo': 4.5,  # WCAG AA
+    'contraste_grande': 3.0,  # Para texto grande
+    'focus_visible': True,
+    'reducir_movimiento': True,  # Respetar prefers-reduced-motion
+}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 2: SERVICIO DE AUDITORÍA DE DISEÑO
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: server/services/disenar_ia/auditor_diseno.py
+
+```python
+"""
+DISEÑAR.IA - Servicio de Auditoría de Diseño
+Analiza el código frontend para detectar inconsistencias de diseño
+"""
+
+import os
+import re
+import json
+from datetime import datetime
+from typing import List, Dict, Any
+from config.design_system import (
+    COLORES, COLORES_PROHIBIDOS, TIPOGRAFIAS, 
+    BREAKPOINTS, REGLAS_RESPONSIVE, COMPONENTES
+)
+
+class AuditorDiseno:
+    
+    def __init__(self, ruta_frontend: str = 'frontend/src'):
+        self.ruta_frontend = ruta_frontend
+        self.problemas = []
+        self.estadisticas = {}
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # AUDITORÍA COMPLETA
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def auditar_todo(self) -> Dict[str, Any]:
+        """Ejecuta auditoría completa del frontend"""
+        
+        inicio = datetime.now()
+        self.problemas = []
+        
+        resultados = {
+            'timestamp': inicio.isoformat(),
+            'colorimetria': self.auditar_colores(),
+            'tipografia': self.auditar_tipografias(),
+            'responsive': self.auditar_responsive(),
+            'componentes': self.auditar_componentes(),
+            'accesibilidad': self.auditar_accesibilidad(),
+            'rendimiento': self.auditar_rendimiento(),
+        }
+        
+        # Calcular puntuación general
+        scores = [r.get('score', 0) for r in resultados.values() if isinstance(r, dict)]
+        resultados['score_general'] = round(sum(scores) / len(scores)) if scores else 0
+        
+        # Estado general
+        if resultados['score_general'] >= 90:
+            resultados['estado'] = 'excelente'
+            resultados['mensaje'] = 'Diseño consistente y optimizado'
+        elif resultados['score_general'] >= 75:
+            resultados['estado'] = 'bueno'
+            resultados['mensaje'] = 'Algunas mejoras recomendadas'
+        elif resultados['score_general'] >= 50:
+            resultados['estado'] = 'regular'
+            resultados['mensaje'] = 'Requiere atención'
+        else:
+            resultados['estado'] = 'critico'
+            resultados['mensaje'] = 'Múltiples problemas de diseño'
+        
+        resultados['problemas'] = self.problemas
+        resultados['tiempo_auditoria_ms'] = (datetime.now() - inicio).total_seconds() * 1000
+        
+        return resultados
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # AUDITORÍA DE COLORES
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def auditar_colores(self) -> Dict[str, Any]:
+        """Analiza uso de colores en el código"""
+        
+        colores_encontrados = {}
+        colores_prohibidos_usados = []
+        archivos_analizados = 0
+        
+        # Patrones para detectar colores
+        patrones = [
+            r'#[0-9A-Fa-f]{6}\b',  # Hex de 6 dígitos
+            r'#[0-9A-Fa-f]{3}\b',  # Hex de 3 dígitos
+            r'rgb\([^)]+\)',       # RGB
+            r'rgba\([^)]+\)',      # RGBA
+            r'(?:bg|text|border|fill|stroke)-(?:red|green|blue|yellow|purple|pink|orange)-\d+',  # Tailwind
+        ]
+        
+        # Colores de la paleta oficial (para verificar uso)
+        colores_oficiales = self._extraer_colores_oficiales()
+        
+        for root, dirs, files in os.walk(self.ruta_frontend):
+            # Ignorar node_modules
+            dirs[:] = [d for d in dirs if d != 'node_modules']
+            
+            for file in files:
+                if file.endswith(('.jsx', '.tsx', '.js', '.ts', '.css', '.scss')):
+                    archivos_analizados += 1
+                    filepath = os.path.join(root, file)
+                    
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            contenido = f.read()
+                            
+                            for patron in patrones:
+                                matches = re.findall(patron, contenido, re.IGNORECASE)
+                                for color in matches:
+                                    color_normalizado = color.upper() if color.startswith('#') else color
+                                    
+                                    if color_normalizado not in colores_encontrados:
+                                        colores_encontrados[color_normalizado] = {
+                                            'usos': 0,
+                                            'archivos': []
+                                        }
+                                    
+                                    colores_encontrados[color_normalizado]['usos'] += 1
+                                    if filepath not in colores_encontrados[color_normalizado]['archivos']:
+                                        colores_encontrados[color_normalizado]['archivos'].append(
+                                            filepath.replace(self.ruta_frontend + '/', '')
+                                        )
+                                    
+                                    # Verificar si es prohibido
+                                    if color_normalizado in COLORES_PROHIBIDOS or color.lower() in COLORES_PROHIBIDOS:
+                                        if color_normalizado not in [c['color'] for c in colores_prohibidos_usados]:
+                                            colores_prohibidos_usados.append({
+                                                'color': color_normalizado,
+                                                'archivo': filepath.replace(self.ruta_frontend + '/', ''),
+                                                'sugerencia': self._sugerir_color_alternativo(color_normalizado)
+                                            })
+                                            
+                                            self.problemas.append({
+                                                'tipo': 'color_prohibido',
+                                                'severidad': 'media',
+                                                'mensaje': f'Color prohibido {color_normalizado} en {file}',
+                                                'archivo': filepath,
+                                                'sugerencia': self._sugerir_color_alternativo(color_normalizado)
+                                            })
+                    except Exception as e:
+                        pass
+        
+        # Calcular score
+        total_colores = len(colores_encontrados)
+        colores_fuera = len(colores_prohibidos_usados)
+        score = max(0, 100 - (colores_fuera * 10))
+        
+        return {
+            'score': score,
+            'total_colores': total_colores,
+            'colores_oficiales_usados': len([c for c in colores_encontrados if c in colores_oficiales]),
+            'colores_prohibidos': colores_prohibidos_usados,
+            'archivos_analizados': archivos_analizados,
+            'detalle': {k: v for k, v in list(colores_encontrados.items())[:20]}  # Top 20
+        }
+    
+    def _extraer_colores_oficiales(self) -> List[str]:
+        """Extrae lista de colores oficiales del design system"""
+        colores = []
+        
+        def extraer_recursivo(obj):
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if isinstance(v, str) and v.startswith('#'):
+                        colores.append(v.upper())
+                    else:
+                        extraer_recursivo(v)
+        
+        extraer_recursivo(COLORES)
+        return colores
+    
+    def _sugerir_color_alternativo(self, color: str) -> str:
+        """Sugiere un color de la paleta oficial como alternativa"""
+        sugerencias = {
+            '#FF0000': '#EF4444 (red-500)',
+            '#00FF00': '#10B981 (green-500)',
+            '#0000FF': '#0891B2 (cyan-600)',
+            '#FFFF00': '#F59E0B (yellow-500)',
+            'RED': '#EF4444',
+            'GREEN': '#10B981',
+            'BLUE': '#0891B2',
+        }
+        return sugerencias.get(color.upper(), '#0891B2 (primary)')
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # AUDITORÍA DE TIPOGRAFÍAS
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def auditar_tipografias(self) -> Dict[str, Any]:
+        """Analiza uso de tipografías"""
+        
+        fuentes_encontradas = {}
+        problemas_fuentes = []
+        
+        # Patrones para detectar fuentes
+        patrones_fuentes = [
+            r'font-family:\s*["\']?([^"\';\n]+)',
+            r'fontFamily:\s*["\']([^"\']+)',
+            r'font-(?:sans|serif|mono)',
+        ]
+        
+        fuentes_oficiales = [t['familia'] for t in TIPOGRAFIAS.values()]
+        
+        for root, dirs, files in os.walk(self.ruta_frontend):
+            dirs[:] = [d for d in dirs if d != 'node_modules']
+            
+            for file in files:
+                if file.endswith(('.jsx', '.tsx', '.css', '.scss')):
+                    filepath = os.path.join(root, file)
+                    
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            contenido = f.read()
+                            
+                            for patron in patrones_fuentes:
+                                matches = re.findall(patron, contenido)
+                                for fuente in matches:
+                                    fuente_limpia = fuente.strip().split(',')[0].strip('"\'')
+                                    
+                                    if fuente_limpia not in fuentes_encontradas:
+                                        fuentes_encontradas[fuente_limpia] = 0
+                                    fuentes_encontradas[fuente_limpia] += 1
+                                    
+                                    # Verificar si es oficial
+                                    if fuente_limpia not in fuentes_oficiales and fuente_limpia not in ['inherit', 'sans-serif', 'monospace']:
+                                        if fuente_limpia not in [p['fuente'] for p in problemas_fuentes]:
+                                            problemas_fuentes.append({
+                                                'fuente': fuente_limpia,
+                                                'archivo': filepath.replace(self.ruta_frontend + '/', '')
+                                            })
+                    except:
+                        pass
+        
+        score = 100 if len(problemas_fuentes) == 0 else max(0, 100 - len(problemas_fuentes) * 15)
+        
+        return {
+            'score': score,
+            'fuentes_oficiales': fuentes_oficiales,
+            'fuentes_encontradas': fuentes_encontradas,
+            'fuentes_no_oficiales': problemas_fuentes
+        }
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # AUDITORÍA DE RESPONSIVE
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def auditar_responsive(self) -> Dict[str, Any]:
+        """Analiza optimización móvil"""
+        
+        componentes_analizados = 0
+        problemas_responsive = []
+        
+        # Patrones que indican problemas de responsive
+        patrones_problematicos = [
+            (r'width:\s*\d{4,}px', 'Ancho fijo muy grande'),
+            (r'height:\s*\d{3,}px', 'Alto fijo puede causar overflow'),
+            (r'font-size:\s*\d{1,2}px', 'Tamaño de fuente fijo pequeño'),
+            (r'overflow:\s*hidden', 'Overflow hidden puede ocultar contenido'),
+        ]
+        
+        # Patrones que indican buenas prácticas
+        patrones_buenos = [
+            r'@media',
+            r'sm:|md:|lg:|xl:',  # Breakpoints de Tailwind
+            r'flex|grid',
+            r'max-w-|min-w-',
+            r'responsive',
+        ]
+        
+        for root, dirs, files in os.walk(self.ruta_frontend):
+            dirs[:] = [d for d in dirs if d != 'node_modules']
+            
+            for file in files:
+                if file.endswith(('.jsx', '.tsx')):
+                    componentes_analizados += 1
+                    filepath = os.path.join(root, file)
+                    
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            contenido = f.read()
+                            
+                            # Buscar problemas
+                            for patron, descripcion in patrones_problematicos:
+                                if re.search(patron, contenido):
+                                    problemas_responsive.append({
+                                        'archivo': file,
+                                        'problema': descripcion,
+                                        'severidad': 'media'
+                                    })
+                            
+                            # Verificar si usa breakpoints
+                            usa_responsive = any(re.search(p, contenido) for p in patrones_buenos)
+                            
+                            if not usa_responsive and len(contenido) > 500:
+                                problemas_responsive.append({
+                                    'archivo': file,
+                                    'problema': 'No usa breakpoints responsive',
+                                    'severidad': 'baja'
+                                })
+                    except:
+                        pass
+        
+        # Calcular score
+        score = max(0, 100 - len(problemas_responsive) * 5)
+        
+        return {
+            'score': score,
+            'componentes_analizados': componentes_analizados,
+            'problemas': problemas_responsive[:10],  # Top 10
+            'total_problemas': len(problemas_responsive)
+        }
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # AUDITORÍA DE COMPONENTES
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def auditar_componentes(self) -> Dict[str, Any]:
+        """Analiza consistencia de componentes UI"""
+        
+        componentes = {
+            'buttons': [],
+            'inputs': [],
+            'cards': [],
+            'modals': []
+        }
+        
+        # Contar uso de componentes estándar
+        for root, dirs, files in os.walk(self.ruta_frontend):
+            dirs[:] = [d for d in dirs if d != 'node_modules']
+            
+            for file in files:
+                if file.endswith(('.jsx', '.tsx')):
+                    filepath = os.path.join(root, file)
+                    
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            contenido = f.read()
+                            
+                            # Contar botones
+                            buttons = len(re.findall(r'<button|<Button', contenido))
+                            if buttons > 0:
+                                componentes['buttons'].append({'archivo': file, 'cantidad': buttons})
+                            
+                            # Contar inputs
+                            inputs = len(re.findall(r'<input|<Input|<textarea|<TextArea', contenido))
+                            if inputs > 0:
+                                componentes['inputs'].append({'archivo': file, 'cantidad': inputs})
+                    except:
+                        pass
+        
+        total_componentes = sum(len(v) for v in componentes.values())
+        
+        return {
+            'score': 90,  # Por defecto alto, ajustar según análisis
+            'total_componentes': total_componentes,
+            'detalle': componentes
+        }
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # AUDITORÍA DE ACCESIBILIDAD
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def auditar_accesibilidad(self) -> Dict[str, Any]:
+        """Analiza accesibilidad básica"""
+        
+        problemas_a11y = []
+        
+        for root, dirs, files in os.walk(self.ruta_frontend):
+            dirs[:] = [d for d in dirs if d != 'node_modules']
+            
+            for file in files:
+                if file.endswith(('.jsx', '.tsx')):
+                    filepath = os.path.join(root, file)
+                    
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            contenido = f.read()
+                            
+                            # Imágenes sin alt
+                            imgs_sin_alt = len(re.findall(r'<img(?![^>]*alt=)[^>]*>', contenido))
+                            if imgs_sin_alt > 0:
+                                problemas_a11y.append({
+                                    'archivo': file,
+                                    'problema': f'{imgs_sin_alt} imágenes sin atributo alt',
+                                    'severidad': 'alta'
+                                })
+                            
+                            # Botones sin texto accesible
+                            btns_icon_only = len(re.findall(r'<button[^>]*>\s*<(?:svg|Icon|img)[^>]*>\s*</button>', contenido))
+                            if btns_icon_only > 0:
+                                problemas_a11y.append({
+                                    'archivo': file,
+                                    'problema': f'{btns_icon_only} botones solo con icono (necesitan aria-label)',
+                                    'severidad': 'media'
+                                })
+                    except:
+                        pass
+        
+        score = max(0, 100 - len(problemas_a11y) * 10)
+        
+        return {
+            'score': score,
+            'problemas': problemas_a11y[:10],
+            'total_problemas': len(problemas_a11y)
+        }
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # AUDITORÍA DE RENDIMIENTO
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def auditar_rendimiento(self) -> Dict[str, Any]:
+        """Analiza potenciales problemas de rendimiento en UI"""
+        
+        problemas_perf = []
+        
+        for root, dirs, files in os.walk(self.ruta_frontend):
+            dirs[:] = [d for d in dirs if d != 'node_modules']
+            
+            for file in files:
+                if file.endswith(('.jsx', '.tsx')):
+                    filepath = os.path.join(root, file)
+                    
+                    try:
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            contenido = f.read()
+                            
+                            # Inline styles excesivos
+                            inline_styles = len(re.findall(r'style=\{\{', contenido))
+                            if inline_styles > 10:
+                                problemas_perf.append({
+                                    'archivo': file,
+                                    'problema': f'{inline_styles} inline styles (considerar clases CSS)',
+                                    'severidad': 'baja'
+                                })
+                            
+                            # Re-renders potenciales
+                            if 'useState' in contenido and contenido.count('useState') > 10:
+                                problemas_perf.append({
+                                    'archivo': file,
+                                    'problema': 'Muchos useState pueden causar re-renders',
+                                    'severidad': 'media'
+                                })
+                    except:
+                        pass
+        
+        score = max(0, 100 - len(problemas_perf) * 5)
+        
+        return {
+            'score': score,
+            'problemas': problemas_perf[:10],
+            'total_problemas': len(problemas_perf)
+        }
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # GENERAR SUGERENCIAS DE MEJORA
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def generar_sugerencias_tecnologias(self) -> List[Dict[str, Any]]:
+        """Genera sugerencias de nuevas tecnologías a implementar"""
+        
+        sugerencias = [
+            {
+                'tecnologia': 'Framer Motion',
+                'descripcion': 'Librería de animaciones fluidas para React',
+                'impacto': 'Mejora percepción de calidad en +15%',
+                'dificultad': 'media',
+                'ejemplo': '''
+// Antes
+<div className="card">...</div>
+
+// Después con Framer Motion
+<motion.div 
+  initial={{ opacity: 0, y: 20 }}
+  animate={{ opacity: 1, y: 0 }}
+  className="card"
+>...</motion.div>
+'''
+            },
+            {
+                'tecnologia': 'CSS Container Queries',
+                'descripcion': 'Componentes que se adaptan a su contenedor, no solo al viewport',
+                'impacto': 'Componentes verdaderamente reutilizables',
+                'dificultad': 'baja',
+                'ejemplo': '''
+@container (min-width: 400px) {
+  .card { flex-direction: row; }
+}
+'''
+            },
+            {
+                'tecnologia': 'View Transitions API',
+                'descripcion': 'Transiciones nativas entre páginas/estados',
+                'impacto': 'UX tipo app nativa',
+                'dificultad': 'media',
+                'ejemplo': '''
+document.startViewTransition(() => {
+  navigate('/nueva-pagina');
+});
+'''
+            },
+            {
+                'tecnologia': 'CSS Scroll-Driven Animations',
+                'descripcion': 'Animaciones basadas en scroll sin JavaScript',
+                'impacto': 'Mejor rendimiento, menos código',
+                'dificultad': 'baja',
+                'ejemplo': '''
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.card {
+  animation: fade-in linear;
+  animation-timeline: view();
+}
+'''
+            },
+            {
+                'tecnologia': 'Tailwind CSS v4',
+                'descripcion': 'Nueva versión con CSS nativo y mejor rendimiento',
+                'impacto': 'Bundle más pequeño, carga más rápida',
+                'dificultad': 'media',
+            }
+        ]
+        
+        return sugerencias
+
+
+# Instancia global
+auditor = AuditorDiseno()
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 3: ENDPOINTS API DE DISEÑAR.IA
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: server/routes/disenar_routes.py
+
+```python
+from flask import Blueprint, jsonify, request
+from services.disenar_ia.auditor_diseno import AuditorDiseno
+from config.design_system import COLORES, TIPOGRAFIAS, BREAKPOINTS, COMPONENTES
+import json
+
+disenar_bp = Blueprint('disenar', __name__)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AUDITORÍA COMPLETA
+# ═══════════════════════════════════════════════════════════════════════════
+
+@disenar_bp.route('/auditoria', methods=['GET', 'POST'])
+def ejecutar_auditoria():
+    """Ejecuta auditoría completa del diseño"""
+    try:
+        auditor = AuditorDiseno()
+        resultado = auditor.auditar_todo()
+        
+        return jsonify({
+            'success': True,
+            **resultado
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DESIGN SYSTEM
+# ═══════════════════════════════════════════════════════════════════════════
+
+@disenar_bp.route('/design-system', methods=['GET'])
+def obtener_design_system():
+    """Retorna el design system completo"""
+    return jsonify({
+        'success': True,
+        'colores': COLORES,
+        'tipografias': TIPOGRAFIAS,
+        'breakpoints': BREAKPOINTS,
+        'componentes': COMPONENTES
+    })
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SUGERENCIAS DE TECNOLOGÍAS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@disenar_bp.route('/sugerencias', methods=['GET'])
+def obtener_sugerencias():
+    """Retorna sugerencias de nuevas tecnologías"""
+    auditor = AuditorDiseno()
+    return jsonify({
+        'success': True,
+        'sugerencias': auditor.generar_sugerencias_tecnologias()
+    })
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AUDITORÍAS ESPECÍFICAS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@disenar_bp.route('/auditoria/colores', methods=['GET'])
+def auditar_colores():
+    """Audita solo colorimetría"""
+    auditor = AuditorDiseno()
+    return jsonify({
+        'success': True,
+        'resultado': auditor.auditar_colores()
+    })
+
+@disenar_bp.route('/auditoria/responsive', methods=['GET'])
+def auditar_responsive():
+    """Audita solo responsive/móvil"""
+    auditor = AuditorDiseno()
+    return jsonify({
+        'success': True,
+        'resultado': auditor.auditar_responsive()
+    })
+
+@disenar_bp.route('/auditoria/tipografia', methods=['GET'])
+def auditar_tipografia():
+    """Audita solo tipografías"""
+    auditor = AuditorDiseno()
+    return jsonify({
+        'success': True,
+        'resultado': auditor.auditar_tipografias()
+    })
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CHAT CON DISEÑAR.IA
+# ═══════════════════════════════════════════════════════════════════════════
+
+@disenar_bp.route('/chat', methods=['POST'])
+def chat_disenar():
+    """Chat con el agente Diseñar.IA"""
+    from anthropic import Anthropic
+    
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        mensaje = data.get('message', '')
+        
+        if not mensaje:
+            return jsonify({'success': False, 'error': 'Mensaje requerido'}), 400
+        
+        # Obtener contexto del design system
+        auditor = AuditorDiseno()
+        auditoria_rapida = {
+            'colores': auditor.auditar_colores(),
+            'responsive': auditor.auditar_responsive()
+        }
+        
+        client = Anthropic()
+        
+        system_prompt = f"""Eres Diseñar.IA, el agente guardián del diseño de la plataforma Revisar.IA/Durezza.
+
+Tu personalidad:
+- Nombre: Diseñar.IA
+- Rol: Director de Arte Digital
+- Obsesión: Consistencia visual, UX perfecta, optimización móvil
+- Tono: Profesional pero apasionado por el diseño
+
+Tu conocimiento incluye:
+1. Design System oficial de la marca
+2. Últimas tendencias en UI/UX
+3. Mejores prácticas de responsive design
+4. Accesibilidad web (WCAG)
+5. Performance de CSS y animaciones
+
+Estado actual del diseño:
+{json.dumps(auditoria_rapida, indent=2)}
+
+Paleta de colores oficial:
+- Primary: #0891B2 (Cyan)
+- Success: #10B981 (Green)
+- Warning: #F59E0B (Yellow)
+- Error: #EF4444 (Red)
+- Background: #0F172A (Dark)
+
+Cuando respondas:
+- Sé específico con códigos de color y valores
+- Sugiere mejoras concretas con ejemplos de código
+- Menciona nuevas tecnologías cuando sea relevante
+- Prioriza la experiencia móvil
+"""
+
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": mensaje}]
+        )
+        
+        respuesta = response.content[0].text
+        
+        return jsonify({
+            'success': True,
+            'response': respuesta,
+            'agente': 'Diseñar.IA'
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 4: COMPONENTE FRONTEND DE DISEÑAR.IA
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: frontend/src/components/DisenarIA.jsx
+
+```jsx
+import React, { useState, useEffect } from 'react';
+
+export default function DisenarIA() {
+  const [auditoria, setAuditoria] = useState(null);
+  const [sugerencias, setSugerencias] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [chatMessage, setChatMessage] = useState('');
+  const [chatHistory, setChatHistory] = useState([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
+
+  useEffect(() => {
+    cargarDatos();
+  }, []);
+
+  const cargarDatos = async () => {
+    setLoading(true);
+    try {
+      // Cargar auditoría
+      const audRes = await fetch('/api/disenar/auditoria');
+      const audData = await audRes.json();
+      if (audData.success) setAuditoria(audData);
+
+      // Cargar sugerencias
+      const sugRes = await fetch('/api/disenar/sugerencias');
+      const sugData = await sugRes.json();
+      if (sugData.success) setSugerencias(sugData.sugerencias);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const enviarMensaje = async () => {
+    if (!chatMessage.trim()) return;
+
+    const userMsg = chatMessage;
+    setChatMessage('');
+    setChatHistory(prev => [...prev, { role: 'user', content: userMsg }]);
+    setChatLoading(true);
+
+    try {
+      const res = await fetch('/api/disenar/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMsg })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setChatHistory(prev => [...prev, { role: 'assistant', content: data.response }]);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const getScoreColor = (score) => {
+    if (score >= 90) return 'text-green-400';
+    if (score >= 70) return 'text-yellow-400';
+    return 'text-red-400';
+  };
+
+  const getScoreBg = (score) => {
+    if (score >= 90) return 'bg-green-500';
+    if (score >= 70) return 'bg-yellow-500';
+    return 'bg-red-500';
+  };
+
+  if (loading) {
+    return (
+      <div className="p-8 text-center">
+        <div className="animate-spin w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full mx-auto mb-4" />
+        <p className="text-gray-400">Diseñar.IA está analizando el diseño...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 rounded-xl p-6 mb-6 border border-purple-500/30">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center text-3xl">
+                🎨
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Diseñar.IA</h1>
+                <p className="text-purple-200">Guardián del Diseño y la Experiencia de Usuario</p>
+              </div>
+            </div>
+            <button
+              onClick={cargarDatos}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg flex items-center gap-2"
+            >
+              ⚡ Auditar Ahora
+            </button>
+          </div>
+
+          {/* Estado General */}
+          {auditoria && (
+            <div className="mt-6 flex items-center gap-6">
+              <div className={`text-5xl font-bold ${getScoreColor(auditoria.score_general)}`}>
+                {auditoria.score_general}%
+              </div>
+              <div>
+                <div className="text-lg text-white font-semibold">{auditoria.mensaje}</div>
+                <div className="text-sm text-gray-400">
+                  Última auditoría: {new Date(auditoria.timestamp).toLocaleString()}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6">
+          {['dashboard', 'chat', 'sugerencias'].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 rounded-lg font-medium transition ${
+                activeTab === tab
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              {tab === 'dashboard' && '📊 Dashboard'}
+              {tab === 'chat' && '💬 Chat'}
+              {tab === 'sugerencias' && '💡 Nuevas Tecnologías'}
+            </button>
+          ))}
+        </div>
+
+        {/* Dashboard Tab */}
+        {activeTab === 'dashboard' && auditoria && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Colorimetría */}
+            <AuditoriaCard
+              titulo="🎨 Colorimetría"
+              score={auditoria.colorimetria?.score || 0}
+              detalles={[
+                `${auditoria.colorimetria?.total_colores || 0} colores detectados`,
+                `${auditoria.colorimetria?.colores_prohibidos?.length || 0} fuera de paleta`
+              ]}
+              problemas={auditoria.colorimetria?.colores_prohibidos?.slice(0, 3)}
+            />
+
+            {/* Tipografía */}
+            <AuditoriaCard
+              titulo="🔤 Tipografías"
+              score={auditoria.tipografia?.score || 0}
+              detalles={[
+                `Fuentes oficiales: ${auditoria.tipografia?.fuentes_oficiales?.join(', ')}`,
+                `${auditoria.tipografia?.fuentes_no_oficiales?.length || 0} fuentes no oficiales`
+              ]}
+            />
+
+            {/* Responsive */}
+            <AuditoriaCard
+              titulo="📱 Responsive / Móvil"
+              score={auditoria.responsive?.score || 0}
+              detalles={[
+                `${auditoria.responsive?.componentes_analizados || 0} componentes`,
+                `${auditoria.responsive?.total_problemas || 0} problemas detectados`
+              ]}
+              problemas={auditoria.responsive?.problemas?.slice(0, 3)}
+            />
+
+            {/* Componentes */}
+            <AuditoriaCard
+              titulo="🧩 Componentes UI"
+              score={auditoria.componentes?.score || 0}
+              detalles={[
+                `${auditoria.componentes?.total_componentes || 0} componentes analizados`
+              ]}
+            />
+
+            {/* Accesibilidad */}
+            <AuditoriaCard
+              titulo="♿ Accesibilidad"
+              score={auditoria.accesibilidad?.score || 0}
+              detalles={[
+                `${auditoria.accesibilidad?.total_problemas || 0} problemas a11y`
+              ]}
+              problemas={auditoria.accesibilidad?.problemas?.slice(0, 3)}
+            />
+
+            {/* Rendimiento */}
+            <AuditoriaCard
+              titulo="⚡ Rendimiento CSS"
+              score={auditoria.rendimiento?.score || 0}
+              detalles={[
+                `${auditoria.rendimiento?.total_problemas || 0} optimizaciones sugeridas`
+              ]}
+            />
+          </div>
+        )}
+
+        {/* Chat Tab */}
+        {activeTab === 'chat' && (
+          <div className="bg-gray-800 rounded-xl overflow-hidden">
+            <div className="h-96 overflow-y-auto p-4 space-y-4">
+              {chatHistory.length === 0 && (
+                <div className="text-center text-gray-500 py-8">
+                  <div className="text-4xl mb-2">🎨</div>
+                  <p>Hola, soy Diseñar.IA. Pregúntame sobre:</p>
+                  <div className="mt-2 space-x-2">
+                    <button
+                      onClick={() => setChatMessage('¿Cómo puedo mejorar el responsive de mi app?')}
+                      className="text-purple-400 hover:underline"
+                    >
+                      Responsive
+                    </button>
+                    <button
+                      onClick={() => setChatMessage('¿Qué colores debo usar para botones?')}
+                      className="text-purple-400 hover:underline"
+                    >
+                      Colores
+                    </button>
+                    <button
+                      onClick={() => setChatMessage('¿Cómo implemento animaciones fluidas?')}
+                      className="text-purple-400 hover:underline"
+                    >
+                      Animaciones
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {chatHistory.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] p-3 rounded-lg ${
+                      msg.role === 'user'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-700 text-gray-100'
+                    }`}
+                  >
+                    {msg.role === 'assistant' && (
+                      <div className="text-xs text-purple-400 mb-1">🎨 Diseñar.IA</div>
+                    )}
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  </div>
+                </div>
+              ))}
+              
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-700 p-3 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full" />
+                      <span className="text-gray-400">Diseñar.IA está pensando...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-700">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatMessage}
+                  onChange={(e) => setChatMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && enviarMensaje()}
+                  placeholder="Pregunta sobre diseño, colores, responsive..."
+                  className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
+                />
+                <button
+                  onClick={enviarMensaje}
+                  disabled={chatLoading || !chatMessage.trim()}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg disabled:opacity-50"
+                >
+                  Enviar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sugerencias Tab */}
+        {activeTab === 'sugerencias' && (
+          <div className="space-y-4">
+            {sugerencias.map((sug, idx) => (
+              <div key={idx} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                      💡 {sug.tecnologia}
+                      <span className={`text-xs px-2 py-0.5 rounded ${
+                        sug.dificultad === 'baja' ? 'bg-green-600' :
+                        sug.dificultad === 'media' ? 'bg-yellow-600' : 'bg-red-600'
+                      }`}>
+                        {sug.dificultad}
+                      </span>
+                    </h3>
+                    <p className="text-gray-400 mt-1">{sug.descripcion}</p>
+                    <p className="text-purple-400 mt-2">📈 Impacto: {sug.impacto}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded">
+                      Ver Demo
+                    </button>
+                    <button className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded">
+                      Implementar
+                    </button>
+                  </div>
+                </div>
+                
+                {sug.ejemplo && (
+                  <div className="mt-4">
+                    <div className="text-sm text-gray-500 mb-1">Ejemplo:</div>
+                    <pre className="bg-gray-900 p-3 rounded-lg text-sm text-gray-300 overflow-x-auto">
+                      {sug.ejemplo}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Componente de tarjeta de auditoría
+function AuditoriaCard({ titulo, score, detalles, problemas }) {
+  const getScoreColor = (s) => s >= 90 ? 'text-green-400' : s >= 70 ? 'text-yellow-400' : 'text-red-400';
+  const getScoreBg = (s) => s >= 90 ? 'bg-green-500' : s >= 70 ? 'bg-yellow-500' : 'bg-red-500';
+
+  return (
+    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-lg font-semibold text-white">{titulo}</h3>
+        <span className={`text-2xl font-bold ${getScoreColor(score)}`}>{score}%</span>
+      </div>
+      
+      <div className="h-2 bg-gray-700 rounded-full overflow-hidden mb-3">
+        <div className={`h-full ${getScoreBg(score)}`} style={{ width: `${score}%` }} />
+      </div>
+      
+      <div className="space-y-1 text-sm text-gray-400">
+        {detalles.map((d, i) => (
+          <div key={i}>{d}</div>
+        ))}
+      </div>
+      
+      {problemas && problemas.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-gray-700">
+          <div className="text-xs text-red-400 mb-1">Problemas:</div>
+          {problemas.map((p, i) => (
+            <div key={i} className="text-xs text-gray-500">
+              • {p.color || p.archivo || p.problema}
+              {p.sugerencia && <span className="text-cyan-400"> → {p.sugerencia}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 5: REGISTRAR RUTAS Y AGREGAR AL MENÚ
+═══════════════════════════════════════════════════════════════════════════════
+
+En server/main.py:
+```python
+from routes.disenar_routes import disenar_bp
+app.register_blueprint(disenar_bp, url_prefix='/api/disenar')
+```
+
+En el router de React:
+```jsx
+<Route path="/disenar" element={<DisenarIA />} />
+```
+
+En el sidebar:
+```jsx
+<NavLink to="/disenar">🎨 Diseñar.IA</NavLink>
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Crear server/config/design_system.py
+□ Crear server/services/disenar_ia/auditor_diseno.py
+□ Crear server/routes/disenar_routes.py
+□ Registrar blueprint en main.py
+□ Crear frontend/src/components/DisenarIA.jsx
+□ Agregar ruta /disenar en el router
+□ Agregar enlace en sidebar
+□ Probar auditoría: curl http://localhost:5000/api/disenar/auditoria
+□ Probar chat: curl -X POST http://localhost:5000/api/disenar/chat -H "Content-Type: application/json" -d '{"message":"hola"}'
+
+═══════════════════════════════════════════════════════════════════════════════
+RESULTADO ESPERADO
+═══════════════════════════════════════════════════════════════════════════════
+
+Al entrar a /disenar:
+1. Dashboard con score general (92%)
+2. Tarjetas de auditoría por categoría
+3. Colores prohibidos detectados con sugerencias
+4. Problemas de responsive identificados
+5. Chat para consultar sobre diseño
+6. Sugerencias de nuevas tecnologías (Framer Motion, etc.)
+
+El agente Diseñar.IA vigilará constantemente la calidad del diseño.

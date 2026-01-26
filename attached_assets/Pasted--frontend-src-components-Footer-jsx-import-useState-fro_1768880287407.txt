@@ -1,0 +1,110 @@
+// frontend/src/components/Footer.jsx
+import { useState } from 'react';
+import DisclaimerModal from './DisclaimerModal';
+import PrivacyNoticeModal from './PrivacyNoticeModal';
+
+const Footer = () => {
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+
+  return (
+    <>
+      <footer className="bg-gray-900 text-gray-300 py-8 mt-auto">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            
+            {/* Columna 1: Sobre Revisar.IA */}
+            <div>
+              <h3 className="text-white font-bold text-lg mb-4">Revisar.IA</h3>
+              <p className="text-sm">
+                Plataforma tecnológica de apoyo para la gestión de riesgos fiscales 
+                y cumplimiento en México.
+              </p>
+              <p className="text-xs text-gray-400 mt-3">
+                RFC: SAT180723RW3
+              </p>
+            </div>
+
+            {/* Columna 2: Enlaces Legales */}
+            <div>
+              <h3 className="text-white font-bold text-lg mb-4">Información Legal</h3>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <button 
+                    onClick={() => setShowDisclaimer(true)}
+                    className="hover:text-white transition-colors"
+                  >
+                    📋 Disclaimer Legal
+                  </button>
+                </li>
+                <li>
+                  <button 
+                    onClick={() => setShowPrivacy(true)}
+                    className="hover:text-white transition-colors"
+                  >
+                    🔒 Aviso de Privacidad
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Columna 3: Contacto */}
+            <div>
+              <h3 className="text-white font-bold text-lg mb-4">Contacto</h3>
+              <div className="text-sm space-y-1">
+                <p><strong>Email:</strong> santiago@satma.mx</p>
+                <p><strong>Ubicación:</strong> Monterrey, N.L.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Copyright */}
+          <div className="border-t border-gray-700 mt-8 pt-6 text-center">
+            <p className="text-sm text-gray-400">
+              © {new Date().getFullYear()} SATMA - Revisar.IA 
+              <strong className="text-gray-300"> · Plataforma tecnológica de apoyo</strong>
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              No somos despacho contable ni legal. La IA es herramienta auxiliar.
+            </p>
+          </div>
+        </div>
+      </footer>
+
+      {/* Modales */}
+      {showDisclaimer && (
+        <DisclaimerModal onClose={() => setShowDisclaimer(false)} />
+      )}
+      {showPrivacy && (
+        <PrivacyNoticeModal onClose={() => setShowPrivacy(false)} />
+      )}
+    </>
+  );
+};
+
+export default Footer;
+```
+
+---
+
+## 📋 Prompt para Replit Agent
+```
+Necesito agregar el Aviso de Privacidad al proyecto Revisar.IA.
+
+**PASO 1:** Crea el archivo frontend/src/components/PrivacyNoticeModal.jsx
+[pega el código completo de PrivacyNoticeModal.jsx]
+
+**PASO 2:** Actualiza frontend/src/components/Footer.jsx para incluir:
+- Import de PrivacyNoticeModal
+- Estado showPrivacy
+- Botón para abrir el modal de privacidad
+- Renderizado condicional del modal
+
+Código actualizado del Footer:
+[pega el código completo de Footer.jsx actualizado]
+
+**PASO 3:** Verifica que DisclaimerModal.jsx ya existe (lo creamos antes)
+
+**PASO 4:** Despliega los cambios en producción
+
+Confirma cuando esté listo para probar.

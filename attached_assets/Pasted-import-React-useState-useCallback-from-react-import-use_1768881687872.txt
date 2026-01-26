@@ -1,0 +1,242 @@
+import React, { useState, useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { Loader2, FileText, CheckCircle, AlertCircle, Eye } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+
+interface DocumentUploadOCRProps {
+  tipoDocumento: 'constancia_situacion_fiscal' | 'acta_constitutiva' | 'opinion_cumplimiento' | 'repse';
+  titulo: string;
+  descripcion: string;
+  obligatorio?: boolean;
+  onOCRComplete: (datos: any) => void;
+  onFileUploaded: (file: File, archivoUrl: string) => void;
+}
+
+export function DocumentUploadOCR({
+  tipoDocumento,
+  titulo,
+  descripcion,
+  obligatorio = false,
+  onOCRComplete,
+  onFileUploaded
+}: DocumentUploadOCRProps) {
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [estado, setEstado] = useState<'idle' | 'uploading' | 'processing' | 'success' | 'error'>('idle');
+  const [datosExtraidos, setDatosExtraidos] = useState<any>(null);
+  const [nivelConfianza, setNivelConfianza] = useState<'alto' | 'medio' | 'bajo' | null>(null);
+  const [errores, setErrores] = useState<string[]>([]);
+  const [mostrarDatos, setMostrarDatos] = useState(false);
+
+  const procesarConOCR = async (file: File) => {
+    setEstado('processing');
+    
+    try {
+      // Convertir archivo a base64
+      const base64 = await fileToBase64(file);
+      const mediaType = file.type as 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
+
+      // Determinar endpoint según tipo de documento
+      const endpoints: Record<string, string> = {
+        constancia_situacion_fiscal: '/api/proveedores/ocr/constancia-fiscal',
+        acta_constitutiva: '/api/proveedores/ocr/acta-constitutiva',
+        opinion_cumplimiento: '/api/proveedores/ocr/opinion-cumplimiento',
+        repse: '/api/proveedores/ocr/repse'
+      };
+
+      const response = await fetch(endpoints[tipoDocumento], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archivoBase64: base64, mediaType })
+      });
+
+      if (!response.ok) throw new Error('Error en OCR');
+
+      const resultado = await response.json();
+
+      if (resultado.exito) {
+        setDatosExtraidos(resultado.datosExtraidos);
+        setNivelConfianza(resultado.nivelConfianza);
+        setEstado('success');
+        onOCRComplete(resultado.datosExtraidos);
+        
+        // También notificar el archivo subido
+        onFileUploaded(file, URL.createObjectURL(file));
+      } else {
+        setErrores(resultado.errores);
+        setEstado('error');
+      }
+    } catch (error) {
+      console.error('Error procesando documento:', error);
+      setErrores(['Error procesando el documento. Por favor intente de nuevo.']);
+      setEstado('error');
+    }
+  };
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (file) {
+      setArchivo(file);
+      setEstado('uploading');
+      
+      // Simular upload y luego procesar OCR
+      setTimeout(() => {
+        procesarConOCR(file);
+      }, 500);
+    }
+  }, [tipoDocumento]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'application/pdf': ['.pdf'],
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/png': ['.png']
+    },
+    maxFiles: 1,
+    maxSize: 10 * 1024 * 1024 // 10MB
+  });
+
+  const getConfianzaColor = (nivel: string) => {
+    switch (nivel) {
+      case 'alto': return 'bg-green-100 text-green-800';
+      case 'medio': return 'bg-yellow-100 text-yellow-800';
+      case 'bajo': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Label */}
+      <div className="flex items-center justify-between">
+        <label className="block text-sm font-medium text-gray-700">
+          {titulo}
+          {obligatorio && <span className="text-red-500 ml-1">*</span>}
+        </label>
+        {nivelConfianza && (
+          <Badge className={getConfianzaColor(nivelConfianza)}>
+            Confianza: {nivelConfianza}
+          </Badge>
+        )}
+      </div>
+      
+      <p className="text-xs text-gray-500">{descripcion}</p>
+
+      {/* Dropzone o estado actual */}
+      {estado === 'idle' || estado === 'error' ? (
+        <div
+          {...getRootProps()}
+          className={`
+            border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
+            transition-colors duration-200
+            ${isDragActive 
+              ? 'border-primary bg-primary/5' 
+              : estado === 'error'
+                ? 'border-red-300 bg-red-50'
+                : 'border-gray-300 hover:border-primary'
+            }
+          `}
+        >
+          <input {...getInputProps()} />
+          <FileText className={`mx-auto h-10 w-10 ${estado === 'error' ? 'text-red-400' : 'text-gray-400'}`} />
+          <p className="mt-2 text-sm text-gray-600">
+            {isDragActive 
+              ? 'Suelta el archivo aquí...' 
+              : 'Arrastra un archivo o haz clic para seleccionar'
+            }
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            PDF, JPG o PNG (máx. 10MB)
+          </p>
+          
+          {errores.length > 0 && (
+            <div className="mt-3 text-left">
+              {errores.map((error, i) => (
+                <p key={i} className="text-xs text-red-600 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {error}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : estado === 'uploading' || estado === 'processing' ? (
+        <div className="border-2 border-dashed border-primary rounded-lg p-6 text-center bg-primary/5">
+          <Loader2 className="mx-auto h-10 w-10 text-primary animate-spin" />
+          <p className="mt-2 text-sm text-primary font-medium">
+            {estado === 'uploading' ? 'Subiendo archivo...' : 'Analizando documento con OCR...'}
+          </p>
+          {archivo && (
+            <p className="mt-1 text-xs text-gray-500">{archivo.name}</p>
+          )}
+        </div>
+      ) : estado === 'success' ? (
+        <div className="border-2 border-green-200 rounded-lg p-4 bg-green-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="h-8 w-8 text-green-600" />
+              <div>
+                <p className="text-sm font-medium text-green-800">
+                  Documento procesado correctamente
+                </p>
+                <p className="text-xs text-green-600">{archivo?.name}</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setMostrarDatos(!mostrarDatos)}
+              >
+                <Eye className="h-4 w-4 mr-1" />
+                {mostrarDatos ? 'Ocultar' : 'Ver datos'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setArchivo(null);
+                  setEstado('idle');
+                  setDatosExtraidos(null);
+                  setNivelConfianza(null);
+                }}
+              >
+                Cambiar
+              </Button>
+            </div>
+          </div>
+
+          {/* Vista previa de datos extraídos */}
+          {mostrarDatos && datosExtraidos && (
+            <div className="mt-4 p-3 bg-white rounded border border-green-200">
+              <p className="text-xs font-medium text-gray-700 mb-2">
+                Datos extraídos automáticamente:
+              </p>
+              <pre className="text-xs text-gray-600 overflow-auto max-h-48">
+                {JSON.stringify(datosExtraidos, null, 2)}
+              </pre>
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// Función auxiliar para convertir File a base64
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Remover el prefijo "data:image/png;base64," etc.
+      const base64 = result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+  });
+}

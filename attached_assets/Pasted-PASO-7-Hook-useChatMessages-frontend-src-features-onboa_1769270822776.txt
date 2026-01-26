@@ -1,0 +1,939 @@
+PASO 7: Hook useChatMessages
+frontend/src/features/onboarding/hooks/useChatMessages.js:
+javascriptimport { useState, useCallback, useRef, useEffect } from 'react';
+
+export function useChatMessages() {
+  const [messages, setMessages] = useState([]);
+  const [conversationHistory, setConversationHistory] = useState([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const streamingMessageRef = useRef(null);
+  const messagesEndRef = useRef(null);
+
+  // Auto-scroll al final cuando hay nuevos mensajes
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const addUserMessage = useCallback((content, attachments = []) => {
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content,
+      attachments,
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    
+    // Agregar al historial para la API
+    setConversationHistory((prev) => [
+      ...prev,
+      { role: 'user', content }
+    ]);
+
+    return userMessage;
+  }, []);
+
+  const addBotMessage = useCallback((content, metadata = {}) => {
+    const botMessage = {
+      id: `bot-${Date.now()}`,
+      role: 'assistant',
+      content,
+      timestamp: new Date().toISOString(),
+      ...metadata, // agent, agentName, suggestions, etc.
+    };
+
+    setMessages((prev) => [...prev, botMessage]);
+    
+    // Agregar al historial para la API
+    setConversationHistory((prev) => [
+      ...prev,
+      { role: 'assistant', content }
+    ]);
+
+    return botMessage;
+  }, []);
+
+  const addSystemMessage = useCallback((content, type = 'info') => {
+    const systemMessage = {
+      id: `system-${Date.now()}`,
+      role: 'system',
+      content,
+      type, // 'info', 'error', 'success', 'warning'
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, systemMessage]);
+    return systemMessage;
+  }, []);
+
+  const startStreaming = useCallback((metadata = {}) => {
+    setIsStreaming(true);
+    
+    const streamingMessage = {
+      id: `streaming-${Date.now()}`,
+      role: 'assistant',
+      content: '',
+      isStreaming: true,
+      timestamp: new Date().toISOString(),
+      ...metadata,
+    };
+
+    streamingMessageRef.current = streamingMessage.id;
+    setMessages((prev) => [...prev, streamingMessage]);
+    
+    return streamingMessage.id;
+  }, []);
+
+  const updateStreamingMessage = useCallback((chunk) => {
+    if (!streamingMessageRef.current) return;
+
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === streamingMessageRef.current
+          ? { ...msg, content: msg.content + chunk }
+          : msg
+      )
+    );
+  }, []);
+
+  const finalizeStreamingMessage = useCallback((finalContent = null, metadata = {}) => {
+    if (!streamingMessageRef.current) return;
+
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === streamingMessageRef.current
+          ? {
+              ...msg,
+              content: finalContent || msg.content,
+              isStreaming: false,
+              ...metadata,
+            }
+          : msg
+      )
+    );
+
+    // Agregar al historial
+    const finalMessage = messages.find(m => m.id === streamingMessageRef.current);
+    if (finalMessage) {
+      setConversationHistory((prev) => [
+        ...prev,
+        { role: 'assistant', content: finalContent || finalMessage.content }
+      ]);
+    }
+
+    streamingMessageRef.current = null;
+    setIsStreaming(false);
+  }, [messages]);
+
+  const cancelStreaming = useCallback(() => {
+    if (!streamingMessageRef.current) return;
+
+    // Remover mensaje de streaming
+    setMessages((prev) => prev.filter((msg) => msg.id !== streamingMessageRef.current));
+    
+    streamingMessageRef.current = null;
+    setIsStreaming(false);
+  }, []);
+
+  const setTyping = useCallback((typing, delay = 0) => {
+    if (delay > 0) {
+      setTimeout(() => setIsTyping(typing), delay);
+    } else {
+      setIsTyping(typing);
+    }
+  }, []);
+
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+    setConversationHistory([]);
+  }, []);
+
+  const removeMessage = useCallback((messageId) => {
+    setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+  }, []);
+
+  const updateMessage = useCallback((messageId, updates) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId ? { ...msg, ...updates } : msg
+      )
+    );
+  }, []);
+
+  return {
+    // State
+    messages,
+    conversationHistory,
+    isTyping,
+    isStreaming,
+    messagesEndRef,
+
+    // Actions
+    addUserMessage,
+    addBotMessage,
+    addSystemMessage,
+    startStreaming,
+    updateStreamingMessage,
+    finalizeStreamingMessage,
+    cancelStreaming,
+    setTyping,
+    clearMessages,
+    removeMessage,
+    updateMessage,
+  };
+}
+
+PASO 8: Hook useFileUpload
+frontend/src/features/onboarding/hooks/useFileUpload.js:
+javascriptimport { useState, useCallback } from 'react';
+import { onboardingApi } from '../../../api/onboarding';
+
+const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.xlsx', '.txt', '.xml', '.png', '.jpg', '.jpeg'];
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+export function useFileUpload(projectId, onAnalysisComplete) {
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [additionalFiles, setAdditionalFiles] = useState([]);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
+  const [fileAnalysisResults, setFileAnalysisResults] = useState([]);
+  const [extractedDocumentContents, setExtractedDocumentContents] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState({});
+  const [error, setError] = useState(null);
+
+  const validateFile = useCallback((file) => {
+    const extension = '.' + file.name.split('.').pop().toLowerCase();
+    
+    if (!ALLOWED_EXTENSIONS.includes(extension)) {
+      return {
+        valid: false,
+        error: `Tipo de archivo no permitido: ${extension}. Permitidos: ${ALLOWED_EXTENSIONS.join(', ')}`
+      };
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      return {
+        valid: false,
+        error: `Archivo muy grande: ${(file.size / 1024 / 1024).toFixed(2)}MB. Máximo: 50MB`
+      };
+    }
+
+    return { valid: true };
+  }, []);
+
+  const handleFileSelect = useCallback(async (files, options = {}) => {
+    const { analyzeWithAI = true, categoria = null } = options;
+    
+    setError(null);
+    const validFiles = [];
+    const errors = [];
+
+    // Validar archivos
+    for (const file of files) {
+      const validation = validateFile(file);
+      if (validation.valid) {
+        validFiles.push({
+          id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          file,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          status: 'pending',
+          progress: 0,
+        });
+      } else {
+        errors.push({ file: file.name, error: validation.error });
+      }
+    }
+
+    if (errors.length > 0) {
+      setError(errors.map(e => `${e.file}: ${e.error}`).join('\n'));
+    }
+
+    if (validFiles.length === 0) return [];
+
+    setUploadedFiles((prev) => [...prev, ...validFiles]);
+
+    // Analizar con IA si está habilitado
+    if (analyzeWithAI) {
+      await analyzeFiles(validFiles);
+    }
+
+    return validFiles;
+  }, [validateFile]);
+
+  const analyzeFiles = useCallback(async (files) => {
+    setIsProcessingFile(true);
+    
+    const results = [];
+
+    for (const fileObj of files) {
+      try {
+        // Actualizar estado a "analizando"
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileObj.id ? { ...f, status: 'analyzing' } : f
+          )
+        );
+
+        // Llamar API para análisis con IA
+        const formData = new FormData();
+        formData.append('file', fileObj.file);
+        formData.append('project_id', projectId);
+
+        const response = await onboardingApi.analyzeDocument(projectId, fileObj.file);
+
+        const analysisResult = {
+          fileId: fileObj.id,
+          fileName: fileObj.name,
+          extractedData: response.extracted_data || {},
+          categoria: response.categoria,
+          subcategoria: response.subcategoria,
+          resumen: response.resumen,
+          entidades: response.entidades || [],
+          confidence: response.confidence || 0,
+        };
+
+        results.push(analysisResult);
+
+        // Actualizar estado a "analizado"
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileObj.id
+              ? { ...f, status: 'analyzed', analysis: analysisResult }
+              : f
+          )
+        );
+
+        // Guardar contenido extraído
+        if (response.content) {
+          setExtractedDocumentContents((prev) => [
+            ...prev,
+            { fileId: fileObj.id, content: response.content }
+          ]);
+        }
+
+      } catch (err) {
+        console.error(`Error analizando ${fileObj.name}:`, err);
+        
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileObj.id
+              ? { ...f, status: 'error', error: err.message }
+              : f
+          )
+        );
+      }
+    }
+
+    setFileAnalysisResults((prev) => [...prev, ...results]);
+    setIsProcessingFile(false);
+
+    // Callback con resultados
+    if (onAnalysisComplete && results.length > 0) {
+      onAnalysisComplete(results);
+    }
+
+    return results;
+  }, [projectId, onAnalysisComplete]);
+
+  const uploadFilesToCloud = useCallback(async (categoria = null) => {
+    const pendingFiles = uploadedFiles.filter(
+      (f) => f.status === 'analyzed' || f.status === 'pending'
+    );
+
+    if (pendingFiles.length === 0) return [];
+
+    setIsUploadingDocuments(true);
+    const uploaded = [];
+
+    try {
+      const files = pendingFiles.map((f) => f.file);
+      const response = await onboardingApi.uploadFiles(projectId, files, categoria);
+
+      // Actualizar estados
+      for (const fileObj of pendingFiles) {
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileObj.id ? { ...f, status: 'uploaded' } : f
+          )
+        );
+        uploaded.push(fileObj);
+      }
+
+      return response;
+    } catch (err) {
+      setError(`Error subiendo archivos: ${err.message}`);
+      throw err;
+    } finally {
+      setIsUploadingDocuments(false);
+    }
+  }, [uploadedFiles, projectId]);
+
+  const removeFile = useCallback((fileId) => {
+    setUploadedFiles((prev) => prev.filter((f) => f.id !== fileId));
+    setFileAnalysisResults((prev) => prev.filter((r) => r.fileId !== fileId));
+    setExtractedDocumentContents((prev) => prev.filter((c) => c.fileId !== fileId));
+  }, []);
+
+  const clearAllFiles = useCallback(() => {
+    setUploadedFiles([]);
+    setAdditionalFiles([]);
+    setFileAnalysisResults([]);
+    setExtractedDocumentContents([]);
+    setError(null);
+  }, []);
+
+  const getFileById = useCallback((fileId) => {
+    return uploadedFiles.find((f) => f.id === fileId);
+  }, [uploadedFiles]);
+
+  const getAnalysisForFile = useCallback((fileId) => {
+    return fileAnalysisResults.find((r) => r.fileId === fileId);
+  }, [fileAnalysisResults]);
+
+  return {
+    // State
+    uploadedFiles,
+    additionalFiles,
+    isProcessingFile,
+    isUploadingDocuments,
+    fileAnalysisResults,
+    extractedDocumentContents,
+    uploadProgress,
+    error,
+
+    // Actions
+    handleFileSelect,
+    analyzeFiles,
+    uploadFilesToCloud,
+    removeFile,
+    clearAllFiles,
+    getFileById,
+    getAnalysisForFile,
+    setAdditionalFiles,
+    clearError: () => setError(null),
+  };
+}
+
+PASO 9: Hook useOnboardingSteps
+frontend/src/features/onboarding/hooks/useOnboardingSteps.js:
+javascriptimport { useState, useCallback, useEffect } from 'react';
+
+// Definición de pasos del onboarding
+const ONBOARDING_STEPS = [
+  {
+    id: 0,
+    key: 'welcome',
+    title: 'Bienvenida',
+    description: 'Identificar tipo de entidad',
+    requiredFields: [],
+    agent: 'ARCHIVO',
+  },
+  {
+    id: 1,
+    key: 'entity_type',
+    title: 'Tipo de Entidad',
+    description: 'Seleccionar cliente o proveedor',
+    requiredFields: ['entityType'],
+    agent: 'ARCHIVO',
+  },
+  {
+    id: 2,
+    key: 'basic_info',
+    title: 'Información Básica',
+    description: 'RFC, razón social, datos de contacto',
+    requiredFields: ['rfc', 'razonSocial'],
+    agent: 'ARCHIVO',
+  },
+  {
+    id: 3,
+    key: 'documents',
+    title: 'Documentación',
+    description: 'Subir constancia fiscal, identificación',
+    requiredFields: ['constanciaFiscal'],
+    agent: 'ARCHIVO',
+  },
+  {
+    id: 4,
+    key: 'ai_analysis',
+    title: 'Análisis IA',
+    description: 'Extracción automática de datos',
+    requiredFields: [],
+    agent: 'ARCHIVO',
+  },
+  {
+    id: 5,
+    key: 'confirmation',
+    title: 'Confirmación',
+    description: 'Validar datos extraídos',
+    requiredFields: ['dataConfirmed'],
+    agent: 'ARCHIVO',
+  },
+  {
+    id: 6,
+    key: 'efos_check',
+    title: 'Verificación EFOS',
+    description: 'Consulta Lista 69-B SAT',
+    requiredFields: [],
+    agent: 'A6_PROVEEDOR',
+  },
+  {
+    id: 7,
+    key: 'complete',
+    title: 'Completado',
+    description: 'Entidad registrada exitosamente',
+    requiredFields: [],
+    agent: 'ARCHIVO',
+  },
+];
+
+export function useOnboardingSteps(initialStep = 0) {
+  const [currentStep, setCurrentStep] = useState(initialStep);
+  const [collectedData, setCollectedData] = useState({});
+  const [entityType, setEntityType] = useState(null); // 'cliente' | 'proveedor'
+  const [extractedData, setExtractedData] = useState({});
+  const [onboardingStatus, setOnboardingStatus] = useState('idle'); // idle, in_progress, completed, error
+  const [onboardingError, setOnboardingError] = useState(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [intelligentMode, setIntelligentMode] = useState(false);
+  const [createdEntity, setCreatedEntity] = useState(null);
+  const [emailContacto, setEmailContacto] = useState('');
+
+  const currentStepData = ONBOARDING_STEPS[currentStep];
+
+  const validateStep = useCallback((stepIndex = currentStep) => {
+    const step = ONBOARDING_STEPS[stepIndex];
+    if (!step) return { valid: false, missingFields: [] };
+
+    const missingFields = step.requiredFields.filter((field) => {
+      // Verificar en collectedData y extractedData
+      const value = collectedData[field] || extractedData[field];
+      return !value || (typeof value === 'string' && value.trim() === '');
+    });
+
+    return {
+      valid: missingFields.length === 0,
+      missingFields,
+    };
+  }, [currentStep, collectedData, extractedData]);
+
+  const nextStep = useCallback(() => {
+    const validation = validateStep();
+    
+    if (!validation.valid) {
+      setOnboardingError(`Campos requeridos faltantes: ${validation.missingFields.join(', ')}`);
+      return false;
+    }
+
+    if (currentStep < ONBOARDING_STEPS.length - 1) {
+      setCurrentStep((prev) => prev + 1);
+      setOnboardingError(null);
+      return true;
+    }
+
+    return false;
+  }, [currentStep, validateStep]);
+
+  const prevStep = useCallback(() => {
+    if (currentStep > 0) {
+      setCurrentStep((prev) => prev - 1);
+      setOnboardingError(null);
+      return true;
+    }
+    return false;
+  }, [currentStep]);
+
+  const goToStep = useCallback((stepIndex) => {
+    if (stepIndex >= 0 && stepIndex < ONBOARDING_STEPS.length) {
+      setCurrentStep(stepIndex);
+      setOnboardingError(null);
+      return true;
+    }
+    return false;
+  }, []);
+
+  const updateCollectedData = useCallback((key, value) => {
+    setCollectedData((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  }, []);
+
+  const mergeCollectedData = useCallback((data) => {
+    setCollectedData((prev) => ({
+      ...prev,
+      ...data,
+    }));
+  }, []);
+
+  const mergeExtractedData = useCallback((data) => {
+    setExtractedData((prev) => ({
+      ...prev,
+      ...data,
+    }));
+  }, []);
+
+  const selectEntityType = useCallback((type) => {
+    if (type === 'cliente' || type === 'proveedor') {
+      setEntityType(type);
+      updateCollectedData('entityType', type);
+      return true;
+    }
+    return false;
+  }, [updateCollectedData]);
+
+  const confirmExtractedData = useCallback(() => {
+    // Mergear datos extraídos a datos recolectados
+    setCollectedData((prev) => ({
+      ...prev,
+      ...extractedData,
+      dataConfirmed: true,
+    }));
+    setShowConfirmation(false);
+  }, [extractedData]);
+
+  const completeOnboarding = useCallback(async (entityData) => {
+    setOnboardingStatus('completed');
+    setCreatedEntity(entityData);
+    goToStep(ONBOARDING_STEPS.length - 1); // Ir al último paso
+  }, [goToStep]);
+
+  const resetOnboarding = useCallback(() => {
+    setCurrentStep(0);
+    setCollectedData({});
+    setEntityType(null);
+    setExtractedData({});
+    setOnboardingStatus('idle');
+    setOnboardingError(null);
+    setShowConfirmation(false);
+    setCreatedEntity(null);
+    setEmailContacto('');
+  }, []);
+
+  const getProgress = useCallback(() => {
+    return {
+      current: currentStep,
+      total: ONBOARDING_STEPS.length,
+      percentage: Math.round((currentStep / (ONBOARDING_STEPS.length - 1)) * 100),
+    };
+  }, [currentStep]);
+
+  const isStepCompleted = useCallback((stepIndex) => {
+    return stepIndex < currentStep;
+  }, [currentStep]);
+
+  const isStepAccessible = useCallback((stepIndex) => {
+    // Solo puede acceder a pasos anteriores o al actual
+    return stepIndex <= currentStep;
+  }, [currentStep]);
+
+  return {
+    // State
+    currentStep,
+    currentStepData,
+    steps: ONBOARDING_STEPS,
+    collectedData,
+    entityType,
+    extractedData,
+    onboardingStatus,
+    onboardingError,
+    showConfirmation,
+    intelligentMode,
+    createdEntity,
+    emailContacto,
+
+    // Navigation
+    nextStep,
+    prevStep,
+    goToStep,
+
+    // Data management
+    updateCollectedData,
+    mergeCollectedData,
+    mergeExtractedData,
+    selectEntityType,
+    confirmExtractedData,
+    setShowConfirmation,
+    setIntelligentMode,
+    setEmailContacto,
+
+    // Lifecycle
+    completeOnboarding,
+    resetOnboarding,
+
+    // Utils
+    validateStep,
+    getProgress,
+    isStepCompleted,
+    isStepAccessible,
+
+    // Error handling
+    clearError: () => setOnboardingError(null),
+  };
+}
+
+PASO 10: Hook useChatAPI
+frontend/src/features/onboarding/hooks/useChatAPI.js:
+javascriptimport { useState, useCallback, useRef } from 'react';
+import apiClient from '../../../api/client';
+
+export function useChatAPI() {
+  const [isSearchingWeb, setIsSearchingWeb] = useState(false);
+  const [useRealAI, setUseRealAI] = useState(true);
+  const [lastError, setLastError] = useState(null);
+  const abortControllerRef = useRef(null);
+
+  const sendToClaudeAPI = useCallback(async ({
+    message,
+    conversationHistory = [],
+    agentId = 'ARCHIVO',
+    projectId = null,
+    empresaId = null,
+    contextData = {},
+    stream = false,
+    onStreamChunk = null,
+  }) => {
+    // Cancelar request anterior si existe
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    setLastError(null);
+
+    try {
+      const payload = {
+        message,
+        conversation_history: conversationHistory,
+        agent_id: agentId,
+        project_id: projectId,
+        empresa_id: empresaId,
+        context: contextData,
+        stream,
+      };
+
+      if (stream && onStreamChunk) {
+        // Streaming response
+        const response = await fetch('/api/agents/chat/stream', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify(payload),
+          signal: abortControllerRef.current.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullContent = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          fullContent += chunk;
+          onStreamChunk(chunk);
+        }
+
+        return {
+          message: fullContent,
+          agent: agentId,
+          streamed: true,
+        };
+      } else {
+        // Regular response
+        const response = await apiClient.post('/agents/chat', payload, {
+          signal: abortControllerRef.current.signal,
+        });
+
+        return {
+          message: response.data.message,
+          agent: response.data.agent || agentId,
+          agentName: response.data.agent_name,
+          suggestions: response.data.suggestions || [],
+          extractedData: response.data.extracted_data,
+          nextAction: response.data.next_action,
+          currentPhase: response.data.current_phase,
+        };
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        return null; // Cancelled
+      }
+
+      const errorMessage = err.response?.data?.detail || err.message || 'Error de conexión';
+      setLastError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  }, []);
+
+  const searchWeb = useCallback(async (query) => {
+    setIsSearchingWeb(true);
+    setLastError(null);
+
+    try {
+      const response = await apiClient.post('/agents/web-search', { query });
+      return response.data;
+    } catch (err) {
+      const errorMessage = err.response?.data?.detail || err.message;
+      setLastError(errorMessage);
+      throw err;
+    } finally {
+      setIsSearchingWeb(false);
+    }
+  }, []);
+
+  const analyzeDocumentWithAI = useCallback(async (file, extractionPrompt = null) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (extractionPrompt) {
+      formData.append('extraction_prompt', extractionPrompt);
+    }
+
+    try {
+      const response = await apiClient.post('/agents/analyze-document', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      return {
+        extractedData: response.data.extracted_data,
+        content: response.data.content,
+        categoria: response.data.categoria,
+        confidence: response.data.confidence,
+      };
+    } catch (err) {
+      const errorMessage = err.response?.data?.detail || err.message;
+      setLastError(errorMessage);
+      throw err;
+    }
+  }, []);
+
+  const cancelRequest = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  }, []);
+
+  const toggleRealAI = useCallback((enabled) => {
+    setUseRealAI(enabled);
+  }, []);
+
+  return {
+    // State
+    isSearchingWeb,
+    useRealAI,
+    lastError,
+
+    // Actions
+    sendToClaudeAPI,
+    searchWeb,
+    analyzeDocumentWithAI,
+    cancelRequest,
+    toggleRealAI,
+    clearError: () => setLastError(null),
+  };
+}
+
+PASO 11: Archivo de constantes
+frontend/src/features/onboarding/constants/index.js:
+javascript// Agentes del sistema
+export const AGENTS = {
+  ARCHIVO: {
+    id: 'ARCHIVO',
+    name: 'Archivo',
+    displayName: 'Asistente de Onboarding',
+    avatar: '📁',
+    color: '#6366f1',
+  },
+  A1_ESTRATEGIA: {
+    id: 'A1_ESTRATEGIA',
+    name: 'María Rodríguez',
+    displayName: 'María Rodríguez',
+    role: 'Sponsor/Estrategia',
+    avatar: '👩‍💼',
+    color: '#8b5cf6',
+  },
+  A3_FISCAL: {
+    id: 'A3_FISCAL',
+    name: 'Laura Sánchez',
+    displayName: 'Laura Sánchez',
+    role: 'Especialista Fiscal',
+    avatar: '👩‍⚖️',
+    color: '#10b981',
+  },
+  A6_PROVEEDOR: {
+    id: 'A6_PROVEEDOR',
+    name: 'Ana García',
+    displayName: 'Ana García',
+    role: 'Verificación Proveedores',
+    avatar: '🔍',
+    color: '#f59e0b',
+  },
+};
+
+// Tipos de entidad
+export const ENTITY_TYPES = {
+  CLIENTE: 'cliente',
+  PROVEEDOR: 'proveedor',
+};
+
+// Estados de archivos
+export const FILE_STATUS = {
+  PENDING: 'pending',
+  ANALYZING: 'analyzing',
+  ANALYZED: 'analyzed',
+  UPLOADING: 'uploading',
+  UPLOADED: 'uploaded',
+  ERROR: 'error',
+};
+
+// Extensiones permitidas
+export const ALLOWED_FILE_EXTENSIONS = [
+  '.pdf',
+  '.docx',
+  '.xlsx',
+  '.txt',
+  '.xml',
+  '.png',
+  '.jpg',
+  '.jpeg',
+];
+
+// Tamaño máximo de archivo (50MB)
+export const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+// Mensajes del sistema
+export const SYSTEM_MESSAGES = {
+  WELCOME: '¡Hola! Soy tu asistente de onboarding. ¿Vamos a registrar un cliente o un proveedor?',
+  FILE_UPLOADED: 'Archivo recibido. Analizando con IA...',
+  ANALYSIS_COMPLETE: 'He extraído la siguiente información del documento. Por favor confirma que es correcta.',
+  EFOS_CHECKING: 'Verificando RFC en la Lista 69-B del SAT...',
+  EFOS_CLEAR: '✅ El RFC no aparece en la Lista 69-B. Proveedor verificado.',
+  EFOS_WARNING: '⚠️ ALERTA: El RFC aparece en la Lista 69-B del SAT.',
+  COMPLETE: '¡Listo! La entidad ha sido registrada exitosamente.',
+};
+
+// Sugerencias rápidas
+export const QUICK_SUGGESTIONS = {
+  welcome: [
+    { text: 'Registrar cliente', value: 'cliente' },
+    { text: 'Registrar proveedor', value: 'proveedor' },
+  ],
+  documents: [
+    { text: 'Subir constancia fiscal', action: 'upload_constancia' },
+    { text: 'Subir identificación', action: 'upload_id' },
+    { text: 'Subir contrato', action: 'upload_contrato' },
+  ],
+};
+
+✅ CHECKLIST TOUR #2 - HOOKS
+#ArchivoEstado1Crear estructura carpetas⬜2api/client.js⬜3api/onboarding.js⬜4shared/hooks/useApi.js⬜5shared/hooks/useDebounce.js⬜6shared/components/LoadingSpinner.jsx⬜7shared/components/ErrorMessage.jsx⬜8shared/components/Modal.jsx⬜9hooks/useChatMessages.js⬜10hooks/useFileUpload.js⬜11hooks/useOnboardingSteps.js⬜12hooks/useChatAPI.js⬜13constants/index.js⬜

@@ -1,0 +1,285 @@
+═══════════════════════════════════════════════════════════════════════════════
+🔓 ARREGLAR: "Autenticación requerida" EN FORMULARIO DE ENTREGABLES
+═══════════════════════════════════════════════════════════════════════════════
+
+PROBLEMA: El formulario de crear proyecto/entregable muestra 
+"⚠️ Autenticación requerida" aunque el usuario quiere probarlo.
+
+SOLUCIÓN: Crear bypass para modo demo o arreglar la validación de sesión.
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 1: IDENTIFICAR EL PROBLEMA
+═══════════════════════════════════════════════════════════════════════════════
+
+Ejecuta estos comandos para encontrar dónde está la validación:
+
+```bash
+# Buscar dónde se valida autenticación en el frontend
+grep -rn "Autenticación requerida" frontend/src/
+grep -rn "autenticacion" frontend/src/
+grep -rn "isAuthenticated" frontend/src/
+grep -rn "requireAuth" frontend/src/
+
+# Buscar el componente del formulario de entregables/proyectos
+grep -rn "entregable" frontend/src/
+grep -rn "proyecto" frontend/src/
+grep -rn "presupuesto" frontend/src/
+
+# Buscar el endpoint en backend
+grep -rn "entregable" backend/
+grep -rn "proyecto" backend/
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 2: OPCIÓN A - CREAR MODO DEMO (RECOMENDADO)
+═══════════════════════════════════════════════════════════════════════════════
+
+En el componente que muestra el formulario, agregar bypass para demo:
+
+```jsx
+// Buscar el archivo que tiene "Autenticación requerida" y modificarlo
+
+// ANTES (problema):
+const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+useEffect(() => {
+  // Verificar autenticación
+  const token = localStorage.getItem('token');
+  if (!token) {
+    setShowAuthWarning(true);
+  }
+}, []);
+
+// DESPUÉS (con bypass demo):
+const [isAuthenticated, setIsAuthenticated] = useState(false);
+const [isDemoMode, setIsDemoMode] = useState(false);
+
+useEffect(() => {
+  // Verificar si es modo demo (query param o config)
+  const urlParams = new URLSearchParams(window.location.search);
+  const demoMode = urlParams.get('demo') === 'true';
+  
+  if (demoMode) {
+    setIsDemoMode(true);
+    setIsAuthenticated(true); // Bypass para demo
+    return;
+  }
+  
+  // Verificación normal
+  const token = localStorage.getItem('token');
+  if (!token) {
+    setShowAuthWarning(true);
+  } else {
+    setIsAuthenticated(true);
+  }
+}, []);
+
+// Y cambiar el render del warning:
+{showAuthWarning && !isDemoMode && (
+  <div className="bg-yellow-100 border border-yellow-400 p-4 rounded">
+    ⚠️ Autenticación requerida
+  </div>
+)}
+```
+
+Ahora puedes acceder con: `/tu-ruta?demo=true`
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 3: OPCIÓN B - QUITAR VALIDACIÓN TEMPORALMENTE (RÁPIDO)
+═══════════════════════════════════════════════════════════════════════════════
+
+Si solo quieres probar rápido, comenta la validación:
+
+```jsx
+// Buscar el archivo y comentar la validación
+
+// ANTES:
+if (!isAuthenticated) {
+  return <div>⚠️ Autenticación requerida</div>;
+}
+
+// DESPUÉS (temporal para pruebas):
+// if (!isAuthenticated) {
+//   return <div>⚠️ Autenticación requerida</div>;
+// }
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 4: OPCIÓN C - ARREGLAR EL BACKEND PARA NO REQUERIR AUTH
+═══════════════════════════════════════════════════════════════════════════════
+
+Si el problema es en el backend, buscar y modificar:
+
+```python
+# Buscar el endpoint de entregables/proyectos
+
+# ANTES (requiere auth):
+@entregables_bp.route('', methods=['POST'])
+@requiere_autenticacion  # <-- Este decorador bloquea
+def crear_entregable():
+    ...
+
+# DESPUÉS (público o con bypass):
+@entregables_bp.route('', methods=['POST'])
+def crear_entregable():
+    # Permitir modo demo
+    demo_mode = request.args.get('demo') == 'true'
+    
+    if not demo_mode:
+        # Verificar auth normalmente
+        token = request.headers.get('Authorization')
+        if not token:
+            return jsonify({'error': 'Token requerido'}), 401
+    
+    # Continuar con la lógica...
+    data = request.get_json(force=True, silent=True) or {}
+    ...
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 5: SI ES PROBLEMA DE SESIÓN/TOKEN
+═══════════════════════════════════════════════════════════════════════════════
+
+A veces el problema es que el token existe pero no se envía correctamente.
+
+Verificar en el frontend que se envía el token:
+
+```javascript
+// En el fetch/axios que hace el POST
+const token = localStorage.getItem('token');
+
+const response = await fetch('/api/entregables', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`  // <-- ¿Se está enviando?
+  },
+  body: JSON.stringify(formData)
+});
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 6: SOLUCIÓN RÁPIDA - CREAR USUARIO DE PRUEBA
+═══════════════════════════════════════════════════════════════════════════════
+
+Si necesitas un usuario válido para probar:
+
+```sql
+-- Crear usuario admin de prueba
+INSERT INTO users (email, nombre, is_admin, activo, created_at)
+VALUES ('demo@revisar-ia.com', 'Usuario Demo', TRUE, TRUE, NOW())
+ON CONFLICT (email) DO NOTHING
+RETURNING id;
+```
+
+Y generar un token válido:
+
+```python
+# En un endpoint temporal o shell
+import jwt
+import os
+from datetime import datetime, timedelta
+
+token = jwt.encode({
+    'user_id': 1,  # ID del usuario demo
+    'email': 'demo@revisar-ia.com',
+    'exp': datetime.utcnow() + timedelta(days=7)
+}, os.environ.get('JWT_SECRET', 'secret'), algorithm='HS256')
+
+print(f"Token de prueba: {token}")
+```
+
+Luego en el navegador (consola F12):
+```javascript
+localStorage.setItem('token', 'TU_TOKEN_AQUI');
+location.reload();
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+DIAGNÓSTICO RÁPIDO
+═══════════════════════════════════════════════════════════════════════════════
+
+Ejecuta esto para entender qué está pasando:
+
+```bash
+# 1. ¿Cuál es la ruta/componente del formulario?
+grep -rn "Estudio Prospectivo\|presupuesto estimado" frontend/src/
+
+# 2. ¿Qué endpoint usa?
+grep -rn "entregable\|proyecto" frontend/src/ | grep -i "fetch\|axios\|api"
+
+# 3. ¿El endpoint requiere auth?
+grep -rn "@requiere\|@login_required\|verify_token" backend/
+
+# 4. ¿Hay token en localStorage? (verificar en consola del navegador)
+# F12 → Console → localStorage.getItem('token')
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+SOLUCIÓN MÁS PROBABLE
+═══════════════════════════════════════════════════════════════════════════════
+
+Basándome en la imagen, el problema es que el FORMULARIO en sí está 
+validando autenticación ANTES de enviarlo (en el render).
+
+Busca en el componente algo como:
+
+```jsx
+// El archivo probablemente tiene algo así:
+const EntregableForm = () => {
+  const { isAuthenticated } = useAuth(); // o similar
+  
+  if (!isAuthenticated) {
+    return (
+      <Alert variant="warning">
+        ⚠️ Autenticación requerida
+      </Alert>
+    );
+  }
+  
+  return (
+    <form>...</form>
+  );
+};
+```
+
+ARREGLO: Cambiar a mostrar el form pero con warning no bloqueante:
+
+```jsx
+const EntregableForm = () => {
+  const { isAuthenticated } = useAuth();
+  
+  return (
+    <>
+      {!isAuthenticated && (
+        <Alert variant="warning" className="mb-4">
+          ⚠️ Autenticación requerida - Modo vista previa
+        </Alert>
+      )}
+      
+      <form>
+        {/* El formulario se muestra siempre */}
+        ...
+        
+        <button 
+          type="submit" 
+          disabled={!isAuthenticated}
+          className={!isAuthenticated ? 'opacity-50 cursor-not-allowed' : ''}
+        >
+          {isAuthenticated ? 'Crear Proyecto' : 'Inicia sesión para crear'}
+        </button>
+      </form>
+    </>
+  );
+};
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Identificar archivo del componente con grep
+□ Ver si es validación frontend o backend
+□ Aplicar bypass demo O quitar validación temporal
+□ Probar el flujo completo
+□ Si funciona en demo, implementar auth real después

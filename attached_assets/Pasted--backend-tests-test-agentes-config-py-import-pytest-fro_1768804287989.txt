@@ -1,0 +1,54 @@
+# backend/tests/test_agentes_config.py
+
+import pytest
+from backend.config.agentes_config import (
+    AGENTES_CONFIG,
+    get_agente_config,
+    get_contexto_obligatorio,
+    get_documentos_rag
+)
+
+class TestAgentesConfig:
+    
+    def test_todos_agentes_configurados(self):
+        """Verificar que los 11 agentes están configurados"""
+        agentes_esperados = [
+            "A1_ESTRATEGIA", "A2_PMO", "A3_FISCAL", "A4_LEGAL",
+            "A5_FINANZAS", "A6_PROVEEDOR", "A7_DEFENSA",
+            "S1_TIPIFICACION", "S2_MATERIALIDAD", "S3_RIESGOS"
+        ]
+        for agente in agentes_esperados:
+            assert agente in AGENTES_CONFIG
+    
+    def test_agentes_tienen_contexto_obligatorio(self):
+        """Cada agente debe tener al menos un contexto obligatorio"""
+        for agente_id, config in AGENTES_CONFIG.items():
+            obligatorios = [c for c in config.contexto_requerido 
+                          if c.tipo.value == "obligatorio"]
+            assert len(obligatorios) > 0, f"{agente_id} sin contexto obligatorio"
+    
+    def test_agentes_tienen_documentos_rag(self):
+        """Cada agente debe tener documentos RAG asociados"""
+        for agente_id, config in AGENTES_CONFIG.items():
+            assert len(config.documentos_rag) > 0, f"{agente_id} sin docs RAG"
+    
+    def test_agentes_bloqueadores_tienen_fases(self):
+        """Agentes que pueden bloquear deben especificar fases"""
+        for agente_id, config in AGENTES_CONFIG.items():
+            if config.puede_bloquear:
+                assert len(config.fases_bloqueo) > 0, \
+                    f"{agente_id} puede bloquear pero sin fases definidas"
+    
+    def test_candados_duros_en_pmo(self):
+        """PMO debe tener los 3 candados duros configurados"""
+        config = get_agente_config("A2_PMO")
+        assert "F2" in config.fases_bloqueo
+        assert "F6" in config.fases_bloqueo
+        assert "F8" in config.fases_bloqueo
+    
+    def test_fiscal_tiene_documentos_clave(self):
+        """A3_FISCAL debe tener los documentos normativos"""
+        docs = get_documentos_rag("A3_FISCAL")
+        assert "001_guia_razon_negocios_5a" in docs
+        assert "002_guia_materialidad_69b" in docs
+        assert "008_criterios_efos" in docs

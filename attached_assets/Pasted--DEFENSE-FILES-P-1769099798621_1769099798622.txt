@@ -1,0 +1,734 @@
+═══════════════════════════════════════════════════════════════════════════════
+📁 DEFENSE FILES - PARTE 3: INTEGRACIÓN CON AGENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+Cada agente debe documentar TODAS sus acciones automáticamente.
+Esta parte muestra cómo integrar el Defense File con cada agente.
+
+═══════════════════════════════════════════════════════════════════════════════
+DECORADOR PARA DOCUMENTACIÓN AUTOMÁTICA
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/services/defense_files/decorators.py
+
+```python
+"""
+Decoradores para documentación automática de acciones de agentes
+"""
+
+import time
+import functools
+from typing import Callable
+from flask import request, g
+
+from services.defense_files.defense_file_service import (
+    defense_file_service, EventoDefenseFile
+)
+
+
+def documentar_accion(agente_id: str, tipo_evento: str, 
+                      titulo_template: str = None):
+    """
+    Decorador que documenta automáticamente la acción de un agente.
+    
+    Uso:
+        @documentar_accion('A1', 'conversacion_ia', 'Chat con Facturar.IA')
+        def chat_facturar():
+            ...
+    """
+    def decorator(func: Callable):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            inicio = time.time()
+            
+            # Obtener defense_file_id del contexto
+            defense_file_id = _obtener_defense_file_id()
+            
+            # Ejecutar función original
+            try:
+                resultado = func(*args, **kwargs)
+                exito = True
+                error = None
+            except Exception as e:
+                resultado = None
+                exito = False
+                error = str(e)
+                raise
+            finally:
+                duracion_ms = int((time.time() - inicio) * 1000)
+                
+                # Documentar si hay defense_file activo
+                if defense_file_id:
+                    _registrar_evento_accion(
+                        defense_file_id=defense_file_id,
+                        agente_id=agente_id,
+                        tipo_evento=tipo_evento,
+                        titulo=titulo_template or f"Acción de {agente_id}",
+                        duracion_ms=duracion_ms,
+                        exito=exito,
+                        error=error,
+                        resultado=resultado
+                    )
+            
+            return resultado
+        return wrapper
+    return decorator
+
+
+def _obtener_defense_file_id():
+    """Obtiene el defense_file_id del contexto actual"""
+    
+    # Intentar obtener de diferentes fuentes
+    
+    # 1. Del contexto de Flask (g)
+    if hasattr(g, 'defense_file_id'):
+        return g.defense_file_id
+    
+    # 2. Del request JSON
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        if data.get('defense_file_id'):
+            return data['defense_file_id']
+    except:
+        pass
+    
+    # 3. Del request form
+    try:
+        if request.form.get('defense_file_id'):
+            return int(request.form.get('defense_file_id'))
+    except:
+        pass
+    
+    # 4. De query params
+    try:
+        if request.args.get('defense_file_id'):
+            return int(request.args.get('defense_file_id'))
+    except:
+        pass
+    
+    # 5. Del header
+    try:
+        if request.headers.get('X-Defense-File-ID'):
+            return int(request.headers.get('X-Defense-File-ID'))
+    except:
+        pass
+    
+    return None
+
+
+def _registrar_evento_accion(defense_file_id: int, agente_id: str,
+                              tipo_evento: str, titulo: str,
+                              duracion_ms: int, exito: bool,
+                              error: str = None, resultado = None):
+    """Registra el evento de la acción"""
+    
+    try:
+        # Obtener datos del request
+        datos = {
+            'exito': exito,
+            'duracion_ms': duracion_ms,
+            'endpoint': request.endpoint,
+            'method': request.method,
+        }
+        
+        if error:
+            datos['error'] = error
+        
+        # Agregar datos del request si es seguro
+        try:
+            request_data = request.get_json(force=True, silent=True) or {}
+            # Solo guardar campos seguros (no passwords, tokens, etc.)
+            campos_seguros = ['message', 'query', 'pregunta', 'rfc', 'nombre']
+            for campo in campos_seguros:
+                if campo in request_data:
+                    datos[f'input_{campo}'] = str(request_data[campo])[:500]
+        except:
+            pass
+        
+        # Agregar resumen del resultado si existe
+        if resultado and isinstance(resultado, dict):
+            if 'response' in resultado:
+                datos['output_preview'] = str(resultado['response'])[:500]
+        
+        # Obtener usuario
+        usuario_email = None
+        if hasattr(g, 'current_user') and g.current_user:
+            usuario_email = g.current_user.email
+        
+        defense_file_service.registrar_evento(
+            defense_file_id=defense_file_id,
+            evento=EventoDefenseFile(
+                tipo=tipo_evento,
+                agente_id=agente_id,
+                titulo=titulo,
+                descripcion=f"{'✅ Exitoso' if exito else '❌ Error'} en {duracion_ms}ms",
+                datos=datos,
+                usuario_email=usuario_email
+            ),
+            duracion_ms=duracion_ms
+        )
+        
+    except Exception as e:
+        print(f"⚠️ Error documentando acción: {e}")
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+HELPER PARA AGENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/services/defense_files/agent_helper.py
+
+```python
+"""
+Helper para que los agentes documenten sus acciones fácilmente
+"""
+
+from typing import Dict, List, Any, Optional
+from datetime import datetime
+
+from services.defense_files.defense_file_service import (
+    defense_file_service, EventoDefenseFile
+)
+
+
+class AgentDocumentor:
+    """
+    Helper para documentar acciones de un agente específico.
+    
+    Uso:
+        doc = AgentDocumentor('A1', 'Facturar.IA')
+        
+        doc.registrar_conversacion(
+            defense_file_id=1,
+            usuario='user@email.com',
+            mensaje_usuario='¿Esto es deducible?',
+            respuesta_ia='Sí, según el artículo 27...',
+            cfdis_mencionados=['uuid1', 'uuid2']
+        )
+    """
+    
+    def __init__(self, agente_id: str, nombre_agente: str):
+        self.agente_id = agente_id
+        self.nombre = nombre_agente
+        self.service = defense_file_service
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # CONVERSACIONES
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def registrar_conversacion(self,
+                                defense_file_id: int,
+                                mensaje_usuario: str,
+                                respuesta_ia: str,
+                                usuario: str = None,
+                                contexto: Dict = None,
+                                fuentes_consultadas: List[str] = None,
+                                cfdis_mencionados: List[str] = None,
+                                articulos_citados: List[str] = None) -> int:
+        """Registra una conversación con el agente"""
+        
+        datos = {
+            'mensaje_usuario': mensaje_usuario,
+            'respuesta_ia': respuesta_ia,
+            'longitud_respuesta': len(respuesta_ia),
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        if contexto:
+            datos['contexto'] = contexto
+        if fuentes_consultadas:
+            datos['fuentes_consultadas'] = fuentes_consultadas
+        if cfdis_mencionados:
+            datos['cfdis_mencionados'] = cfdis_mencionados
+        if articulos_citados:
+            datos['articulos_citados'] = articulos_citados
+        
+        # Tags para búsqueda
+        tags = [self.agente_id, 'conversacion']
+        if cfdis_mencionados:
+            tags.append('cfdi')
+        if articulos_citados:
+            tags.append('fundamento_legal')
+        
+        return self.service.registrar_evento(
+            defense_file_id=defense_file_id,
+            evento=EventoDefenseFile(
+                tipo='conversacion_ia',
+                agente_id=self.agente_id,
+                titulo=f'Conversación con {self.nombre}',
+                descripcion=mensaje_usuario[:100] + '...' if len(mensaje_usuario) > 100 else mensaje_usuario,
+                datos=datos,
+                usuario_email=usuario,
+                tags=tags
+            )
+        )
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # ANÁLISIS
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def registrar_analisis(self,
+                           defense_file_id: int,
+                           tipo_analisis: str,
+                           objeto_analizado: str,
+                           resultado: Dict,
+                           hallazgos: List[Dict] = None,
+                           recomendaciones: List[str] = None,
+                           usuario: str = None) -> int:
+        """Registra un análisis realizado por el agente"""
+        
+        datos = {
+            'tipo_analisis': tipo_analisis,
+            'objeto_analizado': objeto_analizado,
+            'resultado': resultado,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        if hallazgos:
+            datos['hallazgos'] = hallazgos
+            datos['num_hallazgos'] = len(hallazgos)
+        
+        if recomendaciones:
+            datos['recomendaciones'] = recomendaciones
+        
+        return self.service.registrar_evento(
+            defense_file_id=defense_file_id,
+            evento=EventoDefenseFile(
+                tipo='analisis_ia',
+                agente_id=self.agente_id,
+                titulo=f'{tipo_analisis}: {objeto_analizado[:50]}',
+                descripcion=f'{len(hallazgos or [])} hallazgos encontrados',
+                datos=datos,
+                usuario_email=usuario,
+                tags=[self.agente_id, 'analisis', tipo_analisis.lower()]
+            )
+        )
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # DOCUMENTOS
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def registrar_documento_procesado(self,
+                                       defense_file_id: int,
+                                       tipo_documento: str,
+                                       nombre: str,
+                                       contenido: str = None,
+                                       metadata: Dict = None,
+                                       usuario: str = None,
+                                       **kwargs) -> int:
+        """Registra un documento procesado por el agente"""
+        
+        # Registrar evento
+        evento_id = self.service.registrar_evento(
+            defense_file_id=defense_file_id,
+            evento=EventoDefenseFile(
+                tipo='documento_procesado',
+                agente_id=self.agente_id,
+                titulo=f'Documento procesado: {nombre}',
+                descripcion=f'Tipo: {tipo_documento}',
+                datos={
+                    'tipo': tipo_documento,
+                    'nombre': nombre,
+                    'metadata': metadata,
+                    **kwargs
+                },
+                usuario_email=usuario,
+                tags=[self.agente_id, 'documento', tipo_documento]
+            )
+        )
+        
+        # Registrar documento
+        self.service.registrar_documento(
+            defense_file_id=defense_file_id,
+            tipo=tipo_documento,
+            nombre=nombre,
+            contenido_texto=contenido,
+            metadata=metadata,
+            evento_id=evento_id,
+            **kwargs
+        )
+        
+        return evento_id
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # CFDI
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def registrar_cfdi_analizado(self,
+                                  defense_file_id: int,
+                                  uuid_cfdi: str,
+                                  rfc_emisor: str,
+                                  rfc_receptor: str,
+                                  total: float,
+                                  fecha_emision: str,
+                                  tipo_comprobante: str,
+                                  resultado_analisis: Dict,
+                                  alertas: List[Dict] = None,
+                                  usuario: str = None) -> int:
+        """Registra análisis de un CFDI"""
+        
+        datos = {
+            'uuid': uuid_cfdi,
+            'rfc_emisor': rfc_emisor,
+            'rfc_receptor': rfc_receptor,
+            'total': total,
+            'fecha_emision': fecha_emision,
+            'tipo_comprobante': tipo_comprobante,
+            'resultado': resultado_analisis,
+            'tiene_alertas': bool(alertas),
+            'alertas': alertas or []
+        }
+        
+        titulo = f'CFDI {tipo_comprobante}: ${total:,.2f}'
+        if alertas:
+            titulo += f' ⚠️ {len(alertas)} alertas'
+        
+        evento_id = self.service.registrar_evento(
+            defense_file_id=defense_file_id,
+            evento=EventoDefenseFile(
+                tipo='cfdi_analizado',
+                agente_id=self.agente_id,
+                titulo=titulo,
+                descripcion=f'Emisor: {rfc_emisor} → Receptor: {rfc_receptor}',
+                datos=datos,
+                usuario_email=usuario,
+                tags=[self.agente_id, 'cfdi', tipo_comprobante.lower()]
+            )
+        )
+        
+        # Registrar como documento
+        self.service.registrar_documento(
+            defense_file_id=defense_file_id,
+            tipo='cfdi',
+            subtipo=tipo_comprobante.lower(),
+            nombre=f'{uuid_cfdi}.xml',
+            metadata=resultado_analisis,
+            evento_id=evento_id,
+            uuid_cfdi=uuid_cfdi,
+            rfc_emisor=rfc_emisor,
+            rfc_receptor=rfc_receptor,
+            fecha_emision=fecha_emision,
+            total=total
+        )
+        
+        return evento_id
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # VERIFICACIONES
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def registrar_verificacion_tercero(self,
+                                        defense_file_id: int,
+                                        rfc: str,
+                                        razon_social: str,
+                                        tipo_tercero: str,
+                                        verificacion_69b: Dict = None,
+                                        verificacion_efos: Dict = None,
+                                        usuario: str = None) -> int:
+        """Registra verificación de un tercero (proveedor/cliente)"""
+        
+        tiene_alertas = False
+        alertas_texto = []
+        
+        if verificacion_69b and verificacion_69b.get('en_lista'):
+            tiene_alertas = True
+            alertas_texto.append(f"Lista 69-B: {verificacion_69b.get('estatus')}")
+        
+        if verificacion_efos and verificacion_efos.get('es_efos'):
+            tiene_alertas = True
+            alertas_texto.append("EFOS detectado")
+        
+        titulo = f'Verificación {tipo_tercero}: {rfc}'
+        if tiene_alertas:
+            titulo += ' ⚠️'
+        
+        evento_id = self.service.registrar_evento(
+            defense_file_id=defense_file_id,
+            evento=EventoDefenseFile(
+                tipo=f'verificacion_{tipo_tercero}',
+                agente_id=self.agente_id,
+                titulo=titulo,
+                descripcion=razon_social + (' - ' + ', '.join(alertas_texto) if alertas_texto else ' - OK'),
+                datos={
+                    'rfc': rfc,
+                    'razon_social': razon_social,
+                    'tipo': tipo_tercero,
+                    'verificacion_69b': verificacion_69b,
+                    'verificacion_efos': verificacion_efos,
+                    'tiene_alertas': tiene_alertas
+                },
+                usuario_email=usuario,
+                tags=[self.agente_id, 'verificacion', tipo_tercero, 
+                      'alerta' if tiene_alertas else 'ok']
+            )
+        )
+        
+        # Registrar tercero
+        self.service.registrar_tercero(
+            defense_file_id=defense_file_id,
+            tipo=tipo_tercero,
+            rfc=rfc,
+            razon_social=razon_social,
+            verificacion_69b=verificacion_69b,
+            verificacion_efos=verificacion_efos
+        )
+        
+        return evento_id
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# INSTANCIAS PRE-CONFIGURADAS PARA CADA AGENTE
+# ═══════════════════════════════════════════════════════════════════════════
+
+facturar_doc = AgentDocumentor('A1', 'Facturar.IA')
+bibliotecar_doc = AgentDocumentor('A2', 'Bibliotecar.IA')
+revisar_doc = AgentDocumentor('A3', 'Revisar.IA')
+calcular_doc = AgentDocumentor('A4', 'Calcular.IA')
+investigar_doc = AgentDocumentor('A5', 'Investigar.IA')
+reportar_doc = AgentDocumentor('A6', 'Reportar.IA')
+auditar_doc = AgentDocumentor('A7', 'Auditar.IA')
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+INTEGRACIÓN CON FACTURAR.IA (EJEMPLO COMPLETO)
+═══════════════════════════════════════════════════════════════════════════════
+
+Modificar: backend/routes/facturar_routes.py
+
+```python
+from flask import Blueprint, jsonify, request, g
+from services.defense_files.agent_helper import facturar_doc
+
+facturar_bp = Blueprint('facturar', __name__)
+
+@facturar_bp.route('/chat', methods=['POST'])
+def chat_facturar():
+    """Chat con Facturar.IA"""
+    
+    data = request.get_json(force=True, silent=True) or {}
+    mensaje = data.get('message', '')
+    defense_file_id = data.get('defense_file_id')  # Opcional
+    usuario = data.get('usuario_email')
+    
+    try:
+        # ... lógica existente de chat ...
+        from anthropic import Anthropic
+        client = Anthropic()
+        
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2000,
+            system="Eres Facturar.IA, experto en facturación electrónica mexicana...",
+            messages=[{"role": "user", "content": mensaje}]
+        )
+        
+        respuesta = response.content[0].text
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # DOCUMENTAR EN DEFENSE FILE (si está activo)
+        # ═══════════════════════════════════════════════════════════════════
+        if defense_file_id:
+            facturar_doc.registrar_conversacion(
+                defense_file_id=defense_file_id,
+                mensaje_usuario=mensaje,
+                respuesta_ia=respuesta,
+                usuario=usuario,
+                # Extraer info adicional si aplica
+                cfdis_mencionados=extraer_uuids_del_mensaje(mensaje),
+                articulos_citados=extraer_articulos(respuesta)
+            )
+        
+        return jsonify({
+            'success': True,
+            'response': respuesta
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@facturar_bp.route('/analizar-cfdi', methods=['POST'])
+def analizar_cfdi():
+    """Analiza un CFDI"""
+    
+    data = request.get_json()
+    xml_content = data.get('xml')
+    defense_file_id = data.get('defense_file_id')
+    usuario = data.get('usuario_email')
+    
+    try:
+        # ... lógica de análisis de CFDI ...
+        resultado = analizar_xml_cfdi(xml_content)
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # DOCUMENTAR EN DEFENSE FILE
+        # ═══════════════════════════════════════════════════════════════════
+        if defense_file_id:
+            facturar_doc.registrar_cfdi_analizado(
+                defense_file_id=defense_file_id,
+                uuid_cfdi=resultado['uuid'],
+                rfc_emisor=resultado['emisor']['rfc'],
+                rfc_receptor=resultado['receptor']['rfc'],
+                total=resultado['total'],
+                fecha_emision=resultado['fecha'],
+                tipo_comprobante=resultado['tipo_comprobante'],
+                resultado_analisis=resultado,
+                alertas=resultado.get('alertas', []),
+                usuario=usuario
+            )
+            
+            # Si el emisor es proveedor, verificar
+            if resultado['emisor']['rfc'] != resultado['receptor']['rfc']:
+                facturar_doc.registrar_verificacion_tercero(
+                    defense_file_id=defense_file_id,
+                    rfc=resultado['emisor']['rfc'],
+                    razon_social=resultado['emisor']['nombre'],
+                    tipo_tercero='proveedor',
+                    verificacion_69b=verificar_lista_69b(resultado['emisor']['rfc']),
+                    usuario=usuario
+                )
+        
+        return jsonify({
+            'success': True,
+            'resultado': resultado
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+INTEGRACIÓN CON BIBLIOTECAR.IA
+═══════════════════════════════════════════════════════════════════════════════
+
+Modificar: backend/routes/biblioteca_routes.py (agregar documentación)
+
+```python
+from services.defense_files.agent_helper import bibliotecar_doc
+
+# En la función _procesar_chat(), después de generar respuesta:
+
+def _procesar_chat():
+    # ... código existente ...
+    
+    # Generar respuesta con RAG
+    chunks = _buscar_chunks_relevantes(mensaje)
+    respuesta = generar_respuesta_con_claude(mensaje, chunks)
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # DOCUMENTAR EN DEFENSE FILE
+    # ═══════════════════════════════════════════════════════════════════
+    defense_file_id = data.get('defense_file_id')
+    
+    if defense_file_id:
+        bibliotecar_doc.registrar_conversacion(
+            defense_file_id=defense_file_id,
+            mensaje_usuario=mensaje,
+            respuesta_ia=respuesta,
+            usuario=data.get('usuario_email'),
+            fuentes_consultadas=[c['documento'] for c in chunks],
+            contexto={
+                'num_chunks_usados': len(chunks),
+                'chunks': [{'id': c['id'], 'preview': c['contenido'][:200]} for c in chunks]
+            }
+        )
+        
+        # Registrar fundamentos legales citados
+        articulos = extraer_articulos_citados(respuesta)
+        for art in articulos:
+            defense_file_service.registrar_fundamento(
+                defense_file_id=defense_file_id,
+                tipo='ley',
+                ordenamiento=art.get('ley', 'CFF'),
+                articulo=art.get('articulo'),
+                texto_relevante=art.get('texto'),
+                contexto_uso=f"Citado en respuesta a: {mensaje[:100]}"
+            )
+    
+    return jsonify({'success': True, 'response': respuesta})
+
+
+# En _procesar_archivo(), después de procesar documento:
+
+def _procesar_archivo():
+    # ... código existente ...
+    
+    resultado = doc_processor.procesar_documento(file, filename)
+    
+    # ═══════════════════════════════════════════════════════════════════
+    # DOCUMENTAR EN DEFENSE FILE
+    # ═══════════════════════════════════════════════════════════════════
+    defense_file_id = request.form.get('defense_file_id')
+    
+    if defense_file_id and resultado.exito:
+        bibliotecar_doc.registrar_documento_procesado(
+            defense_file_id=int(defense_file_id),
+            tipo_documento=resultado.categoria,
+            nombre=resultado.nombre,
+            metadata={
+                'documento_id': resultado.documento_id,
+                'caracteres': resultado.caracteres,
+                'chunks': resultado.chunks,
+                'tiempo_procesamiento': resultado.tiempo_segundos
+            },
+            usuario=request.form.get('usuario_email')
+        )
+    
+    return jsonify({...})
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+HELPER FUNCTIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+```python
+# backend/utils/extractors.py
+
+import re
+from typing import List, Dict
+
+def extraer_uuids_del_mensaje(texto: str) -> List[str]:
+    """Extrae UUIDs de CFDI de un texto"""
+    patron = r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}'
+    return list(set(re.findall(patron, texto.lower())))
+
+
+def extraer_articulos(texto: str) -> List[Dict]:
+    """Extrae referencias a artículos de leyes"""
+    articulos = []
+    
+    # Patrón: "artículo X de la LISR" o "art. X CFF"
+    patrones = [
+        r'[Aa]rt[íi]culo\s+(\d+[\w\-]*)\s+(?:de\s+la\s+)?(\w+)',
+        r'[Aa]rt\.\s*(\d+[\w\-]*)\s+(\w+)',
+    ]
+    
+    for patron in patrones:
+        matches = re.findall(patron, texto)
+        for match in matches:
+            articulos.append({
+                'articulo': match[0],
+                'ley': match[1].upper()
+            })
+    
+    return articulos
+
+
+def extraer_rfcs(texto: str) -> List[str]:
+    """Extrae RFCs de un texto"""
+    patron = r'[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}'
+    return list(set(re.findall(patron, texto.upper())))
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST PARTE 3
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Crear backend/services/defense_files/decorators.py
+□ Crear backend/services/defense_files/agent_helper.py
+□ Crear backend/utils/extractors.py
+□ Modificar routes/facturar_routes.py para documentar
+□ Modificar routes/biblioteca_routes.py para documentar
+□ Probar que las conversaciones se registran en el Defense File
+
+SIGUIENTE: Parte 4 - API y Frontend

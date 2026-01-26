@@ -1,0 +1,275 @@
+🚀 PROMPT 16: Dashboard de Métricas de Costos LLM
+TAREA: Agregar endpoint y componente visual para mostrar métricas de optimización de costos.
+
+PARTE 1: Backend - Endpoint de Métricas
+
+Crea un nuevo archivo backend/routes/metrics.py:
+
+```python
+"""
+Métricas de optimización de costos LLM
+"""
+from fastapi import APIRouter, Depends
+from typing import Dict, Any
+import logging
+import os
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/api/metrics", tags=["metrics"])
+
+# Contador global de uso (en producción usar Redis o base de datos)
+_usage_stats = {
+    "query_router": {
+        "total_queries": 0,
+        "simple_tier": {"count": 0, "total_cost": 0.0},
+        "medium_tier": {"count": 0, "total_cost": 0.0},
+        "complex_tier": {"count": 0, "total_cost": 0.0}
+    },
+    "embedding_cache": {
+        "total_requests": 0,
+        "cache_hits": 0,
+        "cache_misses": 0
+    },
+    "rag_parallel": {
+        "total_preloads": 0,
+        "avg_time_saved_seconds": 6.0  # Promedio basado en implementación
+    }
+}
+
+@router.get("/llm-costs")
+async def get_llm_costs() -> Dict[str, Any]:
+    """
+    Retorna métricas de costos y optimizaciones LLM
+    """
+    router_stats = _usage_stats["query_router"]
+    cache_stats = _usage_stats["embedding_cache"]
+    
+    # Calcular totales
+    total_queries = router_stats["total_queries"]
+    total_cost = sum(
+        tier["total_cost"] 
+        for tier in [router_stats["simple_tier"], router_stats["medium_tier"], router_stats["complex_tier"]]
+    )
+    
+    # Estimar costo sin optimización (todo en gpt-4o)
+    cost_without_optimization = total_queries * 0.035  # Promedio gpt-4o
+    savings = max(0, cost_without_optimization - total_cost)
+    savings_percent = (savings / cost_without_optimization * 100) if cost_without_optimization > 0 else 0
+    
+    # Cache hit rate
+    cache_requests = cache_stats["total_requests"]
+    cache_hit_rate = (cache_stats["cache_hits"] / cache_requests * 100) if cache_requests > 0 else 0
+    
+    return {
+        "query_router": {
+            "total_queries": total_queries,
+            "cost_breakdown": {
+                "simple": {
+                    "queries": router_stats["simple_tier"]["count"],
+                    "cost": round(router_stats["simple_tier"]["total_cost"], 4),
+                    "model": "gpt-4o-mini"
+                },
+                "medium": {
+                    "queries": router_stats["medium_tier"]["count"],
+                    "cost": round(router_stats["medium_tier"]["total_cost"], 4),
+                    "model": "gpt-4o"
+                },
+                "complex": {
+                    "queries": router_stats["complex_tier"]["count"],
+                    "cost": round(router_stats["complex_tier"]["total_cost"], 4),
+                    "model": "gpt-4o"
+                }
+            },
+            "total_cost": round(total_cost, 4),
+            "estimated_savings": round(savings, 4),
+            "savings_percent": round(savings_percent, 1)
+        },
+        "embedding_cache": {
+            "total_requests": cache_requests,
+            "cache_hits": cache_stats["cache_hits"],
+            "cache_misses": cache_stats["cache_misses"],
+            "hit_rate_percent": round(cache_hit_rate, 1),
+            "estimated_cost_saved": round(cache_stats["cache_hits"] * 0.0001, 4)  # $0.0001 por embedding
+        },
+        "rag_parallel": {
+            "total_preloads": _usage_stats["rag_parallel"]["total_preloads"],
+            "avg_time_saved_seconds": _usage_stats["rag_parallel"]["avg_time_saved_seconds"]
+        },
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@router.post("/track-usage")
+async def track_usage(event: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Endpoint para que los servicios reporten uso
+    """
+    event_type = event.get("type")
+    
+    if event_type == "query_router":
+        tier = event.get("tier", "medium")
+        cost = event.get("cost", 0.0)
+        _usage_stats["query_router"]["total_queries"] += 1
+        _usage_stats["query_router"][f"{tier}_tier"]["count"] += 1
+        _usage_stats["query_router"][f"{tier}_tier"]["total_cost"] += cost
+        
+    elif event_type == "embedding_cache":
+        _usage_stats["embedding_cache"]["total_requests"] += 1
+        if event.get("hit"):
+            _usage_stats["embedding_cache"]["cache_hits"] += 1
+        else:
+            _usage_stats["embedding_cache"]["cache_misses"] += 1
+            
+    elif event_type == "rag_parallel":
+        _usage_stats["rag_parallel"]["total_preloads"] += 1
+    
+    return {"status": "tracked"}
+
+def get_usage_stats():
+    """Función helper para acceder a stats desde otros módulos"""
+    return _usage_stats
+
+PARTE 2: Registrar el router en el backend
+
+En backend/server.py (o main.py), BUSCA donde se registran los routers:
+
+AGREGA:
+
+from routes import metrics
+
+app.include_router(metrics.router)
+
+PARTE 3: Frontend - Componente de Métricas
+
+Crea frontend/src/components/MetricsDashboard.jsx:
+
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+const MetricsDashboard = () => {
+  const [metrics, setMetrics] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const response = await axios.get('/api/metrics/llm-costs');
+        setMetrics(response.data);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching metrics:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchMetrics();
+    const interval = setInterval(fetchMetrics, 30000); // Refresh cada 30s
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) return <div className="p-4">Cargando métricas...</div>;
+  if (!metrics) return <div className="p-4">No hay datos disponibles</div>;
+
+  const { query_router, embedding_cache, rag_parallel } = metrics;
+
+  return (
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <h1 className="text-3xl font-bold text-[#1A1A1A] mb-8">
+        Métricas de Optimización LLM
+      </h1>
+
+      {/* Query Router Stats */}
+      <div className="grid md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-lg shadow-lg border-l-4 border-[#7FEDD8]">
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Total Queries</h3>
+          <p className="text-4xl font-bold text-[#1A1A1A]">{query_router.total_queries}</p>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-lg border-l-4 border-green-500">
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Ahorro Estimado</h3>
+          <p className="text-4xl font-bold text-green-600">${query_router.estimated_savings}</p>
+          <p className="text-sm text-gray-500 mt-1">{query_router.savings_percent}% de ahorro</p>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-lg border-l-4 border-blue-500">
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Costo Total</h3>
+          <p className="text-4xl font-bold text-blue-600">${query_router.total_cost}</p>
+        </div>
+      </div>
+
+      {/* Cost Breakdown */}
+      <div className="bg-white p-6 rounded-lg shadow-lg mb-8">
+        <h2 className="text-2xl font-bold text-[#1A1A1A] mb-4">Desglose por Tier</h2>
+        <div className="space-y-4">
+          {Object.entries(query_router.cost_breakdown).map(([tier, data]) => (
+            <div key={tier} className="flex justify-between items-center p-4 bg-gray-50 rounded">
+              <div>
+                <span className="font-semibold capitalize">{tier}</span>
+                <span className="text-sm text-gray-500 ml-2">({data.model})</span>
+              </div>
+              <div className="text-right">
+                <p className="font-bold">{data.queries} queries</p>
+                <p className="text-sm text-gray-600">${data.cost}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Embedding Cache */}
+      <div className="bg-white p-6 rounded-lg shadow-lg mb-8">
+        <h2 className="text-2xl font-bold text-[#1A1A1A] mb-4">Caché de Embeddings</h2>
+        <div className="grid md:grid-cols-3 gap-4">
+          <div>
+            <p className="text-sm text-gray-600">Hit Rate</p>
+            <p className="text-3xl font-bold text-[#7FEDD8]">{embedding_cache.hit_rate_percent}%</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Cache Hits</p>
+            <p className="text-3xl font-bold text-green-600">{embedding_cache.cache_hits}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Ahorro Estimado</p>
+            <p className="text-3xl font-bold text-blue-600">${embedding_cache.estimated_cost_saved}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* RAG Parallel */}
+      <div className="bg-white p-6 rounded-lg shadow-lg">
+        <h2 className="text-2xl font-bold text-[#1A1A1A] mb-4">Pre-carga RAG Paralela</h2>
+        <p className="text-gray-600">
+          Tiempo promedio ahorrado: <span className="font-bold text-[#7FEDD8]">{rag_parallel.avg_time_saved_seconds}s</span> por proyecto
+        </p>
+        <p className="text-sm text-gray-500 mt-2">Total preloads: {rag_parallel.total_preloads}</p>
+      </div>
+    </div>
+  );
+};
+
+export default MetricsDashboard;
+
+PARTE 4: Agregar ruta en el frontend
+
+En frontend/src/App.js, AGREGA la ruta de métricas:
+
+import MetricsDashboard from './components/MetricsDashboard';
+
+// Dentro de <Routes>:
+<Route path="/metrics" element={<ProtectedRoute><MetricsDashboard /></ProtectedRoute>} />
+
+PARTE 5: Agregar link en el dashboard
+
+En el navbar del dashboard, agrega un botón para ver métricas:
+
+<Link to="/metrics" className="px-4 py-2 bg-[#7FEDD8] text-[#1A1A1A] rounded-lg hover:bg-[#5DD5C0]">
+  📊 Métricas LLM
+</Link>
+
+Muéstrame:
+
+¿Se creó el archivo backend/routes/metrics.py?
+¿Se registró el router en server.py?
+¿Se creó el componente MetricsDashboard.jsx?
+¿Se agregó la ruta en App.js?
+¿Puedes acceder a /metrics en el navegador?

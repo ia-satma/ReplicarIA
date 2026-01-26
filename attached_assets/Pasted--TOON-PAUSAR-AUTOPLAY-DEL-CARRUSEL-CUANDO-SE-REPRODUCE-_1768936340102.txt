@@ -1,0 +1,364 @@
+```
+TOON: PAUSAR AUTOPLAY DEL CARRUSEL CUANDO SE REPRODUCE VIDEO
+
+EL PROBLEMA:
+Usuario reproduce video → Carrusel cambia automáticamente → Video se interrumpe
+
+SOLUCIÓN:
+Pausar el autoplay del carrusel cuando un video está reproduciéndose.
+
+================================================================================
+BUSCAR EL COMPONENTE DEL CARRUSEL DE VIDEOS EN LA LANDING
+================================================================================
+
+Puede estar en:
+- client/components/Landing/VideoCarousel.tsx
+- client/components/Landing/HeroSection.tsx
+- client/pages/Landing.tsx
+- client/components/Carousel.tsx
+
+BUSCAR código similar a:
+- Swiper
+- autoplay
+- setInterval
+- carousel
+- slider
+
+================================================================================
+SOLUCIÓN SI USA SWIPER
+================================================================================
+
+```tsx
+import { useState, useRef } from 'react';
+import { Swiper, SwiperSlide } from 'swiper/react';
+import { Autoplay, Navigation, Pagination } from 'swiper/modules';
+import type { Swiper as SwiperType } from 'swiper';
+
+export function VideoCarousel() {
+  const swiperRef = useRef<SwiperType | null>(null);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+
+  // Pausar autoplay cuando video se reproduce
+  const handleVideoPlay = () => {
+    setIsVideoPlaying(true);
+    if (swiperRef.current?.autoplay) {
+      swiperRef.current.autoplay.stop();
+    }
+  };
+
+  // Reanudar autoplay cuando video se pausa o termina
+  const handleVideoPause = () => {
+    setIsVideoPlaying(false);
+    if (swiperRef.current?.autoplay) {
+      swiperRef.current.autoplay.start();
+    }
+  };
+
+  const handleVideoEnded = () => {
+    setIsVideoPlaying(false);
+    if (swiperRef.current?.autoplay) {
+      swiperRef.current.autoplay.start();
+    }
+  };
+
+  return (
+    <Swiper
+      onSwiper={(swiper) => {
+        swiperRef.current = swiper;
+      }}
+      modules={[Autoplay, Navigation, Pagination]}
+      autoplay={{
+        delay: 5000,
+        disableOnInteraction: false,
+        pauseOnMouseEnter: true,
+      }}
+      // ... otras props
+    >
+      {videos.map((video, index) => (
+        <SwiperSlide key={index}>
+          <video
+            src={video.src}
+            controls
+            onPlay={handleVideoPlay}
+            onPause={handleVideoPause}
+            onEnded={handleVideoEnded}
+            className="w-full h-full object-cover"
+          />
+        </SwiperSlide>
+      ))}
+    </Swiper>
+  );
+}
+```
+
+================================================================================
+SOLUCIÓN SI USA CARRUSEL PERSONALIZADO CON setInterval
+================================================================================
+
+```tsx
+import { useState, useEffect, useRef } from 'react';
+
+export function VideoCarousel({ videos }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Función para iniciar autoplay
+  const startAutoplay = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    
+    intervalRef.current = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % videos.length);
+    }, 5000);
+  };
+
+  // Función para pausar autoplay
+  const stopAutoplay = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
+  // Iniciar autoplay al montar (solo si no hay video reproduciéndose)
+  useEffect(() => {
+    if (!isVideoPlaying) {
+      startAutoplay();
+    }
+    
+    return () => stopAutoplay();
+  }, [isVideoPlaying]);
+
+  // Handlers para video
+  const handleVideoPlay = () => {
+    setIsVideoPlaying(true);
+    stopAutoplay(); // ← PAUSAR cuando reproduce
+  };
+
+  const handleVideoPause = () => {
+    setIsVideoPlaying(false);
+    startAutoplay(); // ← REANUDAR cuando pausa
+  };
+
+  const handleVideoEnded = () => {
+    setIsVideoPlaying(false);
+    startAutoplay(); // ← REANUDAR cuando termina
+  };
+
+  return (
+    <div className="relative w-full overflow-hidden">
+      {/* Slides */}
+      <div 
+        className="flex transition-transform duration-500"
+        style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+      >
+        {videos.map((video, index) => (
+          <div key={index} className="w-full flex-shrink-0">
+            <video
+              src={video.src}
+              poster={video.poster}
+              controls
+              onPlay={handleVideoPlay}
+              onPause={handleVideoPause}
+              onEnded={handleVideoEnded}
+              className="w-full h-auto"
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Indicadores */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+        {videos.map((_, index) => (
+          <button
+            key={index}
+            onClick={() => {
+              setCurrentIndex(index);
+              if (!isVideoPlaying) startAutoplay();
+            }}
+            className={`w-3 h-3 rounded-full transition ${
+              index === currentIndex ? 'bg-white' : 'bg-white/50'
+            }`}
+          />
+        ))}
+      </div>
+
+      {/* Indicador de video reproduciéndose */}
+      {isVideoPlaying && (
+        <div className="absolute top-4 right-4 bg-red-500 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+          Reproduciendo
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+================================================================================
+SOLUCIÓN SI USA EMBLA CAROUSEL
+================================================================================
+
+```tsx
+import useEmblaCarousel from 'embla-carousel-react';
+import Autoplay from 'embla-carousel-autoplay';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+export function VideoCarousel({ videos }) {
+  const autoplayRef = useRef(
+    Autoplay({ delay: 5000, stopOnInteraction: false })
+  );
+
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true }, [autoplayRef.current]);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+
+  const handleVideoPlay = useCallback(() => {
+    setIsVideoPlaying(true);
+    autoplayRef.current.stop(); // ← PAUSAR
+  }, []);
+
+  const handleVideoPause = useCallback(() => {
+    setIsVideoPlaying(false);
+    autoplayRef.current.play(); // ← REANUDAR
+  }, []);
+
+  const handleVideoEnded = useCallback(() => {
+    setIsVideoPlaying(false);
+    autoplayRef.current.play(); // ← REANUDAR
+  }, []);
+
+  return (
+    <div className="overflow-hidden" ref={emblaRef}>
+      <div className="flex">
+        {videos.map((video, index) => (
+          <div key={index} className="flex-[0_0_100%] min-w-0">
+            <video
+              src={video.src}
+              controls
+              onPlay={handleVideoPlay}
+              onPause={handleVideoPause}
+              onEnded={handleVideoEnded}
+              className="w-full"
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+================================================================================
+SI USA IFRAME DE YOUTUBE/VIMEO
+================================================================================
+
+```tsx
+import { useState, useRef, useEffect } from 'react';
+
+export function VideoCarousel({ videos }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Control autoplay
+  useEffect(() => {
+    if (!isVideoPlaying) {
+      intervalRef.current = setInterval(() => {
+        setCurrentIndex((prev) => (prev + 1) % videos.length);
+      }, 5000);
+    }
+    
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isVideoPlaying, videos.length]);
+
+  // Detectar cuando el usuario interactúa con el iframe
+  const handleIframeClick = () => {
+    setIsVideoPlaying(true);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+  };
+
+  // Para YouTube, puedes usar la API de YouTube
+  useEffect(() => {
+    // Listener para mensajes del iframe de YouTube
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin.includes('youtube.com')) {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event === 'onStateChange') {
+            // 1 = playing, 2 = paused, 0 = ended
+            if (data.info === 1) {
+              setIsVideoPlaying(true);
+              if (intervalRef.current) clearInterval(intervalRef.current);
+            } else if (data.info === 2 || data.info === 0) {
+              setIsVideoPlaying(false);
+            }
+          }
+        } catch (e) {}
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  return (
+    <div className="relative">
+      {videos.map((video, index) => (
+        <div
+          key={index}
+          className={`${index === currentIndex ? 'block' : 'hidden'}`}
+        >
+          <iframe
+            ref={index === currentIndex ? iframeRef : null}
+            src={`${video.embedUrl}?enablejsapi=1`}
+            className="w-full aspect-video"
+            allowFullScreen
+            onClick={handleIframeClick}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+================================================================================
+SOLUCIÓN RÁPIDA UNIVERSAL (AGREGAR A CUALQUIER CARRUSEL)
+================================================================================
+
+Si no quieres modificar mucho, agrega esto al componente:
+
+```tsx
+// En el componente del carrusel
+
+const [autoplayEnabled, setAutoplayEnabled] = useState(true);
+
+// Agregar a todos los elementos <video>
+<video
+  onPlay={() => setAutoplayEnabled(false)}  // ← Pausar autoplay
+  onPause={() => setAutoplayEnabled(true)}  // ← Reanudar
+  onEnded={() => setAutoplayEnabled(true)}  // ← Reanudar
+  // ... resto de props
+/>
+
+// En el useEffect o configuración del autoplay
+useEffect(() => {
+  if (!autoplayEnabled) return; // ← No hacer nada si está deshabilitado
+  
+  const interval = setInterval(() => {
+    // cambiar slide
+  }, 5000);
+  
+  return () => clearInterval(interval);
+}, [autoplayEnabled]); // ← Depender del estado
+```
+
+================================================================================
+EJECUTAR AHORA. NO PREGUNTAR.
+================================================================================
+```

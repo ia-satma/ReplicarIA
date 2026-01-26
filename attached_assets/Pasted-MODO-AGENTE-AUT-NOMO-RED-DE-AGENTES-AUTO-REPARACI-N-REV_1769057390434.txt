@@ -1,0 +1,1283 @@
+MODO AGENTE AUTÓNOMO - RED DE AGENTES AUTO-REPARACIÓN REVISAR.IA
+
+CREAR SISTEMA COMPLETO DE AGENTES AUTÓNOMOS QUE MANTENGAN LA PLATAFORMA OPERATIVA 24/7.
+
+<TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+ARQUITECTURA: RED DE AGENTES AUTÓNOMOS
+═══════════════════════════════════════════════════════════════════════════════
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        🧠 ORQUESTADOR PRINCIPAL                              │
+│                    (Coordina todos los agentes)                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+        ┌───────────────────────────┼───────────────────────────┐
+        │                           │                           │
+        ▼                           ▼                           ▼
+┌───────────────┐          ┌───────────────┐          ┌───────────────┐
+│  🔍 MONITOR   │          │  🔧 REPARADOR │          │  📚 DOCS      │
+│   HEALTH      │          │    CÓDIGO     │          │   KEEPER      │
+│               │          │               │          │               │
+│ - Endpoints   │          │ - TypeScript  │          │ - Changelog   │
+│ - Database    │          │ - React/TSX   │          │ - API Docs    │
+│ - Services    │          │ - SQL         │          │ - README      │
+└───────────────┘          │ - Python      │          │ - Comments    │
+        │                  └───────────────┘          └───────────────┘
+        │                           │                           │
+        ▼                           ▼                           ▼
+┌───────────────┐          ┌───────────────┐          ┌───────────────┐
+│  SUB-AGENTES  │          │  SUB-AGENTES  │          │  SUB-AGENTES  │
+│               │          │               │          │               │
+│ • API Checker │          │ • TS Fixer    │          │ • Schema Doc  │
+│ • DB Checker  │          │ • React Fixer │          │ • API Doc     │
+│ • Auth Checker│          │ • SQL Fixer   │          │ • Flow Doc    │
+│ • UI Checker  │          │ • Dep Fixer   │          │ • Error Doc   │
+└───────────────┘          └───────────────┘          └───────────────┘
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 1: CREAR ESTRUCTURA DE AGENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear directorio: server/agents/
+
+```bash
+mkdir -p server/agents/{health,repair,docs}
+mkdir -p server/agents/repair/{typescript,react,sql,dependencies}
+mkdir -p server/agents/health/{api,database,auth,ui}
+mkdir -p server/agents/docs/{changelog,api,readme}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 2: AGENTE ORQUESTADOR PRINCIPAL
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: server/agents/orchestrator.ts
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+import { db } from '../db';
+import { HealthMonitor } from './health/monitor';
+import { CodeRepairer } from './repair/repairer';
+import { DocsKeeper } from './docs/keeper';
+
+const anthropic = new Anthropic();
+
+interface AgentReport {
+  agentId: string;
+  timestamp: Date;
+  status: 'ok' | 'warning' | 'error' | 'fixed';
+  issues: Issue[];
+  fixes: Fix[];
+}
+
+interface Issue {
+  id: string;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  type: string;
+  file?: string;
+  line?: number;
+  description: string;
+  suggestedFix?: string;
+}
+
+interface Fix {
+  issueId: string;
+  file: string;
+  before: string;
+  after: string;
+  applied: boolean;
+  timestamp: Date;
+}
+
+export class AgentOrchestrator {
+  private healthMonitor: HealthMonitor;
+  private codeRepairer: CodeRepairer;
+  private docsKeeper: DocsKeeper;
+  private isRunning: boolean = false;
+  private intervalId: NodeJS.Timeout | null = null;
+
+  constructor() {
+    this.healthMonitor = new HealthMonitor();
+    this.codeRepairer = new CodeRepairer();
+    this.docsKeeper = new DocsKeeper();
+  }
+
+  // Iniciar ciclo de monitoreo continuo
+  async start(intervalMinutes: number = 5) {
+    if (this.isRunning) {
+      console.log('⚠️ Orquestador ya está corriendo');
+      return;
+    }
+
+    this.isRunning = true;
+    console.log('🚀 Iniciando Orquestador de Agentes Autónomos');
+    console.log(`📊 Ciclo de monitoreo: cada ${intervalMinutes} minutos`);
+
+    // Ejecutar inmediatamente
+    await this.runCycle();
+
+    // Configurar intervalo
+    this.intervalId = setInterval(
+      () => this.runCycle(),
+      intervalMinutes * 60 * 1000
+    );
+  }
+
+  // Detener monitoreo
+  stop() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    this.isRunning = false;
+    console.log('🛑 Orquestador detenido');
+  }
+
+  // Ejecutar un ciclo completo
+  async runCycle(): Promise<AgentReport[]> {
+    const cycleStart = new Date();
+    console.log(`\n${'═'.repeat(60)}`);
+    console.log(`🔄 CICLO DE MANTENIMIENTO - ${cycleStart.toISOString()}`);
+    console.log(`${'═'.repeat(60)}\n`);
+
+    const reports: AgentReport[] = [];
+
+    try {
+      // 1. FASE DE MONITOREO
+      console.log('📡 FASE 1: Monitoreo de Salud...');
+      const healthReport = await this.healthMonitor.checkAll();
+      reports.push(healthReport);
+      
+      // 2. FASE DE REPARACIÓN (si hay issues)
+      if (healthReport.issues.length > 0) {
+        console.log(`\n🔧 FASE 2: Reparación (${healthReport.issues.length} issues)...`);
+        const repairReport = await this.codeRepairer.repairIssues(healthReport.issues);
+        reports.push(repairReport);
+        
+        // 3. FASE DE DOCUMENTACIÓN (si hubo fixes)
+        if (repairReport.fixes.length > 0) {
+          console.log(`\n📚 FASE 3: Documentación (${repairReport.fixes.length} fixes)...`);
+          const docsReport = await this.docsKeeper.documentChanges(repairReport.fixes);
+          reports.push(docsReport);
+        }
+      } else {
+        console.log('✅ Sistema saludable, no se requieren reparaciones');
+      }
+
+      // Guardar reporte en BD
+      await this.saveReport(reports);
+
+      const cycleEnd = new Date();
+      const duration = (cycleEnd.getTime() - cycleStart.getTime()) / 1000;
+      console.log(`\n✅ Ciclo completado en ${duration.toFixed(2)}s`);
+
+    } catch (error) {
+      console.error('❌ Error en ciclo de mantenimiento:', error);
+      
+      // Intentar auto-reparación del orquestador
+      await this.selfHeal(error);
+    }
+
+    return reports;
+  }
+
+  // Auto-reparación del propio orquestador
+  private async selfHeal(error: any) {
+    console.log('🔄 Intentando auto-reparación del orquestador...');
+    
+    try {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        messages: [{
+          role: 'user',
+          content: `El orquestador de agentes falló con este error:
+${error.message}
+${error.stack}
+
+Analiza el error y sugiere una solución en formato JSON:
+{
+  "diagnosis": "descripción del problema",
+  "solution": "código o pasos para arreglar",
+  "preventiveMeasures": ["medidas para evitar que vuelva a pasar"]
+}`
+        }]
+      });
+
+      const content = response.content[0];
+      if (content.type === 'text') {
+        console.log('💡 Diagnóstico de auto-reparación:', content.text);
+      }
+    } catch (healError) {
+      console.error('❌ Fallo en auto-reparación:', healError);
+    }
+  }
+
+  // Guardar reporte en base de datos
+  private async saveReport(reports: AgentReport[]) {
+    try {
+      await db.query(`
+        INSERT INTO agent_reports (timestamp, reports, status)
+        VALUES ($1, $2, $3)
+      `, [
+        new Date(),
+        JSON.stringify(reports),
+        reports.some(r => r.status === 'error') ? 'error' : 'ok'
+      ]);
+    } catch (error) {
+      console.error('Error guardando reporte:', error);
+    }
+  }
+
+  // Obtener estado actual
+  getStatus() {
+    return {
+      isRunning: this.isRunning,
+      healthMonitor: this.healthMonitor.getStatus(),
+      codeRepairer: this.codeRepairer.getStatus(),
+      docsKeeper: this.docsKeeper.getStatus()
+    };
+  }
+}
+
+// Singleton
+export const orchestrator = new AgentOrchestrator();
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 3: AGENTE MONITOR DE SALUD
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: server/agents/health/monitor.ts
+
+```typescript
+import { db } from '../../db';
+import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic();
+
+interface HealthCheck {
+  name: string;
+  status: 'ok' | 'warning' | 'error';
+  message: string;
+  details?: any;
+}
+
+export class HealthMonitor {
+  private checks: Map<string, () => Promise<HealthCheck>> = new Map();
+
+  constructor() {
+    this.registerChecks();
+  }
+
+  private registerChecks() {
+    // Check de base de datos
+    this.checks.set('database', async () => {
+      try {
+        const start = Date.now();
+        await db.query('SELECT 1');
+        const latency = Date.now() - start;
+        
+        return {
+          name: 'database',
+          status: latency < 100 ? 'ok' : latency < 500 ? 'warning' : 'error',
+          message: `Latencia: ${latency}ms`,
+          details: { latency }
+        };
+      } catch (error: any) {
+        return {
+          name: 'database',
+          status: 'error',
+          message: error.message,
+          details: { error: error.stack }
+        };
+      }
+    });
+
+    // Check de tablas críticas
+    this.checks.set('tables', async () => {
+      const requiredTables = ['usuarios', 'clientes', 'empresas', 'proyectos'];
+      const missing: string[] = [];
+
+      for (const table of requiredTables) {
+        try {
+          await db.query(`SELECT 1 FROM ${table} LIMIT 1`);
+        } catch {
+          missing.push(table);
+        }
+      }
+
+      return {
+        name: 'tables',
+        status: missing.length === 0 ? 'ok' : 'error',
+        message: missing.length === 0 
+          ? 'Todas las tablas existen' 
+          : `Tablas faltantes: ${missing.join(', ')}`,
+        details: { missing, required: requiredTables }
+      };
+    });
+
+    // Check de endpoints críticos
+    this.checks.set('endpoints', async () => {
+      const endpoints = [
+        { path: '/api/auth/otp/request-code', method: 'POST' },
+        { path: '/api/clientes', method: 'GET' },
+        { path: '/api/biblioteca/stats', method: 'GET' }
+      ];
+
+      const results: any[] = [];
+      
+      for (const ep of endpoints) {
+        try {
+          const response = await fetch(`http://localhost:5000${ep.path}`, {
+            method: ep.method === 'GET' ? 'GET' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: ep.method === 'POST' ? JSON.stringify({}) : undefined
+          });
+          
+          results.push({
+            ...ep,
+            status: response.status,
+            ok: response.status < 500
+          });
+        } catch (error: any) {
+          results.push({
+            ...ep,
+            status: 0,
+            ok: false,
+            error: error.message
+          });
+        }
+      }
+
+      const failures = results.filter(r => !r.ok);
+      
+      return {
+        name: 'endpoints',
+        status: failures.length === 0 ? 'ok' : failures.length < 2 ? 'warning' : 'error',
+        message: failures.length === 0 
+          ? 'Todos los endpoints responden'
+          : `${failures.length} endpoints con problemas`,
+        details: { results, failures }
+      };
+    });
+
+    // Check de variables de entorno
+    this.checks.set('environment', async () => {
+      const required = [
+        'DATABASE_URL',
+        'ANTHROPIC_API_KEY'
+      ];
+      const optional = [
+        'ELEVENLABS_API_KEY',
+        'RESEND_API_KEY',
+        'JWT_SECRET'
+      ];
+
+      const missingRequired = required.filter(v => !process.env[v]);
+      const missingOptional = optional.filter(v => !process.env[v]);
+
+      return {
+        name: 'environment',
+        status: missingRequired.length === 0 ? 'ok' : 'error',
+        message: missingRequired.length === 0
+          ? 'Variables requeridas configuradas'
+          : `Faltan: ${missingRequired.join(', ')}`,
+        details: { missingRequired, missingOptional }
+      };
+    });
+
+    // Check de errores en código (análisis estático)
+    this.checks.set('code_analysis', async () => {
+      try {
+        const { execSync } = require('child_process');
+        
+        // TypeScript check
+        try {
+          execSync('npx tsc --noEmit 2>&1', { encoding: 'utf8', timeout: 30000 });
+        } catch (tsError: any) {
+          const errors = tsError.stdout?.split('\n').filter((l: string) => l.includes('error')) || [];
+          if (errors.length > 0) {
+            return {
+              name: 'code_analysis',
+              status: 'error',
+              message: `${errors.length} errores de TypeScript`,
+              details: { errors: errors.slice(0, 10) }
+            };
+          }
+        }
+
+        return {
+          name: 'code_analysis',
+          status: 'ok',
+          message: 'Sin errores de compilación'
+        };
+      } catch (error: any) {
+        return {
+          name: 'code_analysis',
+          status: 'warning',
+          message: 'No se pudo ejecutar análisis',
+          details: { error: error.message }
+        };
+      }
+    });
+  }
+
+  async checkAll() {
+    console.log('  🔍 Ejecutando checks de salud...');
+    
+    const results: HealthCheck[] = [];
+    const issues: any[] = [];
+
+    for (const [name, check] of this.checks) {
+      try {
+        const result = await check();
+        results.push(result);
+        
+        const icon = result.status === 'ok' ? '✅' : result.status === 'warning' ? '⚠️' : '❌';
+        console.log(`    ${icon} ${name}: ${result.message}`);
+
+        if (result.status !== 'ok') {
+          issues.push({
+            id: `health_${name}_${Date.now()}`,
+            severity: result.status === 'error' ? 'critical' : 'medium',
+            type: `health_${name}`,
+            description: result.message,
+            details: result.details
+          });
+        }
+      } catch (error: any) {
+        console.log(`    ❌ ${name}: Error ejecutando check`);
+        issues.push({
+          id: `health_${name}_${Date.now()}`,
+          severity: 'critical',
+          type: 'health_check_failed',
+          description: `Check ${name} falló: ${error.message}`
+        });
+      }
+    }
+
+    return {
+      agentId: 'health_monitor',
+      timestamp: new Date(),
+      status: issues.some(i => i.severity === 'critical') ? 'error' : 
+              issues.length > 0 ? 'warning' : 'ok',
+      issues,
+      fixes: [],
+      results
+    };
+  }
+
+  getStatus() {
+    return {
+      checksRegistered: this.checks.size,
+      checkNames: Array.from(this.checks.keys())
+    };
+  }
+}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 4: AGENTE REPARADOR DE CÓDIGO
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: server/agents/repair/repairer.ts
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+import * as fs from 'fs';
+import * as path from 'path';
+
+const anthropic = new Anthropic();
+
+interface Issue {
+  id: string;
+  severity: string;
+  type: string;
+  file?: string;
+  line?: number;
+  description: string;
+  details?: any;
+}
+
+interface Fix {
+  issueId: string;
+  file: string;
+  before: string;
+  after: string;
+  applied: boolean;
+  timestamp: Date;
+}
+
+export class CodeRepairer {
+  private fixHistory: Fix[] = [];
+  private maxAutoFixes = 5; // Máximo fixes automáticos por ciclo
+
+  async repairIssues(issues: Issue[]) {
+    console.log(`  🔧 Analizando ${issues.length} issues...`);
+    
+    const fixes: Fix[] = [];
+    let fixCount = 0;
+
+    // Ordenar por severidad
+    const sorted = issues.sort((a, b) => {
+      const order = { critical: 0, high: 1, medium: 2, low: 3 };
+      return (order[a.severity as keyof typeof order] || 3) - 
+             (order[b.severity as keyof typeof order] || 3);
+    });
+
+    for (const issue of sorted) {
+      if (fixCount >= this.maxAutoFixes) {
+        console.log(`    ⚠️ Límite de fixes automáticos alcanzado (${this.maxAutoFixes})`);
+        break;
+      }
+
+      try {
+        const fix = await this.analyzeAndFix(issue);
+        if (fix) {
+          fixes.push(fix);
+          if (fix.applied) fixCount++;
+        }
+      } catch (error: any) {
+        console.log(`    ❌ Error reparando issue ${issue.id}: ${error.message}`);
+      }
+    }
+
+    this.fixHistory.push(...fixes);
+
+    return {
+      agentId: 'code_repairer',
+      timestamp: new Date(),
+      status: fixes.some(f => !f.applied) ? 'warning' : 'fixed',
+      issues: [],
+      fixes
+    };
+  }
+
+  private async analyzeAndFix(issue: Issue): Promise<Fix | null> {
+    console.log(`    🔍 Analizando: ${issue.type} - ${issue.description.substring(0, 50)}...`);
+
+    // Determinar el tipo de fix necesario
+    if (issue.type === 'health_tables') {
+      return this.fixMissingTables(issue);
+    }
+
+    if (issue.type === 'health_endpoints') {
+      return this.fixEndpoint(issue);
+    }
+
+    if (issue.type === 'health_code_analysis') {
+      return this.fixTypeScriptError(issue);
+    }
+
+    // Para otros tipos, usar Claude para análisis
+    return this.aiAssistedFix(issue);
+  }
+
+  private async fixMissingTables(issue: Issue): Promise<Fix | null> {
+    const missing = issue.details?.missing || [];
+    
+    if (missing.length === 0) return null;
+
+    // Definiciones de tablas
+    const tableDefinitions: Record<string, string> = {
+      usuarios: `
+        CREATE TABLE IF NOT EXISTS usuarios (
+          id SERIAL PRIMARY KEY,
+          email VARCHAR(255) UNIQUE NOT NULL,
+          nombre VARCHAR(255),
+          password_hash VARCHAR(255),
+          rol VARCHAR(50) DEFAULT 'usuario',
+          empresa_id INTEGER,
+          activo BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )`,
+      clientes: `
+        CREATE TABLE IF NOT EXISTS clientes (
+          id SERIAL PRIMARY KEY,
+          nombre VARCHAR(255) NOT NULL,
+          rfc VARCHAR(13),
+          razon_social VARCHAR(255),
+          direccion TEXT,
+          email VARCHAR(255),
+          telefono VARCHAR(50),
+          giro VARCHAR(100),
+          sitio_web VARCHAR(255),
+          empresa_id INTEGER,
+          activo BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )`,
+      empresas: `
+        CREATE TABLE IF NOT EXISTS empresas (
+          id SERIAL PRIMARY KEY,
+          nombre VARCHAR(255) NOT NULL,
+          rfc VARCHAR(13),
+          activo BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT NOW()
+        )`,
+      proyectos: `
+        CREATE TABLE IF NOT EXISTS proyectos (
+          id SERIAL PRIMARY KEY,
+          nombre VARCHAR(255) NOT NULL,
+          cliente_id INTEGER REFERENCES clientes(id),
+          empresa_id INTEGER REFERENCES empresas(id),
+          estado VARCHAR(50) DEFAULT 'activo',
+          created_at TIMESTAMP DEFAULT NOW()
+        )`
+    };
+
+    const { db } = require('../../db');
+    const createdTables: string[] = [];
+
+    for (const table of missing) {
+      if (tableDefinitions[table]) {
+        try {
+          await db.query(tableDefinitions[table]);
+          createdTables.push(table);
+          console.log(`      ✅ Tabla ${table} creada`);
+        } catch (error: any) {
+          console.log(`      ❌ Error creando tabla ${table}: ${error.message}`);
+        }
+      }
+    }
+
+    return {
+      issueId: issue.id,
+      file: 'database',
+      before: `Tablas faltantes: ${missing.join(', ')}`,
+      after: `Tablas creadas: ${createdTables.join(', ')}`,
+      applied: createdTables.length > 0,
+      timestamp: new Date()
+    };
+  }
+
+  private async fixEndpoint(issue: Issue): Promise<Fix | null> {
+    const failures = issue.details?.failures || [];
+    
+    if (failures.length === 0) return null;
+
+    // Analizar con Claude qué puede estar mal
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      messages: [{
+        role: 'user',
+        content: `Estos endpoints están fallando en una aplicación Express/Node.js:
+${JSON.stringify(failures, null, 2)}
+
+Genera código TypeScript para crear/arreglar estos endpoints.
+El código debe ser completo y funcional.
+Responde SOLO con el código, sin explicaciones.`
+      }]
+    });
+
+    const content = response.content[0];
+    const suggestedCode = content.type === 'text' ? content.text : '';
+
+    console.log(`      💡 Sugerencia de fix generada para endpoints`);
+    
+    // Por seguridad, no aplicamos cambios automáticos de código
+    // Solo documentamos la sugerencia
+    return {
+      issueId: issue.id,
+      file: 'server/routes/suggested_fix.ts',
+      before: 'Endpoints fallando',
+      after: suggestedCode.substring(0, 500) + '...',
+      applied: false, // Requiere revisión manual
+      timestamp: new Date()
+    };
+  }
+
+  private async fixTypeScriptError(issue: Issue): Promise<Fix | null> {
+    const errors = issue.details?.errors || [];
+    
+    if (errors.length === 0) return null;
+
+    // Extraer archivos con errores
+    const fileErrors = new Map<string, string[]>();
+    
+    for (const error of errors) {
+      const match = error.match(/^([^(]+)\((\d+),(\d+)\):\s*error\s+TS\d+:\s*(.+)$/);
+      if (match) {
+        const [, file, , , message] = match;
+        if (!fileErrors.has(file)) {
+          fileErrors.set(file, []);
+        }
+        fileErrors.get(file)!.push(message);
+      }
+    }
+
+    // Intentar arreglar el primer archivo
+    for (const [file, messages] of fileErrors) {
+      if (!fs.existsSync(file)) continue;
+
+      const originalCode = fs.readFileSync(file, 'utf8');
+
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
+        messages: [{
+          role: 'user',
+          content: `Este archivo TypeScript tiene errores:
+
+ARCHIVO: ${file}
+
+ERRORES:
+${messages.join('\n')}
+
+CÓDIGO ACTUAL:
+\`\`\`typescript
+${originalCode}
+\`\`\`
+
+Corrige los errores y devuelve el código completo corregido.
+Responde SOLO con el código corregido, sin explicaciones ni markdown.`
+        }]
+      });
+
+      const content = response.content[0];
+      let fixedCode = content.type === 'text' ? content.text : '';
+      
+      // Limpiar código de markdown si es necesario
+      fixedCode = fixedCode.replace(/^```typescript\n?/, '').replace(/\n?```$/, '');
+
+      if (fixedCode && fixedCode !== originalCode) {
+        // Crear backup
+        const backupPath = `${file}.backup.${Date.now()}`;
+        fs.writeFileSync(backupPath, originalCode);
+        
+        // Aplicar fix
+        fs.writeFileSync(file, fixedCode);
+        console.log(`      ✅ Archivo ${path.basename(file)} corregido`);
+
+        return {
+          issueId: issue.id,
+          file,
+          before: `${messages.length} errores de TypeScript`,
+          after: 'Código corregido automáticamente',
+          applied: true,
+          timestamp: new Date()
+        };
+      }
+    }
+
+    return null;
+  }
+
+  private async aiAssistedFix(issue: Issue): Promise<Fix | null> {
+    // Para issues genéricos, generar sugerencia con IA
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{
+        role: 'user',
+        content: `Analiza este issue y sugiere una solución:
+
+TIPO: ${issue.type}
+SEVERIDAD: ${issue.severity}
+DESCRIPCIÓN: ${issue.description}
+DETALLES: ${JSON.stringify(issue.details || {}, null, 2)}
+
+Responde en JSON:
+{
+  "diagnosis": "qué está mal",
+  "solution": "cómo arreglarlo",
+  "code": "código si aplica"
+}`
+      }]
+    });
+
+    const content = response.content[0];
+    const suggestion = content.type === 'text' ? content.text : '';
+
+    return {
+      issueId: issue.id,
+      file: 'suggestion',
+      before: issue.description,
+      after: suggestion.substring(0, 500),
+      applied: false,
+      timestamp: new Date()
+    };
+  }
+
+  getStatus() {
+    return {
+      fixHistory: this.fixHistory.length,
+      maxAutoFixes: this.maxAutoFixes,
+      lastFixes: this.fixHistory.slice(-5)
+    };
+  }
+}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 5: AGENTE DOCUMENTADOR
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: server/agents/docs/keeper.ts
+
+```typescript
+import * as fs from 'fs';
+import * as path from 'path';
+import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic();
+
+interface Fix {
+  issueId: string;
+  file: string;
+  before: string;
+  after: string;
+  applied: boolean;
+  timestamp: Date;
+}
+
+export class DocsKeeper {
+  private changelogPath = path.join(process.cwd(), 'CHANGELOG_AUTO.md');
+  private apiDocsPath = path.join(process.cwd(), 'docs/API.md');
+
+  async documentChanges(fixes: Fix[]) {
+    console.log(`  📚 Documentando ${fixes.length} cambios...`);
+
+    const appliedFixes = fixes.filter(f => f.applied);
+    const suggestions = fixes.filter(f => !f.applied);
+
+    // Actualizar changelog
+    await this.updateChangelog(appliedFixes);
+
+    // Generar documentación de API si hubo cambios en rutas
+    const routeChanges = appliedFixes.filter(f => 
+      f.file.includes('routes') || f.file.includes('api')
+    );
+    if (routeChanges.length > 0) {
+      await this.updateApiDocs(routeChanges);
+    }
+
+    // Guardar sugerencias pendientes
+    if (suggestions.length > 0) {
+      await this.savePendingSuggestions(suggestions);
+    }
+
+    return {
+      agentId: 'docs_keeper',
+      timestamp: new Date(),
+      status: 'ok',
+      issues: [],
+      fixes: [],
+      documentsUpdated: {
+        changelog: appliedFixes.length > 0,
+        apiDocs: routeChanges.length > 0,
+        suggestions: suggestions.length
+      }
+    };
+  }
+
+  private async updateChangelog(fixes: Fix[]) {
+    if (fixes.length === 0) return;
+
+    const date = new Date().toISOString().split('T')[0];
+    const time = new Date().toTimeString().split(' ')[0];
+
+    let entry = `\n## [Auto-Fix] ${date} ${time}\n\n`;
+    entry += `### Cambios Automáticos\n\n`;
+
+    for (const fix of fixes) {
+      entry += `- **${path.basename(fix.file)}**: ${fix.after.substring(0, 100)}\n`;
+      entry += `  - Issue: ${fix.issueId}\n`;
+      entry += `  - Antes: ${fix.before.substring(0, 50)}...\n\n`;
+    }
+
+    // Leer changelog existente o crear nuevo
+    let existing = '';
+    if (fs.existsSync(this.changelogPath)) {
+      existing = fs.readFileSync(this.changelogPath, 'utf8');
+    } else {
+      existing = `# Changelog Automático - Revisar.IA\n\nCambios aplicados automáticamente por el sistema de agentes.\n`;
+    }
+
+    // Agregar nueva entrada al inicio (después del header)
+    const lines = existing.split('\n');
+    const headerEnd = lines.findIndex((l, i) => i > 0 && l.startsWith('## '));
+    if (headerEnd > 0) {
+      lines.splice(headerEnd, 0, entry);
+    } else {
+      lines.push(entry);
+    }
+
+    fs.writeFileSync(this.changelogPath, lines.join('\n'));
+    console.log(`      ✅ Changelog actualizado`);
+  }
+
+  private async updateApiDocs(routeChanges: Fix[]) {
+    // Generar documentación con Claude
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      messages: [{
+        role: 'user',
+        content: `Genera documentación de API en formato Markdown para estos cambios:
+
+${JSON.stringify(routeChanges, null, 2)}
+
+Incluye:
+- Endpoint
+- Método HTTP
+- Parámetros
+- Respuesta esperada
+- Ejemplo de uso
+
+Formato Markdown profesional.`
+      }]
+    });
+
+    const content = response.content[0];
+    const docs = content.type === 'text' ? content.text : '';
+
+    // Asegurar directorio existe
+    const docsDir = path.dirname(this.apiDocsPath);
+    if (!fs.existsSync(docsDir)) {
+      fs.mkdirSync(docsDir, { recursive: true });
+    }
+
+    // Agregar al archivo de docs
+    let existing = '';
+    if (fs.existsSync(this.apiDocsPath)) {
+      existing = fs.readFileSync(this.apiDocsPath, 'utf8');
+    } else {
+      existing = '# API Documentation - Revisar.IA\n\n';
+    }
+
+    existing += `\n---\n\n## Actualización ${new Date().toISOString()}\n\n${docs}`;
+    
+    fs.writeFileSync(this.apiDocsPath, existing);
+    console.log(`      ✅ Documentación de API actualizada`);
+  }
+
+  private async savePendingSuggestions(suggestions: Fix[]) {
+    const suggestionsPath = path.join(process.cwd(), 'docs/PENDING_FIXES.md');
+    
+    let content = `# Sugerencias de Fix Pendientes\n\n`;
+    content += `Generado: ${new Date().toISOString()}\n\n`;
+    content += `Estas sugerencias requieren revisión manual antes de aplicarse.\n\n`;
+
+    for (const s of suggestions) {
+      content += `## ${s.issueId}\n\n`;
+      content += `**Archivo:** ${s.file}\n\n`;
+      content += `**Problema:** ${s.before}\n\n`;
+      content += `**Sugerencia:**\n\`\`\`\n${s.after}\n\`\`\`\n\n`;
+      content += `---\n\n`;
+    }
+
+    const docsDir = path.dirname(suggestionsPath);
+    if (!fs.existsSync(docsDir)) {
+      fs.mkdirSync(docsDir, { recursive: true });
+    }
+
+    fs.writeFileSync(suggestionsPath, content);
+    console.log(`      ✅ ${suggestions.length} sugerencias guardadas en PENDING_FIXES.md`);
+  }
+
+  getStatus() {
+    return {
+      changelogPath: this.changelogPath,
+      apiDocsPath: this.apiDocsPath,
+      changelogExists: fs.existsSync(this.changelogPath),
+      apiDocsExists: fs.existsSync(this.apiDocsPath)
+    };
+  }
+}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 6: API PARA CONTROLAR LOS AGENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: server/routes/agents.ts
+
+```typescript
+import { Router } from 'express';
+import { orchestrator } from '../agents/orchestrator';
+
+const router = Router();
+
+// Obtener estado de los agentes
+router.get('/status', (req, res) => {
+  res.json({
+    success: true,
+    status: orchestrator.getStatus()
+  });
+});
+
+// Iniciar agentes
+router.post('/start', (req, res) => {
+  const { intervalMinutes = 5 } = req.body;
+  orchestrator.start(intervalMinutes);
+  res.json({
+    success: true,
+    message: `Agentes iniciados con intervalo de ${intervalMinutes} minutos`
+  });
+});
+
+// Detener agentes
+router.post('/stop', (req, res) => {
+  orchestrator.stop();
+  res.json({
+    success: true,
+    message: 'Agentes detenidos'
+  });
+});
+
+// Ejecutar ciclo manualmente
+router.post('/run-cycle', async (req, res) => {
+  try {
+    const reports = await orchestrator.runCycle();
+    res.json({
+      success: true,
+      reports
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Obtener historial de reportes
+router.get('/reports', async (req, res) => {
+  try {
+    const { db } = require('../db');
+    const { limit = 10 } = req.query;
+    
+    const result = await db.query(`
+      SELECT * FROM agent_reports 
+      ORDER BY timestamp DESC 
+      LIMIT $1
+    `, [limit]);
+    
+    res.json({
+      success: true,
+      reports: result.rows
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+export default router;
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 7: TABLA PARA REPORTES DE AGENTES
+═══════════════════════════════════════════════════════════════════════════════
+
+Agregar al seed:
+
+```sql
+CREATE TABLE IF NOT EXISTS agent_reports (
+  id SERIAL PRIMARY KEY,
+  timestamp TIMESTAMP DEFAULT NOW(),
+  reports JSONB,
+  status VARCHAR(50),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_reports_timestamp ON agent_reports(timestamp DESC);
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 8: INICIAR AGENTES EN SERVIDOR
+═══════════════════════════════════════════════════════════════════════════════
+
+En server/index.ts, agregar al final:
+
+```typescript
+import agentRoutes from './routes/agents';
+import { orchestrator } from './agents/orchestrator';
+
+// Registrar ruta de agentes
+app.use('/api/agents', agentRoutes);
+
+// Iniciar agentes automáticamente en producción
+if (process.env.NODE_ENV === 'production') {
+  // Esperar 30 segundos después del arranque
+  setTimeout(() => {
+    orchestrator.start(5); // Cada 5 minutos
+    console.log('🤖 Red de Agentes Autónomos ACTIVADA');
+  }, 30000);
+}
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 9: COMPONENTE DASHBOARD DE AGENTES (FRONTEND)
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: frontend/src/components/AgentsDashboard.tsx
+
+```typescript
+import React, { useState, useEffect } from 'react';
+
+interface AgentStatus {
+  isRunning: boolean;
+  healthMonitor: any;
+  codeRepairer: any;
+  docsKeeper: any;
+}
+
+export const AgentsDashboard: React.FC = () => {
+  const [status, setStatus] = useState<AgentStatus | null>(null);
+  const [reports, setReports] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    loadStatus();
+    loadReports();
+  }, []);
+
+  const loadStatus = async () => {
+    try {
+      const res = await fetch('/api/agents/status');
+      const data = await res.json();
+      setStatus(data.status);
+    } catch (error) {
+      console.error('Error loading status:', error);
+    }
+  };
+
+  const loadReports = async () => {
+    try {
+      const res = await fetch('/api/agents/reports?limit=5');
+      const data = await res.json();
+      setReports(data.reports || []);
+    } catch (error) {
+      console.error('Error loading reports:', error);
+    }
+  };
+
+  const handleStart = async () => {
+    setLoading(true);
+    await fetch('/api/agents/start', { method: 'POST' });
+    await loadStatus();
+    setLoading(false);
+  };
+
+  const handleStop = async () => {
+    setLoading(true);
+    await fetch('/api/agents/stop', { method: 'POST' });
+    await loadStatus();
+    setLoading(false);
+  };
+
+  const handleRunCycle = async () => {
+    setLoading(true);
+    await fetch('/api/agents/run-cycle', { method: 'POST' });
+    await loadStatus();
+    await loadReports();
+    setLoading(false);
+  };
+
+  return (
+    <div className="p-6 bg-gray-900 rounded-lg">
+      <h2 className="text-2xl font-bold text-white mb-4">
+        🤖 Red de Agentes Autónomos
+      </h2>
+
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <h3 className="text-lg text-cyan-400">Estado</h3>
+          <p className={status?.isRunning ? 'text-green-400' : 'text-red-400'}>
+            {status?.isRunning ? '🟢 Activo' : '🔴 Inactivo'}
+          </p>
+        </div>
+
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <h3 className="text-lg text-cyan-400">Health Checks</h3>
+          <p className="text-white">
+            {status?.healthMonitor?.checksRegistered || 0} registrados
+          </p>
+        </div>
+
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <h3 className="text-lg text-cyan-400">Fixes Aplicados</h3>
+          <p className="text-white">
+            {status?.codeRepairer?.fixHistory || 0} total
+          </p>
+        </div>
+      </div>
+
+      <div className="flex gap-4 mb-6">
+        <button
+          onClick={handleStart}
+          disabled={loading || status?.isRunning}
+          className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
+        >
+          ▶️ Iniciar
+        </button>
+        <button
+          onClick={handleStop}
+          disabled={loading || !status?.isRunning}
+          className="px-4 py-2 bg-red-600 text-white rounded disabled:opacity-50"
+        >
+          ⏹️ Detener
+        </button>
+        <button
+          onClick={handleRunCycle}
+          disabled={loading}
+          className="px-4 py-2 bg-cyan-600 text-white rounded disabled:opacity-50"
+        >
+          🔄 Ejecutar Ciclo Manual
+        </button>
+      </div>
+
+      <h3 className="text-xl text-white mb-2">Últimos Reportes</h3>
+      <div className="space-y-2">
+        {reports.map((report, idx) => (
+          <div key={idx} className="bg-gray-800 p-3 rounded">
+            <div className="flex justify-between">
+              <span className="text-gray-400">
+                {new Date(report.timestamp).toLocaleString()}
+              </span>
+              <span className={
+                report.status === 'ok' ? 'text-green-400' :
+                report.status === 'error' ? 'text-red-400' : 'text-yellow-400'
+              }>
+                {report.status?.toUpperCase()}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Directorio server/agents/ creado
+□ Orquestador principal implementado
+□ Agente Health Monitor implementado
+□ Agente Code Repairer implementado
+□ Agente Docs Keeper implementado
+□ API /api/agents implementada
+□ Tabla agent_reports creada
+□ Agentes se inician automáticamente en producción
+□ Dashboard de agentes en frontend
+□ Deploy ejecutado
+
+</TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+EJECUTAR TODO - CREAR SISTEMA DE AUTO-REPARACIÓN COMPLETO
+═══════════════════════════════════════════════════════════════════════════════

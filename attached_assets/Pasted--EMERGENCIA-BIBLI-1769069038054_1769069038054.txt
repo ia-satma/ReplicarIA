@@ -1,0 +1,781 @@
+═══════════════════════════════════════════════════════════════════════════════
+🚨 EMERGENCIA: BIBLIOTECAR.IA NO PROCESA DOCUMENTOS - ARREGLAR YA
+═══════════════════════════════════════════════════════════════════════════════
+
+SÍNTOMA EXACTO:
+- Usuario sube CFF.pdf (Código Fiscal de la Federación)
+- Sistema dice "✅ Documento CFF.pdf analizado exitosamente"
+- Muestra "📊 Contenido extraído (50000 caracteres)"
+- PERO el panel izquierdo sigue mostrando:
+  • 0 Documentos
+  • 0 Chunks RAG
+  • Todas las categorías en 0%
+
+DIAGNÓSTICO: El documento se LEE pero NO SE GUARDA ni SE PROCESA.
+
+═══════════════════════════════════════════════════════════════════════════════
+🔴 REGLAS ESTRICTAS - LEE ESTO PRIMERO
+═══════════════════════════════════════════════════════════════════════════════
+
+1. ❌ PROHIBIDO decir "arreglado" sin mostrar prueba
+2. ❌ PROHIBIDO decir "debería funcionar" 
+3. ❌ PROHIBIDO hacer cambios sin verificar con tests
+4. ✅ OBLIGATORIO mostrar queries SQL con resultados REALES
+5. ✅ OBLIGATORIO que después del fix, los contadores suban
+
+CRITERIO DE ÉXITO:
+- Subir documento → Panel muestra "1 Documento"
+- Esperar procesamiento → Panel muestra "X Chunks RAG"
+- Categorías muestran porcentaje > 0%
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 1: DIAGNÓSTICO - EJECUTAR TODOS ESTOS COMANDOS
+═══════════════════════════════════════════════════════════════════════════════
+
+### 1.1 Verificar qué hay en la base de datos AHORA:
+
+```bash
+echo "=== DOCUMENTOS EN BD ===" && \
+psql $DATABASE_URL -c "SELECT id, nombre, procesado, activo, created_at FROM kb_documentos ORDER BY created_at DESC LIMIT 5;"
+
+echo "=== CHUNKS EN BD ===" && \
+psql $DATABASE_URL -c "SELECT COUNT(*) as total_chunks FROM kb_chunks;"
+
+echo "=== CHUNKS CON EMBEDDINGS ===" && \
+psql $DATABASE_URL -c "SELECT COUNT(*) as con_embedding FROM kb_chunks WHERE embedding IS NOT NULL;"
+```
+
+Si documentos = 0, el problema es que NO SE GUARDA el documento.
+Si documentos > 0 pero chunks = 0, el problema es que NO SE PROCESA.
+
+### 1.2 Buscar el endpoint de upload:
+
+```bash
+echo "=== ENDPOINT DE UPLOAD ===" && \
+grep -rn "upload\|subir\|cargar" backend/routes/ | grep -i "documento\|archivo\|file"
+
+echo "=== FUNCIÓN DE PROCESAMIENTO ===" && \
+grep -rn "procesar\|chunk\|embedding" backend/services/
+```
+
+### 1.3 Ver logs de errores:
+
+```bash
+echo "=== ÚLTIMOS LOGS ===" && \
+tail -100 logs/*.log 2>/dev/null || echo "No hay logs"
+
+# O en la consola de Replit, buscar errores recientes
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 2: IDENTIFICAR EL FLUJO ROTO
+═══════════════════════════════════════════════════════════════════════════════
+
+El flujo DEBERÍA ser:
+
+```
+1. Usuario sube PDF
+   ↓
+2. Backend recibe archivo en /api/biblioteca/upload
+   ↓
+3. Se GUARDA registro en tabla kb_documentos (procesado=FALSE)
+   ↓
+4. Se extrae texto del PDF
+   ↓
+5. Se divide en chunks y se guardan en kb_chunks
+   ↓
+6. Se generan embeddings para cada chunk
+   ↓
+7. Se marca documento como procesado=TRUE
+   ↓
+8. Frontend consulta /api/biblioteca/stats y muestra contadores
+```
+
+¿DÓNDE SE ROMPE? Ejecuta cada paso manualmente:
+
+### 2.1 Verificar que el endpoint existe:
+
+```bash
+curl -X POST http://localhost:5000/api/biblioteca/upload \
+  -F "file=@/dev/null" \
+  2>&1 | head -20
+```
+
+Si da 404 → El endpoint NO EXISTE
+Si da 400/500 → El endpoint existe pero tiene error
+
+### 2.2 Verificar función de guardar documento:
+
+```bash
+# Buscar la función que guarda en kb_documentos
+grep -rn "INSERT INTO kb_documentos" backend/
+grep -rn "kb_documentos" backend/ | grep -i "insert\|save\|create"
+```
+
+### 2.3 Verificar función de procesamiento RAG:
+
+```bash
+# Buscar la función de chunking
+grep -rn "chunk" backend/services/
+grep -rn "embedding" backend/services/
+grep -rn "text-embedding\|ada-002\|embed" backend/
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 3: EL PROBLEMA MÁS PROBABLE
+═══════════════════════════════════════════════════════════════════════════════
+
+Basándome en la imagen, el problema es que:
+
+1. El chat MUESTRA el contenido extraído (eso funciona)
+2. PERO nunca se llama a la función de GUARDAR + PROCESAR
+
+Busca en el código del chat de biblioteca:
+
+```bash
+grep -rn "analizado exitosamente" backend/
+grep -rn "Contenido extraído" backend/
+```
+
+Probablemente el código hace esto:
+
+```python
+# ❌ CÓDIGO ROTO - Solo extrae y muestra, NO guarda
+@biblioteca_bp.route('/chat', methods=['POST'])
+def chat():
+    if 'file' in request.files:
+        file = request.files['file']
+        texto = extraer_texto_pdf(file)  # ← Esto SÍ funciona
+        
+        # Responder al usuario con el contenido
+        return jsonify({
+            'response': f'Documento analizado. Contenido: {texto[:500]}...'
+        })
+        # ❌ FALTA: Guardar documento y procesar RAG
+```
+
+DEBE ser:
+
+```python
+# ✅ CÓDIGO CORRECTO - Extrae, GUARDA y PROCESA
+@biblioteca_bp.route('/chat', methods=['POST'])
+def chat():
+    if 'file' in request.files:
+        file = request.files['file']
+        
+        # 1. Extraer texto
+        texto = extraer_texto_pdf(file)
+        
+        # 2. GUARDAR en base de datos
+        doc_id = guardar_documento(file.filename, texto)
+        
+        # 3. PROCESAR RAG (chunks + embeddings)
+        procesar_documento_rag(doc_id, texto)
+        
+        return jsonify({
+            'response': f'✅ Documento guardado y procesado. ID: {doc_id}'
+        })
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 4: ARREGLO COMPLETO - IMPLEMENTAR ESTO
+═══════════════════════════════════════════════════════════════════════════════
+
+### 4.1 Función para guardar documento:
+
+```python
+def guardar_documento(nombre: str, contenido: str, categoria: str = None) -> int:
+    """Guarda documento en kb_documentos y retorna su ID"""
+    from extensions import db
+    from sqlalchemy import text
+    
+    result = db.session.execute(text("""
+        INSERT INTO kb_documentos (nombre, contenido_raw, categoria, procesado, activo, created_at)
+        VALUES (:nombre, :contenido, :categoria, FALSE, TRUE, NOW())
+        RETURNING id
+    """), {
+        'nombre': nombre,
+        'contenido': contenido,
+        'categoria': categoria
+    })
+    
+    db.session.commit()
+    doc_id = result.fetchone()[0]
+    
+    print(f"✅ Documento guardado con ID: {doc_id}")
+    return doc_id
+```
+
+### 4.2 Función para procesar RAG:
+
+```python
+def procesar_documento_rag(doc_id: int, contenido: str):
+    """Divide en chunks, genera embeddings y guarda"""
+    from extensions import db
+    from sqlalchemy import text
+    import openai
+    import os
+    
+    # 1. Dividir en chunks (cada ~1000 caracteres)
+    chunks = dividir_en_chunks(contenido, tamano=1000, overlap=100)
+    
+    print(f"📦 Dividido en {len(chunks)} chunks")
+    
+    # 2. Generar embeddings y guardar cada chunk
+    client = openai.OpenAI()
+    
+    for i, chunk_texto in enumerate(chunks):
+        try:
+            # Generar embedding
+            response = client.embeddings.create(
+                model="text-embedding-3-small",
+                input=chunk_texto
+            )
+            embedding = response.data[0].embedding
+            
+            # Guardar chunk con embedding
+            db.session.execute(text("""
+                INSERT INTO kb_chunks (documento_id, contenido, embedding, posicion, created_at)
+                VALUES (:doc_id, :contenido, :embedding, :posicion, NOW())
+            """), {
+                'doc_id': doc_id,
+                'contenido': chunk_texto,
+                'embedding': str(embedding),  # Convertir a string para pgvector
+                'posicion': i
+            })
+            
+            print(f"  ✅ Chunk {i+1}/{len(chunks)} procesado")
+            
+        except Exception as e:
+            print(f"  ❌ Error en chunk {i+1}: {e}")
+    
+    # 3. Marcar documento como procesado
+    db.session.execute(text("""
+        UPDATE kb_documentos SET procesado = TRUE WHERE id = :doc_id
+    """), {'doc_id': doc_id})
+    
+    db.session.commit()
+    print(f"✅ Documento {doc_id} procesado completamente")
+
+
+def dividir_en_chunks(texto: str, tamano: int = 1000, overlap: int = 100) -> list:
+    """Divide texto en chunks con overlap"""
+    chunks = []
+    inicio = 0
+    
+    while inicio < len(texto):
+        fin = inicio + tamano
+        chunk = texto[inicio:fin]
+        
+        # Intentar cortar en un punto natural (espacio, punto)
+        if fin < len(texto):
+            ultimo_punto = chunk.rfind('.')
+            ultimo_espacio = chunk.rfind(' ')
+            corte = max(ultimo_punto, ultimo_espacio)
+            if corte > tamano * 0.5:  # Solo si el corte es razonable
+                chunk = chunk[:corte + 1]
+                fin = inicio + corte + 1
+        
+        chunks.append(chunk.strip())
+        inicio = fin - overlap  # Overlap para contexto
+    
+    return [c for c in chunks if len(c) > 50]  # Filtrar chunks muy pequeños
+```
+
+### 4.3 Modificar el endpoint de chat/upload:
+
+```python
+@biblioteca_bp.route('/chat', methods=['POST'])
+def chat_biblioteca():
+    from werkzeug.utils import secure_filename
+    
+    data = request.get_json(force=True, silent=True) or {}
+    mensaje = data.get('message', '')
+    
+    # Si hay archivo adjunto, procesarlo
+    if request.files and 'file' in request.files:
+        file = request.files['file']
+        filename = secure_filename(file.filename)
+        
+        try:
+            # 1. Extraer texto
+            contenido = extraer_texto_pdf(file)
+            
+            # 2. GUARDAR documento
+            doc_id = guardar_documento(filename, contenido)
+            
+            # 3. PROCESAR RAG (async o en background idealmente)
+            procesar_documento_rag(doc_id, contenido)
+            
+            return jsonify({
+                'success': True,
+                'response': f'✅ **Documento "{filename}" procesado exitosamente**\n\n'
+                           f'📄 ID: {doc_id}\n'
+                           f'📊 Contenido: {len(contenido)} caracteres\n\n'
+                           f'El documento ya está disponible para consultas RAG.'
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'response': f'❌ Error procesando documento: {str(e)}'
+            })
+    
+    # Si no hay archivo, es un mensaje normal de chat
+    # ... continuar con lógica de chat normal ...
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 5: ENDPOINT SEPARADO DE UPLOAD (MEJOR PRÁCTICA)
+═══════════════════════════════════════════════════════════════════════════════
+
+Es mejor tener un endpoint dedicado para upload:
+
+```python
+@biblioteca_bp.route('/upload', methods=['POST'])
+def upload_documento():
+    """Endpoint dedicado para subir y procesar documentos"""
+    
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No se recibió archivo'}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'Nombre de archivo vacío'}), 400
+    
+    # Validar extensión
+    extensiones_permitidas = {'.pdf', '.txt', '.docx', '.md'}
+    extension = os.path.splitext(file.filename)[1].lower()
+    
+    if extension not in extensiones_permitidas:
+        return jsonify({
+            'success': False, 
+            'error': f'Extensión no permitida. Usar: {extensiones_permitidas}'
+        }), 400
+    
+    try:
+        filename = secure_filename(file.filename)
+        
+        # Extraer contenido según tipo
+        if extension == '.pdf':
+            contenido = extraer_texto_pdf(file)
+        elif extension == '.txt':
+            contenido = file.read().decode('utf-8')
+        elif extension == '.md':
+            contenido = file.read().decode('utf-8')
+        else:
+            contenido = "Formato no soportado para extracción"
+        
+        if len(contenido) < 100:
+            return jsonify({
+                'success': False,
+                'error': 'Documento vacío o no se pudo extraer texto'
+            }), 400
+        
+        # Detectar categoría automáticamente
+        categoria = detectar_categoria(filename, contenido)
+        
+        # GUARDAR documento
+        doc_id = guardar_documento(filename, contenido, categoria)
+        
+        # PROCESAR RAG
+        num_chunks = procesar_documento_rag(doc_id, contenido)
+        
+        return jsonify({
+            'success': True,
+            'documento': {
+                'id': doc_id,
+                'nombre': filename,
+                'categoria': categoria,
+                'caracteres': len(contenido),
+                'chunks': num_chunks
+            },
+            'message': f'Documento procesado: {num_chunks} chunks creados'
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+def detectar_categoria(nombre: str, contenido: str) -> str:
+    """Detecta categoría del documento basándose en nombre y contenido"""
+    nombre_lower = nombre.lower()
+    contenido_lower = contenido[:5000].lower()
+    
+    if 'cff' in nombre_lower or 'código fiscal' in contenido_lower:
+        return 'Marco Legal'
+    elif 'lisr' in nombre_lower or 'impuesto sobre la renta' in contenido_lower:
+        return 'Marco Legal'
+    elif 'rmf' in nombre_lower or 'resolución miscelánea' in contenido_lower:
+        return 'Criterios SAT'
+    elif 'jurisprudencia' in nombre_lower or 'tesis' in contenido_lower:
+        return 'Jurisprudencias'
+    elif 'catálogo' in nombre_lower or 'catalogo' in nombre_lower:
+        return 'Catálogos SAT'
+    else:
+        return 'Casos de Referencia'
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 6: VERIFICAR QUE EL FRONTEND LLAMA CORRECTAMENTE
+═══════════════════════════════════════════════════════════════════════════════
+
+Buscar cómo el frontend envía el archivo:
+
+```bash
+grep -rn "upload\|FormData\|multipart" frontend/src/
+```
+
+El frontend DEBE hacer algo como:
+
+```javascript
+const subirDocumento = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const response = await fetch('/api/biblioteca/upload', {
+    method: 'POST',
+    body: formData
+    // NO poner Content-Type, el browser lo pone automático con boundary
+  });
+  
+  const data = await response.json();
+  
+  if (data.success) {
+    // IMPORTANTE: Actualizar el panel izquierdo
+    await cargarEstadisticas();  // ← ESTO ES CLAVE
+  }
+  
+  return data;
+};
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 7: PRUEBAS OBLIGATORIAS - EJECUTAR TODAS
+═══════════════════════════════════════════════════════════════════════════════
+
+### 7.1 Crear archivo de prueba:
+
+```bash
+echo "Este es un documento de prueba para verificar el RAG.
+Contiene información sobre el Código Fiscal de la Federación.
+Artículo 1. Las personas físicas y morales están obligadas.
+Artículo 2. Los contribuyentes deben presentar declaraciones.
+Artículo 3. El SAT es la autoridad fiscal competente." > /tmp/test_documento.txt
+```
+
+### 7.2 Subir documento via curl:
+
+```bash
+echo "=== TEST: Subir documento ===" && \
+curl -X POST http://localhost:5000/api/biblioteca/upload \
+  -F "file=@/tmp/test_documento.txt" \
+  -w "\nHTTP: %{http_code}"
+```
+
+DEBE retornar: `{"success": true, "documento": {"id": X, "chunks": Y}}`
+
+### 7.3 Verificar que se guardó en BD:
+
+```bash
+echo "=== VERIFICAR BD ===" && \
+psql $DATABASE_URL -c "SELECT id, nombre, procesado, activo FROM kb_documentos ORDER BY id DESC LIMIT 3;"
+
+echo "=== VERIFICAR CHUNKS ===" && \
+psql $DATABASE_URL -c "SELECT documento_id, COUNT(*) as chunks FROM kb_chunks GROUP BY documento_id;"
+
+echo "=== VERIFICAR EMBEDDINGS ===" && \
+psql $DATABASE_URL -c "SELECT COUNT(*) as con_embedding FROM kb_chunks WHERE embedding IS NOT NULL;"
+```
+
+### 7.4 Verificar endpoint de stats:
+
+```bash
+echo "=== STATS ===" && \
+curl -s http://localhost:5000/api/biblioteca/stats | jq .
+```
+
+DEBE mostrar documentos > 0 y chunks > 0
+
+### 7.5 Probar búsqueda RAG:
+
+```bash
+echo "=== TEST RAG ===" && \
+curl -X POST http://localhost:5000/api/biblioteca/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "¿Qué dice el artículo 1?"}' | jq .response
+```
+
+DEBE responder usando el contenido del documento subido.
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 8: SCRIPT DE VERIFICACIÓN AUTOMÁTICA
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear: backend/tests/test_biblioteca_rag.py
+
+```python
+#!/usr/bin/env python3
+"""
+Test completo del flujo RAG de Bibliotecar.IA
+Ejecutar: python backend/tests/test_biblioteca_rag.py
+"""
+
+import requests
+import time
+import psycopg2
+import os
+
+BASE_URL = os.environ.get('APP_URL', 'http://localhost:5000')
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+def test_upload():
+    """Test: Subir documento"""
+    print("\n🧪 TEST 1: Subir documento...")
+    
+    # Crear archivo de prueba
+    contenido = """
+    CÓDIGO FISCAL DE LA FEDERACIÓN - DOCUMENTO DE PRUEBA
+    
+    Artículo 1.- Las personas físicas y las morales están obligadas a contribuir
+    para los gastos públicos conforme a las leyes fiscales respectivas.
+    
+    Artículo 2.- Las contribuciones se clasifican en impuestos, aportaciones de
+    seguridad social, contribuciones de mejoras y derechos.
+    
+    Artículo 3.- Son aprovechamientos los ingresos que percibe el Estado por
+    funciones de derecho público distintos de las contribuciones.
+    """
+    
+    files = {'file': ('test_cff.txt', contenido, 'text/plain')}
+    
+    try:
+        response = requests.post(f'{BASE_URL}/api/biblioteca/upload', files=files, timeout=60)
+        data = response.json()
+        
+        if response.status_code == 200 and data.get('success'):
+            doc_id = data.get('documento', {}).get('id')
+            chunks = data.get('documento', {}).get('chunks', 0)
+            print(f"   ✅ PASS - Documento ID: {doc_id}, Chunks: {chunks}")
+            return doc_id
+        else:
+            print(f"   ❌ FAIL - {data.get('error', 'Error desconocido')}")
+            return None
+            
+    except Exception as e:
+        print(f"   ❌ FAIL - {str(e)}")
+        return None
+
+
+def test_verificar_bd(doc_id):
+    """Test: Verificar que se guardó en BD"""
+    print("\n🧪 TEST 2: Verificar base de datos...")
+    
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        
+        # Verificar documento
+        cur.execute("SELECT id, nombre, procesado FROM kb_documentos WHERE id = %s", (doc_id,))
+        doc = cur.fetchone()
+        
+        if not doc:
+            print(f"   ❌ FAIL - Documento {doc_id} no encontrado en BD")
+            return False
+        
+        print(f"   ✅ Documento encontrado: {doc[1]}, procesado: {doc[2]}")
+        
+        # Verificar chunks
+        cur.execute("SELECT COUNT(*) FROM kb_chunks WHERE documento_id = %s", (doc_id,))
+        num_chunks = cur.fetchone()[0]
+        
+        if num_chunks == 0:
+            print(f"   ❌ FAIL - 0 chunks para documento {doc_id}")
+            return False
+        
+        print(f"   ✅ {num_chunks} chunks creados")
+        
+        # Verificar embeddings
+        cur.execute("""
+            SELECT COUNT(*) FROM kb_chunks 
+            WHERE documento_id = %s AND embedding IS NOT NULL
+        """, (doc_id,))
+        con_embedding = cur.fetchone()[0]
+        
+        if con_embedding == 0:
+            print(f"   ⚠️ WARNING - 0 chunks con embedding")
+        else:
+            print(f"   ✅ {con_embedding} chunks con embedding")
+        
+        conn.close()
+        return True
+        
+    except Exception as e:
+        print(f"   ❌ FAIL - {str(e)}")
+        return False
+
+
+def test_stats():
+    """Test: Verificar endpoint de stats"""
+    print("\n🧪 TEST 3: Verificar /api/biblioteca/stats...")
+    
+    try:
+        response = requests.get(f'{BASE_URL}/api/biblioteca/stats', timeout=10)
+        data = response.json()
+        
+        docs = data.get('documentos', data.get('total_documentos', 0))
+        chunks = data.get('chunks', data.get('total_chunks', 0))
+        
+        if docs > 0:
+            print(f"   ✅ PASS - {docs} documentos, {chunks} chunks")
+            return True
+        else:
+            print(f"   ❌ FAIL - Stats muestra 0 documentos")
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ FAIL - {str(e)}")
+        return False
+
+
+def test_busqueda_rag():
+    """Test: Búsqueda RAG funciona"""
+    print("\n🧪 TEST 4: Búsqueda RAG...")
+    
+    try:
+        response = requests.post(
+            f'{BASE_URL}/api/biblioteca/chat',
+            json={'message': '¿Qué son las contribuciones según el artículo 2?'},
+            timeout=30
+        )
+        data = response.json()
+        
+        respuesta = data.get('response', '')
+        
+        if len(respuesta) > 50 and ('contribuciones' in respuesta.lower() or 'impuestos' in respuesta.lower()):
+            print(f"   ✅ PASS - RAG respondió con contexto relevante")
+            print(f"   📝 Preview: {respuesta[:200]}...")
+            return True
+        else:
+            print(f"   ⚠️ WARNING - Respuesta no parece usar RAG")
+            print(f"   📝 Respuesta: {respuesta[:200]}...")
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ FAIL - {str(e)}")
+        return False
+
+
+def main():
+    print("=" * 60)
+    print("🔍 TEST COMPLETO: BIBLIOTECAR.IA RAG")
+    print("=" * 60)
+    
+    resultados = []
+    
+    # Test 1: Upload
+    doc_id = test_upload()
+    resultados.append(('Upload', doc_id is not None))
+    
+    if doc_id:
+        # Test 2: Verificar BD
+        time.sleep(2)  # Esperar procesamiento
+        resultados.append(('Base de datos', test_verificar_bd(doc_id)))
+    else:
+        resultados.append(('Base de datos', False))
+    
+    # Test 3: Stats
+    resultados.append(('Stats endpoint', test_stats()))
+    
+    # Test 4: RAG
+    resultados.append(('Búsqueda RAG', test_busqueda_rag()))
+    
+    # Resumen
+    print("\n" + "=" * 60)
+    print("📊 RESUMEN")
+    print("=" * 60)
+    
+    pasaron = sum(1 for _, ok in resultados if ok)
+    total = len(resultados)
+    
+    for nombre, ok in resultados:
+        print(f"   {'✅' if ok else '❌'} {nombre}")
+    
+    print(f"\n   TOTAL: {pasaron}/{total} tests pasaron")
+    
+    if pasaron == total:
+        print("\n   🎉 ¡BIBLIOTECAR.IA RAG FUNCIONA CORRECTAMENTE!")
+    elif pasaron >= 2:
+        print("\n   ⚠️ PARCIALMENTE FUNCIONAL - Revisar tests fallidos")
+    else:
+        print("\n   🔴 RAG NO FUNCIONA - Arreglar urgente")
+    
+    return pasaron == total
+
+
+if __name__ == '__main__':
+    main()
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+FASE 9: EJECUTAR Y MOSTRAR RESULTADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+# Ejecutar tests
+python backend/tests/test_biblioteca_rag.py
+```
+
+RESULTADO ESPERADO:
+```
+============================================================
+🔍 TEST COMPLETO: BIBLIOTECAR.IA RAG
+============================================================
+
+🧪 TEST 1: Subir documento...
+   ✅ PASS - Documento ID: 5, Chunks: 3
+
+🧪 TEST 2: Verificar base de datos...
+   ✅ Documento encontrado: test_cff.txt, procesado: True
+   ✅ 3 chunks creados
+   ✅ 3 chunks con embedding
+
+🧪 TEST 3: Verificar /api/biblioteca/stats...
+   ✅ PASS - 5 documentos, 15 chunks
+
+🧪 TEST 4: Búsqueda RAG...
+   ✅ PASS - RAG respondió con contexto relevante
+
+============================================================
+📊 RESUMEN
+============================================================
+   ✅ Upload
+   ✅ Base de datos
+   ✅ Stats endpoint
+   ✅ Búsqueda RAG
+
+   TOTAL: 4/4 tests pasaron
+
+   🎉 ¡BIBLIOTECAR.IA RAG FUNCIONA CORRECTAMENTE!
+```
+
+═══════════════════════════════════════════════════════════════════════════════
+CHECKLIST FINAL
+═══════════════════════════════════════════════════════════════════════════════
+
+□ Endpoint /api/biblioteca/upload existe y funciona
+□ Documento se guarda en kb_documentos
+□ Chunks se generan y guardan en kb_chunks
+□ Embeddings se generan (requiere OPENAI_API_KEY)
+□ Stats endpoint muestra contadores > 0
+□ Panel izquierdo del frontend se actualiza
+□ Búsqueda RAG usa el contenido de los documentos
+□ Test automatizado pasa 4/4
+
+NO DIGAS "ARREGLADO" HASTA QUE EL TEST PASE 4/4

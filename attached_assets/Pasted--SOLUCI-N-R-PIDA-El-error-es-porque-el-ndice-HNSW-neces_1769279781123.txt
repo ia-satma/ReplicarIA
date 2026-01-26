@@ -1,0 +1,56 @@
+🔧 SOLUCIÓN RÁPIDA
+El error es porque el índice HNSW necesita especificar el operador. Neon puede tener una versión de pgvector que requiere sintaxis específica.
+
+OPCIÓN 1: Cancelar y corregir el índice (RECOMENDADO)
+
+Cancela el deployment (botón azul)
+Ejecuta esto en la consola SQL de Neon para eliminar el índice problemático y crear uno correcto:
+
+sql-- Eliminar índice problemático si existe
+DROP INDEX IF EXISTS idx_chunks_embedding_hnsw;
+
+-- Crear índice con IVFFlat (más compatible) en lugar de HNSW
+CREATE INDEX IF NOT EXISTS idx_chunks_embedding 
+ON knowledge_chunks 
+USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 100);
+
+-- Si HNSW es requerido, usar esta sintaxis correcta:
+-- CREATE INDEX idx_chunks_embedding_hnsw 
+-- ON knowledge_chunks 
+-- USING hnsw (embedding vector_cosine_ops);
+
+Verifica que el índice existe:
+
+sqlSELECT indexname, indexdef 
+FROM pg_indexes 
+WHERE tablename = 'knowledge_chunks' 
+AND indexname LIKE '%embedding%';
+```
+
+4. **Vuelve a intentar el deploy**
+
+---
+
+## OPCIÓN 2: Si no puedes acceder a Neon SQL
+
+Copiá esto a Replit:
+```
+El deployment falló porque el índice HNSW no tiene el operador especificado.
+
+1. Busca el archivo de migración que contiene:
+   CREATE INDEX "idx_chunks_embedding_hnsw" ON "knowledge_chunks" USING hnsw ("embedding");
+
+2. Cámbialo por:
+   CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON knowledge_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+3. O si quieres usar HNSW, cambia a:
+   CREATE INDEX idx_chunks_embedding_hnsw ON knowledge_chunks USING hnsw (embedding vector_cosine_ops);
+
+4. Vuelve a intentar el deploy.
+
+📋 Explicación del Error
+ProblemaEl índice HNSW requiere especificar qué tipo de distancia usarFaltabavector_cosine_ops (similitud coseno)Alternativasvector_l2_ops (distancia euclidiana), vector_ip_ops (producto interno)
+Para RAG semántico, vector_cosine_ops es la mejor opción porque mide similitud de significado.
+
+¿Tienes acceso a la consola SQL de Neon o necesitas que Replit corrija el archivo de migración?

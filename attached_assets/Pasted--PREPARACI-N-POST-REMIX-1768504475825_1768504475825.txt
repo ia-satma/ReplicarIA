@@ -1,0 +1,106 @@
+=============================================================================
+PREPARACIÓN POST-REMIX: RECONECTAR SECRETOS Y BASES DE DATOS
+=============================================================================
+
+CONTEXTO: Este proyecto es un Remix/clon de otro proyecto. Los secretos 
+(API keys, tokens, credenciales) y las conexiones de bases de datos NO se 
+migran automáticamente por seguridad. Necesitamos:
+
+1. Identificar qué secretos/variables de entorno faltan
+2. Identificar qué bases de datos necesitan reconectarse
+3. Guiar al usuario para que los configure
+4. Verificar que todo funcione antes de continuar
+
+INSTRUCCIÓN: Ejecuta los diagnósticos y muéstrame qué necesito configurar.
+NO intentes adivinar valores de secretos. Pregúntame qué hacer.
+
+=============================================================================
+PASO 1: DIAGNOSTICAR SECRETOS/VARIABLES DE ENTORNO FALTANTES
+=============================================================================
+
+Revisa el código del proyecto y busca referencias a:
+- process.env.* 
+- Replit Secrets
+- Variables de entorno
+
+Lista TODAS las variables de entorno que el código espera, por ejemplo:
+- DATABASE_URL
+- OPENAI_API_KEY
+- ANTHROPIC_API_KEY
+- API keys de cualquier servicio
+- Tokens de autenticación
+- URLs de servicios externos
+
+Para cada una, dime:
+1. Nombre de la variable
+2. Para qué se usa en el código
+3. Si actualmente tiene valor o está vacía/faltante
+
+Muéstrame el resultado en una tabla así:
+
+| Variable | Uso | Estado |
+|----------|-----|--------|
+| DATABASE_URL | Conexión a PostgreSQL | ❌ FALTA |
+| OPENAI_API_KEY | Llamadas a GPT | ❌ FALTA |
+| ... | ... | ... |
+
+=============================================================================
+PASO 2: DIAGNOSTICAR CONEXIONES DE BASE DE DATOS
+=============================================================================
+
+Revisa:
+- Si el proyecto usa PostgreSQL, MySQL, MongoDB u otra BD
+- Si hay archivos de migración o esquemas
+- Si hay un ORM configurado (Prisma, Drizzle, Sequelize, etc.)
+- El estado actual de la conexión
+
+Dime:
+1. Qué tipo de base de datos usa el proyecto
+2. Si la BD está conectada o no
+3. Qué necesito hacer para conectarla (crear nueva BD en Replit, etc.)
+
+=============================================================================
+PASO 3: MOSTRARME INSTRUCCIONES CLARAS
+=============================================================================
+
+Después del diagnóstico, dame instrucciones paso a paso de qué debo hacer YO
+como usuario. Por ejemplo:
+
+"Para configurar los secretos faltantes:
+
+1. Ve a la pestaña 'Secrets' en el panel izquierdo de Replit (icono de candado)
+2. Agrega las siguientes variables:
+
+   OPENAI_API_KEY
+   → Obtén tu API key en: https://platform.openai.com/api-keys
+   → Pega el valor en Replit Secrets
+   
+   DATABASE_URL  
+   → Ve a la pestaña 'Database' en Replit
+   → Crea una nueva base de datos PostgreSQL
+   → Copia la URL de conexión que Replit te da
+   → Pégala en Secrets como DATABASE_URL
+
+3. Una vez configurados, dime 'listo' y verificaré las conexiones"
+
+=============================================================================
+PASO 4: VERIFICAR CONEXIONES
+=============================================================================
+
+Cuando el usuario diga que ya configuró todo, ejecuta verificaciones:
+
+1. Intenta conectar a la base de datos
+2. Verifica que los secretos estén accesibles (sin mostrar valores)
+3. Haz un health check básico
+
+Si algo falla, dime específicamente qué falló y cómo corregirlo.
+
+Si todo funciona, confirma:
+"✅ Ambiente listo para producción:
+- Base de datos: Conectada
+- Secretos: Configurados (X de X)
+- El proyecto está listo para comenzar las fases de implementación"
+
+=============================================================================
+EJECUTA AHORA EL DIAGNÓSTICO Y MUÉSTRAME QUÉ NECESITO HACER
+=============================================================================

@@ -1,0 +1,50 @@
+{
+  "agente_id": "A2_PMO",
+  "nombre": "PMO - Coordinación y Gestión de Proyectos",
+  "descripcion": "Documentos para coordinación multiagente, POEs y consolidación de reportes",
+  "documentos": [
+    {
+      "id": "001_poe_f0_f9_manual",
+      "titulo": "Manual POE Fases F0-F9",
+      "tipo": "metodologia",
+      "uso": "Procedimientos operativos estándar para cada fase del proyecto",
+      "personalizable": false,
+      "campos_clave": ["fases_proyecto", "criterios_entrada_salida", "responsables", "entregables"]
+    },
+    {
+      "id": "002_plantillas_po_consolidation",
+      "titulo": "Plantillas de Consolidación PO",
+      "tipo": "plantilla",
+      "uso": "Formatos para consolidar órdenes de compra y reportes de avance",
+      "personalizable": true,
+      "campos_clave": ["formato_po", "campos_obligatorios", "validaciones"]
+    },
+    {
+      "id": "003_guia_coordinacion_multiagente",
+      "titulo": "Guía de Coordinación Multiagente",
+      "tipo": "metodologia",
+      "uso": "Protocolos de comunicación y escalamiento entre agentes",
+      "personalizable": false,
+      "campos_clave": ["flujo_comunicacion", "puntos_decision", "escalamiento"]
+    },
+    {
+      "id": "004_checklist_tipologia",
+      "titulo": "Checklist por Tipología de Servicio",
+      "tipo": "plantilla",
+      "uso": "Listas de verificación según tipo de servicio intangible",
+      "personalizable": true,
+      "campos_clave": ["tipologias_servicio", "documentos_requeridos", "evidencias"]
+    }
+  ],
+  "contexto_requerido": {
+    "obligatorio": [
+      "tipologia_proyecto",
+      "fase_actual",
+      "agentes_involucrados"
+    ],
+    "deseable": [
+      "historial_comunicaciones",
+      "reportes_anteriores"
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "project_id": "PROJ-143F75BD",
+  "entries": [
+    {
+      "timestamp": "2026-01-23T17:45:27.804514+00:00",
+      "action": "email_sent",
+      "from_agent": "A1_SPONSOR",
+      "to_agent": "A3_FISCAL",
+      "email_subject": "[SATMA] Deliberación PROJ-143F75BD: Estrategia Competitiva Fortezza 2025",
+      "attachment_name": "IDPROJ-143_A1_SPONSOR_Reporte_estrategia_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZA7RK5ZPLEhD1Fd0FRJfBmeBeWFCVlSBpPX",
+      "recorded_at": "2026-01-23T17:45:27.804658+00:00",
+      "sequence_number": 1
+    },
+    {
+      "timestamp": "2026-01-23T17:46:15.058003+00:00",
+      "action": "email_sent",
+      "from_agent": "A3_FISCAL",
+      "to_agent": "A5_FINANZAS",
+      "email_subject": "[SATMA] Deliberación PROJ-143F75BD: Estrategia Competitiva Fortezza 2025",
+      "attachment_name": "IDPROJ-143_A3_FISCAL_Reporte_fiscal_V1.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZo7RK5Z6vtx5fBH1LBwKK5ggx3hkun54zCV",
+      "recorded_at": "2026-01-23T17:46:15.058063+00:00",
+      "sequence_number": 2
+    },
+    {
+      "timestamp": "2026-01-23T17:47:43.270833+00:00",
+      "action": "consolidation_email_sent",
+      "from_agent": "A2_PMO",
+      "to_agent": "SOLICITANTE",
+      "to_email": "sfortezza@grupofortezza.com",
+      "email_subject": "[SATMA] Resultado de Evaluación - Estrategia Competitiva Fortezza 2025 - RECHAZADO",
+      "attachments_count": 4,
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZYkRK5Z8lw68IdSozfsJ6fOy7qHJbsLHopk",
+      "recorded_at": "2026-01-23T17:47:43.270843+00:00",
+      "sequence_number": 3
+    },
+    {
+      "timestamp": "2026-01-23T17:47:44.012765+00:00",
+      "action": "bitacora_generated",
+      "from_agent": "SYSTEM",
+      "to_agent": "ARCHIVO",
+      "email_subject": "Bitácora Final - Proyecto PROJ-143F75BD",
+      "attachment_name": "IDPROJ-143_BITACORA_20260123_174743.pdf",
+      "pcloud_link": "https://u.pcloud.link/publink/show?code=XZbkRK5ZIUJCKGXOsCzQbEhzsnI83Vm7NQd7",
+      "recorded_at": "2026-01-23T17:47:44.012803+00:00",
+      "sequence_number": 4
+    }
+  ],
+  "last_updated": "2026-01-23T17:47:44.012822+00:00"
+}

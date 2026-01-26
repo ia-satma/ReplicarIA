@@ -1,0 +1,624 @@
+"""
+GENERADOR DE PDF BASE
+Funciones comunes para crear documentos PDF profesionales
+"""
+
+import os
+import io
+import hashlib
+from datetime import datetime
+from typing import Dict, List, Any, Optional, Tuple
+
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch, cm
+from reportlab.pdfgen import canvas
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    PageBreak, Image as RLImage, HRFlowable
+)
+from reportlab.lib import colors
+
+try:
+    import qrcode
+    from PIL import Image
+    HAS_QR = True
+except ImportError:
+    HAS_QR = False
+
+from .styles import (
+    COLORS, PAGE_CONFIG, FONTS, get_styles, 
+    SEVERITY_COLORS, STATUS_COLORS, LEGAL_TEXTS
+)
+
+
+class PDFGenerator:
+    """Generador base de documentos PDF"""
+    
+    def __init__(self, output_path: str, title: str = "Documento"):
+        self.output_path = output_path
+        self.title = title
+        self.styles = get_styles()
+        self.elements = []
+        self.page_count = 0
+        self.generation_timestamp = datetime.now()
+        
+    def add_header(self, canvas_obj, doc):
+        """Agrega encabezado a cada página"""
+        canvas_obj.saveState()
+        
+        # Línea superior
+        canvas_obj.setStrokeColor(COLORS['primary'])
+        canvas_obj.setLineWidth(2)
+        canvas_obj.line(
+            PAGE_CONFIG['margin_left'],
+            letter[1] - 0.5 * inch,
+            letter[0] - PAGE_CONFIG['margin_right'],
+            letter[1] - 0.5 * inch
+        )
+        
+        # Título del documento
+        canvas_obj.setFont(*FONTS['small'])
+        canvas_obj.setFillColor(COLORS['primary'])
+        canvas_obj.drawString(
+            PAGE_CONFIG['margin_left'],
+            letter[1] - 0.4 * inch,
+            self.title
+        )
+        
+        # Fecha
+        canvas_obj.drawRightString(
+            letter[0] - PAGE_CONFIG['margin_right'],
+            letter[1] - 0.4 * inch,
+            self.generation_timestamp.strftime("%d/%m/%Y %H:%M")
+        )
+        
+        canvas_obj.restoreState()
+    
+    def add_footer(self, canvas_obj, doc):
+        """Agrega pie de página a cada página"""
+        canvas_obj.saveState()
+        
+        # Línea inferior
+        canvas_obj.setStrokeColor(COLORS['light_gray'])
+        canvas_obj.setLineWidth(1)
+        canvas_obj.line(
+            PAGE_CONFIG['margin_left'],
+            0.5 * inch,
+            letter[0] - PAGE_CONFIG['margin_right'],
+            0.5 * inch
+        )
+        
+        # Número de página
+        canvas_obj.setFont(*FONTS['tiny'])
+        canvas_obj.setFillColor(COLORS['dark_gray'])
+        canvas_obj.drawCentredString(
+            letter[0] / 2,
+            0.35 * inch,
+            f"Página {doc.page} | Expediente generado por Durezza 4.0"
+        )
+        
+        # Aviso de confidencialidad
+        canvas_obj.setFont(*FONTS['tiny'])
+        canvas_obj.drawCentredString(
+            letter[0] / 2,
+            0.2 * inch,
+            "CONFIDENCIAL - Solo para uso del destinatario autorizado"
+        )
+        
+        canvas_obj.restoreState()
+    
+    def add_title_page(
+        self,
+        project_name: str,
+        client_name: str,
+        rfc: str,
+        periodo_fiscal: str,
+        folio: str,
+        qr_data: str = None
+    ):
+        """Genera página de carátula"""
+        
+        # Espaciado inicial
+        self.elements.append(Spacer(1, 1.5 * inch))
+        
+        # Logo placeholder (puedes reemplazar con logo real)
+        self.elements.append(Paragraph(
+            "DUREZZA 4.0",
+            self.styles['Title']
+        ))
+        
+        self.elements.append(Paragraph(
+            "Sistema de Auditoría de Intangibles",
+            self.styles['Subtitle']
+        ))
+        
+        self.elements.append(Spacer(1, 0.5 * inch))
+        self.elements.append(HRFlowable(
+            width="80%",
+            thickness=2,
+            color=COLORS['primary'],
+            spaceBefore=10,
+            spaceAfter=30
+        ))
+        
+        # Título del expediente
+        self.elements.append(Paragraph(
+            "EXPEDIENTE DE DEFENSA FISCAL",
+            self.styles['Title']
+        ))
+        
+        self.elements.append(Spacer(1, 0.3 * inch))
+        
+        # Información del proyecto
+        info_data = [
+            ['PROYECTO:', project_name],
+            ['CONTRIBUYENTE:', client_name],
+            ['RFC:', rfc],
+            ['PERÍODO FISCAL:', periodo_fiscal],
+            ['FOLIO EXPEDIENTE:', folio],
+            ['FECHA GENERACIÓN:', self.generation_timestamp.strftime("%d de %B de %Y")],
+        ]
+        
+        info_table = Table(info_data, colWidths=[2.5 * inch, 4 * inch])
+        info_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 12),
+            ('TEXTCOLOR', (0, 0), (0, -1), COLORS['primary']),
+            ('TEXTCOLOR', (1, 0), (1, -1), COLORS['text']),
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ]))
+        
+        self.elements.append(info_table)
+        
+        # QR Code (si está disponible)
+        if HAS_QR and qr_data:
+            self.elements.append(Spacer(1, 0.5 * inch))
+            qr_img = self._generate_qr_code(qr_data)
+            if qr_img:
+                self.elements.append(qr_img)
+                self.elements.append(Paragraph(
+                    "Escanea para verificar autenticidad",
+                    self.styles['Small']
+                ))
+        
+        self.elements.append(Spacer(1, 0.5 * inch))
+        
+        # Aviso legal
+        self.elements.append(HRFlowable(
+            width="100%",
+            thickness=1,
+            color=COLORS['light_gray'],
+            spaceBefore=20,
+            spaceAfter=10
+        ))
+        
+        self.elements.append(Paragraph(
+            LEGAL_TEXTS['confidentiality'].strip(),
+            self.styles['Legal']
+        ))
+        
+        self.elements.append(PageBreak())
+    
+    def add_executive_summary(
+        self,
+        risk_score: float,
+        risk_level: str,
+        total_documents: int,
+        validated_documents: int,
+        vulnerabilities_found: int,
+        key_findings: List[str],
+        recommendation: str
+    ):
+        """Genera sección de resumen ejecutivo"""
+        
+        self.elements.append(Paragraph(
+            "RESUMEN EJECUTIVO",
+            self.styles['Heading1']
+        ))
+        
+        self.elements.append(Spacer(1, 0.2 * inch))
+        
+        # Indicadores principales
+        indicators = [
+            ['INDICADOR', 'VALOR', 'ESTADO'],
+            ['Risk Score General', f"{risk_score:.1f}/100", self._get_risk_badge(risk_level)],
+            ['Documentos Totales', str(total_documents), '—'],
+            ['Documentos Validados', str(validated_documents), 
+             '✓' if validated_documents == total_documents else '⚠'],
+            ['Tasa de Validación', f"{(validated_documents/total_documents*100):.0f}%" if total_documents > 0 else 'N/A', '—'],
+            ['Vulnerabilidades Red Team', str(vulnerabilities_found),
+             '✓' if vulnerabilities_found == 0 else '⚠'],
+        ]
+        
+        indicator_table = Table(indicators, colWidths=[2.5 * inch, 2 * inch, 1.5 * inch])
+        indicator_table.setStyle(TableStyle([
+            # Header
+            ('BACKGROUND', (0, 0), (-1, 0), COLORS['primary']),
+            ('TEXTCOLOR', (0, 0), (-1, 0), COLORS['white']),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            # Body
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
+            # Grid
+            ('GRID', (0, 0), (-1, -1), 0.5, COLORS['light_gray']),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            # Alternating rows
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [COLORS['white'], COLORS['light_gray']]),
+        ]))
+        
+        self.elements.append(indicator_table)
+        self.elements.append(Spacer(1, 0.3 * inch))
+        
+        # Hallazgos clave
+        if key_findings:
+            self.elements.append(Paragraph(
+                "Hallazgos Clave:",
+                self.styles['Heading2']
+            ))
+            
+            for finding in key_findings[:5]:  # Máximo 5 hallazgos
+                self.elements.append(Paragraph(
+                    f"• {finding}",
+                    self.styles['Body']
+                ))
+        
+        self.elements.append(Spacer(1, 0.2 * inch))
+        
+        # Recomendación
+        self.elements.append(Paragraph(
+            "Recomendación:",
+            self.styles['Heading2']
+        ))
+        
+        rec_color = COLORS['success'] if risk_level in ['LOW', 'MEDIUM'] else COLORS['danger']
+        self.elements.append(Paragraph(
+            f"<font color='{rec_color.hexval()}'><b>{recommendation}</b></font>",
+            self.styles['Body']
+        ))
+        
+        self.elements.append(PageBreak())
+    
+    def add_document_index(
+        self,
+        documents: List[Dict[str, Any]],
+        title: str = "ÍNDICE DE DOCUMENTOS"
+    ):
+        """Genera índice de documentos con checklist"""
+        
+        self.elements.append(Paragraph(title, self.styles['Heading1']))
+        self.elements.append(Spacer(1, 0.2 * inch))
+        
+        # Tabla de documentos
+        table_data = [['#', 'DOCUMENTO', 'TIPO', 'ESTADO', 'PÁGINA']]
+        
+        for i, doc in enumerate(documents, 1):
+            status = doc.get('status', 'PENDING')
+            status_symbol = '✓' if status in ['VALIDATED', 'COMPLETE'] else '✗' if status == 'MISSING' else '○'
+            
+            table_data.append([
+                str(i),
+                doc.get('nombre', 'Sin nombre')[:40],
+                doc.get('tipo', 'N/A'),
+                status_symbol,
+                str(doc.get('pagina', '—'))
+            ])
+        
+        doc_table = Table(
+            table_data,
+            colWidths=[0.5 * inch, 3 * inch, 1.5 * inch, 0.7 * inch, 0.8 * inch]
+        )
+        
+        doc_table.setStyle(TableStyle([
+            # Header
+            ('BACKGROUND', (0, 0), (-1, 0), COLORS['primary']),
+            ('TEXTCOLOR', (0, 0), (-1, 0), COLORS['white']),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            # Body
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+            ('ALIGN', (3, 1), (4, -1), 'CENTER'),
+            # Grid
+            ('GRID', (0, 0), (-1, -1), 0.5, COLORS['light_gray']),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            # Alternating rows
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [COLORS['white'], HexColor('#f7fafc')]),
+        ]))
+        
+        self.elements.append(doc_table)
+        self.elements.append(Spacer(1, 0.3 * inch))
+        
+        # Leyenda
+        legend = """
+        <b>Leyenda:</b> ✓ = Documento validado | ○ = Pendiente de validación | ✗ = Documento faltante
+        """
+        self.elements.append(Paragraph(legend.strip(), self.styles['Small']))
+        
+        self.elements.append(PageBreak())
+    
+    def add_validation_report(
+        self,
+        ocr_results: List[Dict[str, Any]],
+        title: str = "REPORTE DE VALIDACIÓN OCR"
+    ):
+        """Genera sección de reporte de validación OCR"""
+        
+        self.elements.append(Paragraph(title, self.styles['Heading1']))
+        self.elements.append(Spacer(1, 0.2 * inch))
+        
+        self.elements.append(Paragraph(
+            """Los siguientes documentos fueron procesados mediante reconocimiento 
+            óptico de caracteres (OCR) y validados contra los datos registrados 
+            en el sistema para garantizar consistencia e integridad.""",
+            self.styles['Body']
+        ))
+        
+        self.elements.append(Spacer(1, 0.2 * inch))
+        
+        for result in ocr_results:
+            doc_name = result.get('document_name', 'Documento')
+            status = result.get('status', 'PENDING')
+            confidence = result.get('confidence', 0)
+            iterations = result.get('iterations', 0)
+            
+            # Color según estado
+            status_color = STATUS_COLORS.get(status, COLORS['dark_gray'])
+            
+            self.elements.append(Paragraph(
+                f"<b>{doc_name}</b>",
+                self.styles['Heading2']
+            ))
+            
+            # Mini tabla de resultado
+            result_data = [
+                ['Estado:', f"<font color='{status_color.hexval()}'><b>{status}</b></font>"],
+                ['Confianza:', f"{confidence*100:.1f}%"],
+                ['Iteraciones:', str(iterations)],
+            ]
+            
+            if result.get('keywords_found'):
+                result_data.append(['Keywords encontradas:', ', '.join(result['keywords_found'][:5])])
+            
+            if result.get('contradictions'):
+                for contradiction in result['contradictions'][:2]:
+                    result_data.append(['⚠ Inconsistencia:', contradiction[:60]])
+            
+            for row in result_data:
+                self.elements.append(Paragraph(
+                    f"<b>{row[0]}</b> {row[1]}",
+                    self.styles['Small']
+                ))
+            
+            self.elements.append(Spacer(1, 0.15 * inch))
+        
+        self.elements.append(PageBreak())
+    
+    def add_red_team_report(
+        self,
+        red_team_results: Dict[str, Any],
+        title: str = "REPORTE DE SIMULACIÓN RED TEAM"
+    ):
+        """Genera sección de reporte Red Team"""
+        
+        self.elements.append(Paragraph(title, self.styles['Heading1']))
+        self.elements.append(Spacer(1, 0.2 * inch))
+        
+        self.elements.append(Paragraph(
+            """Se ejecutó una simulación de auditoría fiscal simulando los 
+            vectores de ataque típicos del SAT. El objetivo es identificar 
+            vulnerabilidades antes de una revisión real.""",
+            self.styles['Body']
+        ))
+        
+        self.elements.append(Spacer(1, 0.2 * inch))
+        
+        # Resumen
+        resumen = red_team_results.get('resumen', {})
+        overall_risk = resumen.get('nivel_riesgo', 'UNKNOWN')
+        risk_color = SEVERITY_COLORS.get(overall_risk, COLORS['dark_gray'])
+        
+        summary_data = [
+            ['MÉTRICA', 'VALOR'],
+            ['Vectores Testeados', str(resumen.get('vectores_testeados', 0))],
+            ['Vectores Pasados', str(resumen.get('vectores_pasados', 0))],
+            ['Vulnerabilidades Encontradas', str(resumen.get('vulnerabilidades_encontradas', 0))],
+            ['Nivel de Riesgo', overall_risk],
+        ]
+        
+        summary_table = Table(summary_data, colWidths=[3 * inch, 2 * inch])
+        summary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), COLORS['primary']),
+            ('TEXTCOLOR', (0, 0), (-1, 0), COLORS['white']),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 0.5, COLORS['light_gray']),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            # Color del nivel de riesgo
+            ('TEXTCOLOR', (1, -1), (1, -1), risk_color),
+            ('FONTNAME', (1, -1), (1, -1), 'Helvetica-Bold'),
+        ]))
+        
+        self.elements.append(summary_table)
+        self.elements.append(Spacer(1, 0.3 * inch))
+        
+        # Vulnerabilidades encontradas
+        vulnerabilities = red_team_results.get('vulnerabilidades', [])
+        
+        if vulnerabilities:
+            self.elements.append(Paragraph(
+                "Vulnerabilidades Detectadas:",
+                self.styles['Heading2']
+            ))
+            
+            for vuln in vulnerabilities:
+                severity = vuln.get('severity', 'MEDIUM')
+                sev_color = SEVERITY_COLORS.get(severity, COLORS['dark_gray'])
+                
+                vuln_text = f"""
+                <font color='{sev_color.hexval()}'><b>[{severity}]</b></font> 
+                {vuln.get('message', vuln.get('description', 'Sin descripción'))}
+                """
+                self.elements.append(Paragraph(vuln_text.strip(), self.styles['Body']))
+                
+                if vuln.get('recommendation'):
+                    self.elements.append(Paragraph(
+                        f"<i>→ Recomendación: {vuln['recommendation']}</i>",
+                        self.styles['Small']
+                    ))
+                
+                self.elements.append(Spacer(1, 0.1 * inch))
+        else:
+            self.elements.append(Paragraph(
+                "<font color='green'><b>✓ No se encontraron vulnerabilidades. "
+                "El expediente pasó todas las pruebas.</b></font>",
+                self.styles['Body']
+            ))
+        
+        # Conclusión
+        self.elements.append(Spacer(1, 0.2 * inch))
+        conclusion = red_team_results.get('conclusion', 'Sin conclusión')
+        self.elements.append(Paragraph(
+            f"<b>Conclusión:</b> {conclusion}",
+            self.styles['BodyBold']
+        ))
+        
+        self.elements.append(PageBreak())
+    
+    def add_integrity_section(
+        self,
+        file_hashes: Dict[str, str],
+        generation_info: Dict[str, Any]
+    ):
+        """Genera sección de integridad y metadatos"""
+        
+        self.elements.append(Paragraph(
+            "INFORMACIÓN DE INTEGRIDAD",
+            self.styles['Heading1']
+        ))
+        
+        self.elements.append(Spacer(1, 0.2 * inch))
+        
+        self.elements.append(Paragraph(
+            LEGAL_TEXTS['integrity'].strip(),
+            self.styles['Body']
+        ))
+        
+        self.elements.append(Spacer(1, 0.2 * inch))
+        
+        # Información de generación
+        gen_data = [
+            ['Fecha de Generación:', generation_info.get('timestamp', 'N/A')],
+            ['Sistema:', generation_info.get('system', 'Durezza 4.0')],
+            ['Versión:', generation_info.get('version', '1.0.0')],
+            ['Usuario:', generation_info.get('user', 'Sistema')],
+        ]
+        
+        for row in gen_data:
+            self.elements.append(Paragraph(
+                f"<b>{row[0]}</b> {row[1]}",
+                self.styles['Body']
+            ))
+        
+        self.elements.append(Spacer(1, 0.3 * inch))
+        
+        # Hashes de archivos
+        if file_hashes:
+            self.elements.append(Paragraph(
+                "Hashes de Integridad (SHA-256):",
+                self.styles['Heading2']
+            ))
+            
+            hash_data = [['ARCHIVO', 'HASH SHA-256']]
+            for filename, hash_value in file_hashes.items():
+                hash_data.append([
+                    filename[:30] + '...' if len(filename) > 30 else filename,
+                    hash_value[:32] + '...'
+                ])
+            
+            hash_table = Table(hash_data, colWidths=[2.5 * inch, 4 * inch])
+            hash_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), COLORS['dark_gray']),
+                ('TEXTCOLOR', (0, 0), (-1, 0), COLORS['white']),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTNAME', (0, 1), (-1, -1), 'Courier'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 0.5, COLORS['light_gray']),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ]))
+            
+            self.elements.append(hash_table)
+    
+    def _generate_qr_code(self, data: str, size: int = 100) -> Optional[RLImage]:
+        """Genera imagen QR code"""
+        if not HAS_QR:
+            return None
+        
+        try:
+            qr = qrcode.QRCode(version=1, box_size=10, border=2)
+            qr.add_data(data)
+            qr.make(fit=True)
+            
+            img = qr.make_image(fill_color="black", back_color="white")
+            
+            # Convertir a bytes para ReportLab
+            buffer = io.BytesIO()
+            img.save(buffer, format='PNG')
+            buffer.seek(0)
+            
+            return RLImage(buffer, width=size, height=size)
+        except Exception as e:
+            print(f"Error generando QR: {e}")
+            return None
+    
+    def _get_risk_badge(self, risk_level: str) -> str:
+        """Retorna badge de texto para nivel de riesgo"""
+        badges = {
+            'LOW': '🟢 BAJO',
+            'MEDIUM': '🟡 MEDIO',
+            'HIGH': '🟠 ALTO',
+            'CRITICAL': '🔴 CRÍTICO',
+        }
+        return badges.get(risk_level, '⚪ N/A')
+    
+    def build(self) -> str:
+        """Construye el PDF final"""
+        doc = SimpleDocTemplate(
+            self.output_path,
+            pagesize=PAGE_CONFIG['size'],
+            topMargin=PAGE_CONFIG['margin_top'],
+            bottomMargin=PAGE_CONFIG['margin_bottom'],
+            leftMargin=PAGE_CONFIG['margin_left'],
+            rightMargin=PAGE_CONFIG['margin_right'],
+        )
+        
+        doc.build(
+            self.elements,
+            onFirstPage=self._add_page_decorations,
+            onLaterPages=self._add_page_decorations
+        )
+        
+        return self.output_path
+    
+    def _add_page_decorations(self, canvas_obj, doc):
+        """Combina header y footer"""
+        self.add_header(canvas_obj, doc)
+        self.add_footer(canvas_obj, doc)

@@ -1,0 +1,94 @@
+"""
+Servicio de Cache con Redis.
+"""
+import redis
+import json
+import os
+from typing import Optional, Any
+from functools import wraps
+import hashlib
+
+REDIS_URL = os.getenv("REDIS_URL")
+
+class CacheService:
+    def __init__(self):
+        if REDIS_URL:
+            self.client = redis.from_url(REDIS_URL, decode_responses=True)
+            self.enabled = True
+        else:
+            self.client = None
+            self.enabled = False
+            print("⚠️ REDIS_URL no configurada - cache deshabilitado")
+    
+    def _make_key(self, prefix: str, *args, **kwargs) -> str:
+        key_data = json.dumps({"args": args, "kwargs": kwargs}, sort_keys=True)
+        hash_val = hashlib.md5(key_data.encode()).hexdigest()[:12]
+        return f"{prefix}:{hash_val}"
+    
+    def get(self, key: str) -> Optional[Any]:
+        if not self.enabled:
+            return None
+        try:
+            value = self.client.get(key)
+            return json.loads(value) if value else None
+        except Exception as e:
+            print(f"Cache get error: {e}")
+            return None
+    
+    def set(self, key: str, value: Any, ttl: int = 300) -> bool:
+        if not self.enabled:
+            return False
+        try:
+            self.client.setex(key, ttl, json.dumps(value))
+            return True
+        except Exception as e:
+            print(f"Cache set error: {e}")
+            return False
+    
+    def delete(self, key: str) -> bool:
+        if not self.enabled:
+            return False
+        try:
+            self.client.delete(key)
+            return True
+        except Exception as e:
+            print(f"Cache delete error: {e}")
+            return False
+    
+    def delete_pattern(self, pattern: str) -> int:
+        if not self.enabled:
+            return 0
+        try:
+            keys = self.client.keys(pattern)
+            if keys:
+                return self.client.delete(*keys)
+            return 0
+        except Exception as e:
+            print(f"Cache delete_pattern error: {e}")
+            return 0
+
+_cache_service: Optional[CacheService] = None
+
+def get_cache() -> CacheService:
+    global _cache_service
+    if _cache_service is None:
+        _cache_service = CacheService()
+    return _cache_service
+
+def cached(prefix: str, ttl: int = 300):
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            cache = get_cache()
+            cache_args = args[1:] if args and hasattr(args[0], '__class__') else args
+            key = cache._make_key(prefix, *cache_args, **kwargs)
+            
+            cached_value = cache.get(key)
+            if cached_value is not None:
+                return cached_value
+            
+            result = await func(*args, **kwargs)
+            cache.set(key, result, ttl)
+            return result
+        return wrapper
+    return decorator

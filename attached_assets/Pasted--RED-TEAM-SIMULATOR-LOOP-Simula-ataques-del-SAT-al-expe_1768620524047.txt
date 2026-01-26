@@ -1,0 +1,294 @@
+/**
+ * RED TEAM SIMULATOR LOOP
+ * Simula ataques del SAT al expediente para encontrar vulnerabilidades
+ * Itera hasta que no encuentre nuevas vulnerabilidades
+ */
+
+const LoopOrchestrator = require('../loopOrchestrator');
+const OpenAI = require('openai');
+const { Project, AuditResult } = require('../../models');
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Vectores de ataque que el SAT típicamente usa
+const ATTACK_VECTORS = [
+  {
+    id: 'ART_5A_RAZON_NEGOCIOS',
+    name: 'Cuestionamiento de Razón de Negocios (Art. 5-A CFF)',
+    prompts: [
+      '¿Cuál es la justificación económica real más allá del beneficio fiscal?',
+      '¿Existe un objetivo de negocio cuantificable y verificable?',
+      '¿El servicio es necesario para la operación o es artificialmente creado?'
+    ]
+  },
+  {
+    id: 'ART_69B_SIMULACION',
+    name: 'Detección de Operaciones Simuladas (Art. 69-B CFF)',
+    prompts: [
+      '¿El proveedor tiene capacidad material para prestar el servicio?',
+      '¿Existe evidencia de que el servicio realmente se prestó?',
+      '¿Los precios son congruentes con el mercado?'
+    ]
+  },
+  {
+    id: 'MATERIALIDAD',
+    name: 'Cuestionamiento de Materialidad',
+    prompts: [
+      '¿Hay entregables tangibles y verificables?',
+      '¿Se puede demostrar el uso/consumo del servicio?',
+      '¿Existe trazabilidad del beneficio obtenido?'
+    ]
+  },
+  {
+    id: 'DOCUMENTAL',
+    name: 'Inconsistencias Documentales',
+    prompts: [
+      '¿Las fechas de los documentos son congruentes entre sí?',
+      '¿Los montos coinciden entre contrato, factura y pago?',
+      '¿Hay documentos faltantes en la cadena de evidencia?'
+    ]
+  },
+  {
+    id: 'PRECIOS_TRANSFERENCIA',
+    name: 'Precios de Transferencia',
+    prompts: [
+      '¿El precio es arm\'s length (independiente)?',
+      '¿Existe estudio de precios de transferencia?',
+      '¿Se usó metodología reconocida por la OCDE?'
+    ]
+  }
+];
+
+class RedTeamLoop {
+  constructor() {
+    this.orchestrator = new LoopOrchestrator({
+      maxIterations: 10,
+      timeoutMs: 600000,  // 10 minutos
+      completionMarker: 'BULLETPROOF'
+    });
+  }
+
+  /**
+   * Ejecuta simulación Red Team sobre un proyecto
+   */
+  async simulateAttack(projectId) {
+    const project = await Project.findById(projectId)
+      .populate('documentos')
+      .populate('resultadosAuditoria');
+
+    if (!project) {
+      throw new Error(`Proyecto ${projectId} no encontrado`);
+    }
+
+    const context = {
+      projectId,
+      projectData: this.extractProjectData(project),
+      attackedVectors: [],
+      vulnerabilities: [],
+      consecutiveNoFindings: 0
+    };
+
+    const result = await this.orchestrator.executeLoop(
+      this.redTeamTask.bind(this),
+      context
+    );
+
+    // Generar reporte de Red Team
+    const report = await this.generateReport(projectId, result);
+
+    return {
+      ...result,
+      report
+    };
+  }
+
+  /**
+   * Tarea de ataque Red Team (cada iteración)
+   */
+  async redTeamTask(context, iteration) {
+    const { projectData, attackedVectors, vulnerabilities, consecutiveNoFindings } = context;
+
+    // Seleccionar vector de ataque no usado
+    const availableVectors = ATTACK_VECTORS.filter(v => 
+      !attackedVectors.includes(v.id)
+    );
+
+    // Si ya atacamos todos los vectores y no encontramos nada en 2 iteraciones
+    if (availableVectors.length === 0 || consecutiveNoFindings >= 2) {
+      return {
+        status: 'BULLETPROOF',
+        totalVulnerabilities: vulnerabilities.length,
+        testedVectors: attackedVectors.length,
+        message: vulnerabilities.length === 0 
+          ? 'Expediente resistió todos los vectores de ataque'
+          : `Se encontraron ${vulnerabilities.length} vulnerabilidades que fueron documentadas`
+      };
+    }
+
+    // Seleccionar siguiente vector (priorizar los más críticos primero)
+    const currentVector = availableVectors[0];
+
+    console.log(`[RedTeam] Iteración ${iteration}: Atacando con ${currentVector.name}`);
+
+    // Ejecutar ataque usando GPT-4 como "auditor del SAT"
+    const attackResult = await this.executeAttackVector(currentVector, projectData);
+
+    // Analizar resultado
+    const newVulnerabilities = attackResult.vulnerabilities || [];
+    
+    if (newVulnerabilities.length === 0) {
+      return {
+        status: 'CONTINUE',
+        attackedVectors: [...attackedVectors, currentVector.id],
+        consecutiveNoFindings: consecutiveNoFindings + 1,
+        findings: [{
+          type: 'VECTOR_PASSED',
+          severity: 'INFO',
+          vector: currentVector.id,
+          message: `Vector ${currentVector.name}: Sin vulnerabilidades detectadas`
+        }]
+      };
+    }
+
+    // Se encontraron vulnerabilidades
+    return {
+      status: 'CONTINUE',
+      attackedVectors: [...attackedVectors, currentVector.id],
+      vulnerabilities: [...vulnerabilities, ...newVulnerabilities],
+      consecutiveNoFindings: 0,  // Reset porque encontramos algo
+      findings: newVulnerabilities.map(v => ({
+        type: 'VULNERABILITY_FOUND',
+        severity: v.severity,
+        vector: currentVector.id,
+        message: v.description,
+        recommendation: v.recommendation
+      }))
+    };
+  }
+
+  /**
+   * Ejecuta un vector de ataque específico
+   */
+  async executeAttackVector(vector, projectData) {
+    const systemPrompt = `Eres un auditor fiscal del SAT mexicano con 20 años de experiencia.
+Tu trabajo es encontrar TODAS las debilidades en expedientes de deducción de intangibles.
+Eres escéptico, meticuloso y conoces todos los trucos que usan los contribuyentes.
+
+REGLAS:
+1. Busca inconsistencias, omisiones y debilidades documentales
+2. Cuestiona la sustancia económica de cada operación
+3. Identifica banderas rojas que justificarían una auditoría profunda
+4. Sé específico: cita artículos del CFF, LISR, y criterios normativos
+5. Califica la severidad: CRITICAL, HIGH, MEDIUM, LOW
+
+VECTOR DE ATAQUE: ${vector.name}
+PREGUNTAS CLAVE: ${vector.prompts.join(' | ')}`;
+
+    const userPrompt = `Analiza este expediente y encuentra vulnerabilidades:
+
+DATOS DEL PROYECTO:
+${JSON.stringify(projectData, null, 2)}
+
+Responde en JSON:
+{
+  "vulnerabilities": [
+    {
+      "id": "string",
+      "severity": "CRITICAL|HIGH|MEDIUM|LOW",
+      "description": "descripción específica",
+      "articulo_aplicable": "Art. X del CFF/LISR",
+      "evidencia_faltante": "qué falta para defenderse",
+      "recommendation": "cómo corregir"
+    }
+  ],
+  "passed_checks": ["lista de verificaciones que SÍ pasaron"],
+  "overall_risk": "CRITICAL|HIGH|MEDIUM|LOW"
+}`;
+
+    try {
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4-turbo-preview',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.7  // Un poco de variabilidad para encontrar más cosas
+      });
+
+      return JSON.parse(response.choices[0].message.content);
+    } catch (error) {
+      console.error('[RedTeam] Error en ataque:', error);
+      return { vulnerabilities: [], error: error.message };
+    }
+  }
+
+  extractProjectData(project) {
+    return {
+      tipologia: project.tipologia,
+      montoContrato: project.montoContrato,
+      descripcionServicio: project.descripcionServicio,
+      justificacionEconomica: project.justificacionEconomica,
+      riskScore: project.riskScore,
+      documentos: project.documentos.map(d => ({
+        tipo: d.tipo,
+        existe: !!d.filePath,
+        validado: d.validacionOCR?.status === 'VALIDATED'
+      })),
+      resultadosAgentes: project.resultadosAuditoria
+    };
+  }
+
+  async generateReport(projectId, result) {
+    const vulnerabilities = result.result?.vulnerabilities || 
+                          result.logs.flatMap(l => l.findings || [])
+                            .filter(f => f.type === 'VULNERABILITY_FOUND');
+
+    const report = {
+      projectId,
+      fecha: new Date(),
+      resumen: {
+        totalIteraciones: result.iterations,
+        vectoresTesteados: result.result?.attackedVectors?.length || 0,
+        vulnerabilidadesEncontradas: vulnerabilities.length,
+        nivelRiesgo: this.calculateOverallRisk(vulnerabilities)
+      },
+      vulnerabilidades: vulnerabilities,
+      recomendaciones: this.generateRecommendations(vulnerabilities),
+      conclusion: result.success 
+        ? 'El expediente ha pasado la simulación de auditoría SAT'
+        : 'Se requieren correcciones antes de considerar el expediente defendible'
+    };
+
+    // Guardar en BD
+    await Project.findByIdAndUpdate(projectId, {
+      $set: { 'redTeamReport': report }
+    });
+
+    return report;
+  }
+
+  calculateOverallRisk(vulnerabilities) {
+    if (vulnerabilities.some(v => v.severity === 'CRITICAL')) return 'CRITICAL';
+    if (vulnerabilities.filter(v => v.severity === 'HIGH').length >= 2) return 'CRITICAL';
+    if (vulnerabilities.some(v => v.severity === 'HIGH')) return 'HIGH';
+    if (vulnerabilities.some(v => v.severity === 'MEDIUM')) return 'MEDIUM';
+    return 'LOW';
+  }
+
+  generateRecommendations(vulnerabilities) {
+    return vulnerabilities
+      .filter(v => v.recommendation)
+      .map(v => ({
+        prioridad: v.severity,
+        accion: v.recommendation,
+        vector: v.vector
+      }))
+      .sort((a, b) => {
+        const order = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+        return order[a.prioridad] - order[b.prioridad];
+      });
+  }
+}
+
+module.exports = new RedTeamLoop();

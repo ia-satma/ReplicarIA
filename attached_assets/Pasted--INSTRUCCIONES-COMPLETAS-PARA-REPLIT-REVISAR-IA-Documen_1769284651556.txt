@@ -1,0 +1,539 @@
+# 🎯 INSTRUCCIONES COMPLETAS PARA REPLIT - REVISAR.IA
+
+## Documento Paso a Paso para Optimización Integral
+
+**Fecha:** Enero 2026  
+**Versión:** 2.0  
+
+---
+
+## ⚡ RESUMEN EJECUTIVO
+
+**Problema:** Página en blanco en producción (archivos estáticos 404)  
+**Causa:** El catch-all intercepta /static antes del mount  
+**Solución:** Corregir orden de rutas en server.py + reconstruir frontend  
+**Tiempo estimado:** 15-20 minutos  
+
+---
+
+## 📋 CHECKLIST DE IMPLEMENTACIÓN
+
+```
+FASE 0: CORRECCIÓN CRÍTICA (PRIMERO)
+☐ 1. Corregir backend/server.py
+☐ 2. Reconstruir frontend
+☐ 3. Verificar localmente
+☐ 4. Re-publicar
+
+FASE 1: OPTIMIZACIÓN FRONTEND
+☐ 5. Crear componentes de UI
+☐ 6. Crear AgentPanel.jsx
+☐ 7. Crear AgentChat.jsx
+
+FASE 2: VERIFICACIÓN
+☐ 8. Ejecutar diagnóstico
+☐ 9. Verificar métricas
+```
+
+---
+
+## FASE 0: CORRECCIÓN CRÍTICA
+
+### PASO 1: Corregir server.py
+
+**ABRE** `backend/server.py` y **BUSCA** estas líneas:
+
+```bash
+# Ejecuta este comando para ver el problema
+grep -n "full_path:path\|mount.*static" backend/server.py
+```
+
+**El problema es:** El catch-all `@app.get("/{full_path:path}")` está ANTES del mount de static files.
+
+**SOLUCIÓN:** Copia este código y pégalo al FINAL de server.py, DESPUÉS de todos los routers pero ANTES del catch-all:
+
+```python
+# ============================================
+# MONTAR STATIC FILES - AGREGAR ESTO
+# ============================================
+import os
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+# Encontrar el build del frontend
+def find_frontend_build():
+    paths = [
+        os.path.join(os.path.dirname(__file__), "..", "frontend", "build"),
+        "/home/runner/ReplicarIA/frontend/build",
+        "./frontend/build",
+    ]
+    for p in paths:
+        if os.path.exists(os.path.join(os.path.abspath(p), "index.html")):
+            return os.path.abspath(p)
+    return None
+
+FRONTEND_BUILD = find_frontend_build()
+print(f"📁 Frontend: {FRONTEND_BUILD or 'NO ENCONTRADO'}")
+
+# Montar /static ANTES del catch-all
+if FRONTEND_BUILD:
+    static_dir = os.path.join(FRONTEND_BUILD, "static")
+    if os.path.exists(static_dir):
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
+        print(f"✅ /static montado")
+```
+
+**DESPUÉS**, modifica el catch-all para excluir static:
+
+```python
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    # Excluir API y static
+    if full_path.startswith("api/") or full_path.startswith("static/"):
+        from fastapi import HTTPException
+        raise HTTPException(404, "Not found")
+    
+    # Servir index.html
+    if FRONTEND_BUILD:
+        index = os.path.join(FRONTEND_BUILD, "index.html")
+        if os.path.exists(index):
+            return FileResponse(index)
+    
+    return {"error": "Frontend not available"}
+```
+
+---
+
+### PASO 2: Reconstruir Frontend
+
+```bash
+cd frontend
+rm -rf build node_modules/.cache
+npm run build
+ls -la build/
+ls build/static/js/
+cd ..
+```
+
+**Verificar que existe:**
+- `frontend/build/index.html`
+- `frontend/build/static/js/main.*.js`
+- `frontend/build/static/css/main.*.css`
+
+---
+
+### PASO 3: Verificar Localmente
+
+```bash
+# Reiniciar servidor
+pkill -f uvicorn
+cd backend && python -m uvicorn server:app --host 0.0.0.0 --port 5000 &
+sleep 3
+
+# Probar
+curl http://localhost:5000/api/health
+curl -I http://localhost:5000/static/js/ | head -3
+
+# Debe mostrar HTTP 200 o 301, NO 404
+```
+
+---
+
+### PASO 4: Re-publicar
+
+1. En Replit: **Deploy** → **Publish**
+2. Esperar 1-2 minutos
+3. Verificar en navegador: `https://revisar-ia.com`
+
+---
+
+## FASE 1: OPTIMIZACIÓN FRONTEND
+
+### PASO 5: Crear Componentes de UI
+
+**Crear** `frontend/src/components/ui/index.jsx`:
+
+```jsx
+// Componentes de UI reutilizables
+
+export const Spinner = ({ size = 'md' }) => {
+  const sizes = { sm: 'w-4 h-4', md: 'w-8 h-8', lg: 'w-12 h-12' };
+  return (
+    <div className={`${sizes[size]} border-4 border-blue-500 border-t-transparent rounded-full animate-spin`} />
+  );
+};
+
+export const Card = ({ children, className = '' }) => (
+  <div className={`bg-white rounded-xl shadow-sm border border-gray-200 p-6 ${className}`}>
+    {children}
+  </div>
+);
+
+export const Badge = ({ children, color = 'blue' }) => {
+  const colors = {
+    blue: 'bg-blue-100 text-blue-700',
+    green: 'bg-green-100 text-green-700',
+    yellow: 'bg-yellow-100 text-yellow-700',
+    red: 'bg-red-100 text-red-700',
+  };
+  return (
+    <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[color]}`}>
+      {children}
+    </span>
+  );
+};
+
+export const Button = ({ children, onClick, variant = 'primary', disabled = false }) => {
+  const variants = {
+    primary: 'bg-blue-600 text-white hover:bg-blue-700',
+    secondary: 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+    danger: 'bg-red-600 text-white hover:bg-red-700',
+  };
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`px-4 py-2 rounded-lg font-medium transition-colors ${variants[variant]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+    >
+      {children}
+    </button>
+  );
+};
+```
+
+---
+
+### PASO 6: Crear AgentPanel
+
+**Crear** `frontend/src/components/agents/AgentPanel.jsx`:
+
+```jsx
+import React, { useState, useEffect } from 'react';
+
+const AGENTS = [
+  { id: 'A1', name: 'Recepción', icon: '📥', color: 'blue' },
+  { id: 'A2', name: 'Análisis', icon: '🔍', color: 'purple' },
+  { id: 'A3', name: 'Normativo', icon: '📜', color: 'indigo' },
+  { id: 'A4', name: 'Contable', icon: '📊', color: 'green' },
+  { id: 'A5', name: 'Operativo', icon: '⚙️', color: 'yellow' },
+  { id: 'A6', name: 'Financiero', icon: '💰', color: 'emerald' },
+  { id: 'A7', name: 'Legal', icon: '⚖️', color: 'red' },
+  { id: 'A8', name: 'Red Team', icon: '🎯', color: 'orange' },
+  { id: 'A9', name: 'Síntesis', icon: '📋', color: 'cyan' },
+  { id: 'A10', name: 'Archivo', icon: '📁', color: 'gray' },
+];
+
+const AgentCard = ({ agent, active, onClick }) => (
+  <div
+    onClick={() => onClick(agent.id)}
+    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+      active 
+        ? 'border-blue-500 bg-blue-50 scale-105' 
+        : 'border-gray-200 hover:border-gray-300'
+    }`}
+  >
+    <div className="text-2xl mb-2">{agent.icon}</div>
+    <div className="font-semibold text-gray-900">{agent.name}</div>
+    <div className="text-xs text-gray-500">{agent.id}</div>
+  </div>
+);
+
+export default function AgentPanel() {
+  const [activeAgents, setActiveAgents] = useState([]);
+  
+  const toggleAgent = (id) => {
+    setActiveAgents(prev => 
+      prev.includes(id) 
+        ? prev.filter(a => a !== id)
+        : [...prev, id]
+    );
+  };
+
+  return (
+    <div className="p-6">
+      <h2 className="text-2xl font-bold mb-6">🤖 Panel de Agentes</h2>
+      <p className="text-gray-500 mb-4">{activeAgents.length} agentes seleccionados</p>
+      
+      <div className="grid grid-cols-5 gap-4">
+        {AGENTS.map(agent => (
+          <AgentCard
+            key={agent.id}
+            agent={agent}
+            active={activeAgents.includes(agent.id)}
+            onClick={toggleAgent}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+### PASO 7: Crear AgentChat
+
+**Crear** `frontend/src/components/agents/AgentChat.jsx`:
+
+```jsx
+import React, { useState, useRef, useEffect } from 'react';
+
+export default function AgentChat({ projectId }) {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const sendMessage = async () => {
+    if (!input.trim() || loading) return;
+
+    const userMsg = { id: Date.now(), role: 'user', content: input };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/agents/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: input, project_id: projectId }),
+      });
+      const data = await res.json();
+      
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: data.response?.response || JSON.stringify(data.response),
+        agents: data.agents_invoked,
+      }]);
+    } catch (err) {
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        role: 'error',
+        content: 'Error: ' + err.message,
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-[600px] bg-white rounded-xl border">
+      {/* Header */}
+      <div className="p-4 border-b">
+        <h3 className="font-semibold">💬 Chat con Agentes</h3>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map(msg => (
+          <div
+            key={msg.id}
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div className={`max-w-[80%] p-3 rounded-xl ${
+              msg.role === 'user' 
+                ? 'bg-blue-600 text-white' 
+                : msg.role === 'error'
+                ? 'bg-red-100 text-red-700'
+                : 'bg-gray-100'
+            }`}>
+              {msg.agents && (
+                <div className="text-xs mb-1 opacity-70">
+                  Agentes: {msg.agents.join(', ')}
+                </div>
+              )}
+              <p className="whitespace-pre-wrap">{msg.content}</p>
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div className="flex justify-start">
+            <div className="bg-gray-100 p-3 rounded-xl">
+              <div className="flex gap-1">
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
+      <div className="p-4 border-t flex gap-2">
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && sendMessage()}
+          placeholder="Escribe tu consulta fiscal..."
+          className="flex-1 px-4 py-2 border rounded-lg"
+          disabled={loading}
+        />
+        <button
+          onClick={sendMessage}
+          disabled={loading || !input.trim()}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
+        >
+          Enviar
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+## FASE 2: VERIFICACIÓN
+
+### PASO 8: Ejecutar Diagnóstico
+
+**Crear** `backend/scripts/verify.py`:
+
+```python
+#!/usr/bin/env python3
+import asyncio, os, sys, json
+from datetime import datetime
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+async def main():
+    results = {"timestamp": datetime.utcnow().isoformat(), "checks": {}}
+    
+    # 1. Database
+    try:
+        import asyncpg
+        conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
+        tables = await conn.fetchval("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'")
+        results["checks"]["database"] = True
+        results["tables"] = tables
+        await conn.close()
+        print(f"✅ Database: {tables} tablas")
+    except Exception as e:
+        results["checks"]["database"] = False
+        print(f"❌ Database: {e}")
+
+    # 2. Frontend
+    build = os.path.exists("../frontend/build/index.html")
+    results["checks"]["frontend"] = build
+    print(f"{'✅' if build else '❌'} Frontend build")
+
+    # 3. Agentes
+    try:
+        from services.agent_orchestrator import AGENTS_CONFIG
+        results["checks"]["agents"] = True
+        results["agents_count"] = len(AGENTS_CONFIG)
+        print(f"✅ Agentes: {len(AGENTS_CONFIG)}")
+    except:
+        results["checks"]["agents"] = False
+        print("❌ Agentes")
+
+    # Calcular porcentajes
+    checks = results["checks"]
+    impl = sum(checks.values()) / len(checks) * 100
+    print(f"\n📊 IMPLEMENTACIÓN: {impl:.0f}%")
+    
+    return results
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+**Ejecutar:**
+```bash
+cd backend && python scripts/verify.py
+```
+
+---
+
+### PASO 9: Verificar Métricas Finales
+
+```bash
+echo "=== VERIFICACIÓN FINAL ==="
+
+echo -e "\n1. Frontend Build:"
+ls frontend/build/static/js/*.js | head -3
+
+echo -e "\n2. API Health:"
+curl -s http://localhost:5000/api/health
+
+echo -e "\n3. Agentes:"
+curl -s http://localhost:5000/api/agents/list | head -20
+
+echo -e "\n4. Static Files (debe ser 200 o 301, NO 404):"
+curl -sI http://localhost:5000/static/js/ | head -3
+
+echo -e "\n=== MÉTRICAS ==="
+```
+
+---
+
+## 📊 CÁLCULO DE PORCENTAJES
+
+### Implementación
+```
+(server.py corregido + frontend build + agentes + database) / 4 × 100
+= (1 + 1 + 1 + 1) / 4 × 100 = 100%
+```
+
+### Funcionamiento
+```
+(API health OK + Frontend carga + Agentes responden) / 3 × 100
+= (1 + 1 + 1) / 3 × 100 = 100%
+```
+
+### Conexión Frontend
+```
+(static/js OK + static/css OK + index.html OK + API desde front) / 4 × 100
+= (1 + 1 + 1 + 1) / 4 × 100 = 100%
+```
+
+---
+
+## 🚨 TROUBLESHOOTING
+
+### Si sigue el 404:
+
+1. **Verificar que static se monta:**
+```bash
+grep -n "app.mount.*static" backend/server.py
+```
+
+2. **Verificar orden (static ANTES de catch-all):**
+```bash
+grep -n "app.mount\|full_path:path" backend/server.py
+```
+
+3. **Verificar que el build existe:**
+```bash
+ls -la frontend/build/static/
+```
+
+4. **Logs del servidor:**
+```bash
+# Buscar errores en consola de Replit
+```
+
+---
+
+## ✅ CHECKLIST FINAL
+
+```
+☐ server.py tiene mount de /static ANTES del catch-all
+☐ frontend/build existe con index.html
+☐ frontend/build/static/js tiene archivos .js
+☐ curl localhost:5000/api/health → healthy
+☐ curl localhost:5000/static/js/ → NO da 404
+☐ Deploy → Publish ejecutado
+☐ https://revisar-ia.com carga correctamente
+```
+
+---
+
+**Dame confirmación de cada paso completado.**

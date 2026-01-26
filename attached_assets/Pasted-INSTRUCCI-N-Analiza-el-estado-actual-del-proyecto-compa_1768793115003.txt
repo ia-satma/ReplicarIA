@@ -1,0 +1,162 @@
+INSTRUCCIÓN: Analiza el estado actual del proyecto comparando lo implementado con las especificaciones de los 10 megaprompts. NO hagas cambios, solo REPORTA.
+
+Para cada módulo, indica:
+- ✅ IMPLEMENTADO: Existe y cumple la especificación
+- ⚠️ PARCIAL: Existe pero incompleto o difiere de la especificación
+- ❌ FALTA: No existe
+
+=============================================================================
+ANÁLISIS REQUERIDO
+=============================================================================
+
+1. BASE DE DATOS (Megaprompt 01)
+   - ¿Existe modelo Project con campos risk_score_razon_negocios, risk_score_beneficio_economico, risk_score_materialidad, risk_score_trazabilidad?
+   - ¿Existe modelo AgentDeliberation con campo analisis_completo SIN límite de 500 chars?
+   - ¿Existe modelo DefenseFile con matriz_materialidad?
+   - ¿Existe modelo ChecklistTemplate?
+   - Lista los modelos que existen y los que faltan.
+
+2. CONTEXTO GLOBAL (Megaprompt 02)
+   - ¿Existe archivo/módulo con CONTEXTO_NORMATIVO (CFF 5-A, 69-B, LISR 27, NOM-151)?
+   - ¿Existe configuración de TIPOLOGIAS_SERVICIO con nivel_riesgo y foco_sat?
+   - ¿Existe función requiereRevisionHumana() con umbral $5M MXN y risk_score>=60?
+   - ¿Existe configuración POE_FASES con documentos_minimos por fase?
+
+3. CONFIGURACIÓN DE AGENTES (Megaprompt 03)
+   - ¿Existen configs para A1_SPONSOR, A2_PMO, A3_FISCAL, A4_LEGAL, A5_FINANZAS, A6_PROVEEDOR?
+   - ¿Cada agente tiene contexto_requerido con campos obligatorio/deseable?
+   - ¿Cada agente tiene output_schema definido?
+   - ¿A3_FISCAL tiene checklist_evidencia_exigible con min 3 items?
+
+4. FEW-SHOT Y SCORING (Megaprompt 04)
+   - ¿Existen los 3 casos modelo (APROBAR ~16pts, SOLICITAR_AJUSTES ~58pts, RECHAZAR ~92pts)?
+   - ¿Existe matriz de 12 criterios con escalas específicas de puntos?
+   - ¿Existe función calcularRiskScore() que suma los 12 criterios?
+   - ¿El risk_score se calcula objetivamente o es subjetivo del LLM?
+
+5. CHECKLISTS POR TIPOLOGÍA (Megaprompt 05)
+   - ¿Existe CHECKLISTS_POR_TIPOLOGIA con items específicos?
+   - ¿Los items tienen campos: descripcion, responsable, ejemplo_bueno, ejemplo_malo?
+   - ¿Existe checklist para CONSULTORIA_MACRO_MERCADO?
+   - ¿Existe checklist para INTRAGRUPO_MANAGEMENT_FEE?
+   - ¿Existe checklist para SOFTWARE_SAAS_DESARROLLO?
+
+6. FLUJO Y CANDADOS (Megaprompt 06)
+   - ¿Existe ORDEN_FASES = ['F0','F1',...,'F9']?
+   - ¿Existe función verificarCandadoF2()?
+   - ¿Existe función verificarCandadoF6() que verifica materialidad>=80% y VBC?
+   - ¿Existe función verificarCandadoF8() que verifica CFDI específico y 3-way match?
+   - ¿Los candados realmente bloquean el avance?
+
+7. VALIDACIÓN DE OUTPUTS (Megaprompt 07)
+   - ¿Existen schemas Zod para cada agente?
+   - ¿Existe A3FiscalOutputSchema con checklist_evidencia_exigible.min(3)?
+   - ¿Existe función validarYCorregir() para correcciones automáticas?
+   - ¿Existe middleware que rechaza deliberaciones incompletas?
+
+8. NUEVOS SUBAGENTES (Megaprompt 08)
+   - ¿Existe SUB_TIPIFICACION con logica_clasificacion?
+   - ¿Existe SUB_MATERIALIDAD con hechos_relevantes_por_fase?
+   - ¿Existe SUB_RIESGOS_ESPECIALES con reglas_deteccion (EFOS, TP)?
+   - ¿Existe A7_DEFENSA con criterios_defendibilidad?
+
+9. INTERFAZ DE USUARIO (Megaprompt 09)
+   - ¿Existe componente Dashboard con filtros y resumen?
+   - ¿Existe componente ProyectoDetalle con desglose risk_score por pilar?
+   - ¿Existe componente TimelineFases con candados marcados?
+   - ¿Existe componente CargaDocumentos?
+   - ¿El risk_score se muestra con colores (verde/amarillo/naranja/rojo)?
+
+10. INTEGRACIÓN Y TESTS (Megaprompt 10)
+    - ¿Existe archivo de pruebas unitarias?
+    - ¿Existe endpoint /api/health?
+    - ¿Existe endpoint /api/diagnostico?
+    - ¿Se pueden ejecutar pruebas con npm test?
+
+=============================================================================
+FORMATO DE RESPUESTA
+=============================================================================
+
+Responde con esta estructura exacta:
+
+## ESTADO DE IMPLEMENTACIÓN - DUREZZA 4.0
+
+### 1. BASE DE DATOS
+- Project con risk_score desglosado: [✅/⚠️/❌] [detalle]
+- AgentDeliberation sin límite 500 chars: [✅/⚠️/❌] [detalle]
+- DefenseFile: [✅/⚠️/❌] [detalle]
+- ChecklistTemplate: [✅/⚠️/❌] [detalle]
+
+### 2. CONTEXTO GLOBAL
+- CONTEXTO_NORMATIVO: [✅/⚠️/❌] [detalle]
+- TIPOLOGIAS_SERVICIO: [✅/⚠️/❌] [detalle]
+- requiereRevisionHumana(): [✅/⚠️/❌] [detalle]
+- POE_FASES config: [✅/⚠️/❌] [detalle]
+
+### 3. CONFIGURACIÓN AGENTES
+- A1-A6 configs: [✅/⚠️/❌] [detalle]
+- contexto_requerido por agente: [✅/⚠️/❌] [detalle]
+- output_schema por agente: [✅/⚠️/❌] [detalle]
+
+### 4. FEW-SHOT Y SCORING
+- 3 casos modelo: [✅/⚠️/❌] [detalle]
+- Matriz 12 criterios: [✅/⚠️/❌] [detalle]
+- calcularRiskScore() objetivo: [✅/⚠️/❌] [detalle]
+
+### 5. CHECKLISTS TIPOLOGÍA
+- CHECKLISTS_POR_TIPOLOGIA: [✅/⚠️/❌] [detalle]
+- Items con ejemplo_bueno/malo: [✅/⚠️/❌] [detalle]
+
+### 6. FLUJO Y CANDADOS
+- ORDEN_FASES: [✅/⚠️/❌] [detalle]
+- verificarCandadoF2(): [✅/⚠️/❌] [detalle]
+- verificarCandadoF6(): [✅/⚠️/❌] [detalle]
+- verificarCandadoF8(): [✅/⚠️/❌] [detalle]
+
+### 7. VALIDACIÓN OUTPUTS
+- Schemas Zod: [✅/⚠️/❌] [detalle]
+- validarYCorregir(): [✅/⚠️/❌] [detalle]
+- Middleware completitud: [✅/⚠️/❌] [detalle]
+
+### 8. NUEVOS SUBAGENTES
+- SUB_TIPIFICACION: [✅/⚠️/❌] [detalle]
+- SUB_MATERIALIDAD: [✅/⚠️/❌] [detalle]
+- SUB_RIESGOS_ESPECIALES: [✅/⚠️/❌] [detalle]
+- A7_DEFENSA: [✅/⚠️/❌] [detalle]
+
+### 9. INTERFAZ USUARIO
+- Dashboard: [✅/⚠️/❌] [detalle]
+- ProyectoDetalle con risk_score desglosado: [✅/⚠️/❌] [detalle]
+- TimelineFases con candados: [✅/⚠️/❌] [detalle]
+- CargaDocumentos: [✅/⚠️/❌] [detalle]
+
+### 10. INTEGRACIÓN Y TESTS
+- Pruebas unitarias: [✅/⚠️/❌] [detalle]
+- /api/health: [✅/⚠️/❌] [detalle]
+- /api/diagnostico: [✅/⚠️/❌] [detalle]
+
+---
+
+## RESUMEN EJECUTIVO
+
+| Módulo | Estado | % Completitud |
+|--------|--------|---------------|
+| 1. Base de datos | [estado] | [%] |
+| 2. Contexto global | [estado] | [%] |
+| 3. Config agentes | [estado] | [%] |
+| 4. Few-shot/Scoring | [estado] | [%] |
+| 5. Checklists | [estado] | [%] |
+| 6. Flujo/Candados | [estado] | [%] |
+| 7. Validación | [estado] | [%] |
+| 8. Subagentes | [estado] | [%] |
+| 9. UI | [estado] | [%] |
+| 10. Tests | [estado] | [%] |
+
+**COMPLETITUD GLOBAL: [X]%**
+
+## BRECHAS CRÍTICAS (Top 5 prioridad)
+1. [brecha más crítica]
+2. [segunda brecha]
+3. [tercera brecha]
+4. [cuarta brecha]
+5. [quinta brecha]

@@ -1,0 +1,487 @@
+"""
+DEFENSE FILE GENERATOR
+Servicio principal para generar expedientes de defensa fiscal completos
+"""
+
+import os
+import io
+import json
+import hashlib
+import zipfile
+import shutil
+from datetime import datetime
+from typing import Dict, List, Any, Optional
+from dataclasses import dataclass, field, asdict
+
+from PyPDF2 import PdfMerger, PdfReader
+
+from .pdf_generator import PDFGenerator
+from .styles import ZIP_STRUCTURE, LEGAL_TEXTS
+
+# Importar modelos (ajustar según tu estructura)
+try:
+    from models import Project, Document
+    HAS_MODELS = True
+except ImportError:
+    HAS_MODELS = False
+    Project = None
+    Document = None
+
+
+@dataclass
+class DefenseFileConfig:
+    """Configuración para generación de expediente"""
+    include_cover: bool = True
+    include_index: bool = True
+    include_executive_summary: bool = True
+    include_ocr_report: bool = True
+    include_red_team_report: bool = True
+    include_source_documents: bool = True
+    include_integrity_section: bool = True
+    generate_zip: bool = True
+    output_format: str = 'both'  # 'pdf', 'zip', 'both'
+
+
+@dataclass
+class DefenseFileResult:
+    """Resultado de la generación"""
+    success: bool
+    pdf_path: Optional[str] = None
+    zip_path: Optional[str] = None
+    total_pages: int = 0
+    total_documents: int = 0
+    file_hashes: Dict[str, str] = field(default_factory=dict)
+    generation_time_ms: int = 0
+    errors: List[str] = field(default_factory=list)
+
+
+class DefenseFileGenerator:
+    """Generador de expedientes de defensa fiscal"""
+    
+    def __init__(self, output_dir: str = "static/generated_files"):
+        self.output_dir = output_dir
+        os.makedirs(output_dir, exist_ok=True)
+    
+    async def generate(
+        self,
+        project_data: Dict[str, Any],
+        documents: List[Dict[str, Any]],
+        ocr_results: List[Dict[str, Any]] = None,
+        red_team_results: Dict[str, Any] = None,
+        config: DefenseFileConfig = None
+    ) -> DefenseFileResult:
+        """
+        Genera expediente de defensa completo.
+        
+        Args:
+            project_data: Datos del proyecto
+            documents: Lista de documentos del expediente
+            ocr_results: Resultados de validación OCR
+            red_team_results: Resultados de simulación Red Team
+            config: Configuración de generación
+        
+        Returns:
+            DefenseFileResult con rutas a archivos generados
+        """
+        start_time = datetime.now()
+        config = config or DefenseFileConfig()
+        errors = []
+        file_hashes = {}
+        
+        # Generar folio único
+        folio = self._generate_folio(project_data)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Rutas de salida
+        base_filename = f"expediente_{folio}_{timestamp}"
+        pdf_path = os.path.join(self.output_dir, f"{base_filename}.pdf")
+        zip_path = os.path.join(self.output_dir, f"{base_filename}.zip")
+        
+        try:
+            # === GENERAR PDF PRINCIPAL ===
+            if config.output_format in ['pdf', 'both']:
+                pdf_path = await self._generate_main_pdf(
+                    pdf_path=pdf_path,
+                    project_data=project_data,
+                    documents=documents,
+                    ocr_results=ocr_results or [],
+                    red_team_results=red_team_results or {},
+                    config=config,
+                    folio=folio
+                )
+                
+                # Calcular hash del PDF
+                if os.path.exists(pdf_path):
+                    file_hashes['expediente.pdf'] = self._calculate_hash(pdf_path)
+            
+            # === GENERAR ZIP CON ESTRUCTURA ===
+            if config.generate_zip and config.output_format in ['zip', 'both']:
+                zip_path, zip_hashes = await self._generate_zip_package(
+                    zip_path=zip_path,
+                    pdf_path=pdf_path if config.output_format in ['pdf', 'both'] else None,
+                    project_data=project_data,
+                    documents=documents,
+                    ocr_results=ocr_results or [],
+                    red_team_results=red_team_results or {},
+                    folio=folio
+                )
+                file_hashes.update(zip_hashes)
+            
+        except Exception as e:
+            errors.append(f"Error en generación: {str(e)}")
+            import traceback
+            traceback.print_exc()
+        
+        # Calcular tiempo de generación
+        generation_time = int((datetime.now() - start_time).total_seconds() * 1000)
+        
+        return DefenseFileResult(
+            success=len(errors) == 0,
+            pdf_path=pdf_path if os.path.exists(pdf_path) else None,
+            zip_path=zip_path if os.path.exists(zip_path) else None,
+            total_pages=self._count_pdf_pages(pdf_path) if os.path.exists(pdf_path) else 0,
+            total_documents=len(documents),
+            file_hashes=file_hashes,
+            generation_time_ms=generation_time,
+            errors=errors
+        )
+    
+    async def _generate_main_pdf(
+        self,
+        pdf_path: str,
+        project_data: Dict,
+        documents: List[Dict],
+        ocr_results: List[Dict],
+        red_team_results: Dict,
+        config: DefenseFileConfig,
+        folio: str
+    ) -> str:
+        """Genera el PDF principal del expediente"""
+        
+        pdf = PDFGenerator(
+            output_path=pdf_path,
+            title=f"Expediente de Defensa - {project_data.get('nombre', 'Proyecto')}"
+        )
+        
+        # 1. Carátula
+        if config.include_cover:
+            pdf.add_title_page(
+                project_name=project_data.get('nombre', 'Sin nombre'),
+                client_name=project_data.get('cliente', project_data.get('contribuyente', 'N/A')),
+                rfc=project_data.get('rfc', project_data.get('rfc_cliente', 'N/A')),
+                periodo_fiscal=project_data.get('periodo_fiscal', str(datetime.now().year)),
+                folio=folio,
+                qr_data=f"DUREZZA:{folio}:{datetime.now().isoformat()}"
+            )
+        
+        # 2. Resumen Ejecutivo
+        if config.include_executive_summary:
+            # Calcular métricas
+            risk_score = project_data.get('risk_score', 50)
+            risk_level = self._get_risk_level(risk_score)
+            total_docs = len(documents)
+            validated_docs = len([d for d in documents if d.get('status') in ['VALIDATED', 'COMPLETE']])
+            vuln_count = len(red_team_results.get('vulnerabilidades', []))
+            
+            # Extraer hallazgos clave
+            key_findings = []
+            if red_team_results.get('vulnerabilidades'):
+                key_findings.extend([
+                    v.get('message', v.get('description', ''))[:80]
+                    for v in red_team_results['vulnerabilidades'][:3]
+                ])
+            
+            # Determinar recomendación
+            if risk_level == 'LOW' and vuln_count == 0:
+                recommendation = "EXPEDIENTE DEFENDIBLE - Listo para presentar ante autoridades fiscales."
+            elif risk_level == 'MEDIUM' or vuln_count <= 2:
+                recommendation = "EXPEDIENTE CON OBSERVACIONES - Corregir vulnerabilidades menores antes de presentar."
+            else:
+                recommendation = "EXPEDIENTE REQUIERE CORRECCIONES - No presentar hasta resolver vulnerabilidades críticas."
+            
+            pdf.add_executive_summary(
+                risk_score=risk_score,
+                risk_level=risk_level,
+                total_documents=total_docs,
+                validated_documents=validated_docs,
+                vulnerabilities_found=vuln_count,
+                key_findings=key_findings,
+                recommendation=recommendation
+            )
+        
+        # 3. Índice de Documentos
+        if config.include_index:
+            # Preparar lista de documentos para índice
+            doc_index = []
+            page_num = 5  # Empezar después de carátula y resumen
+            
+            for doc in documents:
+                doc_index.append({
+                    'nombre': doc.get('nombre', doc.get('filename', 'Documento')),
+                    'tipo': doc.get('tipo', doc.get('type', 'Otro')),
+                    'status': doc.get('status', doc.get('validation_status', 'PENDING')),
+                    'pagina': page_num
+                })
+                page_num += 1  # Estimación simple
+            
+            pdf.add_document_index(doc_index)
+        
+        # 4. Reporte de Validación OCR
+        if config.include_ocr_report and ocr_results:
+            pdf.add_validation_report(ocr_results)
+        
+        # 5. Reporte Red Team
+        if config.include_red_team_report and red_team_results:
+            pdf.add_red_team_report(red_team_results)
+        
+        # 6. Sección de Integridad
+        if config.include_integrity_section:
+            # Calcular hashes de documentos fuente
+            source_hashes = {}
+            for doc in documents:
+                if doc.get('file_path') and os.path.exists(doc['file_path']):
+                    source_hashes[doc.get('nombre', 'documento')] = self._calculate_hash(doc['file_path'])
+            
+            pdf.add_integrity_section(
+                file_hashes=source_hashes,
+                generation_info={
+                    'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'system': 'Durezza 4.0',
+                    'version': '1.0.0',
+                    'user': project_data.get('usuario', 'Sistema'),
+                }
+            )
+        
+        # Construir PDF
+        pdf.build()
+        
+        return pdf_path
+    
+    async def _generate_zip_package(
+        self,
+        zip_path: str,
+        pdf_path: Optional[str],
+        project_data: Dict,
+        documents: List[Dict],
+        ocr_results: List[Dict],
+        red_team_results: Dict,
+        folio: str
+    ) -> tuple:
+        """Genera paquete ZIP con estructura de carpetas"""
+        
+        file_hashes = {}
+        
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            
+            # Crear estructura de carpetas
+            for folder, description in ZIP_STRUCTURE.items():
+                # Agregar archivo README en cada carpeta
+                readme_content = f"# {folder}\n\n{description}\n\nExpediente: {folio}\n"
+                zf.writestr(f"{folder}/README.txt", readme_content)
+            
+            # 01_CARATULA - PDF principal
+            if pdf_path and os.path.exists(pdf_path):
+                zf.write(pdf_path, "01_CARATULA/expediente_completo.pdf")
+                file_hashes['expediente_completo.pdf'] = self._calculate_hash(pdf_path)
+            
+            # 02_INDICE - Generar índice JSON
+            index_data = {
+                'folio': folio,
+                'proyecto': project_data.get('nombre'),
+                'fecha_generacion': datetime.now().isoformat(),
+                'documentos': [
+                    {
+                        'nombre': d.get('nombre'),
+                        'tipo': d.get('tipo'),
+                        'status': d.get('status'),
+                        'carpeta': self._get_folder_for_type(d.get('tipo'))
+                    }
+                    for d in documents
+                ]
+            }
+            zf.writestr(
+                "02_INDICE/indice_documentos.json",
+                json.dumps(index_data, indent=2, ensure_ascii=False)
+            )
+            
+            # Organizar documentos en carpetas según tipo
+            for doc in documents:
+                if doc.get('file_path') and os.path.exists(doc['file_path']):
+                    folder = self._get_folder_for_type(doc.get('tipo'))
+                    filename = doc.get('nombre', os.path.basename(doc['file_path']))
+                    
+                    # Asegurar extensión
+                    if not filename.endswith('.pdf'):
+                        filename += '.pdf'
+                    
+                    zf.write(doc['file_path'], f"{folder}/{filename}")
+                    file_hashes[filename] = self._calculate_hash(doc['file_path'])
+            
+            # 08_VALIDACIONES - Resultados OCR
+            if ocr_results:
+                ocr_report = {
+                    'fecha': datetime.now().isoformat(),
+                    'resultados': ocr_results
+                }
+                zf.writestr(
+                    "08_VALIDACIONES/reporte_ocr.json",
+                    json.dumps(ocr_report, indent=2, ensure_ascii=False)
+                )
+            
+            # 09_RED_TEAM - Resultados simulación
+            if red_team_results:
+                zf.writestr(
+                    "09_RED_TEAM/reporte_red_team.json",
+                    json.dumps(red_team_results, indent=2, ensure_ascii=False, default=str)
+                )
+            
+            # 10_METADATOS - Hashes y metadata
+            metadata = {
+                'folio_expediente': folio,
+                'fecha_generacion': datetime.now().isoformat(),
+                'sistema': 'Durezza 4.0',
+                'version': '1.0.0',
+                'total_documentos': len(documents),
+                'hashes_sha256': file_hashes,
+                'integridad': {
+                    'algoritmo': 'SHA-256',
+                    'nota': 'Estos hashes permiten verificar que los documentos no han sido alterados'
+                }
+            }
+            zf.writestr(
+                "10_METADATOS/metadata.json",
+                json.dumps(metadata, indent=2, ensure_ascii=False)
+            )
+            
+            # Archivo de verificación de integridad
+            integrity_txt = self._generate_integrity_file(file_hashes, folio)
+            zf.writestr("10_METADATOS/verificacion_integridad.txt", integrity_txt)
+        
+        return zip_path, file_hashes
+    
+    def _generate_folio(self, project_data: Dict) -> str:
+        """Genera folio único para el expediente"""
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        project_id = str(project_data.get('id', project_data.get('_id', 'XXX')))[-4:]
+        rfc_suffix = (project_data.get('rfc', 'XXXX')[-4:]).upper()
+        return f"DUR-{timestamp}-{rfc_suffix}-{project_id}"
+    
+    def _get_risk_level(self, score: float) -> str:
+        """Convierte score numérico a nivel de riesgo"""
+        if score >= 80:
+            return 'CRITICAL'
+        elif score >= 60:
+            return 'HIGH'
+        elif score >= 40:
+            return 'MEDIUM'
+        else:
+            return 'LOW'
+    
+    def _get_folder_for_type(self, doc_type: str) -> str:
+        """Mapea tipo de documento a carpeta"""
+        type_mapping = {
+            'contrato': '03_CONTRATOS',
+            'contrato_servicios': '03_CONTRATOS',
+            'anexo': '03_CONTRATOS',
+            'factura': '04_FACTURAS',
+            'cfdi': '04_FACTURAS',
+            'complemento_pago': '04_FACTURAS',
+            'comprobante_pago': '05_COMPROBANTES_PAGO',
+            'transferencia': '05_COMPROBANTES_PAGO',
+            'entregable': '06_ENTREGABLES',
+            'evidencia': '06_ENTREGABLES',
+            'evidencia_entrega': '06_ENTREGABLES',
+            'correo': '07_CORRESPONDENCIA',
+            'comunicacion': '07_CORRESPONDENCIA',
+        }
+        
+        doc_type_lower = (doc_type or '').lower()
+        
+        for key, folder in type_mapping.items():
+            if key in doc_type_lower:
+                return folder
+        
+        return '06_ENTREGABLES'  # Default
+    
+    def _calculate_hash(self, file_path: str) -> str:
+        """Calcula hash SHA-256 de un archivo"""
+        sha256_hash = hashlib.sha256()
+        
+        with open(file_path, "rb") as f:
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        
+        return sha256_hash.hexdigest()
+    
+    def _count_pdf_pages(self, pdf_path: str) -> int:
+        """Cuenta páginas de un PDF"""
+        try:
+            reader = PdfReader(pdf_path)
+            return len(reader.pages)
+        except:
+            return 0
+    
+    def _generate_integrity_file(self, file_hashes: Dict, folio: str) -> str:
+        """Genera archivo de texto con información de integridad"""
+        lines = [
+            "=" * 70,
+            "VERIFICACIÓN DE INTEGRIDAD DE EXPEDIENTE",
+            "=" * 70,
+            "",
+            f"Folio: {folio}",
+            f"Fecha de generación: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"Sistema: Durezza 4.0",
+            "",
+            "-" * 70,
+            "HASHES SHA-256",
+            "-" * 70,
+            "",
+        ]
+        
+        for filename, hash_value in sorted(file_hashes.items()):
+            lines.append(f"{hash_value}  {filename}")
+        
+        lines.extend([
+            "",
+            "-" * 70,
+            "INSTRUCCIONES DE VERIFICACIÓN",
+            "-" * 70,
+            "",
+            "Para verificar la integridad de los documentos:",
+            "",
+            "En Linux/Mac:",
+            "  sha256sum -c verificacion_integridad.txt",
+            "",
+            "En Windows (PowerShell):",
+            "  Get-FileHash -Algorithm SHA256 <archivo>",
+            "",
+            "Los hashes deben coincidir exactamente. Cualquier diferencia",
+            "indica que el archivo ha sido modificado desde su generación.",
+            "",
+            "=" * 70,
+        ])
+        
+        return "\n".join(lines)
+
+
+# Instancia singleton
+defense_file_generator = DefenseFileGenerator()
+
+
+# Función de conveniencia
+async def generate_defense_file(
+    project_data: Dict,
+    documents: List[Dict],
+    ocr_results: List[Dict] = None,
+    red_team_results: Dict = None,
+    **kwargs
+) -> DefenseFileResult:
+    """Función helper para generar expediente de defensa"""
+    config = DefenseFileConfig(**kwargs) if kwargs else None
+    return await defense_file_generator.generate(
+        project_data=project_data,
+        documents=documents,
+        ocr_results=ocr_results,
+        red_team_results=red_team_results,
+        config=config
+    )

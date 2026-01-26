@@ -1,0 +1,333 @@
+MODO AGENTE AUTÓNOMO - FIX DEFINITIVO LOGIN PRODUCCIÓN
+
+NO PREGUNTAR. NO EXPLICAR. SOLO EJECUTAR.
+
+<TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+PROBLEMA: BD PRODUCCIÓN VACÍA - USUARIOS NO EXISTEN
+═══════════════════════════════════════════════════════════════════════════════
+
+EJECUTAR TODO EN ORDEN. NO SALTAR PASOS.
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 1: CREAR SCRIPT DE SEED FORZADO
+═══════════════════════════════════════════════════════════════════════════════
+
+Crear archivo: server/scripts/forceSeed.ts
+
+```typescript
+import { Pool } from 'pg';
+import bcrypt from 'bcryptjs';
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+async function forceSeed() {
+  console.log('🚀 FORZANDO SEED DE USUARIOS EN PRODUCCIÓN...');
+  
+  const client = await pool.connect();
+  
+  try {
+    // 1. Crear tabla usuarios si no existe
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS usuarios (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        nombre VARCHAR(255),
+        password_hash VARCHAR(255),
+        rol VARCHAR(50) DEFAULT 'usuario',
+        empresa_id INTEGER,
+        activo BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('✅ Tabla usuarios verificada');
+
+    // 2. Crear tabla códigos OTP si no existe
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS codigos_acceso (
+        id SERIAL PRIMARY KEY,
+        usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+        codigo VARCHAR(6) NOT NULL,
+        expira_en TIMESTAMP NOT NULL,
+        usado BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(usuario_id)
+      )
+    `);
+    console.log('✅ Tabla codigos_acceso verificada');
+
+    // 3. Hash de contraseña para admin
+    const passwordAdmin = 'Admin2024!';
+    const hashAdmin = await bcrypt.hash(passwordAdmin, 10);
+
+    // 4. FORZAR creación de usuarios - BORRAR Y RECREAR
+    await client.query(`DELETE FROM codigos_acceso`);
+    await client.query(`DELETE FROM usuarios WHERE email IN ('santiago@satma.mx', 'demo@revisar-ia.com')`);
+    
+    // Insertar admin
+    await client.query(`
+      INSERT INTO usuarios (email, nombre, password_hash, rol, activo)
+      VALUES ($1, $2, $3, $4, TRUE)
+    `, ['santiago@satma.mx', 'Santiago Admin', hashAdmin, 'admin']);
+    console.log('✅ Admin santiago@satma.mx creado con contraseña: Admin2024!');
+
+    // Insertar demo
+    await client.query(`
+      INSERT INTO usuarios (email, nombre, rol, activo)
+      VALUES ($1, $2, $3, TRUE)
+    `, ['demo@revisar-ia.com', 'Usuario Demo', 'usuario']);
+    console.log('✅ Usuario demo@revisar-ia.com creado');
+
+    // 5. Verificar
+    const check = await client.query(`SELECT id, email, rol, password_hash IS NOT NULL as tiene_password FROM usuarios`);
+    console.log('📋 Usuarios en BD:', check.rows);
+
+    console.log('\n✅✅✅ SEED COMPLETADO EXITOSAMENTE ✅✅✅');
+    console.log('Admin: santiago@satma.mx / Admin2024!');
+    
+  } catch (error) {
+    console.error('❌ ERROR EN SEED:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+forceSeed().then(() => process.exit(0)).catch(() => process.exit(1));
+```
+
+□ Archivo forceSeed.ts creado
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 2: AGREGAR SCRIPT A PACKAGE.JSON
+═══════════════════════════════════════════════════════════════════════════════
+
+En package.json (raíz), agregar en scripts:
+
+```json
+{
+  "scripts": {
+    "seed:force": "npx ts-node server/scripts/forceSeed.ts",
+    "seed:prod": "NODE_ENV=production npx ts-node server/scripts/forceSeed.ts"
+  }
+}
+```
+
+□ Scripts agregados a package.json
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 3: MODIFICAR BUILD PARA EJECUTAR SEED AUTOMÁTICO
+═══════════════════════════════════════════════════════════════════════════════
+
+Modificar .replit - el build DEBE ejecutar el seed:
+
+```toml
+[deployment]
+build = ["sh", "-c", "cd frontend && npm install && CRACO_CONFIG_PATH=./craco.config.js npx craco build && cd .. && npx ts-node server/scripts/forceSeed.ts"]
+run = ["sh", "-c", "npm start"]
+```
+
+□ .replit modificado para ejecutar seed en build
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 4: VERIFICAR ENDPOINT DE LOGIN ADMIN USA BCRYPT
+═══════════════════════════════════════════════════════════════════════════════
+
+Buscar y modificar el endpoint de login admin. Debe verse así:
+
+```typescript
+// server/routes/auth.ts o donde esté el login
+
+import bcrypt from 'bcryptjs';
+
+router.post('/admin/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email y contraseña requeridos' });
+    }
+
+    const result = await db.query(
+      'SELECT id, email, nombre, password_hash, rol FROM usuarios WHERE email = $1 AND rol = $2 AND activo = TRUE',
+      [email.toLowerCase(), 'admin']
+    );
+
+    if (result.rows.length === 0) {
+      console.log('❌ Admin no encontrado:', email);
+      return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+    }
+
+    const user = result.rows[0];
+
+    if (!user.password_hash) {
+      console.log('❌ Admin sin contraseña:', email);
+      return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+    }
+
+    const validPassword = await bcrypt.compare(password, user.password_hash);
+
+    if (!validPassword) {
+      console.log('❌ Contraseña incorrecta para:', email);
+      return res.status(401).json({ error: 'Email o contraseña incorrectos' });
+    }
+
+    // Generar token JWT o sesión
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, rol: user.rol },
+      process.env.JWT_SECRET || 'secret-key-change-in-production',
+      { expiresIn: '24h' }
+    );
+
+    console.log('✅ Login exitoso:', email);
+    
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        nombre: user.nombre,
+        rol: user.rol
+      }
+    });
+
+  } catch (error) {
+    console.error('Error en login admin:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+```
+
+□ Endpoint /admin/login usa bcrypt.compare correctamente
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 5: VERIFICAR ENDPOINT OTP USA LA BD CORRECTA
+═══════════════════════════════════════════════════════════════════════════════
+
+```typescript
+// Endpoint OTP request
+router.post('/otp/request-code', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    // Buscar usuario
+    const userResult = await db.query(
+      'SELECT id, email, nombre FROM usuarios WHERE email = $1 AND activo = TRUE',
+      [email.toLowerCase()]
+    );
+
+    if (userResult.rows.length === 0) {
+      console.log('❌ Usuario no encontrado para OTP:', email);
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const user = userResult.rows[0];
+
+    // Generar código 6 dígitos
+    const codigo = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiraEn = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+
+    // Guardar/actualizar código
+    await db.query(`
+      INSERT INTO codigos_acceso (usuario_id, codigo, expira_en, usado)
+      VALUES ($1, $2, $3, FALSE)
+      ON CONFLICT (usuario_id) 
+      DO UPDATE SET codigo = $2, expira_en = $3, usado = FALSE
+    `, [user.id, codigo, expiraEn]);
+
+    // Enviar email
+    console.log(`📧 Código OTP para ${email}: ${codigo}`);
+    
+    // Aquí va el envío real de email...
+    // await sendEmail(email, codigo);
+
+    res.json({ success: true, message: 'Código enviado' });
+
+  } catch (error) {
+    console.error('Error en OTP request:', error);
+    res.status(500).json({ error: 'Error de conexion. Intenta de nuevo.' });
+  }
+});
+```
+
+□ Endpoint OTP verificado
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 6: INSTALAR DEPENDENCIAS SI FALTAN
+═══════════════════════════════════════════════════════════════════════════════
+
+```bash
+npm install bcryptjs jsonwebtoken
+npm install -D @types/bcryptjs @types/jsonwebtoken
+```
+
+□ Dependencias instaladas
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 7: EJECUTAR SEED MANUALMENTE PRIMERO (TEST)
+═══════════════════════════════════════════════════════════════════════════════
+
+En Shell de Replit:
+
+```bash
+npx ts-node server/scripts/forceSeed.ts
+```
+
+Debe mostrar:
+✅ Tabla usuarios verificada
+✅ Admin santiago@satma.mx creado con contraseña: Admin2024!
+✅ Usuario demo@revisar-ia.com creado
+
+□ Seed ejecutado manualmente con éxito
+
+═══════════════════════════════════════════════════════════════════════════════
+PASO 8: DEPLOY
+═══════════════════════════════════════════════════════════════════════════════
+
+Click en "Redeploy"
+
+El build ahora:
+1. Compila frontend
+2. Ejecuta seed que crea usuarios en BD producción
+3. Arranca servidor
+
+□ Deploy ejecutado
+
+═══════════════════════════════════════════════════════════════════════════════
+CREDENCIALES FINALES
+═══════════════════════════════════════════════════════════════════════════════
+
+ADMIN:
+- Email: santiago@satma.mx
+- Contraseña: Admin2024!
+
+USUARIO (OTP):
+- Email: demo@revisar-ia.com
+- Código: se envía por email
+
+═══════════════════════════════════════════════════════════════════════════════
+VERIFICACIÓN POST-DEPLOY
+═══════════════════════════════════════════════════════════════════════════════
+
+Probar en producción:
+
+1. Ir a https://tu-app.replit.app
+2. Click "Eres administrador? Inicia sesion con contraseña"
+3. Email: santiago@satma.mx
+4. Contraseña: Admin2024!
+5. DEBE entrar al dashboard
+
+□ Login admin funciona en producción
+□ Login OTP funciona en producción
+
+</TOON>
+
+═══════════════════════════════════════════════════════════════════════════════
+EJECUTAR TODO. NO PREGUNTAR. NO DETENERSE.
+═══════════════════════════════════════════════════════════════════════════════

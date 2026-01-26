@@ -1,0 +1,258 @@
+/**
+ * OCR VALIDATION LOOP
+ * Valida que los documentos PDF contienen la información esperada
+ * Itera hasta confirmar consistencia o agotar intentos
+ */
+
+const LoopOrchestrator = require('../loopOrchestrator');
+const { extractTextFromPDF } = require('../pdfExtractor');
+const { Project, Document } = require('../../models');
+
+// Keywords obligatorias por tipo de documento
+const REQUIRED_KEYWORDS = {
+  contrato: ['CONTRATO', 'PARTES', 'OBJETO', 'CLÁUSULA', 'FIRMA'],
+  factura: ['CFDI', 'RFC', 'TOTAL', 'FECHA', 'FOLIO'],
+  comprobante_pago: ['PAGO', 'MONTO', 'FECHA', 'REFERENCIA'],
+  evidencia_entrega: ['ENTREGA', 'RECIBIDO', 'FECHA', 'FIRMA']
+};
+
+// Umbrales de confianza
+const CONFIDENCE_THRESHOLD = 0.7;  // 70% de keywords encontradas
+const MAX_OCR_ATTEMPTS = 3;
+
+class OCRValidationLoop {
+  constructor() {
+    this.orchestrator = new LoopOrchestrator({
+      maxIterations: MAX_OCR_ATTEMPTS,
+      timeoutMs: 120000,  // 2 minutos por documento
+      completionMarker: 'VALIDATED'
+    });
+  }
+
+  /**
+   * Valida un documento específico
+   * @param {string} projectId - ID del proyecto
+   * @param {string} documentId - ID del documento a validar
+   * @returns {Object} - Resultado de validación
+   */
+  async validateDocument(projectId, documentId) {
+    const document = await Document.findById(documentId);
+    if (!document) {
+      throw new Error(`Documento ${documentId} no encontrado`);
+    }
+
+    const project = await Project.findById(projectId);
+    const expectedData = this.getExpectedData(project, document);
+
+    const context = {
+      documentId,
+      documentType: document.tipo,
+      filePath: document.filePath,
+      expectedData,
+      ocrStrategy: 'standard',  // Cambia en cada iteración si falla
+      findings: []
+    };
+
+    const result = await this.orchestrator.executeLoop(
+      this.ocrValidationTask.bind(this),
+      context
+    );
+
+    // Guardar resultado en BD
+    await this.saveValidationResult(documentId, result);
+
+    return result;
+  }
+
+  /**
+   * Tarea de validación OCR (se ejecuta en cada iteración)
+   */
+  async ocrValidationTask(context, iteration) {
+    const { filePath, documentType, expectedData, ocrStrategy } = context;
+
+    // Estrategia de OCR según iteración
+    const strategies = ['standard', 'enhanced', 'aggressive'];
+    const currentStrategy = strategies[iteration - 1] || 'aggressive';
+
+    console.log(`[OCR] Iteración ${iteration}: Estrategia ${currentStrategy}`);
+
+    // 1. Extraer texto del PDF
+    const extractedText = await extractTextFromPDF(filePath, {
+      strategy: currentStrategy,
+      language: 'spa',
+      preserveLayout: iteration > 1  // Más cuidado en reintentos
+    });
+
+    if (!extractedText || extractedText.trim().length < 50) {
+      return {
+        status: 'RETRY',
+        reason: 'Texto extraído insuficiente',
+        nextStrategy: strategies[iteration] || 'manual_review',
+        findings: [{
+          type: 'OCR_FAILURE',
+          severity: 'HIGH',
+          message: `No se pudo extraer texto legible (intento ${iteration})`
+        }]
+      };
+    }
+
+    // 2. Buscar keywords obligatorias
+    const requiredKeywords = REQUIRED_KEYWORDS[documentType] || [];
+    const foundKeywords = requiredKeywords.filter(kw => 
+      extractedText.toUpperCase().includes(kw)
+    );
+    
+    const keywordConfidence = foundKeywords.length / requiredKeywords.length;
+
+    // 3. Cross-validation con datos esperados
+    const crossValidation = this.crossValidateData(extractedText, expectedData);
+
+    // 4. Evaluar resultado
+    const allChecks = {
+      keywordsFound: keywordConfidence >= CONFIDENCE_THRESHOLD,
+      dataMatches: crossValidation.matchRate >= 0.8,
+      noContradictions: crossValidation.contradictions.length === 0
+    };
+
+    const passedChecks = Object.values(allChecks).filter(Boolean).length;
+    const totalChecks = Object.keys(allChecks).length;
+
+    if (passedChecks === totalChecks) {
+      return {
+        status: 'VALIDATED',
+        confidence: (keywordConfidence + crossValidation.matchRate) / 2,
+        extractedData: crossValidation.extractedData,
+        findings: [{
+          type: 'VALIDATION_SUCCESS',
+          severity: 'INFO',
+          message: `Documento validado con ${(keywordConfidence * 100).toFixed(0)}% de keywords`
+        }]
+      };
+    }
+
+    // Determinar si reintentar o escalar
+    if (iteration >= MAX_OCR_ATTEMPTS) {
+      return {
+        status: 'REQUIRES_HUMAN_REVIEW',
+        confidence: (keywordConfidence + crossValidation.matchRate) / 2,
+        failedChecks: Object.entries(allChecks)
+          .filter(([_, passed]) => !passed)
+          .map(([check]) => check),
+        contradictions: crossValidation.contradictions,
+        findings: [{
+          type: 'VALIDATION_INCONCLUSIVE',
+          severity: 'MEDIUM',
+          message: `Requiere revisión humana: ${Object.entries(allChecks).filter(([_,v]) => !v).map(([k]) => k).join(', ')}`
+        }]
+      };
+    }
+
+    return {
+      status: 'RETRY',
+      partialConfidence: keywordConfidence,
+      findings: crossValidation.contradictions.map(c => ({
+        type: 'DATA_MISMATCH',
+        severity: 'MEDIUM',
+        message: c
+      }))
+    };
+  }
+
+  /**
+   * Cross-valida datos extraídos vs esperados
+   */
+  crossValidateData(text, expectedData) {
+    const results = {
+      extractedData: {},
+      matchRate: 0,
+      contradictions: []
+    };
+
+    let matches = 0;
+    let total = 0;
+
+    // Validar monto
+    if (expectedData.monto) {
+      total++;
+      const montoRegex = /\$?\s*([\d,]+\.?\d*)/g;
+      const montos = [...text.matchAll(montoRegex)].map(m => 
+        parseFloat(m[1].replace(/,/g, ''))
+      );
+      
+      const expectedMonto = parseFloat(expectedData.monto);
+      const montoFound = montos.some(m => 
+        Math.abs(m - expectedMonto) / expectedMonto < 0.01  // 1% tolerancia
+      );
+      
+      if (montoFound) {
+        matches++;
+        results.extractedData.monto = expectedMonto;
+      } else if (montos.length > 0) {
+        results.contradictions.push(
+          `Monto esperado: $${expectedMonto}, encontrado: $${montos.join(', $')}`
+        );
+      }
+    }
+
+    // Validar RFC
+    if (expectedData.rfcProveedor) {
+      total++;
+      const rfcRegex = /[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}/g;
+      const rfcs = text.match(rfcRegex) || [];
+      
+      if (rfcs.includes(expectedData.rfcProveedor)) {
+        matches++;
+        results.extractedData.rfcProveedor = expectedData.rfcProveedor;
+      } else if (rfcs.length > 0) {
+        results.contradictions.push(
+          `RFC esperado: ${expectedData.rfcProveedor}, encontrado: ${rfcs.join(', ')}`
+        );
+      }
+    }
+
+    // Validar fecha (formato flexible)
+    if (expectedData.fecha) {
+      total++;
+      const fechaExpected = new Date(expectedData.fecha);
+      const fechaPatterns = [
+        /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/g,
+        /(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/gi
+      ];
+      
+      // Simplificado: verificar que el año y mes aparezcan
+      const yearMonth = `${fechaExpected.getFullYear()}`.substring(2);
+      if (text.includes(yearMonth)) {
+        matches++;
+        results.extractedData.fecha = expectedData.fecha;
+      }
+    }
+
+    results.matchRate = total > 0 ? matches / total : 1;
+    return results;
+  }
+
+  getExpectedData(project, document) {
+    // Obtener datos esperados del proyecto para validación cruzada
+    return {
+      monto: project.montoContrato,
+      rfcProveedor: project.rfcProveedor,
+      rfcCliente: project.rfcCliente,
+      fecha: document.fechaDocumento || project.fechaContrato,
+      nombreProveedor: project.nombreProveedor
+    };
+  }
+
+  async saveValidationResult(documentId, result) {
+    await Document.findByIdAndUpdate(documentId, {
+      $set: {
+        'validacionOCR.status': result.success ? 'VALIDATED' : 'PENDING_REVIEW',
+        'validacionOCR.confidence': result.result?.confidence || 0,
+        'validacionOCR.iterations': result.iterations,
+        'validacionOCR.findings': result.result?.findings || [],
+        'validacionOCR.lastValidated': new Date()
+      }
+    });
+  }
+}
+
+module.exports = new OCRValidationLoop();

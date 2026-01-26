@@ -1,0 +1,70 @@
+# services/vision_agent.py
+"""
+PROPÓSITO: Leer contenido real de PDFs y validar coherencia
+con metadata de la base de datos.
+"""
+
+class VisionAgent:
+    def __init__(self):
+        self.ocr_engine = "PyMuPDF"  # o Tesseract para imágenes
+        self.required_keywords = {
+            "contrato": ["CLÁUSULA", "OBJETO", "MONTO", "FIRMA"],
+            "factura": ["RFC", "TOTAL", "FECHA", "UUID"],
+            "comprobante": ["TRANSFERENCIA", "CUENTA", "IMPORTE"]
+        }
+    
+    def validate_document(self, file_path: str, doc_type: str, 
+                          expected_data: dict) -> ValidationResult:
+        """
+        1. Extrae texto del PDF
+        2. Busca keywords obligatorias
+        3. Cross-check con expected_data (de la BD)
+        4. Retorna score 0-100 + lista de inconsistencias
+        """
+        
+        # Extracción
+        text = self._extract_text(file_path)
+        
+        # Validación estructural
+        keywords_found = self._check_keywords(text, doc_type)
+        
+        # Validación cruzada
+        inconsistencies = []
+        if "monto" in expected_data:
+            if not self._find_amount(text, expected_data["monto"]):
+                inconsistencies.append(
+                    f"⚠️ Monto esperado ${expected_data['monto']} "
+                    f"no encontrado en documento"
+                )
+        
+        if "fecha" in expected_data:
+            if not self._find_date(text, expected_data["fecha"]):
+                inconsistencies.append(
+                    f"⚠️ Fecha esperada {expected_data['fecha']} "
+                    f"no coincide con documento"
+                )
+        
+        return ValidationResult(
+            score=100 - (len(inconsistencies) * 20),
+            keywords_found=keywords_found,
+            inconsistencies=inconsistencies,
+            raw_text=text[:500]  # Primeros 500 chars para auditoría
+        )
+Integración en Fase 5:
+python# En check_f5_completion()
+if user_uploaded_file:
+    vision_result = vision_agent.validate_document(
+        file_path=uploaded_file.path,
+        doc_type="contrato",
+        expected_data={
+            "monto": project.budget,
+            "fecha": project.start_date,
+            "proveedor": project.vendor_name
+        }
+    )
+    
+    if vision_result.score < 70:
+        raise ValidationError(
+            f"Documento sospechoso (score: {vision_result.score}/100)\n"
+            f"Inconsistencias: {vision_result.inconsistencies}"
+        )

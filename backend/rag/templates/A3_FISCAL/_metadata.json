@@ -1,0 +1,83 @@
+{
+  "agente_id": "A3_FISCAL",
+  "nombre": "Fiscal - Cumplimiento y Razón de Negocios",
+  "descripcion": "Documentos normativos fiscales, guías de materialidad y criterios EFOS",
+  "documentos": [
+    {
+      "id": "001_guia_razon_negocios_5a",
+      "titulo": "Guía Razón de Negocios Art. 5-A CFF",
+      "tipo": "normativo",
+      "uso": "Criterios para demostrar razón de negocios ante el SAT",
+      "personalizable": false,
+      "campos_clave": ["articulo_5a", "beneficio_economico", "sustancia_economica"]
+    },
+    {
+      "id": "002_guia_materialidad_69b",
+      "titulo": "Guía Materialidad Art. 69-B CFF",
+      "tipo": "normativo",
+      "uso": "Demostrar materialidad y existencia de operaciones",
+      "personalizable": false,
+      "campos_clave": ["articulo_69b", "evidencia_materialidad", "requisitos_probatorios"]
+    },
+    {
+      "id": "003_estricta_indispensabilidad_27",
+      "titulo": "Estricta Indispensabilidad Art. 27 LISR",
+      "tipo": "normativo",
+      "uso": "Criterios de deducibilidad de gastos",
+      "personalizable": false,
+      "campos_clave": ["articulo_27", "requisitos_deduccion", "documentacion_soporte"]
+    },
+    {
+      "id": "004_cff_extracto",
+      "titulo": "Extracto CFF Relevante",
+      "tipo": "normativo",
+      "uso": "Artículos clave del Código Fiscal de la Federación",
+      "personalizable": false,
+      "campos_clave": ["articulos_clave", "procedimientos", "sanciones"]
+    },
+    {
+      "id": "005_lisr_extracto",
+      "titulo": "Extracto LISR Relevante",
+      "tipo": "normativo",
+      "uso": "Artículos clave de Ley del ISR para deducciones",
+      "personalizable": false,
+      "campos_clave": ["deducciones", "requisitos", "limitaciones"]
+    },
+    {
+      "id": "006_casos_auditoria_sat",
+      "titulo": "Casos de Auditoría SAT",
+      "tipo": "referencia",
+      "uso": "Precedentes y casos típicos de revisión fiscal",
+      "personalizable": false,
+      "campos_clave": ["casos_tipicos", "hallazgos_comunes", "defensas_exitosas"]
+    },
+    {
+      "id": "007_lista_69b_politica",
+      "titulo": "Política Lista 69-B",
+      "tipo": "metodologia",
+      "uso": "Procedimientos para verificación de proveedores en lista negra",
+      "personalizable": true,
+      "campos_clave": ["verificacion_proveedores", "alertas", "procedimiento_actualizacion"]
+    },
+    {
+      "id": "008_criterios_efos",
+      "titulo": "Criterios de Detección EFOS",
+      "tipo": "metodologia",
+      "uso": "Indicadores de riesgo para operaciones simuladas",
+      "personalizable": false,
+      "campos_clave": ["indicadores_riesgo", "red_flags", "procedimiento_verificacion"]
+    }
+  ],
+  "contexto_requerido": {
+    "obligatorio": [
+      "monto_operacion",
+      "tipo_servicio",
+      "rfc_proveedor"
+    ],
+    "deseable": [
+      "sector_proveedor",
+      "historial_operaciones",
+      "documentacion_existente"
+    ]
+  }
+}

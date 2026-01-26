@@ -1,0 +1,113 @@
+{
+  "agent_id": "A4_LEGAL",
+  "version": "1.0.0",
+  "generated_at": "{{FECHA_ACTUAL}}",
+  "templates": [
+    {
+      "filename": "plantilla_contrato.docx",
+      "title": "CONTRATO DE PRESTACIÓN DE SERVICIOS PROFESIONALES",
+      "section_count": 8,
+      "placeholders": [
+        "ENTREGABLE_1",
+        "EMPRESA_RFC",
+        "MONTO_CREDITO",
+        "SERVICIO_DETALLE_2",
+        "FECHA_INICIO",
+        "EMPRESA_NOMBRE",
+        "SERVICIO_DETALLE_3",
+        "FECHA_FIN",
+        "ENTREGABLE_2",
+        "ENTREGABLE_3",
+        "FECHA_ENTREGABLE_3",
+        "DESCRIPCION_SERVICIO",
+        "PROVEEDOR_RFC",
+        "FECHA_ENTREGABLE_1",
+        "FECHA_ENTREGABLE_2",
+        "SERVICIO_DETALLE_1",
+        "FECHA_ACTUAL",
+        "PROVEEDOR_NOMBRE"
+      ]
+    },
+    {
+      "filename": "nom_151_digitalización.docx",
+      "title": "PROTOCOLO DE DIGITALIZACIÓN - NOM-151-SCFI-2016",
+      "section_count": 4,
+      "placeholders": [
+        "EMPRESA_NOMBRE",
+        "PROYECTO_NOMBRE"
+      ]
+    },
+    {
+      "filename": "clausulas_materialidad.docx",
+      "title": "CLÁUSULAS CONTRACTUALES DE MATERIALIDAD",
+      "section_count": 4,
+      "placeholders": []
+    },
+    {
+      "filename": "sow_alcance_servicios.docx",
+      "title": "STATEMENT OF WORK (SOW) - ALCANCE DE SERVICIOS",
+      "section_count": 5,
+      "placeholders": [
+        "FECHA_REVISION",
+        "FECHA_INICIO",
+        "EMPRESA_NOMBRE",
+        "E1_DESC",
+        "RECURSO_CLIENTE_2",
+        "RECURSO_PROVEEDOR_1",
+        "RECURSO_PROVEEDOR_2",
+        "E1_FECHA",
+        "PROVEEDOR_NOMBRE",
+        "FECHA_FIN",
+        "OBJETIVO_1",
+        "E2_DESC",
+        "E3_CRITERIO",
+        "RECURSO_CLIENTE_1",
+        "FOLIO_PROYECTO",
+        "E3_FECHA",
+        "E3_DESC",
+        "E1_NOMBRE",
+        "PROYECTO_NOMBRE",
+        "E2_CRITERIO",
+        "FECHA_ENTREGA_FINAL",
+        "FUERA_ALCANCE_1",
+        "E3_NOMBRE",
+        "OBJETIVO_3",
+        "FUERA_ALCANCE_2",
+        "DESCRIPCION_SERVICIO",
+        "E1_CRITERIO",
+        "E2_NOMBRE",
+        "OBJETIVO_2",
+        "FECHA_KICKOFF",
+        "E2_FECHA"
+      ]
+    },
+    {
+      "filename": "pagos_penalizaciones.docx",
+      "title": "ANEXO DE TÉRMINOS DE PAGO Y PENALIZACIONES",
+      "section_count": 4,
+      "placeholders": [
+        "FECHA_ANTICIPO",
+        "MONTO_CREDITO",
+        "PROYECTO_NOMBRE",
+        "MONTO_FINAL",
+        "MONTO_ANTICIPO",
+        "MONTO_AVANCE",
+        "FECHA_FINAL",
+        "FECHA_AVANCE"
+      ]
+    },
+    {
+      "filename": "proteccion_datos.docx",
+      "title": "AVISO DE PRIVACIDAD Y PROTECCIÓN DE DATOS",
+      "section_count": 5,
+      "placeholders": [
+        "DOMICILIO_EMPRESA",
+        "EMPRESA_RFC",
+        "EMPRESA_NOMBRE",
+        "EMAIL_PRIVACIDAD",
+        "FECHA_ACTUAL",
+        "PROVEEDOR_NOMBRE"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "agente_id": "A7_DEFENSA",
+  "nombre": "Defensa - Expediente Fiscal y Litigio",
+  "descripcion": "Documentos para construcción de expedientes de defensa y preparación ante auditorías",
+  "documentos": [
+    {
+      "id": "001_guia_defense_file",
+      "titulo": "Guía de Construcción Defense File",
+      "tipo": "metodologia",
+      "uso": "Estructura y contenido del expediente de defensa fiscal",
+      "personalizable": false,
+      "campos_clave": ["estructura_expediente", "documentos_criticos", "orden_presentacion"]
+    },
+    {
+      "id": "002_criterios_defendibilidad_tfja",
+      "titulo": "Criterios de Defendibilidad TFJA",
+      "tipo": "referencia",
+      "uso": "Criterios del Tribunal Federal de Justicia Administrativa",
+      "personalizable": false,
+      "campos_clave": ["criterios_tribunal", "precedentes", "argumentos_exitosos"]
+    },
+    {
+      "id": "003_checklist_documentos_criticos",
+      "titulo": "Checklist Documentos Críticos",
+      "tipo": "plantilla",
+      "uso": "Lista de verificación de documentación indispensable para defensa",
+      "personalizable": true,
+      "campos_clave": ["documentos_obligatorios", "documentos_deseables", "prioridad"]
+    },
+    {
+      "id": "004_precedentes_tfja",
+      "titulo": "Precedentes TFJA Relevantes",
+      "tipo": "referencia",
+      "uso": "Casos y sentencias relevantes del tribunal",
+      "personalizable": false,
+      "campos_clave": ["casos_favorables", "casos_desfavorables", "lecciones"]
+    },
+    {
+      "id": "005_guia_refuerzo_probatorio",
+      "titulo": "Guía de Refuerzo Probatorio",
+      "tipo": "metodologia",
+      "uso": "Estrategias para fortalecer evidencia documental",
+      "personalizable": false,
+      "campos_clave": ["tecnicas_refuerzo", "documentacion_adicional", "peritajes"]
+    }
+  ],
+  "contexto_requerido": {
+    "obligatorio": [
+      "tipo_controversia",
+      "monto_observado",
+      "documentacion_disponible"
+    ],
+    "deseable": [
+      "actos_autoridad",
+      "plazos_procesales",
+      "historial_fiscal"
+    ]
+  }
+}

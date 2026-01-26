@@ -1,0 +1,1722 @@
+# ARQUITECTURA DEL REPOSITORIO DE CONOCIMIENTO CORPORATIVO - REVISAR.IA
+
+## Sistema de Gestión del Conocimiento con Agentes de Ingesta, Clasificación y RAG
+
+---
+
+## RESUMEN EJECUTIVO
+
+Rediseño completo de la sección "Repositorio" de Revisar.IA: de interfaz chat inoperativa a sistema tipo "disco duro corporativo" con jerarquía de carpetas, agentes especializados de ingesta/clasificación, sincronización automática a bases de conocimiento por agente (pcloud), e integración RAG para retrieval semántico. El sistema permite subir documentos empresariales (políticas, manuales, planeación estratégica) que alimentan automáticamente a todos los agentes de la plataforma con contexto relevante y trazable.
+
+---
+
+## DIAGRAMA ARQUITECTÓNICO
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                            REVISAR.IA - KNOWLEDGE MANAGEMENT SYSTEM                      │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+                                    ┌──────────────────┐
+                                    │   USUARIOS       │
+                                    │  (Admin/Upload)  │
+                                    └────────┬─────────┘
+                                             │
+                                             ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    CAPA DE INTERFAZ                                      │
+│  ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────────────────┐  │
+│  │  File Explorer UI   │  │   Drag & Drop Zone  │  │   API REST /api/knowledge/*     │  │
+│  │  (Tipo Google Drive)│  │   (Bulk Upload)     │  │   POST /ingest, GET /browse     │  │
+│  └─────────────────────┘  └─────────────────────┘  └─────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+                                             │
+                                             ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                              CAPA DE ORQUESTACIÓN DE AGENTES                             │
+│                                                                                          │
+│  ┌───────────────────┐    ┌───────────────────┐    ┌───────────────────┐                │
+│  │  🤖 AGENTE DE     │───▶│  🤖 AGENTE DE     │───▶│  🤖 AGENTE DE     │                │
+│  │     INGESTA       │    │   CLASIFICACIÓN   │    │   PCLOUD SYNC     │                │
+│  │                   │    │                   │    │                   │                │
+│  │ - Detecta archivos│    │ - Asigna categoría│    │ - Distribuye a KB │                │
+│  │ - OCR/Extracción  │    │ - Asigna permisos │    │   de cada agente  │                │
+│  │ - Normaliza       │    │ - Tags automáticos│    │ - Sincroniza refs │                │
+│  │ - Valida formato  │    │ - Nivel confid.   │    │ - Versiona        │                │
+│  └───────────────────┘    └───────────────────┘    └───────────────────┘                │
+│           │                        │                        │                           │
+│           │                        ▼                        │                           │
+│           │               ┌───────────────────┐             │                           │
+│           │               │  🤖 SUBAGENTE     │             │                           │
+│           │               │  REVISIÓN HUMANA  │             │                           │
+│           │               │  (Fallback Queue) │             │                           │
+│           │               └───────────────────┘             │                           │
+│           │                                                 │                           │
+└───────────┼─────────────────────────────────────────────────┼───────────────────────────┘
+            │                                                 │
+            ▼                                                 ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 CAPA DE ALMACENAMIENTO                                   │
+│                                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐    │
+│  │                        📁 REPOSITORIO PRINCIPAL                                  │    │
+│  │                        (Disco Duro Corporativo)                                  │    │
+│  │                                                                                  │    │
+│  │   /empresa                                                                       │    │
+│  │   ├── /informacion_general                                                       │    │
+│  │   │   ├── /acta_constitutiva                                                     │    │
+│  │   │   ├── /organigrama                                                           │    │
+│  │   │   └── /directorio                                                            │    │
+│  │   ├── /planeacion_estrategica                                                    │    │
+│  │   │   ├── /plan_anual_{año}                                                      │    │
+│  │   │   ├── /objetivos_kpis                                                        │    │
+│  │   │   └── /proyectos_especiales                                                  │    │
+│  │   ├── /politicas_y_manuales                                                      │    │
+│  │   │   ├── /politicas_fiscales                                                    │    │
+│  │   │   ├── /manuales_operativos                                                   │    │
+│  │   │   └── /procedimientos                                                        │    │
+│  │   ├── /fiscal                                                                    │    │
+│  │   │   ├── /declaraciones                                                         │    │
+│  │   │   ├── /dictamenes                                                            │    │
+│  │   │   └── /criterios_sat                                                         │    │
+│  │   ├── /legal                                                                     │    │
+│  │   │   ├── /contratos_modelo                                                      │    │
+│  │   │   ├── /jurisprudencia                                                        │    │
+│  │   │   └── /normatividad                                                          │    │
+│  │   ├── /financiero                                                                │    │
+│  │   │   ├── /estados_financieros                                                   │    │
+│  │   │   ├── /presupuestos                                                          │    │
+│  │   │   └── /reportes                                                              │    │
+│  │   └── /proveedores                                                               │    │
+│  │       ├── /catalogo_proveedores                                                  │    │
+│  │       ├── /contratos_vigentes                                                    │    │
+│  │       └── /evaluaciones                                                          │    │
+│  └─────────────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐    │
+│  │                        ☁️ PCLOUD POR AGENTE (KB Específica)                      │    │
+│  │                                                                                  │    │
+│  │   /pcloud                                                                        │    │
+│  │   ├── /A1_sponsor          → Planeación, objetivos, governance                   │    │
+│  │   ├── /A2_pmo              → Procedimientos, cronogramas, recursos               │    │
+│  │   ├── /A3_fiscal           → Normatividad fiscal, criterios SAT, LISR            │    │
+│  │   ├── /A4_legal            → Contratos, jurisprudencia, normativas               │    │
+│  │   ├── /A5_finanzas         → Estados financieros, presupuestos, métricas         │    │
+│  │   ├── /A6_proveedor        → Catálogo proveedores, evaluaciones, EFOS            │    │
+│  │   └── /A7_defense_file     → Templates, evidencias modelo, casos previos         │    │
+│  └─────────────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+                                             │
+                                             ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   CAPA DE INDEXACIÓN                                     │
+│                                                                                          │
+│  ┌─────────────────────────┐  ┌─────────────────────────┐  ┌─────────────────────────┐  │
+│  │   🔍 VECTOR DATABASE    │  │   📊 METADATA INDEX     │  │   📝 FULL-TEXT SEARCH   │  │
+│  │      (Pinecone/Milvus)  │  │     (PostgreSQL JSONB)  │  │     (pg_trgm + tsvector)│  │
+│  │                         │  │                         │  │                         │  │
+│  │  - Embeddings 1536d     │  │  - Filtros estructurados│  │  - Búsqueda por texto   │  │
+│  │  - Chunks de 512 tokens │  │  - Queries complejas    │  │  - Autocompletado       │  │
+│  │  - Similarity search    │  │  - Auditoría            │  │  - Highlighting         │  │
+│  └─────────────────────────┘  └─────────────────────────┘  └─────────────────────────┘  │
+│                                             │                                            │
+└─────────────────────────────────────────────┼────────────────────────────────────────────┘
+                                              │
+                                              ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   CAPA RAG (RETRIEVAL)                                   │
+│                                                                                          │
+│  ┌───────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                           🤖 AGENTE RAG                                            │  │
+│  │                                                                                    │  │
+│  │   Query → Embedding → Vector Search → Re-ranking → Context Assembly → LLM Call    │  │
+│  │                                                                                    │  │
+│  │   1. Recibe query del agente solicitante (A1-A7)                                   │  │
+│  │   2. Genera embedding con text-embedding-3-small                                   │  │
+│  │   3. Busca top-k chunks relevantes en Vector DB                                    │  │
+│  │   4. Aplica re-ranking con cross-encoder                                           │  │
+│  │   5. Ensambla contexto con metadatos y fuentes                                     │  │
+│  │   6. Retorna contexto augmentado + citations                                       │  │
+│  └───────────────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## LISTA DE COMPONENTES Y RESPONSABILIDADES
+
+| Componente | Tipo | Propósito | Owner | Responsable Operativo | Entradas | Salidas | SLA |
+|------------|------|-----------|-------|----------------------|----------|---------|-----|
+| **File Explorer UI** | Frontend | Interfaz visual tipo Google Drive para navegar, subir y gestionar archivos | Equipo Frontend | Desarrollador Frontend | Acciones del usuario | Requests a API | 99.5% uptime |
+| **API Knowledge** | Backend | Endpoints REST para operaciones CRUD sobre repositorio | Equipo Backend | Ingeniero Backend | HTTP Requests | JSON Responses | < 200ms p95 |
+| **Agente de Ingesta** | Agente IA | Detectar, extraer texto, normalizar y validar documentos nuevos | Equipo de Datos | Ingeniero de Datos | Archivos crudos | Documentos normalizados | < 30s por documento |
+| **Agente de Clasificación** | Agente IA | Asignar categoría, tags, nivel de confidencialidad y permisos | Equipo de Datos | Especialista de Dominio | Documentos normalizados | Documentos clasificados | 95% precisión |
+| **Agente Pcloud Sync** | Agente IA | Distribuir referencias a KB de cada agente según relevancia | Equipo de Datos | Ingeniero de Datos | Documentos clasificados | Referencias en pcloud | < 5s sync |
+| **Subagente Revisión Humana** | Subagente | Cola de documentos que requieren clasificación manual | Equipo Ops | Analista de Calidad | Docs con baja confianza | Docs validados | < 24h resolución |
+| **Subagente Resúmenes** | Subagente | Generar resúmenes automáticos de documentos largos | Equipo de Datos | Ingeniero ML | Documentos > 10 páginas | Resúmenes + highlights | < 60s |
+| **Vector Database** | Infraestructura | Almacenar y buscar embeddings para RAG | Equipo Infra | SRE | Embeddings 1536d | Similarity results | < 100ms query |
+| **Metadata Index** | Infraestructura | Índice estructurado para filtros y auditoría | Equipo Infra | DBA | Metadatos JSON | Query results | < 50ms query |
+| **Agente RAG** | Agente IA | Retrieval semántico con re-ranking para augmentar prompts | Equipo ML | Ingeniero ML | Queries de agentes | Contexto + citations | < 2s e2e |
+| **Storage (S3/MinIO)** | Infraestructura | Almacenamiento de archivos binarios | Equipo Infra | SRE | Archivos | URLs firmadas | 99.99% durability |
+
+---
+
+## ESPECIFICACIÓN TÉCNICA
+
+### 1. Estructura del Repositorio y Convención de Nombres
+
+```
+/knowledge
+├── /empresa_{empresa_id}
+│   ├── /informacion_general
+│   │   ├── /acta_constitutiva
+│   │   │   └── acta_constitutiva_empresa_v1.pdf
+│   │   ├── /organigrama
+│   │   │   └── organigrama_2024_v2.pdf
+│   │   └── /directorio
+│   │       └── directorio_corporativo_2024.xlsx
+│   │
+│   ├── /planeacion_estrategica
+│   │   ├── /plan_anual_2024
+│   │   │   ├── plan_estrategico_2024_v1.pptx
+│   │   │   └── objetivos_q1_q4_2024.xlsx
+│   │   └── /objetivos_kpis
+│   │       └── kpis_por_area_2024.xlsx
+│   │
+│   ├── /politicas_y_manuales
+│   │   ├── /politicas_fiscales
+│   │   │   ├── politica_deduccion_intangibles_v3.docx
+│   │   │   └── criterios_internos_sat_2024.pdf
+│   │   ├── /manuales_operativos
+│   │   │   └── manual_proceso_auditoria_v2.docx
+│   │   └── /procedimientos
+│   │       └── procedimiento_alta_proveedores.docx
+│   │
+│   ├── /fiscal
+│   │   ├── /declaraciones
+│   │   │   └── declaracion_anual_2023.pdf
+│   │   ├── /dictamenes
+│   │   │   └── dictamen_fiscal_2023.pdf
+│   │   └── /criterios_sat
+│   │       └── criterios_no_vinculativos_2024.pdf
+│   │
+│   ├── /legal
+│   │   ├── /contratos_modelo
+│   │   │   └── contrato_servicios_intangibles_template.docx
+│   │   ├── /jurisprudencia
+│   │   │   └── tesis_aisladas_intangibles_2020_2024.pdf
+│   │   └── /normatividad
+│   │       └── cff_2024_actualizado.pdf
+│   │
+│   ├── /financiero
+│   │   ├── /estados_financieros
+│   │   │   └── edo_financiero_dic_2023.xlsx
+│   │   └── /presupuestos
+│   │       └── presupuesto_2024.xlsx
+│   │
+│   └── /proveedores
+│       ├── /catalogo_proveedores
+│       │   └── catalogo_proveedores_activos.xlsx
+│       └── /evaluaciones
+│           └── evaluacion_proveedor_xyz_2024.pdf
+│
+└── /pcloud
+    ├── /A1_sponsor
+    │   ├── _manifest.json
+    │   └── refs/
+    │       ├── ref_plan_estrategico_2024.json
+    │       └── ref_objetivos_kpis.json
+    │
+    ├── /A3_fiscal
+    │   ├── _manifest.json
+    │   └── refs/
+    │       ├── ref_politica_deduccion_intangibles.json
+    │       ├── ref_criterios_sat_2024.json
+    │       └── ref_cff_2024.json
+    │
+    ├── /A4_legal
+    │   ├── _manifest.json
+    │   └── refs/
+    │       ├── ref_contratos_modelo.json
+    │       └── ref_jurisprudencia_intangibles.json
+    │
+    ├── /A5_finanzas
+    │   ├── _manifest.json
+    │   └── refs/
+    │       └── ref_estados_financieros.json
+    │
+    └── /A6_proveedor
+        ├── _manifest.json
+        └── refs/
+            ├── ref_catalogo_proveedores.json
+            └── ref_evaluaciones.json
+```
+
+**Convención de nombres:**
+```
+{tipo_documento}_{descriptor}_{fecha|version}.{extension}
+
+Ejemplos:
+- politica_deduccion_intangibles_v3.docx
+- contrato_servicios_proveedor_abc_20240115.pdf
+- estado_financiero_dic_2023_auditado.xlsx
+- manual_auditoria_fiscal_v2.1.docx
+```
+
+---
+
+### 2. Esquema de Metadatos
+
+```json
+{
+  "$schema": "https://revisar.ia/schemas/document-metadata-v1.json",
+  "id": "doc_7f3a9b2c-4e5d-4a1b-8c9d-0e1f2a3b4c5d",
+  "titulo": "Política de Deducción de Intangibles",
+  "titulo_normalizado": "politica_deduccion_intangibles",
+  "tipo_documento": "politica",
+  "categoria_principal": "politicas_y_manuales",
+  "subcategoria": "politicas_fiscales",
+  "formato": "docx",
+  "tamaño_bytes": 245760,
+  "idioma": "es",
+  "origen": {
+    "tipo": "upload_manual",
+    "usuario_id": "usr_abc123",
+    "fecha_upload": "2024-01-15T10:30:00Z",
+    "ip_origen": "192.168.1.100"
+  },
+  "propietario_organico": {
+    "area": "Fiscal",
+    "responsable": "Juan Pérez",
+    "email": "juan.perez@empresa.com"
+  },
+  "tags": [
+    "deduccion",
+    "intangibles",
+    "art_27_lisr",
+    "politica_interna",
+    "fiscal"
+  ],
+  "entidades_extraidas": [
+    {"tipo": "ley", "valor": "LISR Art. 27"},
+    {"tipo": "ley", "valor": "CFF Art. 5-A"},
+    {"tipo": "concepto", "valor": "razón de negocios"},
+    {"tipo": "concepto", "valor": "beneficio económico"}
+  ],
+  "nivel_confidencialidad": "interno",
+  "clasificacion_acceso": {
+    "roles_permitidos": ["admin", "fiscal", "legal"],
+    "agentes_permitidos": ["A1", "A3", "A4", "A7"]
+  },
+  "fechas": {
+    "creacion": "2024-01-10T00:00:00Z",
+    "modificacion": "2024-01-15T10:30:00Z",
+    "revision_proxima": "2025-01-10T00:00:00Z",
+    "expiracion": null,
+    "ttl_dias": 365
+  },
+  "versionado": {
+    "version_actual": "3.0",
+    "versiones_anteriores": [
+      {"version": "2.0", "fecha": "2023-06-01", "archivo_id": "doc_old_v2"},
+      {"version": "1.0", "fecha": "2022-01-15", "archivo_id": "doc_old_v1"}
+    ],
+    "politica_retencion": "1_year"
+  },
+  "integridad": {
+    "checksum_sha256": "a3f2b8c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1",
+    "verificado": true,
+    "fecha_verificacion": "2024-01-15T10:31:00Z"
+  },
+  "rutas": {
+    "repositorio": "/knowledge/empresa_123/politicas_y_manuales/politicas_fiscales/politica_deduccion_intangibles_v3.docx",
+    "storage_url": "s3://revisar-ia-docs/empresa_123/politicas/doc_7f3a9b2c.docx",
+    "storage_url_firmada": null
+  },
+  "indexacion": {
+    "vector_id": "vec_7f3a9b2c-4e5d-4a1b-8c9d-0e1f2a3b4c5d",
+    "chunks_count": 12,
+    "embedding_model": "text-embedding-3-small",
+    "fecha_indexacion": "2024-01-15T10:32:00Z",
+    "requiere_reindexado": false
+  },
+  "pcloud_refs": [
+    {"agente": "A3_fiscal", "relevancia": 0.95, "ref_id": "ref_abc123"},
+    {"agente": "A4_legal", "relevancia": 0.80, "ref_id": "ref_def456"},
+    {"agente": "A7_defense_file", "relevancia": 0.75, "ref_id": "ref_ghi789"}
+  ],
+  "procesamiento": {
+    "status": "completed",
+    "pipeline_version": "1.2.0",
+    "ocr_aplicado": false,
+    "texto_extraido": true,
+    "paginas": 15,
+    "palabras": 4250,
+    "resumen_generado": true,
+    "resumen_id": "sum_abc123"
+  },
+  "auditoria": {
+    "creado_por": "sistema",
+    "ultima_modificacion_por": "usr_abc123",
+    "accesos_count": 45,
+    "ultimo_acceso": "2024-01-20T14:22:00Z"
+  },
+  "flags": {
+    "requires_review": false,
+    "is_template": false,
+    "is_archived": false,
+    "is_sensitive": false
+  }
+}
+```
+
+---
+
+### 3. Endpoints API
+
+#### POST /api/knowledge/ingest
+Subir y procesar un nuevo documento.
+
+**Request:**
+```json
+{
+  "archivo": "<base64_encoded_file>",
+  "nombre_archivo": "politica_deduccion_intangibles_v3.docx",
+  "metadata_inicial": {
+    "tipo_documento": "politica",
+    "categoria_sugerida": "politicas_fiscales",
+    "propietario_organico": {
+      "area": "Fiscal",
+      "responsable": "Juan Pérez"
+    },
+    "nivel_confidencialidad": "interno",
+    "tags_sugeridos": ["deduccion", "intangibles"]
+  },
+  "opciones": {
+    "forzar_ocr": false,
+    "generar_resumen": true,
+    "clasificacion_automatica": true,
+    "notificar_completado": true
+  }
+}
+```
+
+**Response (202 Accepted):**
+```json
+{
+  "success": true,
+  "job_id": "job_ingest_abc123",
+  "document_id": "doc_7f3a9b2c-4e5d-4a1b-8c9d-0e1f2a3b4c5d",
+  "status": "processing",
+  "estimated_completion_seconds": 30,
+  "tracking_url": "/api/knowledge/jobs/job_ingest_abc123"
+}
+```
+
+---
+
+#### POST /api/knowledge/reindex
+Forzar re-indexación de un documento o conjunto de documentos.
+
+**Request:**
+```json
+{
+  "scope": "document",
+  "document_ids": ["doc_7f3a9b2c-4e5d-4a1b-8c9d-0e1f2a3b4c5d"],
+  "opciones": {
+    "regenerar_embeddings": true,
+    "recalcular_relevancia_pcloud": true,
+    "actualizar_resumen": false
+  }
+}
+```
+
+**Response (202 Accepted):**
+```json
+{
+  "success": true,
+  "job_id": "job_reindex_def456",
+  "documents_queued": 1,
+  "estimated_completion_seconds": 15,
+  "tracking_url": "/api/knowledge/jobs/job_reindex_def456"
+}
+```
+
+---
+
+#### POST /api/knowledge/query_rag
+Realizar consulta semántica con RAG.
+
+**Request:**
+```json
+{
+  "query": "¿Cuáles son los requisitos para deducir intangibles según la política interna?",
+  "contexto": {
+    "agente_solicitante": "A3_fiscal",
+    "proyecto_id": "proj_xyz789",
+    "empresa_id": "empresa_123"
+  },
+  "opciones": {
+    "top_k": 5,
+    "min_similarity": 0.7,
+    "incluir_metadata": true,
+    "incluir_resumen": true,
+    "filtros": {
+      "categorias": ["politicas_fiscales", "criterios_sat"],
+      "nivel_confidencialidad_max": "interno",
+      "fecha_desde": "2023-01-01"
+    },
+    "reranking": true
+  }
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "query_id": "qry_rag_ghi789",
+  "results": [
+    {
+      "rank": 1,
+      "document_id": "doc_7f3a9b2c-4e5d-4a1b-8c9d-0e1f2a3b4c5d",
+      "titulo": "Política de Deducción de Intangibles",
+      "chunk_id": "chunk_003",
+      "similarity_score": 0.92,
+      "rerank_score": 0.95,
+      "contenido": "Para la deducción de intangibles, se requiere: 1) Documentación que acredite la razón de negocios conforme al Art. 5-A del CFF, 2) Evidencia del beneficio económico esperado, 3) Comprobantes fiscales válidos del proveedor, 4) Contrato que especifique el objeto y contraprestación...",
+      "metadata": {
+        "tipo_documento": "politica",
+        "fecha_modificacion": "2024-01-15",
+        "propietario": "Área Fiscal",
+        "pagina": 5
+      },
+      "citation": {
+        "formato": "Política de Deducción de Intangibles v3.0, Sección 4.2, p.5",
+        "url": "/knowledge/view/doc_7f3a9b2c#page=5"
+      }
+    },
+    {
+      "rank": 2,
+      "document_id": "doc_criterios_sat",
+      "titulo": "Criterios SAT 2024 - Deducción de Intangibles",
+      "chunk_id": "chunk_007",
+      "similarity_score": 0.88,
+      "rerank_score": 0.89,
+      "contenido": "El SAT establece que la deducción de pagos por concepto de regalías y asistencia técnica requiere demostrar que el gasto es estrictamente indispensable para los fines de la actividad del contribuyente...",
+      "metadata": {
+        "tipo_documento": "criterio_fiscal",
+        "fecha_modificacion": "2024-02-01",
+        "fuente": "SAT"
+      },
+      "citation": {
+        "formato": "Criterios SAT 2024, Criterio 27/ISR/N, p.12",
+        "url": "/knowledge/view/doc_criterios_sat#page=12"
+      }
+    }
+  ],
+  "context_assembled": {
+    "total_tokens": 1250,
+    "sources_count": 2,
+    "prompt_ready": "## Contexto del Repositorio de Conocimiento\n\n### Fuente 1: Política de Deducción de Intangibles v3.0\n...\n\n### Fuente 2: Criterios SAT 2024\n..."
+  },
+  "metadata_query": {
+    "latency_ms": 245,
+    "embedding_time_ms": 45,
+    "search_time_ms": 120,
+    "rerank_time_ms": 80
+  }
+}
+```
+
+---
+
+#### GET /api/knowledge/browse
+Navegar el repositorio como sistema de archivos.
+
+**Request:**
+```
+GET /api/knowledge/browse?path=/empresa_123/politicas_y_manuales&depth=2
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "path": "/empresa_123/politicas_y_manuales",
+  "items": [
+    {
+      "tipo": "folder",
+      "nombre": "politicas_fiscales",
+      "ruta_completa": "/empresa_123/politicas_y_manuales/politicas_fiscales",
+      "items_count": 5,
+      "ultima_modificacion": "2024-01-15T10:30:00Z"
+    },
+    {
+      "tipo": "folder",
+      "nombre": "manuales_operativos",
+      "ruta_completa": "/empresa_123/politicas_y_manuales/manuales_operativos",
+      "items_count": 3,
+      "ultima_modificacion": "2024-01-10T09:00:00Z"
+    },
+    {
+      "tipo": "folder",
+      "nombre": "procedimientos",
+      "ruta_completa": "/empresa_123/politicas_y_manuales/procedimientos",
+      "items_count": 8,
+      "ultima_modificacion": "2024-01-12T14:00:00Z"
+    }
+  ],
+  "breadcrumb": [
+    {"nombre": "empresa_123", "ruta": "/empresa_123"},
+    {"nombre": "politicas_y_manuales", "ruta": "/empresa_123/politicas_y_manuales"}
+  ]
+}
+```
+
+---
+
+### 4. Pseudocódigo del Pipeline de Ingesta
+
+```python
+# pipeline_ingesta.py
+
+async def pipeline_ingesta(archivo: bytes, metadata_inicial: dict, opciones: dict) -> IngestResult:
+    """
+    Pipeline completo de ingesta de documentos.
+    Orquesta: validación → extracción → normalización → clasificación → indexación → sync pcloud
+    """
+    
+    job_id = generate_job_id()
+    document_id = generate_document_id()
+    
+    try:
+        # FASE 1: Validación inicial
+        validacion = await validar_archivo(archivo, metadata_inicial)
+        if not validacion.es_valido:
+            return IngestResult(status="rejected", error=validacion.error)
+        
+        # FASE 2: Almacenamiento temporal
+        temp_path = await storage.save_temp(archivo, document_id)
+        
+        # FASE 3: Extracción de texto
+        if validacion.formato in ['pdf', 'png', 'jpg', 'tiff'] and opciones.forzar_ocr:
+            texto = await ocr_service.extract(temp_path)
+        elif validacion.formato in ['docx', 'xlsx', 'pptx']:
+            texto = await office_extractor.extract(temp_path)
+        elif validacion.formato in ['md', 'txt', 'html']:
+            texto = await text_extractor.extract(temp_path)
+        else:
+            texto = await generic_extractor.extract(temp_path)
+        
+        # FASE 4: Normalización
+        texto_normalizado = await normalizar_texto(texto)
+        idioma = await detectar_idioma(texto_normalizado)
+        
+        # FASE 5: Extracción de entidades y enriquecimiento
+        entidades = await extraer_entidades(texto_normalizado, tipo_doc=validacion.formato)
+        tags_auto = await generar_tags(texto_normalizado, entidades)
+        
+        # FASE 6: Clasificación automática (Agente de Clasificación)
+        clasificacion = await agente_clasificacion.clasificar(
+            texto=texto_normalizado,
+            entidades=entidades,
+            metadata_inicial=metadata_inicial
+        )
+        
+        # Si confianza < 0.8, enviar a revisión humana
+        if clasificacion.confianza < 0.8:
+            await cola_revision_humana.encolar(
+                document_id=document_id,
+                clasificacion_sugerida=clasificacion,
+                motivo="baja_confianza"
+            )
+            clasificacion.flags.requires_review = True
+        
+        # FASE 7: Determinar ruta final en repositorio
+        ruta_final = construir_ruta(
+            empresa_id=metadata_inicial.empresa_id,
+            categoria=clasificacion.categoria_principal,
+            subcategoria=clasificacion.subcategoria,
+            nombre_archivo=metadata_inicial.nombre_archivo
+        )
+        
+        # FASE 8: Mover a storage permanente
+        storage_url = await storage.move_to_permanent(temp_path, ruta_final)
+        
+        # FASE 9: Generar embeddings y chunks
+        chunks = await chunker.split(texto_normalizado, chunk_size=512, overlap=50)
+        embeddings = await embedding_service.generate_batch(chunks)
+        
+        # FASE 10: Indexar en Vector DB
+        vector_ids = await vector_db.upsert(
+            document_id=document_id,
+            chunks=chunks,
+            embeddings=embeddings,
+            metadata={
+                "titulo": metadata_inicial.nombre_archivo,
+                "categoria": clasificacion.categoria_principal,
+                "tags": tags_auto
+            }
+        )
+        
+        # FASE 11: Generar resumen (si aplica)
+        resumen = None
+        if opciones.generar_resumen and len(texto_normalizado) > 2000:
+            resumen = await agente_resumen.generar(texto_normalizado)
+        
+        # FASE 12: Construir metadata completa
+        metadata_final = construir_metadata_completa(
+            document_id=document_id,
+            metadata_inicial=metadata_inicial,
+            clasificacion=clasificacion,
+            entidades=entidades,
+            tags=tags_auto,
+            rutas={"repositorio": ruta_final, "storage_url": storage_url},
+            indexacion={"vector_ids": vector_ids, "chunks_count": len(chunks)},
+            procesamiento={"resumen_id": resumen.id if resumen else None}
+        )
+        
+        # FASE 13: Guardar metadata en PostgreSQL
+        await metadata_db.insert(metadata_final)
+        
+        # FASE 14: Sincronizar con pclouds de agentes (Agente Pcloud Sync)
+        pcloud_refs = await agente_pcloud_sync.distribuir(
+            document_id=document_id,
+            clasificacion=clasificacion,
+            relevancia_por_agente=calcular_relevancia_agentes(clasificacion, entidades)
+        )
+        
+        # FASE 15: Actualizar metadata con refs de pcloud
+        await metadata_db.update(document_id, {"pcloud_refs": pcloud_refs})
+        
+        # FASE 16: Notificar completado
+        if opciones.notificar_completado:
+            await notificaciones.enviar(
+                tipo="ingesta_completada",
+                destinatario=metadata_inicial.usuario_id,
+                payload={"document_id": document_id, "ruta": ruta_final}
+            )
+        
+        return IngestResult(
+            status="completed",
+            document_id=document_id,
+            ruta=ruta_final,
+            clasificacion=clasificacion,
+            pcloud_refs=pcloud_refs
+        )
+        
+    except Exception as e:
+        await log_error(job_id, e)
+        await cleanup_temp(document_id)
+        return IngestResult(status="failed", error=str(e))
+```
+
+---
+
+### 5. Pseudocódigo del Agente de Clasificación
+
+```python
+# agente_clasificacion.py
+
+class AgenteClasificacion:
+    """
+    Agente especializado en clasificar documentos según taxonomía de Revisar.IA.
+    Utiliza LLM + reglas de negocio para asignación de categoría, tags y permisos.
+    """
+    
+    TAXONOMIA = {
+        "informacion_general": ["acta_constitutiva", "organigrama", "directorio"],
+        "planeacion_estrategica": ["plan_anual", "objetivos_kpis", "proyectos_especiales"],
+        "politicas_y_manuales": ["politicas_fiscales", "manuales_operativos", "procedimientos"],
+        "fiscal": ["declaraciones", "dictamenes", "criterios_sat"],
+        "legal": ["contratos_modelo", "jurisprudencia", "normatividad"],
+        "financiero": ["estados_financieros", "presupuestos", "reportes"],
+        "proveedores": ["catalogo_proveedores", "contratos_vigentes", "evaluaciones"]
+    }
+    
+    AGENTES_POR_CATEGORIA = {
+        "informacion_general": ["A1", "A2"],
+        "planeacion_estrategica": ["A1", "A2", "A5"],
+        "politicas_y_manuales": ["A1", "A3", "A4"],
+        "fiscal": ["A3", "A7"],
+        "legal": ["A4", "A7"],
+        "financiero": ["A5", "A7"],
+        "proveedores": ["A6", "A7"]
+    }
+    
+    async def clasificar(self, texto: str, entidades: list, metadata_inicial: dict) -> Clasificacion:
+        
+        # Paso 1: Clasificación por reglas (rápida, alta precisión)
+        clasificacion_reglas = self._clasificar_por_reglas(texto, entidades, metadata_inicial)
+        
+        if clasificacion_reglas.confianza >= 0.9:
+            return clasificacion_reglas
+        
+        # Paso 2: Clasificación por LLM (más flexible)
+        prompt = self._construir_prompt_clasificacion(texto, entidades)
+        
+        respuesta_llm = await llm.complete(
+            model="claude-sonnet-4-20250514",
+            system="""Eres un agente clasificador de documentos corporativos para una plataforma de auditoría fiscal.
+            
+            TAXONOMÍA DISPONIBLE:
+            - informacion_general: acta_constitutiva, organigrama, directorio
+            - planeacion_estrategica: plan_anual, objetivos_kpis, proyectos_especiales
+            - politicas_y_manuales: politicas_fiscales, manuales_operativos, procedimientos
+            - fiscal: declaraciones, dictamenes, criterios_sat
+            - legal: contratos_modelo, jurisprudencia, normatividad
+            - financiero: estados_financieros, presupuestos, reportes
+            - proveedores: catalogo_proveedores, contratos_vigentes, evaluaciones
+            
+            Responde SOLO en JSON con el formato especificado.""",
+            prompt=prompt,
+            response_format={"type": "json_object"}
+        )
+        
+        clasificacion_llm = self._parsear_respuesta_llm(respuesta_llm)
+        
+        # Paso 3: Combinar resultados
+        clasificacion_final = self._combinar_clasificaciones(
+            clasificacion_reglas, 
+            clasificacion_llm
+        )
+        
+        # Paso 4: Asignar nivel de confidencialidad
+        clasificacion_final.nivel_confidencialidad = self._determinar_confidencialidad(
+            categoria=clasificacion_final.categoria_principal,
+            entidades=entidades
+        )
+        
+        # Paso 5: Asignar agentes permitidos
+        clasificacion_final.agentes_permitidos = self.AGENTES_POR_CATEGORIA.get(
+            clasificacion_final.categoria_principal, 
+            ["A1"]  # Default: solo sponsor
+        )
+        
+        return clasificacion_final
+    
+    def _clasificar_por_reglas(self, texto: str, entidades: list, metadata: dict) -> Clasificacion:
+        """Clasificación basada en keywords y patrones."""
+        
+        texto_lower = texto.lower()
+        
+        # Reglas de alta confianza
+        if "acta constitutiva" in texto_lower or "escritura pública" in texto_lower:
+            return Clasificacion(
+                categoria_principal="informacion_general",
+                subcategoria="acta_constitutiva",
+                confianza=0.95
+            )
+        
+        if any(ley in texto_lower for ley in ["lisr art", "cff art", "código fiscal"]):
+            if "política" in texto_lower or "manual" in texto_lower:
+                return Clasificacion(
+                    categoria_principal="politicas_y_manuales",
+                    subcategoria="politicas_fiscales",
+                    confianza=0.90
+                )
+            else:
+                return Clasificacion(
+                    categoria_principal="fiscal",
+                    subcategoria="criterios_sat",
+                    confianza=0.85
+                )
+        
+        if "estado de resultados" in texto_lower or "balance general" in texto_lower:
+            return Clasificacion(
+                categoria_principal="financiero",
+                subcategoria="estados_financieros",
+                confianza=0.92
+            )
+        
+        if "contrato de" in texto_lower and "proveedor" in texto_lower:
+            return Clasificacion(
+                categoria_principal="proveedores",
+                subcategoria="contratos_vigentes",
+                confianza=0.88
+            )
+        
+        # Si no hay match de alta confianza, retornar baja confianza
+        return Clasificacion(
+            categoria_principal=metadata.get("categoria_sugerida", "informacion_general"),
+            subcategoria="otros",
+            confianza=0.5
+        )
+    
+    def _construir_prompt_clasificacion(self, texto: str, entidades: list) -> str:
+        return f"""Clasifica el siguiente documento corporativo.
+
+TEXTO DEL DOCUMENTO (primeros 3000 caracteres):
+{texto[:3000]}
+
+ENTIDADES DETECTADAS:
+{json.dumps(entidades, indent=2)}
+
+Responde en JSON:
+{{
+    "categoria_principal": "<una de las categorías de la taxonomía>",
+    "subcategoria": "<subcategoría correspondiente>",
+    "confianza": <0.0 a 1.0>,
+    "tags_sugeridos": ["tag1", "tag2", ...],
+    "razonamiento": "<breve explicación de la clasificación>"
+}}"""
+```
+
+---
+
+### 6. Definición RAG
+
+#### Modelo de Embeddings
+```yaml
+embedding_config:
+  model: "text-embedding-3-small"
+  provider: "openai"
+  dimensions: 1536
+  batch_size: 100
+  rate_limit: 3000  # requests per minute
+  
+  # Alternativa local
+  alternative:
+    model: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    dimensions: 384
+    self_hosted: true
+```
+
+#### Vector Database
+```yaml
+vector_db_config:
+  primary: "pinecone"
+  pinecone:
+    index_name: "revisar-ia-knowledge"
+    environment: "us-east-1"
+    metric: "cosine"
+    pods: 1
+    replicas: 1
+    pod_type: "p1.x1"
+    
+  # Alternativa self-hosted
+  alternative: "milvus"
+  milvus:
+    host: "milvus.revisar-ia.internal"
+    port: 19530
+    collection: "knowledge_embeddings"
+    index_type: "IVF_FLAT"
+    nlist: 1024
+```
+
+#### Estrategia de Chunking
+```yaml
+chunking_config:
+  strategy: "semantic"
+  chunk_size: 512  # tokens
+  chunk_overlap: 50  # tokens
+  
+  # Separadores por prioridad
+  separators:
+    - "\n\n"    # Párrafos
+    - "\n"      # Líneas
+    - ". "      # Oraciones
+    - " "       # Palabras
+  
+  # Metadatos por chunk
+  include_metadata:
+    - document_id
+    - page_number
+    - section_title
+    - chunk_index
+```
+
+#### Estrategia de Re-ranking
+```yaml
+reranking_config:
+  enabled: true
+  model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  top_k_initial: 20  # Candidates from vector search
+  top_k_final: 5     # After reranking
+  
+  # Boost por relevancia
+  boosts:
+    recency: 0.1      # Documentos más recientes
+    exact_match: 0.2  # Match exacto de términos
+    category_match: 0.15  # Misma categoría que query context
+```
+
+#### Prompt Template para RAG
+```yaml
+rag_prompt_template: |
+  ## Contexto del Repositorio de Conocimiento
+  
+  A continuación se presenta información relevante extraída del repositorio corporativo de {empresa_nombre}.
+  
+  {%- for source in sources %}
+  
+  ### Fuente {{ loop.index }}: {{ source.titulo }}
+  - **Categoría:** {{ source.categoria }}
+  - **Fecha:** {{ source.fecha_modificacion }}
+  - **Relevancia:** {{ source.similarity_score | round(2) }}
+  
+  {{ source.contenido }}
+  
+  [Referencia: {{ source.citation }}]
+  
+  {%- endfor %}
+  
+  ---
+  
+  Utiliza la información anterior para responder la siguiente consulta. Si la información no es suficiente, indícalo claramente.
+  
+  **Consulta:** {{ query }}
+```
+
+---
+
+## DEFINICIÓN DE AGENTES Y SUBAGENTES
+
+### Agentes Principales
+
+| Agente | Propósito | Owner | Entradas | Salidas | Dependencias | SLA |
+|--------|-----------|-------|----------|---------|--------------|-----|
+| **Agente de Ingesta** | Detectar, validar, extraer texto y normalizar documentos subidos | Equipo de Datos | Archivos (PDF, DOCX, XLSX, etc.) | Documentos normalizados con texto extraído | OCR Service, Office Extractor | < 30s/doc (95th percentile) |
+| **Agente de Clasificación** | Asignar categoría, subcategoría, tags, nivel de confidencialidad y permisos | Equipo de Datos | Documentos normalizados + entidades | Clasificación completa con confianza | LLM (Claude), Taxonomy Rules | 95% precisión, < 5s/doc |
+| **Agente Pcloud Sync** | Distribuir referencias a bases de conocimiento de cada agente operativo | Equipo de Datos | Documentos clasificados | Referencias en pcloud de A1-A7 | Agente de Clasificación | < 2s sync, 99.9% consistencia |
+| **Agente RAG** | Retrieval semántico con re-ranking para augmentar prompts de agentes | Equipo ML | Queries de agentes A1-A7 | Contexto augmentado + citations | Vector DB, Re-ranker | < 2s e2e, recall@5 > 0.85 |
+
+### Subagentes
+
+| Subagente | Propósito | Trigger | Owner | Entradas | Salidas | SLA |
+|-----------|-----------|---------|-------|----------|---------|-----|
+| **Subagente Revisión Humana** | Gestionar cola de documentos que requieren clasificación manual | confianza < 0.8 | Equipo Ops | Docs con baja confianza | Clasificación validada | < 24h resolución |
+| **Subagente Resúmenes** | Generar resúmenes automáticos de documentos extensos | doc.paginas > 10 | Equipo ML | Documentos largos | Resúmenes + highlights | < 60s/doc |
+| **Subagente OCR** | Extraer texto de imágenes y PDFs escaneados | formato in [pdf_scan, png, jpg] | Equipo Datos | Imágenes/PDFs | Texto extraído | < 10s/página, 98% precisión |
+| **Subagente Versionado** | Gestionar versiones y detectar cambios significativos | doc.version > 1 | Equipo Datos | Documento nuevo + anterior | Diff + changelog | < 5s |
+| **Subagente Cumplimiento** | Verificar que documentos sensibles cumplan políticas de retención | nivel_confidencialidad in [confidencial, restringido] | Legal/Compliance | Docs sensibles | Validación + alertas | 100% cobertura |
+
+---
+
+## PLAN DE PRUEBAS
+
+### Casos de Prueba de Flujo de Información
+
+#### CASO 1: Ingesta exitosa de PDF simple
+```yaml
+caso_id: TC-001
+nombre: "Ingesta exitosa de PDF corporativo"
+tipo: happy_path
+precondiciones:
+  - Usuario autenticado como admin
+  - Sistema en estado operativo
+  
+pasos:
+  1. POST /api/knowledge/ingest con archivo politica_fiscal.pdf (500KB)
+  2. Esperar respuesta 202 Accepted
+  3. GET /api/knowledge/jobs/{job_id} cada 2s hasta status=completed
+  4. GET /api/knowledge/documents/{document_id}
+  5. Verificar metadata completa
+  6. GET /api/knowledge/browse?path=/empresa_123/politicas_y_manuales
+  
+entrada:
+  archivo: "politica_deduccion_intangibles_v1.pdf"
+  metadata_inicial:
+    tipo_documento: "politica"
+    categoria_sugerida: "politicas_fiscales"
+    
+resultado_esperado:
+  status: "completed"
+  clasificacion:
+    categoria_principal: "politicas_y_manuales"
+    subcategoria: "politicas_fiscales"
+    confianza: "> 0.85"
+  indexacion:
+    chunks_count: "> 0"
+    vector_id: "not null"
+  pcloud_refs:
+    - agente: "A3_fiscal"
+    - agente: "A4_legal"
+  tiempo_total: "< 30s"
+```
+
+#### CASO 2: Ingesta con OCR requerido
+```yaml
+caso_id: TC-002
+nombre: "Ingesta de PDF escaneado con OCR"
+tipo: happy_path
+precondiciones:
+  - PDF es imagen escaneada (no tiene texto embebido)
+  
+pasos:
+  1. POST /api/knowledge/ingest con PDF escaneado
+  2. Verificar que OCR se activa automáticamente
+  3. Esperar procesamiento (puede tomar > 30s)
+  4. Verificar texto extraído correctamente
+  
+entrada:
+  archivo: "contrato_escaneado.pdf"
+  opciones:
+    forzar_ocr: false  # Debe detectar automáticamente
+    
+resultado_esperado:
+  procesamiento:
+    ocr_aplicado: true
+    texto_extraido: true
+  tiempo_total: "< 60s para 5 páginas"
+```
+
+#### CASO 3: Clasificación con baja confianza → Revisión humana
+```yaml
+caso_id: TC-003
+nombre: "Documento ambiguo enviado a revisión humana"
+tipo: edge_case
+precondiciones:
+  - Documento con contenido mixto o poco claro
+  
+pasos:
+  1. POST /api/knowledge/ingest con documento ambiguo
+  2. Verificar clasificacion.confianza < 0.8
+  3. Verificar flags.requires_review = true
+  4. GET /api/knowledge/review-queue
+  5. Verificar documento en cola
+  
+entrada:
+  archivo: "documento_mixto_sin_contexto.docx"
+  
+resultado_esperado:
+  clasificacion:
+    confianza: "< 0.8"
+  flags:
+    requires_review: true
+  cola_revision:
+    documento_presente: true
+    motivo: "baja_confianza"
+```
+
+#### CASO 4: Query RAG exitoso
+```yaml
+caso_id: TC-004
+nombre: "Consulta RAG con resultados relevantes"
+tipo: happy_path
+precondiciones:
+  - Al menos 5 documentos indexados en categoría fiscal
+  
+pasos:
+  1. POST /api/knowledge/query_rag con query fiscal
+  2. Verificar resultados ordenados por relevancia
+  3. Verificar citations incluidas
+  4. Verificar latencia < 2s
+  
+entrada:
+  query: "¿Cuáles son los requisitos del Art. 27 LISR para deducir intangibles?"
+  contexto:
+    agente_solicitante: "A3_fiscal"
+  opciones:
+    top_k: 5
+    min_similarity: 0.7
+    
+resultado_esperado:
+  results:
+    count: ">= 1"
+    top_result:
+      similarity_score: "> 0.7"
+      citation: "not null"
+  metadata_query:
+    latency_ms: "< 2000"
+```
+
+#### CASO 5: Re-indexación forzada
+```yaml
+caso_id: TC-005
+nombre: "Re-indexación manual de documento"
+tipo: happy_path
+precondiciones:
+  - Documento existente con vector_id válido
+  
+pasos:
+  1. Guardar vector_id actual
+  2. POST /api/knowledge/reindex con document_id
+  3. Esperar job completed
+  4. Verificar nuevo vector_id generado
+  5. Verificar embeddings actualizados
+  
+entrada:
+  document_ids: ["doc_abc123"]
+  opciones:
+    regenerar_embeddings: true
+    
+resultado_esperado:
+  status: "completed"
+  indexacion:
+    vector_id: "diferente al anterior"
+    fecha_indexacion: "nueva"
+```
+
+#### CASO 6: Archivo inválido rechazado
+```yaml
+caso_id: TC-006
+nombre: "Rechazo de archivo corrupto o no soportado"
+tipo: error_handling
+precondiciones:
+  - Ninguna
+  
+pasos:
+  1. POST /api/knowledge/ingest con archivo .exe
+  2. Verificar respuesta 400 Bad Request
+  3. POST con PDF corrupto
+  4. Verificar respuesta con error descriptivo
+  
+entrada:
+  archivo: "malware.exe"
+  
+resultado_esperado:
+  status_code: 400
+  error:
+    code: "INVALID_FILE_FORMAT"
+    message: "Formato de archivo no soportado: exe"
+```
+
+#### CASO 7: Sincronización pcloud multi-agente
+```yaml
+caso_id: TC-007
+nombre: "Distribución correcta a pclouds de múltiples agentes"
+tipo: integration
+precondiciones:
+  - Documento clasificado como "fiscal" con relevancia para A3, A4, A7
+  
+pasos:
+  1. Ingestar documento fiscal/legal
+  2. Verificar refs creadas en /pcloud/A3_fiscal/refs/
+  3. Verificar refs creadas en /pcloud/A4_legal/refs/
+  4. Verificar refs creadas en /pcloud/A7_defense_file/refs/
+  5. Verificar contenido de cada ref apunta al mismo document_id
+  
+entrada:
+  archivo: "jurisprudencia_intangibles_2024.pdf"
+  clasificacion_esperada:
+    categoria: "legal"
+    subcategoria: "jurisprudencia"
+    
+resultado_esperado:
+  pcloud_refs:
+    - agente: "A4_legal"
+      relevancia: "> 0.9"
+    - agente: "A3_fiscal"
+      relevancia: "> 0.7"
+    - agente: "A7_defense_file"
+      relevancia: "> 0.6"
+```
+
+#### CASO 8: Versionado de documento actualizado
+```yaml
+caso_id: TC-008
+nombre: "Actualización de documento existente con versionado"
+tipo: update_flow
+precondiciones:
+  - Documento v1 ya existe en el sistema
+  
+pasos:
+  1. POST /api/knowledge/ingest con mismo nombre pero contenido diferente
+  2. Sistema detecta documento existente
+  3. Crear nueva versión (v2)
+  4. Mantener referencia a versión anterior
+  5. Verificar ambas versiones accesibles
+  
+entrada:
+  archivo: "politica_deduccion_intangibles_v2.docx"
+  metadata_inicial:
+    documento_existente_id: "doc_abc123"
+    es_actualizacion: true
+    
+resultado_esperado:
+  versionado:
+    version_actual: "2.0"
+    versiones_anteriores:
+      - version: "1.0"
+        archivo_id: "doc_abc123"
+  indexacion:
+    reindexado: true
+```
+
+---
+
+## MÉTRICAS, SLOs Y ALERTAS
+
+### Métricas de Pipeline
+
+| Métrica | Descripción | Target | Alerta Warning | Alerta Critical |
+|---------|-------------|--------|----------------|-----------------|
+| `ingest_latency_p95` | Latencia de ingesta percentil 95 | < 30s | > 45s | > 60s |
+| `classification_accuracy` | Precisión de clasificación automática | > 95% | < 90% | < 85% |
+| `classification_confidence_avg` | Confianza promedio de clasificación | > 0.85 | < 0.80 | < 0.75 |
+| `review_queue_size` | Documentos pendientes de revisión humana | < 50 | > 100 | > 200 |
+| `review_queue_age_max` | Edad máxima de documento en cola | < 24h | > 24h | > 48h |
+
+### Métricas de RAG
+
+| Métrica | Descripción | Target | Alerta Warning | Alerta Critical |
+|---------|-------------|--------|----------------|-----------------|
+| `rag_latency_p95` | Latencia de query RAG percentil 95 | < 2s | > 3s | > 5s |
+| `rag_recall_at_5` | Recall@5 (documentos relevantes en top 5) | > 0.85 | < 0.80 | < 0.70 |
+| `rag_mrr` | Mean Reciprocal Rank | > 0.75 | < 0.70 | < 0.60 |
+| `embedding_generation_errors` | Errores al generar embeddings | < 0.1% | > 1% | > 5% |
+| `vector_db_availability` | Disponibilidad de Vector DB | 99.9% | < 99.5% | < 99% |
+
+### Métricas de Storage
+
+| Métrica | Descripción | Target | Alerta Warning | Alerta Critical |
+|---------|-------------|--------|----------------|-----------------|
+| `storage_usage_percent` | Uso de almacenamiento | < 80% | > 80% | > 90% |
+| `documents_total` | Total de documentos en sistema | N/A | N/A | N/A |
+| `index_sync_lag` | Lag entre storage y índice | < 5min | > 15min | > 30min |
+| `pcloud_sync_failures` | Fallos de sincronización pcloud | < 0.1% | > 1% | > 5% |
+
+---
+
+## ROADMAP DE IMPLEMENTACIÓN
+
+### Sprint 1 (Semanas 1-2): Infraestructura Base
+```yaml
+sprint: 1
+nombre: "Infraestructura y Storage"
+objetivo: "Establecer base de almacenamiento y estructura de repositorio"
+
+entregables:
+  - Esquema de base de datos PostgreSQL para metadata
+  - Configuración de storage (S3/MinIO) con estructura de carpetas
+  - API básica de browse y upload
+  - UI de File Explorer (vista de carpetas, sin funcionalidad avanzada)
+  - Integración con sistema de autenticación existente
+
+tareas:
+  - [ ] Crear tablas: documentos, versiones, tags, permisos, audit_log
+  - [ ] Configurar bucket S3 con políticas de acceso
+  - [ ] Implementar endpoints: GET /browse, POST /upload, GET /download
+  - [ ] Componente React: KnowledgeExplorer con árbol de carpetas
+  - [ ] Drag & Drop zone para upload múltiple
+  - [ ] Tests unitarios de storage layer
+
+esfuerzo_estimado: 80 horas
+riesgos:
+  - Integración con auth existente puede requerir ajustes
+mitigacion:
+  - Reunión técnica día 1 para alinear interfaces
+```
+
+### Sprint 2 (Semanas 3-4): Pipeline de Ingesta
+```yaml
+sprint: 2
+nombre: "Agente de Ingesta y Extracción"
+objetivo: "Implementar pipeline completo de ingesta con extracción de texto"
+
+entregables:
+  - Agente de Ingesta funcional
+  - Extractores: PDF, DOCX, XLSX, PPTX, MD, TXT
+  - Servicio OCR integrado (Tesseract o cloud)
+  - Cola de procesamiento con jobs
+  - API de tracking de jobs
+
+tareas:
+  - [ ] Implementar IngestAgent con patrón pipeline
+  - [ ] Integrar pdf-parse, mammoth.js, xlsx
+  - [ ] Configurar Tesseract OCR o Google Vision API
+  - [ ] Implementar job queue con Bull/BullMQ
+  - [ ] Endpoint POST /ingest con job tracking
+  - [ ] UI: progress indicator durante upload
+  - [ ] Tests de integración por formato
+
+esfuerzo_estimado: 100 horas
+dependencias:
+  - Sprint 1 completado
+```
+
+### Sprint 3 (Semanas 5-6): Clasificación y RAG MVP
+```yaml
+sprint: 3
+nombre: "Agente de Clasificación + RAG Básico"
+objetivo: "Clasificación automática e integración RAG funcional"
+
+entregables:
+  - Agente de Clasificación con LLM
+  - Taxonomía implementada con reglas + fallback LLM
+  - Vector DB configurado (Pinecone o pgvector)
+  - Chunking y embedding pipeline
+  - Endpoint /query_rag funcional
+  - Integración con agentes A1-A7 existentes
+
+tareas:
+  - [ ] Implementar ClassificationAgent con Claude
+  - [ ] Definir prompts de clasificación
+  - [ ] Configurar Pinecone index (o pgvector extension)
+  - [ ] Implementar chunker semántico
+  - [ ] Integrar OpenAI embeddings
+  - [ ] Endpoint POST /query_rag
+  - [ ] Modificar agentes existentes para usar RAG
+  - [ ] Cola de revisión humana básica
+  - [ ] Tests e2e de flujo completo
+
+esfuerzo_estimado: 120 horas
+dependencias:
+  - Sprint 2 completado
+```
+
+### Sprint 4 (Semanas 7-8): Pcloud Sync y Refinamiento
+```yaml
+sprint: 4
+nombre: "Pcloud Sync + Optimización"
+objetivo: "Distribución a KBs de agentes y optimización de performance"
+
+entregables:
+  - Agente Pcloud Sync completo
+  - Referencias en /pcloud/A{n}/ funcionales
+  - Re-ranking implementado
+  - UI de administración de documentos
+  - Dashboard de métricas básico
+  - Versionado de documentos
+
+tareas:
+  - [ ] Implementar PcloudSyncAgent
+  - [ ] Lógica de relevancia por agente
+  - [ ] Integrar cross-encoder para re-ranking
+  - [ ] UI: vista de documento con metadata
+  - [ ] UI: panel de admin para clasificación manual
+  - [ ] Implementar versionado con diff
+  - [ ] Dashboard con métricas clave
+  - [ ] Performance tuning (caching, índices)
+
+esfuerzo_estimado: 100 horas
+dependencias:
+  - Sprint 3 completado
+```
+
+### Sprint 5 (Semanas 9-10): Hardening y Launch
+```yaml
+sprint: 5
+nombre: "Seguridad, Testing y Launch"
+objetivo: "Preparar sistema para producción"
+
+entregables:
+  - Auditoría de seguridad completa
+  - Tests de carga
+  - Documentación técnica y de usuario
+  - Runbook operativo
+  - Migración de datos existentes (si aplica)
+  - Go-live
+
+tareas:
+  - [ ] Implementar RBAC completo
+  - [ ] Cifrado en reposo verificado
+  - [ ] Audit logging inmutable
+  - [ ] Penetration testing básico
+  - [ ] Load testing con k6/Artillery
+  - [ ] Documentación API (OpenAPI spec)
+  - [ ] Manual de usuario
+  - [ ] Runbook de operaciones
+  - [ ] Script de migración
+  - [ ] Deployment a producción
+  - [ ] Monitoreo con alertas configuradas
+
+esfuerzo_estimado: 80 horas
+dependencias:
+  - Sprint 4 completado
+```
+
+---
+
+## CHECKLIST OPERATIVO PARA LANZAMIENTO
+
+### Infraestructura
+- [ ] Storage (S3/MinIO) configurado con replicación
+- [ ] Vector DB (Pinecone/Milvus) en cluster production
+- [ ] PostgreSQL con backups automáticos
+- [ ] CDN para assets estáticos (opcional)
+- [ ] SSL/TLS configurado en todos los endpoints
+
+### Seguridad
+- [ ] Cifrado en reposo habilitado (AES-256)
+- [ ] Cifrado en tránsito (TLS 1.3)
+- [ ] RBAC implementado y verificado
+- [ ] MFA habilitado para acceso admin
+- [ ] API keys rotadas
+- [ ] Audit logging habilitado
+- [ ] Rate limiting configurado
+- [ ] CORS policies definidas
+
+### Monitoreo
+- [ ] APM configurado (Datadog/NewRelic/Sentry)
+- [ ] Alertas críticas configuradas
+- [ ] Dashboards de métricas desplegados
+- [ ] Log aggregation funcionando
+- [ ] Health checks en todos los servicios
+
+### Datos
+- [ ] Migración de datos legacy completada (si aplica)
+- [ ] Índices de Vector DB poblados
+- [ ] Backup inicial realizado
+- [ ] Plan de rollback documentado
+
+### Documentación
+- [ ] API documentation publicada
+- [ ] Manual de usuario disponible
+- [ ] Runbook de operaciones completo
+- [ ] Proceso de soporte definido
+
+### Testing
+- [ ] Todos los tests unitarios pasando
+- [ ] Tests de integración pasando
+- [ ] Tests e2e de flujos críticos pasando
+- [ ] Load test satisfactorio (target: 100 docs/min)
+- [ ] Smoke test post-deploy definido
+
+---
+
+## SCRIPTS DE PRUEBA (CLI)
+
+### 1. Subir documento
+```bash
+#!/bin/bash
+# upload_document.sh
+
+API_BASE="https://api.revisar-ia.com"
+TOKEN="Bearer ${REVISAR_API_TOKEN}"
+
+# Codificar archivo en base64
+FILE_PATH=$1
+FILE_NAME=$(basename "$FILE_PATH")
+FILE_B64=$(base64 -w 0 "$FILE_PATH")
+
+# Request
+curl -X POST "${API_BASE}/api/knowledge/ingest" \
+  -H "Authorization: ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d @- <<EOF
+{
+  "archivo": "${FILE_B64}",
+  "nombre_archivo": "${FILE_NAME}",
+  "metadata_inicial": {
+    "tipo_documento": "politica",
+    "categoria_sugerida": "politicas_fiscales",
+    "propietario_organico": {
+      "area": "Fiscal",
+      "responsable": "Admin"
+    }
+  },
+  "opciones": {
+    "clasificacion_automatica": true,
+    "generar_resumen": true
+  }
+}
+EOF
+```
+
+### 2. Forzar re-indexado
+```bash
+#!/bin/bash
+# reindex_document.sh
+
+API_BASE="https://api.revisar-ia.com"
+TOKEN="Bearer ${REVISAR_API_TOKEN}"
+DOCUMENT_ID=$1
+
+curl -X POST "${API_BASE}/api/knowledge/reindex" \
+  -H "Authorization: ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d @- <<EOF
+{
+  "scope": "document",
+  "document_ids": ["${DOCUMENT_ID}"],
+  "opciones": {
+    "regenerar_embeddings": true,
+    "recalcular_relevancia_pcloud": true
+  }
+}
+EOF
+```
+
+### 3. Query RAG y validar fuente
+```bash
+#!/bin/bash
+# query_rag.sh
+
+API_BASE="https://api.revisar-ia.com"
+TOKEN="Bearer ${REVISAR_API_TOKEN}"
+QUERY=$1
+
+RESPONSE=$(curl -s -X POST "${API_BASE}/api/knowledge/query_rag" \
+  -H "Authorization: ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d @- <<EOF
+{
+  "query": "${QUERY}",
+  "contexto": {
+    "agente_solicitante": "A3_fiscal",
+    "empresa_id": "empresa_123"
+  },
+  "opciones": {
+    "top_k": 5,
+    "min_similarity": 0.7,
+    "incluir_metadata": true
+  }
+}
+EOF
+)
+
+# Mostrar resultados
+echo "=== QUERY RAG RESULTS ==="
+echo "$RESPONSE" | jq '.results[] | {rank, titulo, similarity_score, citation}'
+
+# Verificar latencia
+LATENCY=$(echo "$RESPONSE" | jq '.metadata_query.latency_ms')
+echo ""
+echo "Latencia: ${LATENCY}ms"
+
+if [ "$LATENCY" -gt 2000 ]; then
+  echo "⚠️ WARNING: Latencia excede SLA de 2000ms"
+else
+  echo "✅ Latencia dentro de SLA"
+fi
+```
+
+### 4. Verificar health del sistema
+```bash
+#!/bin/bash
+# health_check.sh
+
+API_BASE="https://api.revisar-ia.com"
+
+echo "=== KNOWLEDGE SYSTEM HEALTH CHECK ==="
+
+# Check API
+API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${API_BASE}/api/knowledge/health")
+echo "API Status: ${API_STATUS}"
+
+# Check Vector DB
+VECTOR_STATUS=$(curl -s "${API_BASE}/api/knowledge/health/vector-db" | jq -r '.status')
+echo "Vector DB: ${VECTOR_STATUS}"
+
+# Check Storage
+STORAGE_STATUS=$(curl -s "${API_BASE}/api/knowledge/health/storage" | jq -r '.status')
+echo "Storage: ${STORAGE_STATUS}"
+
+# Check Queue
+QUEUE_SIZE=$(curl -s "${API_BASE}/api/knowledge/health/queue" | jq -r '.pending_jobs')
+echo "Pending Jobs: ${QUEUE_SIZE}"
+
+# Check Review Queue
+REVIEW_QUEUE=$(curl -s "${API_BASE}/api/knowledge/review-queue/stats" | jq -r '.pending_count')
+echo "Pending Reviews: ${REVIEW_QUEUE}"
+
+echo ""
+echo "=== END HEALTH CHECK ==="
+```
+
+---
+
+## EJEMPLO DE PAYLOADS DE PRUEBA
+
+### Payload 1: Ingesta de Política Fiscal
+```json
+{
+  "archivo": "JVBERi0xLjQKJeLjz9MKMyAwIG9iago8PC...[base64 truncado]",
+  "nombre_archivo": "politica_deduccion_intangibles_2024_v1.pdf",
+  "metadata_inicial": {
+    "tipo_documento": "politica",
+    "categoria_sugerida": "politicas_fiscales",
+    "propietario_organico": {
+      "area": "Dirección Fiscal",
+      "responsable": "Carlos Mendoza",
+      "email": "cmendoza@empresa.com"
+    },
+    "nivel_confidencialidad": "interno",
+    "tags_sugeridos": ["deduccion", "intangibles", "lisr", "art_27"]
+  },
+  "opciones": {
+    "forzar_ocr": false,
+    "generar_resumen": true,
+    "clasificacion_automatica": true,
+    "notificar_completado": true
+  }
+}
+```
+
+### Payload 2: Query RAG para Agente Fiscal
+```json
+{
+  "query": "¿Qué documentación se requiere para sustentar la deducción de regalías pagadas a empresas del extranjero según nuestra política interna y los criterios del SAT?",
+  "contexto": {
+    "agente_solicitante": "A3_fiscal",
+    "proyecto_id": "proj_audit_intangibles_2024",
+    "empresa_id": "empresa_acme_123",
+    "proveedor_id": "prov_tech_solutions",
+    "monto_deduccion": 2500000.00
+  },
+  "opciones": {
+    "top_k": 5,
+    "min_similarity": 0.65,
+    "incluir_metadata": true,
+    "incluir_resumen": true,
+    "filtros": {
+      "categorias": ["politicas_fiscales", "criterios_sat", "normatividad"],
+      "nivel_confidencialidad_max": "confidencial",
+      "fecha_desde": "2022-01-01",
+      "agentes_permitidos_incluye": "A3"
+    },
+    "reranking": true,
+    "expand_query": true
+  }
+}
+```
+
+### Payload 3: Actualización de Documento con Versionado
+```json
+{
+  "archivo": "UEsDBBQAAAAIAGJxT1kAAA...[base64 truncado]",
+  "nombre_archivo": "politica_deduccion_intangibles_2024_v2.docx",
+  "metadata_inicial": {
+    "documento_existente_id": "doc_7f3a9b2c-4e5d-4a1b-8c9d-0e1f2a3b4c5d",
+    "es_actualizacion": true,
+    "cambios_descripcion": "Actualización por cambios en criterios SAT 2024. Se agregan requisitos de documentación para operaciones con partes relacionadas.",
+    "tipo_documento": "politica",
+    "propietario_organico": {
+      "area": "Dirección Fiscal",
+      "responsable": "Carlos Mendoza"
+    }
+  },
+  "opciones": {
+    "generar_resumen": true,
+    "clasificacion_automatica": false,
+    "mantener_clasificacion_anterior": true,
+    "generar_diff": true,
+    "notificar_a_suscriptores": true
+  }
+}
+```
+
+---
+
+## COSTOS APROXIMADOS (SaaS/Propietarios)
+
+| Servicio | Uso Estimado | Costo/mes | Alternativa |
+|----------|--------------|-----------|-------------|
+| **OpenAI Embeddings** | 10K docs × 5 chunks = 50K embeddings | ~$5-10 | sentence-transformers (gratis, self-hosted) |
+| **Claude API** (Clasificación) | 10K clasificaciones × ~500 tokens | ~$15-30 | GPT-3.5-turbo (~$5) |
+| **Pinecone** | 100K vectors, 1 pod | ~$70 | pgvector (gratis), Milvus (self-hosted) |
+| **S3 Storage** | 100GB | ~$2.30 | MinIO (self-hosted) |
+| **OCR (Google Vision)** | 5K páginas | ~$7.50 | Tesseract (gratis) |
+| **TOTAL ESTIMADO** | - | **~$100-120/mes** | **~$10-20/mes** (self-hosted) |
+
+**Nota:** Costos para 10K requests/mes. Escala linealmente con volumen.
+
+---
+
+## REFERENCIAS Y RECURSOS
+
+- [OpenAI Embeddings Documentation](https://platform.openai.com/docs/guides/embeddings)
+- [Pinecone Best Practices](https://docs.pinecone.io/docs/best-practices)
+- [pgvector Extension](https://github.com/pgvector/pgvector)
+- [LangChain RAG Guide](https://python.langchain.com/docs/use_cases/question_answering/)
+- [Anthropic Claude API](https://docs.anthropic.com/)
+
+---
+
+*Documento generado para REVISAR.IA - Sistema de Gestión del Conocimiento Corporativo*
+*Versión: 1.0 | Fecha: Enero 2026*

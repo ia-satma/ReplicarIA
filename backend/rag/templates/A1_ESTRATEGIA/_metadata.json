@@ -1,0 +1,58 @@
+{
+  "agente_id": "A1_ESTRATEGIA",
+  "nombre": "Estrategia y Razón de Negocios",
+  "descripcion": "Documentos para evaluar alineación estratégica y BEE",
+  "documentos": [
+    {
+      "id": "001_vision_pilares",
+      "titulo": "Visión y Pilares Estratégicos 2026-2030",
+      "tipo": "plantilla",
+      "uso": "Marco de referencia para evaluar alineación de proyectos",
+      "personalizable": true,
+      "campos_clave": ["vision", "pilares_estrategicos", "mercados_clave"]
+    },
+    {
+      "id": "002_planeacion_okrs",
+      "titulo": "Planeación Estratégica OKRs",
+      "tipo": "plantilla",
+      "uso": "Vincular proyectos con objetivos medibles",
+      "personalizable": true,
+      "campos_clave": ["objetivos_corporativos", "key_results", "okrs_por_area"]
+    },
+    {
+      "id": "003_panorama_industria",
+      "titulo": "Análisis Panorama Industria",
+      "tipo": "plantilla",
+      "uso": "Contexto macro para justificar razón de negocios",
+      "personalizable": true,
+      "campos_clave": ["entorno_macro", "tendencias_sector", "riesgos_oportunidades"]
+    },
+    {
+      "id": "004_plan_estrategico_anual",
+      "titulo": "Plan Estratégico Anual",
+      "tipo": "plantilla",
+      "uso": "Prioridades concretas del ejercicio",
+      "personalizable": true,
+      "campos_clave": ["prioridades", "proyectos_estrategicos", "presupuesto"]
+    },
+    {
+      "id": "005_matriz_alineacion_bee",
+      "titulo": "Matriz de Alineación BEE",
+      "tipo": "metodologia",
+      "uso": "Metodología para cuantificar beneficio económico",
+      "personalizable": false,
+      "campos_clave": ["definicion_bee", "estructura_bee", "criterios_evaluacion"]
+    }
+  ],
+  "contexto_requerido": {
+    "obligatorio": [
+      "plan_estrategico_vigente",
+      "okrs_periodo_actual",
+      "tipologia_proyecto"
+    ],
+    "deseable": [
+      "panorama_industria",
+      "proyectos_anteriores_similares"
+    ]
+  }
+}

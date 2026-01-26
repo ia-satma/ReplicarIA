@@ -1,0 +1,1125 @@
+# FASE 3: CONFIGURACIÓN DE AGENTES ACTUALES (A1-A6)
+## Prompt TOON para Replit
+
+```
+=============================================================================
+TOON FASE 3: CONFIGURACIÓN DE AGENTES A1 A A6
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta todas las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. SOLO EJECUTA.
+
+PRERREQUISITO: Las Fases 1 (Base de Datos) y 2 (Contexto Global) deben estar
+completadas.
+
+CONTEXTO: Cada agente del sistema tiene un rol específico, necesita cierto
+contexto para funcionar, y debe producir outputs estructurados. Esta fase
+configura los 6 agentes actuales con sus tablas de contexto, plantillas de
+respuesta, y schemas de output.
+
+El problema que resolvemos: los agentes actuales producen respuestas narrativas
+genéricas ("debe haber documentación completa") en lugar de checklists
+específicos por proyecto. Esta configuración fuerza outputs estructurados.
+
+=============================================================================
+PASO 1: CREAR CONFIGURACIÓN DE A1_SPONSOR (Estrategia)
+=============================================================================
+
+Crea o actualiza un archivo "configAgentes/a1_sponsor.js":
+
+const A1_SPONSOR_CONFIG = {
+  
+  id: "A1_SPONSOR",
+  nombre: "Agente de Estrategia / Sponsor",
+  
+  rol: "Evaluar si el proyecto tiene razón de negocios genuina y un beneficio económico esperado (BEE) documentable. Determinar si el servicio está alineado con la estrategia corporativa y si genera valor real más allá de efectos fiscales.",
+  
+  // CONTEXTO QUE NECESITA RECIBIR
+  contexto_requerido: {
+    obligatorio: [
+      "proyecto.id",
+      "proyecto.nombre",
+      "proyecto.descripcion",
+      "proyecto.monto",
+      "proyecto.tipologia",
+      "proyecto.sponsor_interno",
+      "proyecto.vinculo_plan_estrategico",
+      "proyecto.bee_objetivo",
+      "proyecto.bee_roi_esperado",
+      "proyecto.bee_horizonte_meses"
+    ],
+    deseable: [
+      "plan_estrategico_vigente",
+      "segmentos_mercado_prioritarios",
+      "proyectos_similares_previos"
+    ],
+    no_necesita: [
+      "detalles_contractuales_finos",
+      "CFDI",
+      "matriz_materialidad_completa"
+    ]
+  },
+  
+  // NORMATIVA QUE DEBE CONOCER
+  normativa_relevante: [
+    "CFF_5A_razon_negocios",
+    "CFF_5A_beneficio_economico"
+  ],
+  
+  // PREGUNTAS CLAVE QUE DEBE RESPONDER
+  preguntas_clave: [
+    "¿Este gasto tiene sentido estratégico dentro del plan de la empresa?",
+    "¿Existe un objetivo económico concreto y medible?",
+    "¿El ROI esperado es razonable y está documentado?",
+    "¿El horizonte temporal del beneficio es congruente con el tipo de servicio?",
+    "¿Qué usos concretos tendrá el resultado del servicio?"
+  ],
+  
+  // FASES DONDE PARTICIPA
+  fases_participacion: ["F0", "F4", "F5", "F9"],
+  
+  // CAPACIDADES
+  puede_bloquear_avance: true,
+  puede_aprobar_solo: false,
+  requiere_validacion_humana_default: false,
+  
+  // SCHEMA DE OUTPUT OBLIGATORIO
+  output_schema: {
+    decision: {
+      tipo: "enum",
+      valores: ["APROBAR", "SOLICITAR_AJUSTES", "RECHAZAR"],
+      obligatorio: true
+    },
+    analisis_razon_negocios: {
+      tipo: "object",
+      campos: {
+        vinculacion_con_giro: { tipo: "string", min_length: 30 },
+        objetivo_economico: { tipo: "string", min_length: 50 },
+        conclusion: { tipo: "enum", valores: ["CONFORME", "CONDICIONADO", "NO_CONFORME"] }
+      },
+      obligatorio: true
+    },
+    analisis_bee: {
+      tipo: "object",
+      campos: {
+        objetivo_especifico: { tipo: "string", min_length: 50 },
+        roi_esperado: { tipo: "number", nullable: true },
+        horizonte_meses: { tipo: "number", nullable: true },
+        indicadores_exito: { tipo: "array", items: "string", min_items: 1 },
+        evaluacion: { tipo: "enum", valores: ["CONFORME", "CONDICIONADO", "NO_CONFORME"] }
+      },
+      obligatorio: true
+    },
+    condiciones_estrategicas_avance: {
+      tipo: "array",
+      items: "string",
+      descripcion: "Lista de condiciones concretas que deben cumplirse para avanzar",
+      obligatorio: true
+    },
+    requisitos_para_sow: {
+      tipo: "array",
+      items: "string",
+      descripcion: "Qué debe incluir el SOW/contrato desde perspectiva estratégica",
+      obligatorio: true
+    },
+    riesgo_puntos_razon_negocios: {
+      tipo: "number",
+      min: 0,
+      max: 25,
+      obligatorio: true
+    },
+    riesgo_puntos_beneficio_economico: {
+      tipo: "number",
+      min: 0,
+      max: 25,
+      obligatorio: true
+    }
+  },
+  
+  // PLANTILLA DE RESPUESTA
+  plantilla_respuesta: `
+## EVALUACIÓN A1 - SPONSOR/ESTRATEGIA
+
+### Proyecto: {{proyecto.nombre}}
+### ID: {{proyecto.id}}
+### Tipología: {{proyecto.tipologia}}
+### Monto: {{proyecto.monto}} MXN
+
+---
+
+### 1. ANÁLISIS DE RAZÓN DE NEGOCIOS (Art. 5-A CFF)
+
+**Vinculación con el giro del contribuyente:**
+{{analisis_razon_negocios.vinculacion_con_giro}}
+
+**Objetivo económico del proyecto:**
+{{analisis_razon_negocios.objetivo_economico}}
+
+**Conclusión Razón de Negocios:** {{analisis_razon_negocios.conclusion}}
+**Puntos de Riesgo:** {{riesgo_puntos_razon_negocios}}/25
+
+---
+
+### 2. ANÁLISIS DE BENEFICIO ECONÓMICO ESPERADO (BEE)
+
+**Objetivo específico:**
+{{analisis_bee.objetivo_especifico}}
+
+**ROI esperado:** {{analisis_bee.roi_esperado}}x
+**Horizonte temporal:** {{analisis_bee.horizonte_meses}} meses
+
+**Indicadores de éxito:**
+{{#each analisis_bee.indicadores_exito}}
+- {{this}}
+{{/each}}
+
+**Evaluación BEE:** {{analisis_bee.evaluacion}}
+**Puntos de Riesgo:** {{riesgo_puntos_beneficio_economico}}/25
+
+---
+
+### 3. CONDICIONES ESTRATÉGICAS PARA AVANZAR
+
+{{#each condiciones_estrategicas_avance}}
+- [ ] {{this}}
+{{/each}}
+
+---
+
+### 4. REQUISITOS PARA SOW/CONTRATO
+
+El SOW debe incluir:
+{{#each requisitos_para_sow}}
+- {{this}}
+{{/each}}
+
+---
+
+### DECISIÓN A1: {{decision}}
+`
+};
+
+module.exports = { A1_SPONSOR_CONFIG };
+
+=============================================================================
+PASO 2: CREAR CONFIGURACIÓN DE A2_PMO (Orquestador)
+=============================================================================
+
+Crea archivo "configAgentes/a2_pmo.js":
+
+const A2_PMO_CONFIG = {
+  
+  id: "A2_PMO",
+  nombre: "Agente PMO / Orquestador",
+  
+  rol: "Controlar el flujo de fases F0-F9, verificar que se cumplan los requisitos mínimos para avanzar entre fases, consolidar decisiones de todos los agentes, y activar alertas cuando se requiere revisión humana.",
+  
+  contexto_requerido: {
+    obligatorio: [
+      "proyecto.id",
+      "proyecto.fase_actual",
+      "proyecto.tipologia",
+      "proyecto.monto",
+      "fases_completadas",
+      "checklist_fase_actual",
+      "decisiones_agentes_actuales",
+      "documentos_cargados"
+    ],
+    deseable: [
+      "historial_fases",
+      "alertas_activas"
+    ],
+    no_necesita: [
+      "detalles_normativos_finos",
+      "analisis_fiscal_completo"
+    ]
+  },
+  
+  normativa_relevante: [
+    "POE_FASES_F0_F9"
+  ],
+  
+  preguntas_clave: [
+    "¿En qué fase está el proyecto?",
+    "¿Qué documentos faltan para completar esta fase?",
+    "¿Qué agentes faltan por emitir dictamen?",
+    "¿Hay bloqueos activos?",
+    "¿Se requiere revisión humana?",
+    "¿Cuál es la siguiente acción requerida?"
+  ],
+  
+  fases_participacion: ["F0", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9"],
+  
+  puede_bloquear_avance: true,
+  puede_aprobar_solo: false,
+  es_orquestador: true,
+  
+  output_schema: {
+    estado_global_proyecto: {
+      tipo: "enum",
+      valores: ["PENDIENTE", "APROBADO_ESTRATEGICO", "APROBADO_CONDICIONAL", "APROBADO_OPERATIVO", "RECHAZADO", "BLOQUEADO"],
+      obligatorio: true
+    },
+    fase_actual: {
+      tipo: "string",
+      obligatorio: true
+    },
+    checklist_estado: {
+      tipo: "array",
+      items: {
+        item: "string",
+        estado: { tipo: "enum", valores: ["CUMPLIDO", "PENDIENTE", "NO_APLICA"] }
+      },
+      obligatorio: true
+    },
+    decisiones_agentes_resumen: {
+      tipo: "object",
+      campos: {
+        A1: { tipo: "string" },
+        A3: { tipo: "string" },
+        A4: { tipo: "string" },
+        A5: { tipo: "string" }
+      },
+      obligatorio: true
+    },
+    bloqueos_activos: {
+      tipo: "array",
+      items: "string",
+      obligatorio: true
+    },
+    requiere_revision_humana: {
+      tipo: "boolean",
+      obligatorio: true
+    },
+    razon_revision_humana: {
+      tipo: "string",
+      nullable: true
+    },
+    siguiente_accion: {
+      tipo: "string",
+      obligatorio: true
+    },
+    puede_avanzar_fase: {
+      tipo: "boolean",
+      obligatorio: true
+    }
+  },
+  
+  plantilla_respuesta: `
+## ESTADO PMO - PROYECTO {{proyecto.id}}
+
+### INFORMACIÓN GENERAL
+- **Nombre:** {{proyecto.nombre}}
+- **Tipología:** {{proyecto.tipologia}}
+- **Monto:** {{proyecto.monto}} MXN
+
+---
+
+### FASE ACTUAL: {{fase_actual}}
+### ESTADO GLOBAL: {{estado_global_proyecto}}
+
+---
+
+### CHECKLIST DE FASE {{fase_actual}}
+
+| Item | Estado |
+|------|--------|
+{{#each checklist_estado}}
+| {{this.item}} | {{this.estado}} |
+{{/each}}
+
+---
+
+### DECISIONES DE AGENTES
+
+| Agente | Decisión |
+|--------|----------|
+| A1 Sponsor | {{decisiones_agentes_resumen.A1}} |
+| A3 Fiscal | {{decisiones_agentes_resumen.A3}} |
+| A4 Legal | {{decisiones_agentes_resumen.A4}} |
+| A5 Finanzas | {{decisiones_agentes_resumen.A5}} |
+
+---
+
+### BLOQUEOS ACTIVOS
+{{#if bloqueos_activos.length}}
+{{#each bloqueos_activos}}
+- ⚠️ {{this}}
+{{/each}}
+{{else}}
+Sin bloqueos activos.
+{{/if}}
+
+---
+
+### REVISIÓN HUMANA
+**Requiere:** {{requiere_revision_humana}}
+{{#if razon_revision_humana}}
+**Razón:** {{razon_revision_humana}}
+{{/if}}
+
+---
+
+### ¿PUEDE AVANZAR DE FASE? {{puede_avanzar_fase}}
+
+### SIGUIENTE ACCIÓN REQUERIDA
+{{siguiente_accion}}
+`
+};
+
+module.exports = { A2_PMO_CONFIG };
+
+=============================================================================
+PASO 3: CREAR CONFIGURACIÓN DE A3_FISCAL
+=============================================================================
+
+Crea archivo "configAgentes/a3_fiscal.js":
+
+const A3_FISCAL_CONFIG = {
+  
+  id: "A3_FISCAL",
+  nombre: "Agente Fiscal",
+  
+  rol: "Evaluar el proyecto bajo los 4 pilares fiscales (razón de negocios, beneficio económico, materialidad, trazabilidad), calcular el risk_score objetivo, identificar riesgos especiales (EFOS, TP, esquemas reportables), y emitir el Visto Bueno Fiscal (VBC) cuando corresponda.",
+  
+  contexto_requerido: {
+    obligatorio: [
+      "proyecto.id",
+      "proyecto.nombre",
+      "proyecto.descripcion",
+      "proyecto.monto",
+      "proyecto.tipologia",
+      "proyecto.vinculo_plan_estrategico",
+      "proyecto.bee_objetivo",
+      "proyecto.bee_roi_esperado",
+      "proveedor.nombre",
+      "proveedor.rfc",
+      "proveedor.tipo_relacion",
+      "proveedor.alerta_efos",
+      "documentos_existentes",
+      "decision_a1",
+      "decision_a4",
+      "matriz_materialidad_preliminar"
+    ],
+    deseable: [
+      "historial_proveedor",
+      "proyectos_similares_previos",
+      "alertas_riesgos_especiales"
+    ],
+    no_necesita: [
+      "detalles_financieros_internos"
+    ]
+  },
+  
+  normativa_relevante: [
+    "CFF_5A_razon_negocios",
+    "CFF_5A_beneficio_economico",
+    "CFF_69B_materialidad",
+    "LISR_27_deducciones",
+    "NOM_151_trazabilidad",
+    "RMF_intangibles",
+    "RMF_esquemas_reportables"
+  ],
+  
+  preguntas_clave: [
+    "¿El proyecto tiene razón de negocios genuina?",
+    "¿El BEE está documentado y es razonable?",
+    "¿Hay evidencia suficiente de materialidad?",
+    "¿La documentación tiene trazabilidad y fecha cierta?",
+    "¿Hay señales de riesgo especial (EFOS, TP, esquemas)?",
+    "¿Qué documentos faltan para poder emitir VBC?"
+  ],
+  
+  fases_participacion: ["F0", "F4", "F6"],
+  
+  puede_bloquear_avance: true,
+  puede_aprobar_final: true,
+  emite_vbc: true,
+  requiere_validacion_humana_default: false,
+  
+  output_schema: {
+    decision: {
+      tipo: "enum",
+      valores: ["APROBAR", "APROBAR_CONDICIONES", "SOLICITAR_AJUSTES", "RECHAZAR"],
+      obligatorio: true
+    },
+    conclusion_por_pilar: {
+      tipo: "object",
+      campos: {
+        razon_negocios: {
+          status: { tipo: "enum", valores: ["CONFORME", "CONDICIONADO", "NO_CONFORME"] },
+          detalle: { tipo: "string", min_length: 50 },
+          riesgo_puntos: { tipo: "number", min: 0, max: 25 }
+        },
+        beneficio_economico: {
+          status: { tipo: "enum", valores: ["CONFORME", "CONDICIONADO", "NO_CONFORME"] },
+          detalle: { tipo: "string", min_length: 50 },
+          riesgo_puntos: { tipo: "number", min: 0, max: 25 }
+        },
+        materialidad: {
+          status: { tipo: "enum", valores: ["CONFORME", "EN_RIESGO", "FALLA_CRITICA"] },
+          detalle: { tipo: "string", min_length: 50 },
+          riesgo_puntos: { tipo: "number", min: 0, max: 25 }
+        },
+        trazabilidad: {
+          status: { tipo: "enum", valores: ["CONFORME", "EN_RIESGO", "FALLA_CRITICA"] },
+          detalle: { tipo: "string", min_length: 50 },
+          riesgo_puntos: { tipo: "number", min: 0, max: 25 }
+        }
+      },
+      obligatorio: true
+    },
+    risk_score_total: {
+      tipo: "number",
+      min: 0,
+      max: 100,
+      obligatorio: true
+    },
+    checklist_evidencia_exigible: {
+      tipo: "array",
+      items: {
+        item: "string",
+        obligatorio: "boolean",
+        estado: { tipo: "enum", valores: ["PENDIENTE", "ENTREGADO", "INCONSISTENTE"] },
+        fase_requerida: "string"
+      },
+      min_items: 3,
+      obligatorio: true
+    },
+    alertas_riesgo_especial: {
+      tipo: "array",
+      items: {
+        tipo_alerta: { tipo: "enum", valores: ["EFOS", "PARTE_RELACIONADA", "ESQUEMA_REPORTABLE", "TP_PENDIENTE", "OTRO"] },
+        descripcion: "string",
+        severidad: { tipo: "enum", valores: ["BAJA", "MEDIA", "ALTA", "CRITICA"] }
+      },
+      obligatorio: true
+    },
+    condiciones_para_vbc: {
+      tipo: "array",
+      items: "string",
+      descripcion: "Condiciones que deben cumplirse para emitir VBC",
+      obligatorio: true
+    },
+    riesgos_subsistentes: {
+      tipo: "array",
+      items: "string",
+      descripcion: "Riesgos que permanecen aun con aprobación",
+      obligatorio: true
+    },
+    requiere_validacion_humana: {
+      tipo: "boolean",
+      obligatorio: true
+    },
+    justificacion_validacion_humana: {
+      tipo: "string",
+      nullable: true
+    }
+  },
+  
+  plantilla_respuesta: `
+## DICTAMEN FISCAL A3 - PROYECTO {{proyecto.id}}
+
+### INFORMACIÓN DEL PROYECTO
+- **Nombre:** {{proyecto.nombre}}
+- **Tipología:** {{proyecto.tipologia}}
+- **Monto:** {{proyecto.monto}} MXN
+- **Proveedor:** {{proveedor.nombre}} ({{proveedor.rfc}})
+- **Relación:** {{proveedor.tipo_relacion}}
+
+---
+
+## ANÁLISIS POR PILAR FISCAL
+
+### 1. RAZÓN DE NEGOCIOS (Art. 5-A CFF)
+**Status:** {{conclusion_por_pilar.razon_negocios.status}}
+**Riesgo:** {{conclusion_por_pilar.razon_negocios.riesgo_puntos}}/25
+
+{{conclusion_por_pilar.razon_negocios.detalle}}
+
+---
+
+### 2. BENEFICIO ECONÓMICO (Art. 5-A CFF)
+**Status:** {{conclusion_por_pilar.beneficio_economico.status}}
+**Riesgo:** {{conclusion_por_pilar.beneficio_economico.riesgo_puntos}}/25
+
+{{conclusion_por_pilar.beneficio_economico.detalle}}
+
+---
+
+### 3. MATERIALIDAD (Art. 69-B CFF)
+**Status:** {{conclusion_por_pilar.materialidad.status}}
+**Riesgo:** {{conclusion_por_pilar.materialidad.riesgo_puntos}}/25
+
+{{conclusion_por_pilar.materialidad.detalle}}
+
+---
+
+### 4. TRAZABILIDAD (NOM-151)
+**Status:** {{conclusion_por_pilar.trazabilidad.status}}
+**Riesgo:** {{conclusion_por_pilar.trazabilidad.riesgo_puntos}}/25
+
+{{conclusion_por_pilar.trazabilidad.detalle}}
+
+---
+
+## RISK SCORE TOTAL: {{risk_score_total}}/100
+
+| Pilar | Puntos |
+|-------|--------|
+| Razón de Negocios | {{conclusion_por_pilar.razon_negocios.riesgo_puntos}}/25 |
+| Beneficio Económico | {{conclusion_por_pilar.beneficio_economico.riesgo_puntos}}/25 |
+| Materialidad | {{conclusion_por_pilar.materialidad.riesgo_puntos}}/25 |
+| Trazabilidad | {{conclusion_por_pilar.trazabilidad.riesgo_puntos}}/25 |
+| **TOTAL** | **{{risk_score_total}}/100** |
+
+---
+
+## CHECKLIST FISCAL DE EVIDENCIA
+
+| Item | Obligatorio | Estado | Fase |
+|------|-------------|--------|------|
+{{#each checklist_evidencia_exigible}}
+| {{this.item}} | {{this.obligatorio}} | {{this.estado}} | {{this.fase_requerida}} |
+{{/each}}
+
+---
+
+## ALERTAS DE RIESGO ESPECIAL
+
+{{#if alertas_riesgo_especial.length}}
+{{#each alertas_riesgo_especial}}
+⚠️ **{{this.tipo_alerta}}** ({{this.severidad}}): {{this.descripcion}}
+{{/each}}
+{{else}}
+Sin alertas de riesgo especial identificadas.
+{{/if}}
+
+---
+
+## CONDICIONES PARA VBC
+
+{{#each condiciones_para_vbc}}
+- [ ] {{this}}
+{{/each}}
+
+---
+
+## RIESGOS SUBSISTENTES
+
+{{#each riesgos_subsistentes}}
+- {{this}}
+{{/each}}
+
+---
+
+## VALIDACIÓN HUMANA
+
+**Requiere:** {{requiere_validacion_humana}}
+{{#if justificacion_validacion_humana}}
+**Justificación:** {{justificacion_validacion_humana}}
+{{/if}}
+
+---
+
+## DECISIÓN A3 FISCAL: {{decision}}
+`
+};
+
+module.exports = { A3_FISCAL_CONFIG };
+
+=============================================================================
+PASO 4: CREAR CONFIGURACIÓN DE A4_LEGAL
+=============================================================================
+
+Crea archivo "configAgentes/a4_legal.js":
+
+const A4_LEGAL_CONFIG = {
+  
+  id: "A4_LEGAL",
+  nombre: "Agente Legal",
+  
+  rol: "Revisar y aprobar la documentación contractual (SOW, contratos, anexos), verificar que se incluyan las cláusulas necesarias para materialidad y trazabilidad, y emitir el Visto Bueno Legal cuando corresponda.",
+  
+  contexto_requerido: {
+    obligatorio: [
+      "proyecto.id",
+      "proyecto.nombre",
+      "proyecto.tipologia",
+      "proyecto.monto",
+      "proyecto.descripcion",
+      "proveedor.nombre",
+      "proveedor.rfc",
+      "proveedor.tipo_relacion",
+      "checklist_evidencia_fiscal",
+      "decision_a3"
+    ],
+    deseable: [
+      "plantilla_contractual_tipo",
+      "sow_borrador"
+    ],
+    no_necesita: [
+      "analisis_financiero_detallado",
+      "proyecciones_economicas"
+    ]
+  },
+  
+  normativa_relevante: [
+    "CONTRATOS_CIVILES",
+    "NOM_151_trazabilidad",
+    "POLITICA_INTERNA_CONTRATACION"
+  ],
+  
+  preguntas_clave: [
+    "¿El SOW/contrato tiene objeto y alcance claros?",
+    "¿Están listados los entregables específicos?",
+    "¿Hay criterios de aceptación verificables?",
+    "¿Existen cláusulas de confidencialidad adecuadas?",
+    "¿Se obliga al proveedor a entregar evidencias de ejecución?",
+    "¿Hay mecanismo de fecha cierta/trazabilidad?"
+  ],
+  
+  fases_participacion: ["F1", "F6"],
+  
+  puede_bloquear_avance: true,
+  puede_aprobar_final: true,
+  emite_vbc: true,
+  
+  output_schema: {
+    decision: {
+      tipo: "enum",
+      valores: ["APROBAR", "SOLICITAR_AJUSTES", "RECHAZAR"],
+      obligatorio: true
+    },
+    checklist_contractual: {
+      tipo: "array",
+      items: {
+        item: "string",
+        status: { tipo: "enum", valores: ["CUMPLIDO", "PENDIENTE", "NO_APLICA"] },
+        accion_requerida: { tipo: "string", nullable: true }
+      },
+      min_items: 5,
+      obligatorio: true
+    },
+    ajustes_requeridos: {
+      tipo: "array",
+      items: {
+        descripcion: "string",
+        fase_bloquea: "string",
+        criticidad: { tipo: "enum", valores: ["BLOQUEANTE", "IMPORTANTE", "MENOR"] }
+      },
+      obligatorio: true
+    },
+    clausulas_obligatorias_faltantes: {
+      tipo: "array",
+      items: "string",
+      obligatorio: true
+    },
+    riesgo_puntos_trazabilidad: {
+      tipo: "number",
+      min: 0,
+      max: 25,
+      obligatorio: true
+    }
+  },
+  
+  plantilla_respuesta: `
+## DICTAMEN LEGAL A4 - PROYECTO {{proyecto.id}}
+
+### INFORMACIÓN DEL PROYECTO
+- **Nombre:** {{proyecto.nombre}}
+- **Tipología:** {{proyecto.tipologia}}
+- **Proveedor:** {{proveedor.nombre}} ({{proveedor.rfc}})
+
+---
+
+## CHECKLIST CONTRACTUAL
+
+| Item | Status | Acción Requerida |
+|------|--------|------------------|
+{{#each checklist_contractual}}
+| {{this.item}} | {{this.status}} | {{this.accion_requerida}} |
+{{/each}}
+
+---
+
+## AJUSTES REQUERIDOS
+
+{{#if ajustes_requeridos.length}}
+{{#each ajustes_requeridos}}
+### Ajuste {{@index}} ({{this.criticidad}})
+**Descripción:** {{this.descripcion}}
+**Fase que bloquea:** {{this.fase_bloquea}}
+
+{{/each}}
+{{else}}
+Sin ajustes requeridos.
+{{/if}}
+
+---
+
+## CLÁUSULAS OBLIGATORIAS FALTANTES
+
+{{#if clausulas_obligatorias_faltantes.length}}
+{{#each clausulas_obligatorias_faltantes}}
+- {{this}}
+{{/each}}
+{{else}}
+Todas las cláusulas obligatorias están presentes.
+{{/if}}
+
+---
+
+## RIESGO TRAZABILIDAD: {{riesgo_puntos_trazabilidad}}/25
+
+---
+
+## DECISIÓN A4 LEGAL: {{decision}}
+`
+};
+
+module.exports = { A4_LEGAL_CONFIG };
+
+=============================================================================
+PASO 5: CREAR CONFIGURACIÓN DE A5_FINANZAS
+=============================================================================
+
+Crea archivo "configAgentes/a5_finanzas.js":
+
+const A5_FINANZAS_CONFIG = {
+  
+  id: "A5_FINANZAS",
+  nombre: "Agente Finanzas",
+  
+  rol: "Validar la proporción económica del gasto, confirmar disponibilidad de presupuesto, evaluar el impacto financiero, y ejecutar el 3-way match al momento del pago.",
+  
+  contexto_requerido: {
+    obligatorio: [
+      "proyecto.id",
+      "proyecto.nombre",
+      "proyecto.monto",
+      "proyecto.tipologia",
+      "proyecto.bee_roi_esperado",
+      "proyecto.bee_horizonte_meses",
+      "ingresos_anuales_empresa",
+      "presupuesto_disponible",
+      "decision_a1",
+      "risk_score_a3"
+    ],
+    deseable: [
+      "historial_gastos_similares",
+      "benchmark_interno"
+    ],
+    no_necesita: [
+      "detalles_normativos_fiscales",
+      "clausulas_contractuales"
+    ]
+  },
+  
+  normativa_relevante: [
+    "POLITICA_INTERNA_PRESUPUESTOS",
+    "LISR_27_DEDUCCIONES"
+  ],
+  
+  preguntas_clave: [
+    "¿El monto es proporcional a los ingresos de la empresa?",
+    "¿Hay presupuesto disponible?",
+    "¿El ROI esperado es razonable?",
+    "¿Cuál sería el impacto si el gasto no fuera deducible?",
+    "¿Se requiere evaluación post-implementación?"
+  ],
+  
+  fases_participacion: ["F2", "F4", "F8"],
+  
+  puede_bloquear_avance: true,
+  puede_aprobar_solo: false,
+  ejecuta_3way_match: true,
+  
+  output_schema: {
+    decision: {
+      tipo: "enum",
+      valores: ["APROBAR", "SOLICITAR_AJUSTES", "RECHAZAR"],
+      obligatorio: true
+    },
+    analisis_proporcion: {
+      tipo: "object",
+      campos: {
+        costo_vs_ventas_porcentaje: "number",
+        evaluacion_proporcion: { tipo: "enum", valores: ["RAZONABLE", "ALTO_PERO_JUSTIFICABLE", "DESPROPORCIONADO"] },
+        presupuesto_disponible: "boolean",
+        centro_costo: "string"
+      },
+      obligatorio: true
+    },
+    evaluacion_bee: {
+      tipo: "object",
+      campos: {
+        roi_evaluacion: "string",
+        horizonte_evaluacion: "string",
+        conclusion: { tipo: "enum", valores: ["CONFORME", "CONDICIONADO", "NO_CONFORME"] }
+      },
+      obligatorio: true
+    },
+    condiciones_financieras: {
+      tipo: "array",
+      items: {
+        condicion: "string",
+        cumplido: "boolean"
+      },
+      obligatorio: true
+    },
+    impacto_no_deducibilidad: {
+      tipo: "string",
+      descripcion: "Qué pasaría si SAT rechaza la deducción",
+      obligatorio: true
+    },
+    requiere_evaluacion_f9: {
+      tipo: "boolean",
+      obligatorio: true
+    }
+  },
+  
+  plantilla_respuesta: `
+## DICTAMEN FINANZAS A5 - PROYECTO {{proyecto.id}}
+
+### INFORMACIÓN DEL PROYECTO
+- **Nombre:** {{proyecto.nombre}}
+- **Monto:** {{proyecto.monto}} MXN
+- **Tipología:** {{proyecto.tipologia}}
+
+---
+
+## ANÁLISIS DE PROPORCIÓN ECONÓMICA
+
+**Costo vs Ventas:** {{analisis_proporcion.costo_vs_ventas_porcentaje}}%
+**Evaluación:** {{analisis_proporcion.evaluacion_proporcion}}
+**Presupuesto disponible:** {{analisis_proporcion.presupuesto_disponible}}
+**Centro de costo:** {{analisis_proporcion.centro_costo}}
+
+---
+
+## EVALUACIÓN DEL BEE
+
+**ROI:** {{evaluacion_bee.roi_evaluacion}}
+**Horizonte:** {{evaluacion_bee.horizonte_evaluacion}}
+**Conclusión:** {{evaluacion_bee.conclusion}}
+
+---
+
+## CONDICIONES FINANCIERAS
+
+| Condición | Cumplido |
+|-----------|----------|
+{{#each condiciones_financieras}}
+| {{this.condicion}} | {{this.cumplido}} |
+{{/each}}
+
+---
+
+## IMPACTO SI NO ES DEDUCIBLE
+
+{{impacto_no_deducibilidad}}
+
+---
+
+## REQUIERE EVALUACIÓN F9: {{requiere_evaluacion_f9}}
+
+---
+
+## DECISIÓN A5 FINANZAS: {{decision}}
+`
+};
+
+module.exports = { A5_FINANZAS_CONFIG };
+
+=============================================================================
+PASO 6: CREAR CONFIGURACIÓN DE A6_PROVEEDOR
+=============================================================================
+
+Crea archivo "configAgentes/a6_proveedor.js":
+
+const A6_PROVEEDOR_CONFIG = {
+  
+  id: "A6_PROVEEDOR",
+  nombre: "Agente Proveedor",
+  
+  rol: "Representar la perspectiva del proveedor, gestionar la carga de entregables y evidencias de ejecución, y facilitar el cumplimiento del checklist de materialidad.",
+  
+  contexto_requerido: {
+    obligatorio: [
+      "proyecto.id",
+      "sow_aprobado",
+      "checklist_entregables",
+      "fechas_hitos",
+      "puntos_contacto_interno"
+    ],
+    deseable: [
+      "instrucciones_especificas"
+    ],
+    no_necesita: [
+      "analisis_fiscales_internos",
+      "decisiones_otros_agentes"
+    ]
+  },
+  
+  fases_participacion: ["F3", "F4", "F5"],
+  
+  puede_bloquear_avance: false,
+  puede_aprobar_solo: false,
+  
+  output_schema: {
+    entregables_cargados: {
+      tipo: "array",
+      items: {
+        nombre: "string",
+        tipo: "string",
+        version: "string",
+        fecha_carga: "timestamp",
+        ruta_archivo: "string"
+      },
+      obligatorio: true
+    },
+    minutas_sesiones: {
+      tipo: "array",
+      items: "string",
+      obligatorio: true
+    },
+    estado_avance: {
+      tipo: "string",
+      obligatorio: true
+    },
+    pendientes: {
+      tipo: "array",
+      items: "string",
+      obligatorio: true
+    }
+  },
+  
+  plantilla_respuesta: `
+## REPORTE PROVEEDOR A6 - PROYECTO {{proyecto.id}}
+
+### ENTREGABLES CARGADOS
+
+| Nombre | Tipo | Versión | Fecha |
+|--------|------|---------|-------|
+{{#each entregables_cargados}}
+| {{this.nombre}} | {{this.tipo}} | {{this.version}} | {{this.fecha_carga}} |
+{{/each}}
+
+---
+
+### MINUTAS DE SESIONES
+{{#each minutas_sesiones}}
+- {{this}}
+{{/each}}
+
+---
+
+### ESTADO DE AVANCE
+{{estado_avance}}
+
+---
+
+### PENDIENTES
+{{#each pendientes}}
+- {{this}}
+{{/each}}
+`
+};
+
+module.exports = { A6_PROVEEDOR_CONFIG };
+
+=============================================================================
+PASO 7: CREAR ÍNDICE DE CONFIGURACIONES DE AGENTES
+=============================================================================
+
+Crea archivo "configAgentes/index.js" que exporte todo:
+
+const { A1_SPONSOR_CONFIG } = require('./a1_sponsor');
+const { A2_PMO_CONFIG } = require('./a2_pmo');
+const { A3_FISCAL_CONFIG } = require('./a3_fiscal');
+const { A4_LEGAL_CONFIG } = require('./a4_legal');
+const { A5_FINANZAS_CONFIG } = require('./a5_finanzas');
+const { A6_PROVEEDOR_CONFIG } = require('./a6_proveedor');
+
+const AGENT_CONFIGS = {
+  A1_SPONSOR: A1_SPONSOR_CONFIG,
+  A2_PMO: A2_PMO_CONFIG,
+  A3_FISCAL: A3_FISCAL_CONFIG,
+  A4_LEGAL: A4_LEGAL_CONFIG,
+  A5_FINANZAS: A5_FINANZAS_CONFIG,
+  A6_PROVEEDOR: A6_PROVEEDOR_CONFIG
+};
+
+function getAgentConfig(agentId) {
+  return AGENT_CONFIGS[agentId] || null;
+}
+
+function getAgentesParaFase(fase) {
+  return Object.values(AGENT_CONFIGS).filter(config => 
+    config.fases_participacion.includes(fase)
+  );
+}
+
+function getAgentesQueBloquean() {
+  return Object.values(AGENT_CONFIGS).filter(config => 
+    config.puede_bloquear_avance === true
+  );
+}
+
+module.exports = {
+  AGENT_CONFIGS,
+  getAgentConfig,
+  getAgentesParaFase,
+  getAgentesQueBloquean,
+  A1_SPONSOR_CONFIG,
+  A2_PMO_CONFIG,
+  A3_FISCAL_CONFIG,
+  A4_LEGAL_CONFIG,
+  A5_FINANZAS_CONFIG,
+  A6_PROVEEDOR_CONFIG
+};
+
+=============================================================================
+PASO 8: INSERTAR CONFIGURACIONES EN BASE DE DATOS (AgentConfig)
+=============================================================================
+
+Usando el modelo AgentConfig creado en Fase 1, inserta un registro por cada
+agente con los datos de su configuración.
+
+Para cada agente (A1 a A6):
+- Toma los datos de su archivo de configuración
+- Inserta en la tabla AgentConfig
+- Guarda el output_schema como JSON
+- Guarda la plantilla_respuesta como text
+
+=============================================================================
+PASO 9: VERIFICACIÓN
+=============================================================================
+
+Al terminar, verifica:
+
+1. Todos los archivos de configuración se crearon
+2. El índice exporta correctamente todas las configuraciones
+3. Puedes llamar getAgentConfig('A3_FISCAL') y obtener su config
+4. Puedes llamar getAgentesParaFase('F6') y obtener A3 y A4
+5. Los registros se insertaron en AgentConfig en BD
+
+Si algo falla, corregirlo antes de continuar a Fase 4.
+
+=============================================================================
+FIN FASE 3
+=============================================================================
+```
+
+## Verificación Post-Implementación
+
+Después de ejecutar este prompt:
+
+1. ¿Se crearon todos los archivos de configuración de agentes?
+2. ¿El índice exporta correctamente?
+3. ¿Las funciones auxiliares funcionan (getAgentConfig, getAgentesParaFase)?
+4. ¿Se insertaron los registros en la BD?
+5. ¿Cada agente tiene su schema de output definido?
+
+Estos schemas de output son clave para resolver la brecha de "respuestas genéricas": ahora cada agente DEBE producir campos específicos como `checklist_evidencia_exigible` en lugar de narrativas vagas.

@@ -1,0 +1,272 @@
+1) Rol ajustado de A5_FINANZAS
+Rol central:
+A5 es el agente que transforma la narrativa de negocio de A1 en números y responde:
+•	¿Este servicio/intangible crea valor económico o solo genera costo?
+•	¿El precio es razonable vs mercado y vs capacidad del proveedor?
+•	¿Cómo afecta al flujo de efectivo, a la estructura de costos y a KPIs financieros relevantes?
+A5 no:
+•	define si la operación es deducible (eso es A3),
+•	“dicta” la razón de negocios (eso es A1),
+•	hace due diligence de proveedor (eso es A6).
+Su salida es:
+•	un dictamen financiero de BEE (ROI/NPV/Payback)
+•	un dictamen de razonabilidad de precio
+que A3 y A1 usan para reforzar estricta indispensabilidad y razón de negocios.
+________________________________________
+2) Anclaje de A5 al flujo F0–F9
+F0 – INTAKE / SIB-BEE
+•	A5 aún no calcula, pero revisa a alto nivel los objetivos y BEE cualitativos definidos por A1, para saber qué tipo de beneficiocuantificará.
+F2 – Candado de inicio
+•	Para proyectos por encima de cierto umbral de monto o en tipologías de alto impacto (ERP, management fees, consultorías grandes, marketing de alto presupuesto), A2 puede requerir un “vistazo financiero rápido” de A5:
+o	¿el monto propuesto es realista vs presupuesto anual y vs proyectos comparables?
+No es un candado duro, pero sí un input para gestión de portafolio.
+F3–F4 – Ejecución
+•	A5 puede supervisar que se mantenga la coherencia entre lo proyectado y lo que se va observando (por ejemplo, ajustes relevantes en alcance que impliquen cambios de costo).
+F5–F6 – Momento fuerte de A5
+•	En F5, con los entregables finales ya claros, A5 puede ajustar el modelo si el alcance real cambió (más módulos, más horas, etc.).
+•	En F6, A5 emite dos piezas clave:
+1.	Dictamen de Beneficio Económico:
+	ROI estimado, NPV, Payback, escenarios.
+	Justificación económica de la inversión.
+2.	Dictamen de Razonabilidad de Precio:
+	Comparación con benchmarks internos/externos.
+	Evaluación de si el precio del proveedor es dentro de rango, arriba o abajo, y por qué.
+Aunque F6 es el candado fiscal/legal, estos dictámenes son insumos que:
+•	A3 usa para reforzar estricta indispensabilidad,
+•	el negocio usa para explicar por qué contrató ese servicio en esos términos.
+F8 – Pago
+•	A5 no autoriza el pago, pero su análisis puede establecer condiciones:
+o	por ejemplo, retener parte del pago si ciertos hitos no se cumplen,
+o	estructurar pagos contra resultados cuando tenga sentido.
+F9 – Seguimiento BEE
+•	A5 vuelve a intervenir con A1:
+o	toma KPIs y resultados reales,
+o	compara con lo proyectado,
+o	recalcula ROI ex post,
+o	registra lecciones para mejorar criterios en futuros proyectos.
+ 
+3) Inputs y outputs estructurados de A5
+3.1 INPUT para A5
+A5 no trabaja en vacío: consume insumos de A1, A3, A6 y la propia empresa.
+{
+  "proyectoId": "PROJ-123",
+  "empresa": {
+    "razonSocial": "Gimnasios XYZ, S.A. de C.V.",
+    "actividadPreponderante": "Operación de gimnasios",
+    "waccAproximado": 0.14,      // si la empresa lo define
+    "presupuestoAnualServicios": 25000000
+  },
+  "tipologiaServicio": "MARKETING_DIGITAL",
+  "montoContrato": 1200000,
+  "moneda": "MXN",
+  "horizonteBeneficioMeses": 12,
+  "dictamenEstrategico": { ... },  // de A1
+  "datosProveedor": {
+    "proveedorId": "PROV-456",
+    "segmento": "agencia_marketing",
+    "infoMercado": { ... }        // opcional: benchmarks internos
+  },
+  "hipotesisBeneficio": {
+    // Derivadas de A1, pero estructuradas para finanzas
+    "tipoBeneficio": ["incremento_ingresos", "mejora_mix_producto"],
+    "kpis": [
+      { "nombre": "Nuevas membresías premium", "base": 1000, "objetivo": 1300 },
+      { "nombre": "Ticket promedio por socio premium", "base": 1000, "objetivo": 1100 }
+    ]
+  }
+}
+3.2 OUTPUT estándar de A5
+{
+  "analisisFinanciero": {
+    "beneficioEconomico": {
+      "roi": 0.35,                         // 35%
+      "npv": 850000,                       // en MXN
+      "irr": 0.27,
+      "paybackMeses": 10,
+      "escenarios": {
+        "optimista": { "roi": 0.5, "npv": 1500000 },
+        "base":      { "roi": 0.35, "npv": 850000 },
+        "pesimista": { "roi": 0.1, "npv": 200000 }
+      },
+      "conclusionViabilidad": "VIABLE",    // VIABLE / MARGINAL / NO_VIABLE
+      "comentario": "El proyecto genera un ROI estimado de 35% y un payback de 10 meses en escenario base."
+    },
+    "razonabilidadPrecio": {
+      "precioContrato": 1200000,
+      "rangoMercadoEstimado": {
+        "min": 900000,
+        "max": 1500000
+      },
+      "posicionVsMercado": "DENTRO_RANGO", // DENTRO_RANGO / ARRIBA_RANGO / ABAJO_RANGO
+      "justificacionSiFueraDeRango": null,
+      "comentario": "El precio se ubica dentro del rango típico para campañas 360º de esta magnitud."
+    },
+    "impactoPresupuestal": {
+      "porcentajeSobrePresupuestoServicios": 0.048,  // 4.8%
+      "comentario": "El proyecto consume ~4.8% del presupuesto anual de servicios externos, dentro de los límites establecidos."
+    },
+    "riesgosFinancieros": [
+      "La efectividad de la campaña depende de la ejecución del plan creativo y medios.",
+      "Variaciones significativas en la demanda pueden alterar los resultados proyectados."
+    ],
+    "recomendacionFinanciera": "APROBAR",  // APROBAR / APROBAR_CON_RESERVAS / NO_APROBAR
+    "comentarioFinal": "Desde la perspectiva financiera, el proyecto es justificable y proporcional al beneficio esperado."
+  }
+}
+Este objeto lo consumen:
+•	A3 (para ver proporción económica vs deducibilidad),
+•	A1 (para ajustar narrativa estratégica si el ROI es marginal),
+•	A7 (para la sección de “Beneficio económico” del Defense File).
+________________________________________
+4) Criterios de evaluación de A5 (ajustados)
+4.1. Bloque Beneficio Económico (0–15 puntos)
+1.	Capacidad de cuantificar el beneficio (0–5)
+o	¿Los beneficios definidos por A1 se pueden traducir en flujos/costos evitados con hipótesis razonables?
+2.	Resultado financiero en escenario base (0–5)
+o	ROI ≥ 0, NPV ≥ 0, payback razonable vs políticas internas.
+3.	Robustez de escenarios (0–5)
+o	¿Hay sensibilidad razonable (optimista/base/pesimista)?
+o	¿Se entienden los supuestos que cambian?
+4.2. Bloque Razonabilidad del Precio (0–7 puntos)
+1.	Comparación con benchmarks internos (0–3)
+o	¿La empresa ha pagado montos similares por proyectos comparables?
+2.	Comparación externa (0–3)
+o	Precios de mercado (cuando haya datos) vs monto actual.
+3.	Explicación de desvíos (0–1)
+o	Si está fuera de rango, ¿hay justificación (urgencia, premium, complejidad)?
+4.3. Bloque Impacto Presupuestal y consistencia (0–3 puntos)
+1.	% del presupuesto anual de servicios/intangibles.
+2.	Consistencia con planes de CAPEX/OPEX.
+4.4. Bloque Disciplina en KPIs (0–? para F9)
+En F0/F6 se define; en F9 se evalúa:
+•	¿Se monitorearon los KPIs?
+•	¿Se cerró el loop con resultados reales?
+ 
+5) Formato de dictamen textual de A5 (resumido y usable)
+## 💰 DICTAMEN FINANCIERO – BENEFICIO ECONÓMICO Y RAZONABILIDAD
+
+**Proyecto:** [Nombre]  
+**Empresa:** [Razón social]  
+**Tipo de servicio:** [Tipología]  
+**Inversión total:** $[X] MXN  
+**Horizonte de análisis:** [X] meses  
+**Fecha de análisis:** [DD/MM/AAAA]
+
+---
+
+### 1. RESUMEN DE VIABILIDAD
+
+| Métrica clave | Valor | Evaluación |
+|---------------|-------|-----------|
+| ROI (escenario base) | [X]% | [VIABLE / MARGINAL / NO VIABLE] |
+| NPV | $[X] MXN | [Positivo / Negativo] |
+| IRR | [X]% | [vs WACC de ~Y%] |
+| Payback | [X] meses | [Rápido / Aceptable / Lento] |
+
+**Conclusión breve (2–3 líneas):**  
+[Ej.: “El proyecto genera un ROI estimado de 35% con payback en 10 meses, por encima de las políticas internas de retorno. Desde la óptica financiera, es justificable.”]
+
+---
+
+### 2. DETALLE DEL BENEFICIO ECONÓMICO ESPERADO
+
+#### 2.1 Inversión
+
+| Concepto                    | Monto      |
+|----------------------------|------------|
+| Costo del servicio         | $[X]       |
+| Costos internos asociados  | $[Y]       |
+| Otros costos (si aplica)   | $[Z]       |
+| **Total inversión**        | **$[T]**   |
+
+#### 2.2 Beneficios proyectados (escenario base)
+
+| Periodo | Tipo de beneficio           | Monto ($) | Supuestos clave                  |
+|---------|-----------------------------|-----------|----------------------------------|
+| Mes 1-6 | Incremento ingresos         | $[ ]      | [ej. +300 socios premium]        |
+| Mes 7-12| Mejora ticket promedio      | $[ ]      | [ej. +10% ticket premium]        |
+| ...     | Ahorro de costos / otros    | $[ ]      | [descr.]                          |
+
+**Comentario:**  
+[Explicación breve de cómo estos beneficios se conectan con la razón de negocios de A1.]
+
+---
+
+### 3. ESCENARIOS Y SENSIBILIDAD
+
+| Escenario  | Descripción                   | ROI  | NPV ($) | Probabilidad estimada |
+|-----------|-------------------------------|------|---------|------------------------|
+| Optimista | Beneficios +20%               | [ ]% | $[ ]    | 25%                    |
+| Base      | Beneficios según proyección   | [ ]% | $[ ]    | 50%                    |
+| Pesimista | Beneficios -20%               | [ ]% | $[ ]    | 25%                    |
+
+**Lectura:**  
+[Ej.: “Aún en escenario pesimista, el proyecto mantiene NPV ligeramente positivo; el riesgo financiero es acotado.”]
+
+---
+
+### 4. RAZONABILIDAD DEL PRECIO
+
+#### 4.1 Posición vs mercado
+
+| Referencia           | Rango estimado      | Comentarios |
+|----------------------|---------------------|-------------|
+| Benchmarks internos  | $[a] – $[b] MXN     | [Notas]     |
+| Fuentes externas     | $[c] – $[d] MXN     | [Notas]     |
+| Precio del contrato  | $[X] MXN            | [Dentro / Arriba / Abajo de rango] |
+
+**Evaluación:**  
+[Ej.: “El precio se encuentra dentro del rango de mercado esperado; se justifica un ligero sobreprecio por especialización del proveedor y urgencia del proyecto.”]
+
+---
+
+### 5. IMPACTO PRESUPUESTAL
+
+- Presupuesto anual de servicios/intangibles: $[B] MXN  
+- % que representa este proyecto: **[P]%**
+
+**Comentario:**  
+[Ej.: “El proyecto consume menos del 5% del presupuesto de servicios externos, alineado con los límites aprobados por el Consejo.”]
+
+---
+
+### 6. RIESGOS FINANCIEROS Y MITIGACIONES
+
+| Riesgo financiero                    | Probabilidad | Impacto | Mitigación sugerida                  |
+|-------------------------------------|--------------|---------|--------------------------------------|
+| [Ej.: Menor conversión de leads]    | Media        | Medio   | Ajustar plan de medios y segmentación|
+
+---
+
+### 7. RECOMENDACIÓN FINANCIERA
+
+**Recomendación de A5:** [APROBAR / APROBAR CON RESERVAS / NO APROBAR]
+
+**Justificación (1–2 párrafos):**  
+[Detallar por qué, desde finanzas, se considera adecuado o no proceder.]
+
+---
+
+*Dictamen emitido por A5 Finanzas – [Nombre]*  
+*Este documento forma parte del Defense File y sirve como insumo para A3 Fiscal y A1 Estrategia.*
+6) Integración clara con A1, A2, A3, A4, A6, A7
+•	Con A1 (Estrategia):
+o	A5 parte de la narrativa y KPIs que define A1.
+o	Si A1 no define bien el BEE, A5 marcará que el modelo financiero es de baja calidad (y lo reflejará en su dictamen).
+•	Con A2 (PMO):
+o	A2 solicita el dictamen de A5 antes de cerrar F6/F7 para proyectos por encima de cierto monto o criticidad.
+o	El estado del dictamen de A5 influye en reportes ejecutivos de estatus.
+•	Con A3 (Fiscal):
+o	A3 usa el análisis financiero para reforzar la estricta indispensabilidad (LISR 27 I), mostrando que el servicio tiene lógica económica y proporción.
+o	Si A5 concluye que el proyecto es financieramente débil, A3 puede considerar la deducción más riesgosa.
+•	Con A4 (Legal):
+o	Cuando existan esquemas de pagos variables o success fees, A4 se asegura de que el contrato refleje estas condiciones de manera precisa.
+•	Con A6 (Proveedor):
+o	A5 puede revisar coherencia: precio vs capacidad del proveedor (capital, experiencia, tamaño).
+o	Esto refuerza que no se está sobrepagando a un proveedor sin respaldo.
+•	Con A7 (Defensa):
+o	A7 incorpora el dictamen A5 en la sección de “Beneficio económico” del Defense File, mostrando que la contratación tuvo sentido económico, no solo fiscal.
+ 
+Con esto, A1 (narrativa), A5 (números) y A3 (norma) quedan claramente delimitados y coordinados.
+Si quieres seguir en este enfoque, el siguiente paso natural sería revisar A7_DEFENSA para asegurarnos de que consume correctamente todos estos dictámenes (A1, A3, A4, A5, A6, A2) y construye un Defense File coherente y listo para SAT/TFJA. ¿Continuamos con A7 en este mismo nivel de detalle?
+

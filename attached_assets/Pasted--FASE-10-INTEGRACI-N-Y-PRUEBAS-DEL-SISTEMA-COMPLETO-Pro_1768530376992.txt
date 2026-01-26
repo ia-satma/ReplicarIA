@@ -1,0 +1,245 @@
+# FASE 10: INTEGRACIÓN Y PRUEBAS DEL SISTEMA COMPLETO
+## Prompt TOON para Replit
+
+```
+=============================================================================
+TOON FASE 10: INTEGRACIÓN FINAL Y PRUEBAS END-TO-END
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta todas las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. SOLO EJECUTA.
+
+PRERREQUISITO: Las Fases 1-9 deben estar completadas.
+
+CONTEXTO: Esta es la fase final. Aquí integramos todos los componentes y
+ejecutamos pruebas end-to-end para verificar que el sistema funciona
+correctamente como un todo.
+
+=============================================================================
+PASO 1: CREAR ARCHIVO DE INTEGRACIÓN PRINCIPAL
+=============================================================================
+
+Crea archivo "index.js" o actualiza el existente para integrar todo:
+
+// index.js - Punto de entrada principal
+
+const express = require('express');
+const app = express();
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Importar módulos del sistema
+const { CONTEXTO_GLOBAL } = require('./contextoGlobal');
+const { AGENT_CONFIGS, getAgentConfig, getAgentesParaFase } = require('./configAgentes');
+const { CHECKLISTS_POR_TIPOLOGIA, getChecklistParaFase } = require('./checklists');
+const { FEW_SHOT_EXAMPLES, calcularRiskScore } = require('./ejemplosYScoring');
+const { puedeAvanzarFase, avanzarFase, ORDEN_FASES } = require('./services/faseService');
+const { validarOutputAgente } = require('./validation/validationService');
+
+// Importar rutas
+const fasesRoutes = require('./routes/fasesRoutes');
+const deliberacionesRoutes = require('./routes/deliberacionesRoutes');
+
+// Registrar rutas
+app.use('/api', fasesRoutes);
+app.use('/api', deliberacionesRoutes);
+
+// Ruta de health check
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    version: '4.0',
+    modulos: {
+      contexto_global: !!CONTEXTO_GLOBAL,
+      agentes_configurados: Object.keys(AGENT_CONFIGS).length,
+      checklists_tipologias: Object.keys(CHECKLISTS_POR_TIPOLOGIA).length,
+      fases_definidas: ORDEN_FASES.length
+    }
+  });
+});
+
+// Ruta de diagnóstico del sistema
+app.get('/api/diagnostico', (req, res) => {
+  res.json({
+    normativa: Object.keys(CONTEXTO_GLOBAL.normativo),
+    tipologias: Object.keys(CONTEXTO_GLOBAL.tipologias),
+    fases: ORDEN_FASES,
+    agentes: Object.keys(AGENT_CONFIGS),
+    candados_duros: ['F2', 'F6', 'F8']
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Servidor Durezza 4.0 corriendo en puerto ${PORT}`);
+});
+
+module.exports = app;
+
+=============================================================================
+PASO 2: CREAR ARCHIVO DE PRUEBAS UNITARIAS
+=============================================================================
+
+Crea archivo "tests/unit.test.js":
+
+const { calcularRiskScore } = require('../ejemplosYScoring');
+const { validarOutputAgente } = require('../validation/validationService');
+const { getChecklistParaFase, getItemsObligatorios } = require('../checklists');
+const { requiereRevisionHumana } = require('../contextoGlobal');
+
+function testRiskScoring() {
+  console.log('\n=== PRUEBAS DE RISK SCORING ===\n');
+  
+  // Test 1: Proyecto de bajo riesgo
+  const evaluacionBaja = {
+    razon_negocios: { vinculacion_giro: 0, objetivo_economico: 0, coherencia_monto: 3 },
+    beneficio_economico: { identificacion_beneficios: 0, modelo_roi: 5, horizonte_temporal: 0 },
+    materialidad: { formalizacion: 0, evidencias_ejecucion: 0, coherencia_documentos: 5 },
+    trazabilidad: { conservacion: 0, integridad: 0, timeline: 3 }
+  };
+  
+  const resultadoBajo = calcularRiskScore(evaluacionBaja);
+  console.log('Test 1 - Proyecto bajo riesgo:');
+  console.log(`  Esperado: ~16, Obtenido: ${resultadoBajo.risk_score_total}`);
+  console.log(`  ✓ ${resultadoBajo.risk_score_total < 40 ? 'PASS' : 'FAIL'}\n`);
+  
+  // Test 2: Proyecto de alto riesgo
+  const evaluacionAlta = {
+    razon_negocios: { vinculacion_giro: 5, objetivo_economico: 10, coherencia_monto: 10 },
+    beneficio_economico: { identificacion_beneficios: 10, modelo_roi: 10, horizonte_temporal: 5 },
+    materialidad: { formalizacion: 5, evidencias_ejecucion: 10, coherencia_documentos: 10 },
+    trazabilidad: { conservacion: 10, integridad: 10, timeline: 5 }
+  };
+  
+  const resultadoAlto = calcularRiskScore(evaluacionAlta);
+  console.log('Test 2 - Proyecto alto riesgo:');
+  console.log(`  Esperado: ~100, Obtenido: ${resultadoAlto.risk_score_total}`);
+  console.log(`  Requiere revisión humana: ${resultadoAlto.requiere_revision_humana}`);
+  console.log(`  ✓ ${resultadoAlto.risk_score_total >= 80 ? 'PASS' : 'FAIL'}\n`);
+}
+
+function testValidacionOutputs() {
+  console.log('\n=== PRUEBAS DE VALIDACIÓN DE OUTPUTS ===\n');
+  
+  // Test: Output A3_FISCAL inválido (faltan campos)
+  const outputA3Invalido = {
+    decision: 'APROBAR',
+    risk_score_total: 16
+  };
+  
+  const resultadoInvalido = validarOutputAgente('A3_FISCAL', outputA3Invalido);
+  console.log('Test - Output A3 inválido (campos faltantes):');
+  console.log(`  Válido: ${resultadoInvalido.valido}`);
+  console.log(`  Errores detectados: ${resultadoInvalido.errores.length}`);
+  console.log(`  ✓ ${!resultadoInvalido.valido ? 'PASS' : 'FAIL'}\n`);
+}
+
+function testChecklists() {
+  console.log('\n=== PRUEBAS DE CHECKLISTS ===\n');
+  
+  const checklistMercado = getChecklistParaFase('CONSULTORIA_MACRO_MERCADO', 'F5');
+  console.log('Test - Checklist F5 para CONSULTORIA_MACRO_MERCADO:');
+  console.log(`  Items encontrados: ${checklistMercado?.items?.length || 0}`);
+  console.log(`  ✓ ${checklistMercado?.items?.length > 0 ? 'PASS' : 'FAIL'}\n`);
+}
+
+function testUmbralesRevision() {
+  console.log('\n=== PRUEBAS DE UMBRALES REVISIÓN HUMANA ===\n');
+  
+  const proyecto = { monto: 8000000, tipologia: 'CONSULTORIA_ESTRATEGICA' };
+  const proveedor = { tipo_relacion: 'TERCERO_INDEPENDIENTE', alerta_efos: false };
+  const resultado = requiereRevisionHumana(proyecto, 30, proveedor);
+  console.log('Test - Proyecto $8M (excede umbral $5M):');
+  console.log(`  Requiere revisión: ${resultado.requiere}`);
+  console.log(`  ✓ ${resultado.requiere ? 'PASS' : 'FAIL'}\n`);
+}
+
+function ejecutarTodasLasPruebas() {
+  console.log('╔════════════════════════════════════════════════════════════╗');
+  console.log('║     PRUEBAS UNITARIAS - DUREZZA 4.0                        ║');
+  console.log('╚════════════════════════════════════════════════════════════╝');
+  
+  testRiskScoring();
+  testValidacionOutputs();
+  testChecklists();
+  testUmbralesRevision();
+  
+  console.log('╔════════════════════════════════════════════════════════════╗');
+  console.log('║     PRUEBAS COMPLETADAS                                    ║');
+  console.log('╚════════════════════════════════════════════════════════════╝');
+}
+
+module.exports = { ejecutarTodasLasPruebas };
+
+if (require.main === module) {
+  ejecutarTodasLasPruebas();
+}
+
+=============================================================================
+PASO 3: AGREGAR SCRIPTS AL PACKAGE.JSON
+=============================================================================
+
+Actualiza package.json:
+
+{
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "node tests/unit.test.js"
+  }
+}
+
+=============================================================================
+PASO 4: VERIFICACIÓN FINAL
+=============================================================================
+
+Ejecuta las siguientes verificaciones:
+
+1. npm run test
+   - Debe ejecutar pruebas unitarias sin errores
+
+2. npm start
+   - GET /api/health debe retornar status OK
+   - GET /api/diagnostico debe mostrar configuración
+
+3. Verificar manualmente:
+   - Crear un proyecto desde la interfaz
+   - Ver que se asigna tipología automáticamente
+   - Ver que los candados bloquean cuando deben
+   - Ver que el risk_score se calcula correctamente
+
+=============================================================================
+FIN FASE 10 - SISTEMA COMPLETO
+=============================================================================
+```
+
+## RESUMEN FINAL DEL SISTEMA
+
+### Componentes Implementados:
+1. ✅ Base de datos con todos los modelos
+2. ✅ Contexto global (normativa, tipologías, POE F0-F9)
+3. ✅ Configuración de 10 agentes (A1-A7 + 3 subagentes)
+4. ✅ Few-shot examples y matriz de scoring objetivo (12 criterios)
+5. ✅ Checklists específicos por tipología y fase
+6. ✅ Flujo de fases con candados duros (F2, F6, F8)
+7. ✅ Validación de outputs de agentes con Zod
+8. ✅ Interfaz de usuario (dashboard, detalle, carga docs)
+9. ✅ Suite de pruebas unitarias
+
+### Brechas del Diagnóstico Resueltas:
+| Brecha Original | Solución Implementada |
+|-----------------|----------------------|
+| Truncado de contexto 500 chars | Tablas de contexto completas por agente |
+| Sin few-shot examples | 3 casos modelo (APROBAR, AJUSTES, RECHAZAR) |
+| Risk_score subjetivo | 12 criterios observables (4 pilares x 3 criterios) |
+| Sin validación JSON | Schemas Zod obligatorios |
+| Respuestas genéricas | Checklists específicos por tipología |
+| Sin candados de control | F2, F6, F8 con bloqueos duros |
+
+### Orden de Ejecución:
+1. Hacer backup/Remix del proyecto actual
+2. Ejecutar prompts en orden: 01 → 02 → 03 → ... → 10
+3. Verificar cada fase antes de continuar a la siguiente
+4. Al final, ejecutar pruebas con `npm test`

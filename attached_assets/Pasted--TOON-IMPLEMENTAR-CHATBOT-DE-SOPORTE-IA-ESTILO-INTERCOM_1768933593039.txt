@@ -1,0 +1,874 @@
+```
+TOON: IMPLEMENTAR CHATBOT DE SOPORTE IA ESTILO INTERCOM PARA REVISAR.IA
+
+OBJETIVO:
+- Widget flotante de chat en esquina inferior derecha
+- Agente de IA especializado en soporte de la plataforma
+- Conocimiento completo de Revisar.IA
+- Disclaimer de privacidad al iniciar
+- Interfaz profesional tipo Intercom/Freepik
+
+================================================================================
+PASO 1: CREAR EL KNOWLEDGE BASE DEL AGENTE DE SOPORTE
+================================================================================
+
+CREAR: server/services/support/knowledgeBase.ts
+
+```typescript
+export const SOPORTE_KNOWLEDGE_BASE = `
+# CONOCIMIENTO DE REVISAR.IA - AGENTE DE SOPORTE
+
+## ¿QUÉ ES REVISAR.IA?
+Revisar.IA es una plataforma de auditoría fiscal inteligente especializada en la deducción de intangibles para empresas mexicanas. Utiliza agentes de IA especializados para analizar y validar deducciones fiscales conforme al marco legal mexicano (CFF, LISR, LIVA).
+
+## FUNCIONALIDADES PRINCIPALES
+
+### 1. Dashboard Operativo
+- Vista general de diagnósticos en curso
+- KPIs: diagnósticos activos, ajustes solicitados/resueltos, versiones generadas
+- Distribución por nivel de riesgo (Crítico, Alto, Medio, Bajo)
+- Tabla de proveedores con estado de cada diagnóstico
+
+### 2. Registro de Empresa
+- El usuario registra su empresa con RFC, nombre, email
+- Se crea un expediente digital para la empresa
+- Todos los documentos se organizan automáticamente
+
+### 3. Registro de Proveedores
+- Agregar proveedores con sus datos fiscales
+- El sistema verifica automáticamente:
+  - Lista 69-B del SAT (EFOS)
+  - Opinión de cumplimiento 32-D
+  - Estatus fiscal general
+
+### 4. Diagnóstico de Deducciones
+El proceso de diagnóstico tiene 8 fases:
+1. **Análisis Proveedor (A6)**: Verificación fiscal del proveedor
+2. **Revisión Documental**: Validación de contratos y facturas
+3. **Análisis Fiscal (A3)**: Evaluación de deducibilidad
+4. **Análisis Financiero (A5)**: Razonabilidad de montos
+5. **Estrategia (A1)**: Definición de argumentación legal
+6. **Generación Defense File (A7)**: Compilación del expediente
+7. **Validación Final**: Revisión y aprobación
+8. **Completado**: Diagnóstico finalizado
+
+### 5. Defense File
+- Documento PDF profesional con toda la evidencia
+- Incluye análisis de razón de negocios
+- Fundamentación legal completa
+- Se guarda automáticamente en pCloud
+- El usuario recibe link de descarga por email
+
+### 6. Sistema de Ajustes
+- Durante el diagnóstico se pueden solicitar ajustes
+- El usuario sube documentos adicionales
+- Se trackea ajustes solicitados vs resueltos
+- Cada iteración genera una nueva versión
+
+### 7. Almacenamiento en pCloud
+- Todos los documentos se guardan en la nube
+- Estructura organizada por empresa/proveedor
+- Links compartibles para descargar
+
+### 8. Notificaciones por Email
+- Código de acceso OTP
+- Confirmación de documentos recibidos
+- Defense File completado
+- Alertas de diagnósticos
+
+## AGENTES DE IA
+
+### A1 - Estratega Fiscal
+Especialista en razón de negocios y estrategia de defensa fiscal.
+
+### A3 - Analista Fiscal
+Experto en deducibilidad conforme a LISR, CFF y normativa vigente.
+
+### A5 - Analista Financiero
+Valida razonabilidad de montos mediante benchmarking.
+
+### A6 - Verificador de Proveedores
+Verifica estatus fiscal, lista 69-B, opinión 32-D.
+
+### A7 - Generador de Defense File
+Compila toda la evidencia en documento profesional.
+
+### A8 - Asistente de Voz SAT
+Responde consultas sobre catálogos del SAT.
+
+## CÓMO USAR LA PLATAFORMA
+
+### Primer Acceso
+1. Solicitar acceso con tu email corporativo
+2. Recibirás un código de 6 dígitos por email
+3. Ingresar el código para acceder
+4. El código es válido por 5 minutos
+
+### Registrar Empresa
+1. Ir a "Nueva Empresa" en el dashboard
+2. Ingresar RFC, nombre y datos de contacto
+3. Confirmar registro
+
+### Agregar Proveedor
+1. Seleccionar la empresa
+2. Clic en "Agregar Proveedor"
+3. Ingresar RFC y datos del proveedor
+4. El sistema verificará automáticamente su estatus fiscal
+
+### Iniciar Diagnóstico
+1. Seleccionar proveedor
+2. Clic en "Nuevo Diagnóstico"
+3. Describir el proyecto/servicio
+4. Subir documentos (contratos, facturas, etc.)
+5. El sistema iniciará el análisis automático
+
+### Subir Documentos
+1. En el chat o en el diagnóstico, usar el botón 📎
+2. Seleccionar archivos (PDF, Word, Excel, imágenes)
+3. Máximo 10MB por archivo
+4. Los documentos se clasifican automáticamente
+
+### Ver Resultados
+1. El diagnóstico avanza por fases automáticamente
+2. Ver progreso en tiempo real en el dashboard
+3. Cuando finaliza, recibes email con el Defense File
+4. Descargar desde pCloud o desde el dashboard
+
+## PREGUNTAS FRECUENTES
+
+### ¿Cuánto tarda un diagnóstico?
+Depende de la complejidad. Un diagnóstico simple puede tomar 1-2 horas. Si hay ajustes pendientes, puede extenderse.
+
+### ¿Qué pasa si mi proveedor está en lista 69-B?
+El sistema te alertará inmediatamente. Se recomienda no deducir operaciones con proveedores en lista negra del SAT.
+
+### ¿Puedo editar un diagnóstico en proceso?
+Sí, puedes agregar documentos y responder ajustes en cualquier momento.
+
+### ¿Los documentos son confidenciales?
+Sí. Todos los documentos están encriptados y solo tú tienes acceso a tu expediente.
+
+### ¿Qué formatos de archivo aceptan?
+PDF, Word (.docx), Excel (.xlsx), imágenes (PNG, JPG), XML, JSON, CSV.
+
+### ¿Cómo contacto soporte?
+Usa este chat de soporte o escribe a soporte@revisar.ia
+
+### ¿Puedo cancelar un diagnóstico?
+Sí, desde el detalle del diagnóstico puedes pausarlo o cancelarlo.
+
+### ¿Qué es el Defense File?
+Es el expediente de defensa fiscal que compila toda la evidencia, análisis y fundamentación legal para soportar la deducción.
+
+## ERRORES COMUNES
+
+### "Body is disturbed or locked"
+Error de conexión. Intenta recargar la página e intentar de nuevo.
+
+### "Código inválido o expirado"
+El código OTP expiró. Solicita uno nuevo desde la pantalla de login.
+
+### "Proveedor no encontrado"
+Verifica que el RFC sea correcto. Debe tener 12 o 13 caracteres.
+
+### "Archivo muy grande"
+El archivo excede 10MB. Comprime el PDF o divide en partes.
+
+## CONTACTO
+- Soporte técnico: soporte@revisar.ia
+- Ventas: ventas@revisar.ia
+- Horario: Lunes a Viernes 9:00 - 18:00 (CDMX)
+`;
+```
+
+================================================================================
+PASO 2: CREAR AGENTE DE SOPORTE
+================================================================================
+
+CREAR: server/services/support/supportAgent.ts
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+import { SOPORTE_KNOWLEDGE_BASE } from './knowledgeBase';
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY
+});
+
+const SYSTEM_PROMPT = `
+Eres el Agente de Soporte de Revisar.IA, una plataforma de auditoría fiscal inteligente.
+
+## TU PERSONALIDAD
+- Nombre: Asistente de Revisar.IA
+- Tono: Profesional, amable y servicial
+- Idioma: Español (México)
+- Estilo: Claro, conciso, usa emojis ocasionalmente para ser amigable
+
+## TUS CAPACIDADES
+- Responder preguntas sobre el funcionamiento de la plataforma
+- Guiar a los usuarios en el uso de las funcionalidades
+- Explicar conceptos fiscales básicos relacionados con la plataforma
+- Resolver dudas sobre errores comunes
+- Escalar a soporte humano si es necesario
+
+## REGLAS
+1. SIEMPRE responde en español
+2. Si no sabes algo, admítelo y ofrece contactar soporte humano
+3. No inventes información sobre la plataforma
+4. Sé conciso pero completo
+5. Si el usuario tiene un problema técnico grave, sugiere contactar soporte@revisar.ia
+6. No compartas información confidencial de otros usuarios
+7. Si preguntan por precios o planes, indica que contacten a ventas@revisar.ia
+
+## CONOCIMIENTO DE LA PLATAFORMA
+${SOPORTE_KNOWLEDGE_BASE}
+
+## FORMATO DE RESPUESTAS
+- Usa párrafos cortos
+- Usa listas cuando sea apropiado
+- Incluye emojis relevantes (📋 ✅ 💡 ⚠️ 📧)
+- Si hay pasos, númeralos
+- Ofrece ayuda adicional al final
+`;
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export async function getSupportResponse(
+  userMessage: string,
+  conversationHistory: Message[] = []
+): Promise<string> {
+  
+  // Si no hay API key, respuesta simulada
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return getSimulatedResponse(userMessage);
+  }
+
+  try {
+    const messages = [
+      ...conversationHistory.map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content
+      })),
+      { role: 'user' as const, content: userMessage }
+    ];
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: SYSTEM_PROMPT,
+      messages
+    });
+
+    const textContent = response.content.find(c => c.type === 'text');
+    return textContent?.text || 'Lo siento, no pude procesar tu mensaje. ¿Podrías reformularlo?';
+
+  } catch (error: any) {
+    console.error('Error en agente de soporte:', error);
+    return '⚠️ Tuve un problema técnico. Por favor intenta de nuevo o contacta a soporte@revisar.ia';
+  }
+}
+
+// Respuestas simuladas cuando no hay API key
+function getSimulatedResponse(message: string): string {
+  const msgLower = message.toLowerCase();
+
+  if (msgLower.includes('hola') || msgLower.includes('buenos')) {
+    return '¡Hola! 👋 Soy el asistente de Revisar.IA. ¿En qué puedo ayudarte hoy?';
+  }
+
+  if (msgLower.includes('qué es') || msgLower.includes('que es') || msgLower.includes('revisar.ia')) {
+    return '📋 **Revisar.IA** es una plataforma de auditoría fiscal inteligente especializada en deducciones de intangibles.\n\nUsamos agentes de IA para analizar y validar tus deducciones fiscales conforme a la normativa mexicana.\n\n¿Te gustaría saber más sobre alguna funcionalidad específica?';
+  }
+
+  if (msgLower.includes('cómo') || msgLower.includes('como')) {
+    if (msgLower.includes('registro') || msgLower.includes('registrar')) {
+      return '📝 **Para registrar tu empresa:**\n\n1. Ve al Dashboard\n2. Clic en "Nueva Empresa"\n3. Ingresa el RFC y datos\n4. Confirma el registro\n\n¿Necesitas ayuda con algo más?';
+    }
+    if (msgLower.includes('acceso') || msgLower.includes('entrar') || msgLower.includes('login')) {
+      return '🔐 **Para acceder a Revisar.IA:**\n\n1. Ingresa tu email corporativo\n2. Recibirás un código de 6 dígitos\n3. Ingresa el código (válido 5 min)\n4. ¡Listo!\n\n¿El código no llegó? Revisa spam o solicita uno nuevo.';
+    }
+  }
+
+  if (msgLower.includes('error') || msgLower.includes('problema')) {
+    return '⚠️ Lamento que tengas problemas. Para ayudarte mejor:\n\n1. ¿Qué error ves exactamente?\n2. ¿En qué paso ocurre?\n\nSi es urgente, contacta soporte@revisar.ia';
+  }
+
+  if (msgLower.includes('precio') || msgLower.includes('costo') || msgLower.includes('plan')) {
+    return '💰 Para información sobre precios y planes, contacta a nuestro equipo de ventas:\n\n📧 ventas@revisar.ia\n\n¿Hay algo más en lo que pueda ayudarte?';
+  }
+
+  return '🤔 Entiendo tu consulta. Para darte la mejor respuesta, ¿podrías darme más detalles?\n\nTambién puedes revisar nuestra guía en el menú de ayuda o contactar soporte@revisar.ia';
+}
+```
+
+================================================================================
+PASO 3: CREAR RUTAS DE API PARA SOPORTE
+================================================================================
+
+CREAR: server/routes/support.ts
+
+```typescript
+import { Router } from 'express';
+import { getSupportResponse } from '../services/support/supportAgent';
+import { db } from '../db';
+import { v4 as uuidv4 } from 'uuid';
+
+const router = Router();
+
+// Almacén temporal de conversaciones (en producción usar Redis o DB)
+const conversations = new Map<string, Array<{ role: string; content: string; timestamp: Date }>>();
+
+// POST /api/support/message - Enviar mensaje al chatbot
+router.post('/message', async (req, res) => {
+  try {
+    const { message, sessionId, userId } = req.body;
+
+    if (!message?.trim()) {
+      return res.status(400).json({ error: 'Mensaje requerido' });
+    }
+
+    const convId = sessionId || uuidv4();
+    
+    // Obtener historial de conversación
+    let history = conversations.get(convId) || [];
+
+    // Obtener respuesta del agente
+    const response = await getSupportResponse(
+      message,
+      history.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+    );
+
+    // Guardar en historial
+    history.push({ role: 'user', content: message, timestamp: new Date() });
+    history.push({ role: 'assistant', content: response, timestamp: new Date() });
+    
+    // Limitar historial a últimos 20 mensajes
+    if (history.length > 20) {
+      history = history.slice(-20);
+    }
+    
+    conversations.set(convId, history);
+
+    // Opcional: Guardar en BD para analytics
+    try {
+      await db.query(
+        `INSERT INTO support_messages (id, session_id, user_id, role, content, timestamp)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [uuidv4(), convId, userId || null, 'user', message, new Date()]
+      );
+      await db.query(
+        `INSERT INTO support_messages (id, session_id, user_id, role, content, timestamp)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [uuidv4(), convId, userId || null, 'assistant', response, new Date()]
+      );
+    } catch (dbError) {
+      // No fallar si no existe la tabla
+      console.log('DB logging skipped');
+    }
+
+    res.json({
+      success: true,
+      sessionId: convId,
+      response,
+      timestamp: new Date()
+    });
+
+  } catch (error: any) {
+    console.error('Error en soporte:', error);
+    res.status(500).json({ 
+      error: 'Error procesando mensaje',
+      response: '⚠️ Tuve un problema técnico. Por favor intenta de nuevo.'
+    });
+  }
+});
+
+// GET /api/support/history/:sessionId - Obtener historial
+router.get('/history/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const history = conversations.get(sessionId) || [];
+    
+    res.json({
+      success: true,
+      sessionId,
+      messages: history
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Error obteniendo historial' });
+  }
+});
+
+// POST /api/support/escalate - Escalar a humano
+router.post('/escalate', async (req, res) => {
+  try {
+    const { sessionId, userId, reason, email } = req.body;
+
+    // Aquí enviarías email a soporte o crearías ticket
+    console.log(`🚨 Escalación de soporte: ${email} - ${reason}`);
+
+    // TODO: Enviar email a soporte@revisar.ia con el historial
+
+    res.json({
+      success: true,
+      message: 'Tu solicitud ha sido enviada. Un agente humano te contactará pronto.',
+      ticketId: uuidv4().slice(0, 8).toUpperCase()
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Error escalando solicitud' });
+  }
+});
+
+export default router;
+```
+
+================================================================================
+PASO 4: REGISTRAR RUTAS EN SERVIDOR
+================================================================================
+
+MODIFICAR: server/index.ts
+
+```typescript
+import supportRoutes from './routes/support';
+
+// Ruta de soporte (puede ser pública o protegida según prefieras)
+app.use('/api/support', supportRoutes);
+```
+
+================================================================================
+PASO 5: CREAR COMPONENTE WIDGET DE CHAT
+================================================================================
+
+CREAR: client/components/SupportChat/SupportChatWidget.tsx
+
+```tsx
+import { useState, useEffect, useRef } from 'react';
+import { 
+  MessageCircle, X, Send, Paperclip, Smile, 
+  Loader2, User, Bot, ExternalLink, ChevronDown 
+} from 'lucide-react';
+
+interface Message {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: Date;
+}
+
+export function SupportChatWidget() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Scroll al final cuando hay nuevos mensajes
+  useEffect(() => {
+    if (isOpen) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      setUnreadCount(0);
+    }
+  }, [messages, isOpen]);
+
+  // Cargar sesión guardada
+  useEffect(() => {
+    const savedSession = localStorage.getItem('support_session');
+    const savedTerms = localStorage.getItem('support_terms_accepted');
+    
+    if (savedSession) {
+      setSessionId(savedSession);
+    }
+    if (savedTerms === 'true') {
+      setHasAcceptedTerms(true);
+    }
+  }, []);
+
+  const handleAcceptTerms = () => {
+    setHasAcceptedTerms(true);
+    localStorage.setItem('support_terms_accepted', 'true');
+    
+    // Mensaje de bienvenida
+    const welcomeMsg: Message = {
+      id: 'welcome',
+      role: 'assistant',
+      content: '¡Hola! 👋 Soy el asistente de Revisar.IA. Estoy aquí para ayudarte con cualquier duda sobre la plataforma.\n\n¿En qué puedo ayudarte hoy?',
+      timestamp: new Date()
+    };
+    setMessages([welcomeMsg]);
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: input.trim(),
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/support/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessage.content,
+          sessionId
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.sessionId && !sessionId) {
+        setSessionId(data.sessionId);
+        localStorage.setItem('support_session', data.sessionId);
+      }
+
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: data.response,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+
+      // Si el chat está cerrado, incrementar contador
+      if (!isOpen) {
+        setUnreadCount(prev => prev + 1);
+      }
+
+    } catch (error) {
+      console.error('Error:', error);
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: '⚠️ No pude procesar tu mensaje. Por favor intenta de nuevo.',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const formatContent = (content: string) => {
+    // Convertir **texto** a negrita y saltos de línea
+    return content.split('\n').map((line, i) => {
+      const formatted = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      return (
+        <span key={i}>
+          <span dangerouslySetInnerHTML={{ __html: formatted }} />
+          {i < content.split('\n').length - 1 && <br />}
+        </span>
+      );
+    });
+  };
+
+  return (
+    <>
+      {/* Botón flotante */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 ${
+          isOpen 
+            ? 'bg-gray-600 hover:bg-gray-700' 
+            : 'bg-purple-600 hover:bg-purple-700 hover:scale-110'
+        }`}
+      >
+        {isOpen ? (
+          <X className="w-6 h-6 text-white" />
+        ) : (
+          <>
+            <MessageCircle className="w-6 h-6 text-white" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                {unreadCount}
+              </span>
+            )}
+          </>
+        )}
+      </button>
+
+      {/* Ventana de chat */}
+      {isOpen && (
+        <div className="fixed bottom-24 right-6 z-50 w-96 h-[500px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 animate-in slide-in-from-bottom-4 duration-300">
+          
+          {/* Header */}
+          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <Bot className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-white font-semibold">Revisar.IA</h3>
+              <p className="text-purple-200 text-xs">Asistente de soporte</p>
+            </div>
+            <button 
+              onClick={() => setIsOpen(false)}
+              className="text-white/80 hover:text-white"
+            >
+              <ChevronDown className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Contenido */}
+          {!hasAcceptedTerms ? (
+            /* Disclaimer inicial */
+            <div className="flex-1 p-4 flex flex-col">
+              <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                <h4 className="font-semibold text-gray-800 mb-2">
+                  ¡Hola! Soy el asistente de IA de Revisar.IA.
+                </h4>
+                <p className="text-gray-600 text-sm leading-relaxed">
+                  Al usar este chatbot, aceptas que tus conversaciones y datos 
+                  relacionados puedan ser almacenados y utilizados por <strong>Revisar.IA</strong> para 
+                  ofrecer mejor soporte y mejorar nuestros servicios, siempre en 
+                  línea con nuestros compromisos de privacidad.
+                </p>
+                <div className="mt-3 space-y-1">
+                  <a 
+                    href="/privacy" 
+                    target="_blank"
+                    className="text-purple-600 text-sm hover:underline flex items-center gap-1"
+                  >
+                    Política de Privacidad
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <p className="text-gray-600 text-sm mt-3">
+                  Por favor, acepta o rechaza nuestras condiciones de uso.
+                </p>
+              </div>
+              
+              <div className="mt-auto space-y-2">
+                <button
+                  onClick={handleAcceptTerms}
+                  className="w-full py-3 bg-purple-600 text-white font-medium rounded-xl hover:bg-purple-700 transition"
+                >
+                  Aceptar
+                </button>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="w-full py-3 bg-gray-100 text-gray-600 font-medium rounded-xl hover:bg-gray-200 transition"
+                >
+                  Rechazar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Mensajes */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+                  >
+                    {/* Avatar */}
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      msg.role === 'user' 
+                        ? 'bg-purple-100' 
+                        : 'bg-gradient-to-br from-purple-500 to-indigo-500'
+                    }`}>
+                      {msg.role === 'user' ? (
+                        <User className="w-4 h-4 text-purple-600" />
+                      ) : (
+                        <Bot className="w-4 h-4 text-white" />
+                      )}
+                    </div>
+                    
+                    {/* Mensaje */}
+                    <div className={`max-w-[75%] ${msg.role === 'user' ? 'text-right' : ''}`}>
+                      <div className={`rounded-2xl px-4 py-2 ${
+                        msg.role === 'user'
+                          ? 'bg-purple-600 text-white rounded-tr-sm'
+                          : 'bg-gray-100 text-gray-800 rounded-tl-sm'
+                      }`}>
+                        <div className="text-sm leading-relaxed">
+                          {formatContent(msg.content)}
+                        </div>
+                      </div>
+                      <span className="text-xs text-gray-400 mt-1 block">
+                        {msg.timestamp.toLocaleTimeString('es-MX', { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Loading indicator */}
+                {loading && (
+                  <div className="flex gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center">
+                      <Bot className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3">
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100" />
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input */}
+              <div className="p-4 border-t bg-white">
+                <div className="flex items-center gap-2 bg-gray-50 rounded-xl border border-gray-200 focus-within:border-purple-400 focus-within:ring-2 focus-within:ring-purple-100">
+                  <button className="p-2 text-gray-400 hover:text-gray-600">
+                    <Paperclip className="w-5 h-5" />
+                  </button>
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Escribe tu mensaje..."
+                    disabled={loading}
+                    className="flex-1 py-3 bg-transparent outline-none text-sm"
+                  />
+                  <button className="p-2 text-gray-400 hover:text-gray-600">
+                    <Smile className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={handleSend}
+                    disabled={!input.trim() || loading}
+                    className="p-2 mr-1 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Send className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+```
+
+================================================================================
+PASO 6: AGREGAR WIDGET AL LAYOUT PRINCIPAL
+================================================================================
+
+MODIFICAR: client/App.tsx o Layout.tsx
+
+```tsx
+import { SupportChatWidget } from './components/SupportChat/SupportChatWidget';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+        
+        {/* Widget de soporte - visible en todas las páginas */}
+        <SupportChatWidget />
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
+```
+
+================================================================================
+PASO 7: CREAR TABLA PARA LOGS (OPCIONAL)
+================================================================================
+
+```sql
+CREATE TABLE IF NOT EXISTS support_messages (
+  id VARCHAR(36) PRIMARY KEY,
+  session_id VARCHAR(36) NOT NULL,
+  user_id VARCHAR(36),
+  role VARCHAR(20) NOT NULL,
+  content TEXT NOT NULL,
+  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_support_session ON support_messages(session_id);
+CREATE INDEX idx_support_timestamp ON support_messages(timestamp);
+```
+
+================================================================================
+PASO 8: ESTILOS ADICIONALES (si usas Tailwind)
+================================================================================
+
+En tailwind.config.js, asegurar que tenga:
+
+```js
+module.exports = {
+  theme: {
+    extend: {
+      animation: {
+        'bounce': 'bounce 1s infinite',
+      },
+      keyframes: {
+        bounce: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-4px)' },
+        }
+      }
+    }
+  }
+}
+```
+
+================================================================================
+RESUMEN DE ARCHIVOS CREADOS
+================================================================================
+
+server/
+├── services/
+│   └── support/
+│       ├── knowledgeBase.ts    # Conocimiento de la plataforma
+│       └── supportAgent.ts     # Lógica del agente IA
+└── routes/
+    └── support.ts              # Endpoints de API
+
+client/
+└── components/
+    └── SupportChat/
+        └── SupportChatWidget.tsx  # Widget completo
+
+================================================================================
+FLUJO DEL CHATBOT
+================================================================================
+
+1. Usuario ve botón flotante púrpura en esquina inferior derecha
+2. Al hacer clic, aparece ventana de chat
+3. Primero muestra disclaimer de privacidad
+4. Usuario acepta → Se guarda en localStorage
+5. Aparece mensaje de bienvenida del bot
+6. Usuario escribe → Se envía a API → Claude responde
+7. Historial se mantiene en la sesión
+8. Si cierra y abre, continúa la conversación
+
+================================================================================
+EJECUTAR AHORA. NO PREGUNTAR.
+================================================================================
+```

@@ -1,0 +1,249 @@
+MODO: AUDITORÍA DIAGNÓSTICA EXHAUSTIVA - PROHIBIDO MODIFICAR CÓDIGO
+
+PROBLEMA: Los proyectos aparecen listados en el dashboard pero al hacer clic en cualquiera muestra "No encontramos este proyecto". Este bug ha persistido y necesito un diagnóstico COMPLETO antes de cualquier reparación.
+
+=== REGLAS ABSOLUTAS ===
+1. NO modifiques NINGÚN archivo
+2. NO "arregles" nada todavía
+3. NO omitas información por considerar que "no es relevante"
+4. Reporta TODO lo que encuentres
+5. Incluye rutas de archivos COMPLETAS
+6. Incluye fragmentos de código EXACTOS cuando sea relevante
+
+=== PARTE 1: ARQUITECTURA GENERAL ===
+
+1.1 FRONTEND
+- ¿Qué framework? (React, Vue, Next.js, etc.)
+- ¿Versión del framework?
+- ¿Usa TypeScript o JavaScript?
+- ¿Qué manejador de estado? (Redux, Zustand, Context, Recoil, etc.)
+- ¿Qué librería de routing? (react-router, next/router, etc.)
+- ¿Versión del router?
+
+1.2 BACKEND
+- ¿Qué framework? (Express, Fastify, Flask, Django, etc.)
+- ¿Versión?
+- ¿TypeScript o JavaScript?
+- ¿Cómo están organizadas las rutas? (archivo único, por módulos, etc.)
+- ¿Usa algún patrón? (MVC, servicios, repositorios, etc.)
+
+1.3 BASE DE DATOS
+- ¿Qué base de datos? (PostgreSQL, MongoDB, SQLite, Supabase, Firebase, etc.)
+- ¿Hay ORM/ODM? ¿Cuál? ¿Versión?
+- ¿Dónde está la configuración de conexión? (ruta exacta)
+- ¿La conexión está funcionando? (verifica con un test simple)
+
+1.4 ESTRUCTURA DE CARPETAS
+- Lista COMPLETA del árbol de carpetas principales (2-3 niveles de profundidad)
+- ¿Dónde están los componentes del frontend?
+- ¿Dónde están los controladores/rutas del backend?
+- ¿Dónde están los modelos/schemas?
+- ¿Dónde están las migraciones (si hay)?
+
+=== PARTE 2: MODELO DE DATOS DE PROYECTOS ===
+
+2.1 SCHEMA/MODELO
+- Muéstrame el schema/modelo COMPLETO de la tabla/colección "proyectos"
+- ¿Qué tipo de dato es el ID? (UUID, autoincrement, string, ObjectId, etc.)
+- ¿Cómo se define el ID? (muestra el código exacto)
+- Lista TODOS los campos del modelo con sus tipos
+- ¿Hay campos requeridos? ¿Cuáles?
+- ¿Hay campos con valores por defecto? ¿Cuáles?
+- ¿Hay relaciones con otras tablas? ¿Cuáles?
+
+2.2 GENERACIÓN DE ID
+- ¿Dónde se genera el ID del proyecto? (archivo y línea exacta)
+- ¿Se genera en frontend, backend, o base de datos?
+- Muéstrame la función/código EXACTO que genera el ID
+- ¿El prefijo "PROJ-" se agrega? ¿Dónde?
+- ¿Hay alguna transformación del ID en algún punto?
+
+=== PARTE 3: ENDPOINTS/API DE PROYECTOS ===
+
+3.1 LISTADO DE TODOS LOS ENDPOINTS RELACIONADOS CON PROYECTOS
+Para CADA endpoint, reporta:
+- Método HTTP (GET, POST, PUT, DELETE)
+- Ruta exacta
+- Archivo donde está definido
+- Función/controlador que lo maneja
+- ¿Requiere autenticación?
+- ¿Qué parámetros recibe?
+- ¿Qué responde?
+
+3.2 ENDPOINT ESPECÍFICO: OBTENER PROYECTO POR ID
+- Ruta exacta (ej: /api/projects/:id)
+- Archivo donde está definido (ruta completa)
+- Muéstrame el código COMPLETO del controlador/handler
+- ¿Cómo extrae el ID de la request?
+- ¿Cómo busca en la base de datos? (query exacta)
+- ¿Qué responde si encuentra el proyecto?
+- ¿Qué responde si NO encuentra el proyecto?
+- ¿Hay validación del formato del ID?
+- ¿Hay middleware involucrado? ¿Cuál?
+
+3.3 ENDPOINT: CREAR PROYECTO
+- Muéstrame el código COMPLETO
+- ¿Cómo genera/asigna el ID?
+- ¿Qué campos son requeridos?
+- ¿Qué responde al crear exitosamente? (¿incluye el ID?)
+
+3.4 ENDPOINT: LISTAR PROYECTOS (DASHBOARD)
+- Muéstrame el código COMPLETO
+- ¿Qué campos devuelve de cada proyecto?
+- ¿Devuelve el ID completo o truncado?
+- ¿Hay paginación? ¿Cómo funciona?
+
+=== PARTE 4: FRONTEND - FLUJO DE NAVEGACIÓN ===
+
+4.1 COMPONENTE DEL DASHBOARD (LISTA DE PROYECTOS)
+- ¿En qué archivo está? (ruta completa)
+- Muéstrame el código COMPLETO del componente
+- ¿Cómo hace fetch de la lista de proyectos?
+- ¿Dónde almacena los proyectos? (state, store, etc.)
+- ¿Cómo renderiza cada proyecto?
+- ¿Cómo construye el link/botón para ir al detalle?
+- Muéstrame el código EXACTO del onClick o Link
+
+4.2 COMPONENTE DE DETALLE DE PROYECTO
+- ¿En qué archivo está? (ruta completa)
+- Muéstrame el código COMPLETO del componente
+- ¿Cómo obtiene el ID de la URL?
+- ¿Cómo hace fetch del proyecto individual?
+- ¿Qué muestra mientras carga?
+- ¿Qué muestra si hay error?
+- ¿Qué muestra si no encuentra el proyecto?
+- Muéstrame el código del mensaje "No encontramos este proyecto"
+
+4.3 CONFIGURACIÓN DE RUTAS
+- ¿En qué archivo se definen las rutas del frontend?
+- Muéstrame la definición de la ruta para el detalle de proyecto
+- ¿El parámetro de la ruta se llama :id, :projectId, u otro?
+- ¿Hay rutas anidadas o dinámicas?
+- ¿Hay algún guard o protección de ruta?
+
+4.4 LLAMADAS A LA API (SERVICIOS/HOOKS)
+- ¿Hay un archivo de servicios o hooks para proyectos?
+- Muéstrame TODAS las funciones que hacen llamadas a la API de proyectos
+- ¿Cómo construye la URL de la API?
+- ¿Usa variables de entorno para la URL base?
+- ¿Qué headers envía?
+- ¿Cómo maneja errores?
+
+=== PARTE 5: VERIFICACIÓN DE DATOS EN BASE DE DATOS ===
+
+5.1 CONTEO Y ESTADO GENERAL
+- ¿Cuántos proyectos hay en total en la base de datos?
+- ¿Cuántos tienen ID válido (no null, no undefined, no vacío)?
+- ¿Cuántos tienen ID inválido o problemático?
+
+5.2 MUESTRA DE DATOS
+- Muéstrame los primeros 10 proyectos con TODOS sus campos
+- Para cada uno incluye el ID COMPLETO sin truncar
+- ¿Hay inconsistencias visibles en los IDs?
+- ¿Hay proyectos duplicados?
+- ¿Hay proyectos con datos corruptos?
+
+5.3 VERIFICACIÓN DE FORMATO DE ID
+- ¿Todos los IDs siguen el mismo formato?
+- ¿Hay IDs con formatos diferentes?
+- Si hay prefijo (PROJ-), ¿todos lo tienen?
+- ¿La longitud de los IDs es consistente?
+
+=== PARTE 6: PRUEBA DE FLUJO COMPLETO ===
+
+6.1 SIMULA EL FLUJO
+- Toma un ID específico de un proyecto que existe en la base de datos
+- ¿Ese proyecto aparece en la respuesta del endpoint de listar?
+- ¿Con qué ID aparece en la respuesta?
+- Si llamas directamente al endpoint /api/projects/[ese-id], ¿qué responde?
+- ¿El ID que envía el frontend coincide EXACTAMENTE con el ID en la base de datos?
+
+6.2 COMPARACIÓN DIRECTA
+- ID en base de datos: [muéstralo]
+- ID en respuesta de listar: [muéstralo]
+- ID que el frontend envía al hacer clic: [muéstralo o dedúcelo del código]
+- ¿Son EXACTAMENTE iguales carácter por carácter?
+
+=== PARTE 7: LOGS Y ERRORES ===
+
+7.1 LOGS DEL BACKEND
+- ¿Hay sistema de logging implementado?
+- Cuando se intenta acceder a un proyecto, ¿qué se loguea?
+- ¿Hay errores recientes en los logs relacionados con proyectos?
+- Muéstrame los últimos 20 logs de error si existen
+
+7.2 ERRORES DE CONSOLA
+- Revisa si hay errores en el código que podrían aparecer en consola del navegador
+- ¿Hay try/catch que silencian errores?
+- ¿Hay console.log de debugging que muestren el flujo?
+
+7.3 MANEJO DE ERRORES
+- ¿Cómo maneja el backend los errores?
+- ¿Qué HTTP status devuelve cuando no encuentra un proyecto? (404, 500, otro?)
+- ¿El frontend distingue entre "no existe" y "error del servidor"?
+
+=== PARTE 8: AUTENTICACIÓN Y PERMISOS ===
+
+8.1 SISTEMA DE AUTH
+- ¿Hay autenticación implementada?
+- ¿Qué sistema? (JWT, sessions, OAuth, etc.)
+- ¿Los endpoints de proyectos requieren autenticación?
+- ¿Cómo se verifica la autenticación?
+
+8.2 PERMISOS
+- ¿Los proyectos están asociados a usuarios?
+- ¿Un usuario solo puede ver SUS proyectos?
+- ¿Hay verificación de permisos en el endpoint de obtener proyecto?
+- ¿Podría ser que el proyecto existe pero el usuario no tiene permiso?
+
+8.3 VERIFICACIÓN DE AUTH EN EL FLUJO
+- ¿El token/sesión se está enviando correctamente en las requests?
+- ¿Hay middleware de auth que podría estar bloqueando?
+
+=== PARTE 9: VARIABLES DE ENTORNO Y CONFIGURACIÓN ===
+
+9.1 VARIABLES DE ENTORNO
+- Lista TODAS las variables de entorno del proyecto (nombres, no valores sensibles)
+- ¿Hay variable para URL de la API?
+- ¿Hay variable para conexión de base de datos?
+- ¿Están todas configuradas correctamente?
+
+9.2 CONFIGURACIÓN DE CORS
+- ¿Hay configuración de CORS?
+- ¿Qué orígenes están permitidos?
+- ¿Podría CORS estar bloqueando requests?
+
+9.3 PROXY O REWRITES
+- ¿Hay configuración de proxy en desarrollo?
+- ¿Hay rewrites o redirects configurados?
+- ¿Podrían estar interfiriendo con las rutas?
+
+=== PARTE 10: DIAGNÓSTICO Y SOSPECHOSOS ===
+
+10.1 HALLAZGOS CRÍTICOS
+Basado en toda la auditoría, lista TODOS los problemas encontrados, ordenados por probabilidad de ser la causa:
+
+Para cada problema:
+- Descripción del problema
+- Evidencia específica (código, datos, logs)
+- Archivo(s) afectado(s)
+- Por qué crees que esto causa el bug
+- Severidad (crítica, alta, media, baja)
+
+10.2 HIPÓTESIS PRINCIPAL
+- ¿Cuál es tu diagnóstico principal?
+- ¿Qué evidencia lo respalda?
+
+10.3 OTROS PROBLEMAS DETECTADOS
+- Lista cualquier otro problema que hayas detectado aunque no esté relacionado con este bug
+- Incluye technical debt, malas prácticas, vulnerabilidades, etc.
+
+=== FORMATO DE RESPUESTA ===
+
+- Responde CADA sección en orden
+- NO omitas secciones aunque creas que no son relevantes
+- Si algo no aplica, explica por qué
+- Incluye código COMPLETO, no fragmentos truncados
+- Incluye rutas de archivo COMPLETAS
+- Sé específico, no vago
+- Si no puedes determinar algo, dilo explícitamente y explica por qué

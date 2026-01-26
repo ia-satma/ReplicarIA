@@ -1,0 +1,66 @@
+Act as a world-class arquitecto de plataformas especializado en sistemas basados en agentes y automatización de documentación. Given the following context, criteria, and instructions, diseñar una solución técnica y de producto para: 1) añadir un apartado en la plataforma con toda la información sobre los agentes, subagentes, capacidades y controles nuevos; 2) definir y especificar un agente especializado (o conjunto de agentes) cuya responsabilidad sea documentar automáticamente el funcionamiento de la plataforma y mantener actualizado, sólo para administradores, un hub de documentación interno; 3) proponer cómo reutilizar o integrar la landing del evento previa al login para mostrar información pública resumida sobre los agentes.
+
+## Context
+
+- Plataforma con nueva estructura de agentes, subagentes, capacidades y controles.
+- Actualmente existe una landing del evento que aparece antes del login; puede reutilizarse para mostrar información pública resumida.
+- Requisito clave: existir un apartado interno que contenga "todo lo que tiene la plataforma" relativo a agentes y funcionamiento; acceso exclusivo para administradores.
+- Disponibilidad de antecedentes sobre cómo se construyeron los agentes de la plataforma (repositorios, especificaciones, despliegues, pipelines).
+- Necesidad de automatización: el/los agente(s) de documentación deben actualizar ese apartado automáticamente cuando cambien agentes, controles, capacidades o estructura.
+- Importancia de documentación técnica y operativa clara, versionada y auditada como parte de buenas prácticas TI.
+
+## Approach
+
+- Diseñar una arquitectura de documentación que combine: inventario canónico de agentes, generación automática de contenido (extracción de metadatos, análisis de repositorio, parsing de configs, APIs), almacenamiento versionado (repositorio Git o CMS headless con versioning), motor de búsqueda indexado y un frontend/admin hub con control RBAC.
+- Separar la vista pública (landing pre-login) de la vista administrativa completa. En landing sólo mostrar resumen aprobado y descripciones públicas; en hub administrativo mostrar detalles técnicos, trazabilidad, control de acceso, historial de cambios y herramientas de auditoría.
+- Definir un agente documental principal (DocAgent) con subagentes especializados:
+  - Agente de Inventario: detecta agentes/subagentes y sus relaciones.
+  - Agente de Extracción: lee configuraciones, APIs, código, despliegues y genera documentación técnica.
+  - Agente de Verificación: ejecuta checks automáticos (consistencia, tests de integración mínima, políticas de seguridad).
+  - Agente de Publicación: actualiza el hub interno, notifica y sincroniza el resumen público en landing (si aplica).
+- Flujos de trabajo event-driven: cambios en repositorios, despliegues o configuración generan eventos (webhooks) que dispara DocAgent para actualizar documentación; fallback: tareas programadas (cron) diarias/horarias.
+- Implementar control de accesos estricto: autenticación SSO/RBAC; solo usuarios con rol "administrador" pueden acceder al hub con historial completo y exportaciones.
+- Proveer API REST/GraphQL para consulta, endpoints para generar snapshots/versiones y hooks para integración con CI/CD.
+- Incluir auditoría y trazabilidad: cada cambio documentado debe registrar autor, origen del cambio, evidencia (commit id, config diff), timestamp y posibilidad de revertir a versiones anteriores.
+- Priorizar entregables mínimos viables (MVP) y roadmap incremental: inventario básico + páginas de agente; luego generación automática, verificación, búsquedas avanzadas, integraciones y notificaciones.
+
+## Response Format
+
+Entregar una especificación técnica y de producto estructurada que incluya:
+
+1. Resumen ejecutivo (objetivo y alcance).
+2. Historias de usuario priorizadas (MVP al 1.0 y roadmap).
+3. Requisitos funcionales y no funcionales (detallados).
+4. Modelo de datos propuesto (entidades y campos clave).
+5. API propuesta (endpoints principales, payloads).
+6. Arquitectura técnica (diagrama lógico descrito en texto, componentes y flujo de eventos).
+7. Diseño del agente documental (responsabilidades, triggers, pseudocódigo o skeleton en seudocódigo, módulos y subagentes).
+8. Flujos y casos de uso (crear/actualizar agente, detectar cambio en repo, publicar resumen en landing, acceso admin).
+9. Interfaz de usuario/UX: especificación del hub administrativo, vista pública en landing, elementos clave y wireframe textual.
+10. Seguridad, RBAC y controles de acceso detallados.
+11. Estrategia de actualización automática, frecuencia recomendada, conflict resolution y aprobado manual.
+12. Estrategia de versionado, auditoría y rollback.
+13. Plan de despliegue incremental, pruebas y criterios de aceptación.
+14. Backlog priorizado con estimaciones de esfuerzo por tarea (S/M/L).
+15. Checklist de consideraciones operacionales (monitoring, alerting, SLAs, backups).
+16. Ejemplos concretos: plantilla de documento generado por agente (Markdown/HTML), ejemplo de payload webhook y ejemplo de registro de inventario.
+17. Recomendaciones de stack tecnológico sugerido (opcional), y notas sobre integraciones con sistemas existentes (CI/CD, repos, IAM, base de datos, CMS).
+
+## Instructions
+
+- Entregar la especificación completamente en español y en estilo técnico, sin uso de pronombres personales (usar voz impersonal o pasiva).
+- Priorizar claridad y accionabilidad: cada requisito debe ser verificable y tener criterios de aceptación medibles.
+- Incluir al menos 8 historias de usuario concretas (MVP y funciones avanzadas), cada una con criterio de aceptación.
+- Definir modelo de datos con campos obligatorios y tipos de datos (por ejemplo: agent_id: UUID, nombre: string, versión: semver, capacidades: lista, controles: lista, parent_id: UUID|null, estado: enum, doc_url: string, last_documented_at: timestamp, source_refs: lista de {type,ref}).
+- Proponer al menos 6 endpoints API (método, path, propósito, request/response esquemático).
+- Incluir un pseudocódigo o skeleton de ejemplo para el agente documental que cubra: suscripción a eventos, extracción de metadatos, generación de artefacto de documentación, commit o actualización en almacén versionado, indexado en motor de búsqueda y notificación a administradores.
+- Establecer políticas de seguridad y acceso: cómo asegurar que el apartado solo lo pueda consultar el administrador (ej.: roles, claims SSO, checks en backend, logging de accesos).
+- Especificar cómo y qué parte de la información puede ser mostrada en la landing pública previa al login y mecanismo de sincronización seguro desde el hub interno.
+- Definir frecuencia mínima y máxima de actualización automática, con fallback y resolución de conflictos (ej.: concurrencia por versionamiento semántico, locks o approval workflow).
+- Proponer métricas clave (KPIs) para monitorear la salud del sistema documental (ej.: tiempo desde cambio hasta documentación actualizada, porcentaje de agentes documentados, número de discrepancias detectadas, tiempo medio de verificación manual).
+- Priorizar privacidad y cumplimiento: indicar consideraciones para controlar exposición de información sensible en la landing pública y exportaciones.
+- Incluir un backlog priorizado con 12 tareas concretas para equipos de ingeniería/producto/DevOps, cada tarea con estimación de esfuerzo (S/M/L) y dependencias.
+- No incluir información irrelevante ni supuestos no mencionados; cuando sea necesario hacer suposiciones para completar la especificación, listarlas explícitamente en una sección "Suposiciones".
+- Entregar todo en un formato listo para pasar a backlog de gestión de proyectos (epics, features, tareas).
+- Al final, proporcionar una lista corta de pasos inmediatos (3-5 acciones) para iniciar implementación en las próximas 2 semanas.
+

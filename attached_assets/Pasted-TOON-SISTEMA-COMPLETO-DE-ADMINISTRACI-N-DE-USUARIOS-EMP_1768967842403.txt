@@ -1,0 +1,1025 @@
+TOON: SISTEMA COMPLETO DE ADMINISTRACIÓN DE USUARIOS, EMPRESAS Y KNOWLEDGE BASE
+
+================================================================================
+ARQUITECTURA DEL SISTEMA
+================================================================================
+
+Panel Admin
+├── Usuarios
+│   ├── Lista de usuarios (clientes + proveedores)
+│   ├── Crear nuevo usuario
+│   ├── Editar usuario
+│   ├── Cambiar rol (cliente/proveedor/admin)
+│   └── Activar/Desactivar
+├── Empresas
+│   ├── Perfil de empresa
+│   ├── Datos fiscales (RFC, razón social)
+│   ├── Configuración
+│   └── Usuarios asociados
+└── Knowledge Base
+    ├── Documentos por empresa
+    ├── Subir documentos
+    ├── Ver/Eliminar documentos
+    └── Reindexar RAG
+
+================================================================================
+PASO 1: CREAR COMPONENTE DE EDICIÓN DE USUARIO COMPLETO
+================================================================================
+
+CREAR: client/components/Admin/EditarUsuario.tsx
+```tsx
+import { useState, useEffect } from 'react';
+import { 
+  User, Building2, Mail, Phone, Shield, ShieldCheck,
+  Save, X, Loader2, Trash2, Upload, FileText, 
+  FolderOpen, RefreshCw, Eye, Download, AlertCircle
+} from 'lucide-react';
+
+interface Usuario {
+  id: string;
+  email: string;
+  nombre: string;
+  telefono?: string;
+  rol: 'admin' | 'cliente' | 'proveedor';
+  estado: 'pendiente' | 'aprobado' | 'rechazado';
+  empresa?: Empresa;
+  empresas_permitidas?: string[];
+  created_at: string;
+}
+
+interface Empresa {
+  id: string;
+  nombre: string;
+  rfc: string;
+  razon_social?: string;
+  direccion?: string;
+  telefono?: string;
+  email?: string;
+  sitio_web?: string;
+  giro?: string;
+  regimen_fiscal?: string;
+  logo_url?: string;
+}
+
+interface Documento {
+  id: string;
+  nombre: string;
+  tipo: string;
+  tamaño: number;
+  fecha_subida: string;
+  estado: 'procesado' | 'pendiente' | 'error';
+  chunks?: number;
+}
+
+interface Props {
+  usuarioId: string;
+  onClose: () => void;
+  onSave: () => void;
+}
+
+export function EditarUsuario({ usuarioId, onClose, onSave }: Props) {
+  const [tab, setTab] = useState<'perfil' | 'empresa' | 'documentos'>('perfil');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [empresa, setEmpresa] = useState<Empresa | null>(null);
+  const [documentos, setDocumentos] = useState<Documento[]>([]);
+  const [error, setError] = useState('');
+
+  // Cargar datos del usuario
+  useEffect(() => {
+    fetchUsuario();
+  }, [usuarioId]);
+
+  const fetchUsuario = async () => {
+    try {
+      setLoading(true);
+      
+      // Obtener usuario
+      const resUsuario = await fetch(`/api/admin/usuarios/${usuarioId}`);
+      const dataUsuario = await resUsuario.json();
+      setUsuario(dataUsuario.usuario);
+      
+      // Obtener empresa asociada
+      if (dataUsuario.usuario?.empresa_id) {
+        const resEmpresa = await fetch(`/api/admin/empresas/${dataUsuario.usuario.empresa_id}`);
+        const dataEmpresa = await resEmpresa.json();
+        setEmpresa(dataEmpresa.empresa);
+        
+        // Obtener documentos de la empresa
+        const resDocs = await fetch(`/api/admin/empresas/${dataUsuario.usuario.empresa_id}/documentos`);
+        const dataDocs = await resDocs.json();
+        setDocumentos(dataDocs.documentos || []);
+      }
+      
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Guardar cambios del usuario
+  const handleGuardarUsuario = async () => {
+    if (!usuario) return;
+    setSaving(true);
+    setError('');
+    
+    try {
+      const res = await fetch(`/api/admin/usuarios/${usuarioId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(usuario)
+      });
+      
+      if (!res.ok) throw new Error('Error guardando usuario');
+      
+      onSave();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Guardar cambios de empresa
+  const handleGuardarEmpresa = async () => {
+    if (!empresa) return;
+    setSaving(true);
+    setError('');
+    
+    try {
+      const res = await fetch(`/api/admin/empresas/${empresa.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(empresa)
+      });
+      
+      if (!res.ok) throw new Error('Error guardando empresa');
+      
+      onSave();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Subir documento al Knowledge Base
+  const handleSubirDocumento = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || !empresa) return;
+
+    const formData = new FormData();
+    Array.from(files).forEach(file => formData.append('files', file));
+    formData.append('empresa_id', empresa.id);
+
+    try {
+      const res = await fetch('/api/admin/knowledge-base/upload', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!res.ok) throw new Error('Error subiendo documentos');
+      
+      // Recargar documentos
+      fetchUsuario();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  // Eliminar documento
+  const handleEliminarDocumento = async (docId: string) => {
+    if (!confirm('¿Eliminar este documento del Knowledge Base?')) return;
+    
+    try {
+      const res = await fetch(`/api/admin/knowledge-base/${docId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!res.ok) throw new Error('Error eliminando documento');
+      
+      setDocumentos(prev => prev.filter(d => d.id !== docId));
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  // Reindexar Knowledge Base
+  const handleReindexar = async () => {
+    if (!empresa) return;
+    
+    try {
+      const res = await fetch(`/api/admin/knowledge-base/reindex/${empresa.id}`, {
+        method: 'POST'
+      });
+      
+      if (!res.ok) throw new Error('Error reindexando');
+      
+      alert('Reindexación iniciada. Puede tomar unos minutos.');
+      fetchUsuario();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  // Eliminar usuario
+  const handleEliminarUsuario = async () => {
+    if (!confirm('¿ELIMINAR este usuario? Esta acción no se puede deshacer.')) return;
+    if (!confirm('¿Estás SEGURO? Se eliminarán todos sus datos y documentos.')) return;
+    
+    try {
+      const res = await fetch(`/api/admin/usuarios/${usuarioId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!res.ok) throw new Error('Error eliminando usuario');
+      
+      onClose();
+      onSave();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-2xl p-8">
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mx-auto" />
+          <p className="text-gray-500 mt-2">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        
+        {/* Header */}
+        <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
+                {usuario?.rol === 'proveedor' ? (
+                  <Building2 className="w-7 h-7 text-white" />
+                ) : (
+                  <User className="w-7 h-7 text-white" />
+                )}
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">{usuario?.nombre || 'Usuario'}</h2>
+                <p className="text-emerald-100">{usuario?.email}</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="text-white/80 hover:text-white">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+          
+          {/* Tabs */}
+          <div className="flex gap-2 mt-4">
+            {['perfil', 'empresa', 'documentos'].map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t as any)}
+                className={`px-4 py-2 rounded-lg font-medium transition ${
+                  tab === t 
+                    ? 'bg-white text-emerald-600' 
+                    : 'bg-white/20 text-white hover:bg-white/30'
+                }`}
+              >
+                {t === 'perfil' && <User className="w-4 h-4 inline mr-2" />}
+                {t === 'empresa' && <Building2 className="w-4 h-4 inline mr-2" />}
+                {t === 'documentos' && <FolderOpen className="w-4 h-4 inline mr-2" />}
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="mx-6 mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
+            <AlertCircle className="w-5 h-5" />
+            {error}
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          
+          {/* TAB: PERFIL DE USUARIO */}
+          {tab === 'perfil' && usuario && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre completo</label>
+                  <input
+                    type="text"
+                    value={usuario.nombre}
+                    onChange={(e) => setUsuario({ ...usuario, nombre: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={usuario.email}
+                    onChange={(e) => setUsuario({ ...usuario, email: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                  <input
+                    type="tel"
+                    value={usuario.telefono || ''}
+                    onChange={(e) => setUsuario({ ...usuario, telefono: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
+                  <select
+                    value={usuario.rol}
+                    onChange={(e) => setUsuario({ ...usuario, rol: e.target.value as any })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="cliente">Cliente</option>
+                    <option value="proveedor">Proveedor</option>
+                    <option value="admin">Administrador</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                  <select
+                    value={usuario.estado}
+                    onChange={(e) => setUsuario({ ...usuario, estado: e.target.value as any })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="pendiente">Pendiente</option>
+                    <option value="aprobado">Aprobado</option>
+                    <option value="rechazado">Rechazado</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Empresas Permitidas (para clientes) */}
+              {usuario.rol === 'cliente' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Empresas permitidas
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Selecciona las empresas a las que este usuario puede acceder
+                  </p>
+                  {/* Aquí iría un multiselect de empresas */}
+                  <div className="border rounded-lg p-4 bg-gray-50">
+                    <p className="text-sm text-gray-500">
+                      {usuario.empresas_permitidas?.length || 0} empresa(s) asignada(s)
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4 border-t">
+                <button
+                  onClick={handleGuardarUsuario}
+                  disabled={saving}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                  Guardar Cambios
+                </button>
+                <button
+                  onClick={handleEliminarUsuario}
+                  className="px-6 py-3 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 flex items-center gap-2"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: EMPRESA */}
+          {tab === 'empresa' && (
+            <div className="space-y-6">
+              {empresa ? (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Nombre comercial</label>
+                      <input
+                        type="text"
+                        value={empresa.nombre}
+                        onChange={(e) => setEmpresa({ ...empresa, nombre: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">RFC</label>
+                      <input
+                        type="text"
+                        value={empresa.rfc}
+                        onChange={(e) => setEmpresa({ ...empresa, rfc: e.target.value.toUpperCase() })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 uppercase"
+                        maxLength={13}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Razón social</label>
+                      <input
+                        type="text"
+                        value={empresa.razon_social || ''}
+                        onChange={(e) => setEmpresa({ ...empresa, razon_social: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Dirección fiscal</label>
+                      <input
+                        type="text"
+                        value={empresa.direccion || ''}
+                        onChange={(e) => setEmpresa({ ...empresa, direccion: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email de contacto</label>
+                      <input
+                        type="email"
+                        value={empresa.email || ''}
+                        onChange={(e) => setEmpresa({ ...empresa, email: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                      <input
+                        type="tel"
+                        value={empresa.telefono || ''}
+                        onChange={(e) => setEmpresa({ ...empresa, telefono: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Sitio web</label>
+                      <input
+                        type="url"
+                        value={empresa.sitio_web || ''}
+                        onChange={(e) => setEmpresa({ ...empresa, sitio_web: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                        placeholder="https://"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Giro/Industria</label>
+                      <input
+                        type="text"
+                        value={empresa.giro || ''}
+                        onChange={(e) => setEmpresa({ ...empresa, giro: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Régimen fiscal</label>
+                      <select
+                        value={empresa.regimen_fiscal || ''}
+                        onChange={(e) => setEmpresa({ ...empresa, regimen_fiscal: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500"
+                      >
+                        <option value="">Seleccionar...</option>
+                        <option value="601">601 - General de Ley PM</option>
+                        <option value="603">603 - Personas Morales sin fines de lucro</option>
+                        <option value="605">605 - Sueldos y Salarios</option>
+                        <option value="606">606 - Arrendamiento</option>
+                        <option value="612">612 - Personas Físicas con Actividad Empresarial</option>
+                        <option value="620">620 - Sociedades Cooperativas</option>
+                        <option value="621">621 - Incorporación Fiscal</option>
+                        <option value="625">625 - RESICO</option>
+                        <option value="626">626 - RESICO PM</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-4 border-t">
+                    <button
+                      onClick={handleGuardarEmpresa}
+                      disabled={saving}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                      Guardar Empresa
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-12">
+                  <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 mb-4">Este usuario no tiene empresa asociada</p>
+                  <button className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">
+                    Crear Empresa
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: DOCUMENTOS / KNOWLEDGE BASE */}
+          {tab === 'documentos' && (
+            <div className="space-y-6">
+              {/* Header de Knowledge Base */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-gray-800">Knowledge Base</h3>
+                  <p className="text-sm text-gray-500">
+                    Documentos para el sistema RAG de esta empresa
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleReindexar}
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Reindexar
+                  </button>
+                  <label className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 cursor-pointer">
+                    <Upload className="w-4 h-4" />
+                    Subir Documentos
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.doc,.docx,.txt,.xlsx,.csv"
+                      onChange={handleSubirDocumento}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-emerald-50 rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-emerald-600">{documentos.length}</p>
+                  <p className="text-sm text-gray-600">Documentos</p>
+                </div>
+                <div className="bg-blue-50 rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-blue-600">
+                    {documentos.reduce((acc, d) => acc + (d.chunks || 0), 0)}
+                  </p>
+                  <p className="text-sm text-gray-600">Chunks RAG</p>
+                </div>
+                <div className="bg-purple-50 rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-purple-600">
+                    {(documentos.reduce((acc, d) => acc + d.tamaño, 0) / 1024 / 1024).toFixed(1)} MB
+                  </p>
+                  <p className="text-sm text-gray-600">Tamaño Total</p>
+                </div>
+              </div>
+
+              {/* Lista de documentos */}
+              <div className="border rounded-xl overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Documento</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tamaño</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Chunks</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {documentos.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                          <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                          No hay documentos en el Knowledge Base
+                        </td>
+                      </tr>
+                    ) : (
+                      documentos.map((doc) => (
+                        <tr key={doc.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <FileText className="w-5 h-5 text-gray-400" />
+                              <span className="font-medium text-gray-800">{doc.nombre}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">{doc.tipo}</td>
+                          <td className="px-4 py-3 text-sm text-gray-500">
+                            {(doc.tamaño / 1024).toFixed(1)} KB
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              doc.estado === 'procesado' ? 'bg-green-100 text-green-700' :
+                              doc.estado === 'pendiente' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {doc.estado}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">{doc.chunks || '-'}</td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                                <Download className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleEliminarDocumento(doc.id)}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+================================================================================
+PASO 2: CREAR ENDPOINTS DE API PARA ADMINISTRACIÓN
+================================================================================
+
+CREAR: server/routes/admin.py (o admin.ts)
+```python
+# server/routes/admin.py
+
+from fastapi import APIRouter, HTTPException, UploadFile, File
+from typing import List, Optional
+from pydantic import BaseModel
+import uuid
+from datetime import datetime
+
+router = APIRouter()
+
+# ═══════════════════════════════════════════════════════════════════
+# USUARIOS
+# ═══════════════════════════════════════════════════════════════════
+
+class UsuarioUpdate(BaseModel):
+    nombre: Optional[str]
+    email: Optional[str]
+    telefono: Optional[str]
+    rol: Optional[str]
+    estado: Optional[str]
+    empresas_permitidas: Optional[List[str]]
+
+@router.get("/usuarios")
+async def listar_usuarios():
+    """Lista todos los usuarios"""
+    from server.db import db
+    
+    usuarios = db.query("""
+        SELECT u.*, e.nombre as empresa_nombre
+        FROM usuarios_autorizados u
+        LEFT JOIN empresas e ON u.empresa_id = e.id
+        ORDER BY u.created_at DESC
+    """)
+    
+    return {"usuarios": usuarios}
+
+@router.get("/usuarios/{usuario_id}")
+async def obtener_usuario(usuario_id: str):
+    """Obtiene un usuario por ID"""
+    from server.db import db
+    
+    usuario = db.query_one(
+        "SELECT * FROM usuarios_autorizados WHERE id = %s",
+        (usuario_id,)
+    )
+    
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    return {"usuario": usuario}
+
+@router.put("/usuarios/{usuario_id}")
+async def actualizar_usuario(usuario_id: str, data: UsuarioUpdate):
+    """Actualiza un usuario"""
+    from server.db import db
+    
+    updates = []
+    values = []
+    
+    if data.nombre is not None:
+        updates.append("nombre = %s")
+        values.append(data.nombre)
+    if data.email is not None:
+        updates.append("email = %s")
+        values.append(data.email)
+    if data.telefono is not None:
+        updates.append("telefono = %s")
+        values.append(data.telefono)
+    if data.rol is not None:
+        updates.append("rol = %s")
+        values.append(data.rol)
+    if data.estado is not None:
+        updates.append("estado = %s")
+        values.append(data.estado)
+    
+    if updates:
+        values.append(usuario_id)
+        db.execute(f"""
+            UPDATE usuarios_autorizados 
+            SET {', '.join(updates)}, updated_at = NOW()
+            WHERE id = %s
+        """, tuple(values))
+    
+    return {"success": True}
+
+@router.delete("/usuarios/{usuario_id}")
+async def eliminar_usuario(usuario_id: str):
+    """Elimina un usuario y todos sus datos"""
+    from server.db import db
+    
+    # Eliminar documentos del knowledge base
+    db.execute("DELETE FROM documentos_kb WHERE empresa_id IN (SELECT empresa_id FROM usuarios_autorizados WHERE id = %s)", (usuario_id,))
+    
+    # Eliminar usuario
+    db.execute("DELETE FROM usuarios_autorizados WHERE id = %s", (usuario_id,))
+    
+    return {"success": True}
+
+@router.post("/usuarios")
+async def crear_usuario(data: UsuarioUpdate):
+    """Crea un nuevo usuario"""
+    from server.db import db
+    
+    usuario_id = str(uuid.uuid4())
+    
+    db.execute("""
+        INSERT INTO usuarios_autorizados (id, email, nombre, telefono, rol, estado, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s, NOW())
+    """, (usuario_id, data.email, data.nombre, data.telefono, data.rol or 'cliente', data.estado or 'pendiente'))
+    
+    return {"success": True, "id": usuario_id}
+
+# ═══════════════════════════════════════════════════════════════════
+# EMPRESAS
+# ═══════════════════════════════════════════════════════════════════
+
+class EmpresaUpdate(BaseModel):
+    nombre: Optional[str]
+    rfc: Optional[str]
+    razon_social: Optional[str]
+    direccion: Optional[str]
+    telefono: Optional[str]
+    email: Optional[str]
+    sitio_web: Optional[str]
+    giro: Optional[str]
+    regimen_fiscal: Optional[str]
+
+@router.get("/empresas/{empresa_id}")
+async def obtener_empresa(empresa_id: str):
+    """Obtiene una empresa por ID"""
+    from server.db import db
+    
+    empresa = db.query_one(
+        "SELECT * FROM empresas WHERE id = %s",
+        (empresa_id,)
+    )
+    
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+    
+    return {"empresa": empresa}
+
+@router.put("/empresas/{empresa_id}")
+async def actualizar_empresa(empresa_id: str, data: EmpresaUpdate):
+    """Actualiza una empresa"""
+    from server.db import db
+    
+    updates = []
+    values = []
+    
+    for field, value in data.dict(exclude_unset=True).items():
+        if value is not None:
+            updates.append(f"{field} = %s")
+            values.append(value)
+    
+    if updates:
+        values.append(empresa_id)
+        db.execute(f"""
+            UPDATE empresas 
+            SET {', '.join(updates)}, updated_at = NOW()
+            WHERE id = %s
+        """, tuple(values))
+    
+    return {"success": True}
+
+@router.get("/empresas/{empresa_id}/documentos")
+async def listar_documentos_empresa(empresa_id: str):
+    """Lista documentos del Knowledge Base de una empresa"""
+    from server.db import db
+    
+    documentos = db.query("""
+        SELECT * FROM documentos_kb 
+        WHERE empresa_id = %s 
+        ORDER BY fecha_subida DESC
+    """, (empresa_id,))
+    
+    return {"documentos": documentos}
+
+# ═══════════════════════════════════════════════════════════════════
+# KNOWLEDGE BASE
+# ═══════════════════════════════════════════════════════════════════
+
+@router.post("/knowledge-base/upload")
+async def subir_documento_kb(empresa_id: str, files: List[UploadFile] = File(...)):
+    """Sube documentos al Knowledge Base de una empresa"""
+    from server.db import db
+    from server.services.rag import procesar_documento_rag
+    import os
+    
+    resultados = []
+    
+    for file in files:
+        try:
+            # Guardar archivo temporalmente
+            contenido = await file.read()
+            doc_id = str(uuid.uuid4())
+            
+            # Guardar en BD
+            db.execute("""
+                INSERT INTO documentos_kb (id, empresa_id, nombre, tipo, tamaño, estado, fecha_subida)
+                VALUES (%s, %s, %s, %s, %s, 'pendiente', NOW())
+            """, (doc_id, empresa_id, file.filename, file.content_type, len(contenido)))
+            
+            # Procesar para RAG (async)
+            chunks = await procesar_documento_rag(doc_id, contenido, file.filename)
+            
+            # Actualizar estado
+            db.execute("""
+                UPDATE documentos_kb SET estado = 'procesado', chunks = %s WHERE id = %s
+            """, (len(chunks), doc_id))
+            
+            resultados.append({
+                "nombre": file.filename,
+                "estado": "procesado",
+                "chunks": len(chunks)
+            })
+            
+        except Exception as e:
+            resultados.append({
+                "nombre": file.filename,
+                "estado": "error",
+                "error": str(e)
+            })
+    
+    return {"resultados": resultados}
+
+@router.delete("/knowledge-base/{documento_id}")
+async def eliminar_documento_kb(documento_id: str):
+    """Elimina un documento del Knowledge Base"""
+    from server.db import db
+    
+    # Eliminar chunks del vector store
+    db.execute("DELETE FROM chunks_rag WHERE documento_id = %s", (documento_id,))
+    
+    # Eliminar documento
+    db.execute("DELETE FROM documentos_kb WHERE id = %s", (documento_id,))
+    
+    return {"success": True}
+
+@router.post("/knowledge-base/reindex/{empresa_id}")
+async def reindexar_kb(empresa_id: str):
+    """Reindexa todos los documentos de una empresa"""
+    from server.db import db
+    from server.services.rag import reindexar_empresa
+    
+    # Obtener documentos
+    documentos = db.query(
+        "SELECT * FROM documentos_kb WHERE empresa_id = %s",
+        (empresa_id,)
+    )
+    
+    # Reindexar (esto puede ser async/background job)
+    await reindexar_empresa(empresa_id, documentos)
+    
+    return {"success": True, "documentos": len(documentos)}
+```
+
+================================================================================
+PASO 3: CREAR TABLA DE KNOWLEDGE BASE (SI NO EXISTE)
+================================================================================
+```sql
+-- Tabla de documentos del Knowledge Base
+CREATE TABLE IF NOT EXISTS documentos_kb (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    empresa_id UUID NOT NULL REFERENCES empresas(id),
+    nombre VARCHAR(500) NOT NULL,
+    tipo VARCHAR(100),
+    tamaño INTEGER,
+    estado VARCHAR(50) DEFAULT 'pendiente',
+    chunks INTEGER DEFAULT 0,
+    fecha_subida TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_procesado TIMESTAMP,
+    metadata JSONB
+);
+
+CREATE INDEX idx_docs_kb_empresa ON documentos_kb(empresa_id);
+
+-- Tabla de chunks para RAG
+CREATE TABLE IF NOT EXISTS chunks_rag (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    documento_id UUID REFERENCES documentos_kb(id) ON DELETE CASCADE,
+    empresa_id UUID REFERENCES empresas(id),
+    contenido TEXT NOT NULL,
+    embedding VECTOR(1536),  -- Si usas pgvector
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_chunks_documento ON chunks_rag(documento_id);
+CREATE INDEX idx_chunks_empresa ON chunks_rag(empresa_id);
+```
+
+================================================================================
+PASO 4: REGISTRAR RUTAS EN EL SERVIDOR
+================================================================================
+```python
+# main.py
+from server.routes.admin import router as admin_router
+app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
+```
+
+================================================================================
+PASO 5: INTEGRAR EN EL PANEL DE ADMINISTRACIÓN
+================================================================================
+
+Actualizar el panel de admin para usar el nuevo componente:
+```tsx
+// En AdminUsuarios.tsx, agregar:
+
+import { EditarUsuario } from './EditarUsuario';
+
+// En el componente:
+const [editandoUsuario, setEditandoUsuario] = useState<string | null>(null);
+
+// En la tabla, el botón Editar:
+<button onClick={() => setEditandoUsuario(usuario.id)}>
+  Editar
+</button>
+
+// Modal de edición:
+{editandoUsuario && (
+  <EditarUsuario
+    usuarioId={editandoUsuario}
+    onClose={() => setEditandoUsuario(null)}
+    onSave={() => {
+      setEditandoUsuario(null);
+      fetchUsuarios();
+    }}
+  />
+)}
+```
+
+================================================================================
+RESUMEN DE FUNCIONALIDADES
+================================================================================
+
+✅ USUARIOS:
+   - Crear nuevo usuario (cliente/proveedor/admin)
+   - Editar datos personales
+   - Cambiar rol y estado
+   - Asignar empresas permitidas
+   - Eliminar usuario
+
+✅ EMPRESAS:
+   - Ver/Editar perfil de empresa
+   - Datos fiscales (RFC, razón social, régimen)
+   - Información de contacto
+   - Asociar usuarios
+
+✅ KNOWLEDGE BASE:
+   - Subir documentos
+   - Ver lista de documentos
+   - Ver estado de procesamiento RAG
+   - Eliminar documentos
+   - Reindexar todo el KB
+
+================================================================================
+EJECUTAR AHORA. NO PREGUNTAR.
+================================================================================

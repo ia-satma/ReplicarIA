@@ -1,0 +1,173 @@
+"""
+Tests para el sistema de humanización de reportes
+"""
+
+import pytest
+from services.agents.personas import (
+    PERSONA_VALIDADOR_DOCUMENTAL,
+    PERSONA_AUDITOR_SAT,
+    obtener_persona
+)
+from services.agents.report_generator import (
+    humanizar_reporte,
+    GeneradorReporteOCR,
+    GeneradorReporteRedTeam
+)
+
+
+class TestPersonas:
+    """Tests para las personas profesionales"""
+    
+    def test_persona_tiene_atributos_requeridos(self):
+        """Cada persona debe tener todos los atributos necesarios"""
+        persona = PERSONA_VALIDADOR_DOCUMENTAL
+        
+        assert persona.nombre is not None
+        assert persona.titulo is not None
+        assert persona.años_experiencia > 0
+        assert len(persona.frases_caracteristicas) > 0
+        assert len(persona.palabras_evitar) > 0
+    
+    def test_obtener_persona_por_tipo(self):
+        """Debe retornar persona correcta según tipo de agente"""
+        persona_ocr = obtener_persona('ocr_validation')
+        persona_rt = obtener_persona('red_team')
+        
+        assert persona_ocr.nombre == PERSONA_VALIDADOR_DOCUMENTAL.nombre
+        assert persona_rt.nombre == PERSONA_AUDITOR_SAT.nombre
+    
+    def test_generar_introduccion(self):
+        """La introducción debe ser coherente"""
+        persona = PERSONA_AUDITOR_SAT
+        intro = persona.generar_introduccion(
+            tipo_reporte="simulación de auditoría fiscal",
+            proyecto="Proyecto Test"
+        )
+        
+        assert "Proyecto Test" in intro
+        assert str(persona.años_experiencia) in intro
+
+
+class TestHumanizacion:
+    """Tests para la humanización de reportes"""
+    
+    @pytest.fixture
+    def datos_ocr_exitoso(self):
+        return {
+            'document_name': 'Contrato_Servicios.pdf',
+            'document_type': 'contrato',
+            'status': 'VALIDATED',
+            'confidence': 0.92,
+            'iterations': 1,
+            'keywords_found': ['CONTRATO', 'PARTES', 'OBJETO', 'FIRMA'],
+            'keywords_missing': ['VIGENCIA'],
+            'contradictions': []
+        }
+    
+    @pytest.fixture
+    def datos_red_team(self):
+        return {
+            'resumen': {
+                'vectores_testeados': 6,
+                'vectores_pasados': 4,
+                'vulnerabilidades_encontradas': 2,
+                'nivel_riesgo': 'MEDIUM'
+            },
+            'vulnerabilidades': [
+                {
+                    'severity': 'MEDIUM',
+                    'message': 'Falta documentación de entregables tangibles',
+                    'recommendation': 'Agregar evidencia fotográfica y actas de entrega'
+                },
+                {
+                    'severity': 'LOW',
+                    'message': 'Estudio de precios de transferencia no localizado',
+                    'recommendation': 'Verificar si aplica por monto de operación'
+                }
+            ],
+            'vectores_pasados': ['Razón de Negocios', 'Materialidad Básica', 'Documentación Contractual', 'Comprobación Fiscal'],
+            'conclusion': 'DEFENDIBLE CON OBSERVACIONES'
+        }
+    
+    def test_humanizar_ocr_retorna_markdown(self, datos_ocr_exitoso):
+        """Debe retornar reporte en formato markdown"""
+        reporte = humanizar_reporte(
+            tipo_agente='ocr_validation',
+            datos_crudos=datos_ocr_exitoso,
+            formato='markdown'
+        )
+        
+        assert isinstance(reporte, str)
+        assert 'Contrato_Servicios.pdf' in reporte
+        assert 'VALIDATED' in reporte or 'validado' in reporte.lower()
+    
+    def test_humanizar_ocr_retorna_html(self, datos_ocr_exitoso):
+        """Debe retornar reporte en formato HTML"""
+        reporte = humanizar_reporte(
+            tipo_agente='ocr_validation',
+            datos_crudos=datos_ocr_exitoso,
+            formato='html'
+        )
+        
+        assert '<div' in reporte
+        assert '</div>' in reporte
+    
+    def test_humanizar_red_team_incluye_vulnerabilidades(self, datos_red_team):
+        """El reporte Red Team debe mencionar las vulnerabilidades"""
+        reporte = humanizar_reporte(
+            tipo_agente='red_team',
+            datos_crudos=datos_red_team,
+            contexto={'nombre': 'Proyecto Prueba'},
+            formato='markdown'
+        )
+        
+        assert 'vulnerabilidad' in reporte.lower() or 'Vulnerabilidad' in reporte
+        assert 'entregables' in reporte.lower()
+    
+    def test_humanizar_red_team_incluye_recomendaciones(self, datos_red_team):
+        """El reporte debe incluir recomendaciones accionables"""
+        reporte = humanizar_reporte(
+            tipo_agente='red_team',
+            datos_crudos=datos_red_team,
+            contexto={'nombre': 'Proyecto Prueba'},
+            formato='markdown'
+        )
+        
+        assert 'recomend' in reporte.lower()
+    
+    def test_reporte_tiene_estructura_profesional(self, datos_red_team):
+        """El reporte debe tener estructura de documento profesional"""
+        resultado = humanizar_reporte(
+            tipo_agente='red_team',
+            datos_crudos=datos_red_team,
+            contexto={'nombre': 'Proyecto Prueba'},
+            formato='dict'
+        )
+        
+        markdown = resultado['markdown']
+        
+        # Debe tener encabezados
+        assert '#' in markdown
+        
+        # Debe mencionar al autor
+        assert resultado['persona']['nombre'] is not None
+        
+        # Debe tener múltiples secciones
+        assert resultado['secciones'] >= 2
+    
+    def test_no_usa_palabras_prohibidas(self, datos_red_team):
+        """El reporte no debe usar terminología inapropiada"""
+        reporte = humanizar_reporte(
+            tipo_agente='red_team',
+            datos_crudos=datos_red_team,
+            formato='markdown'
+        )
+        
+        palabras_prohibidas = ['FRAUDE', 'EVASIÓN', 'ILEGAL', 'DELITO']
+        
+        for palabra in palabras_prohibidas:
+            assert palabra not in reporte.upper(), f"Encontrada palabra prohibida: {palabra}"
+
+
+if __name__ == '__main__':
+    pytest.main([__file__, '-v'])

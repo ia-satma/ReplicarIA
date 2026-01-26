@@ -1,0 +1,26 @@
+{
+  "name": "workspace",
+  "version": "1.0.0",
+  "description": "Sistema completo de red de agentes IA para trazabilidad de servicios intangibles y consultorías especializadas, implementando un flujo de 5 etapas con múltiples agentes que interactúan entre sí.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@craco/craco": "^7.1.0",
+    "autoprefixer": "^10.4.22",
+    "axios": "^1.13.2",
+    "postcss": "^8.5.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.6",
+    "react-scripts": "^5.0.1",
+    "tailwindcss": "^4.1.17"
+  }
+}

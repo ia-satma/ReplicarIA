@@ -1,0 +1,100 @@
+{
+  "metadata": {
+    "nombre": "Glosario Fiscal Mexicano",
+    "version": "1.0",
+    "fecha_actualizacion": "2025-01-20",
+    "descripcion": "Términos fiscales clave para el sistema de defensa fiscal"
+  },
+  "terminos": [
+    {
+      "term": "Razón de Negocios",
+      "definition": "Propósito empresarial, económico o comercial que justifica una operación, distinto e independiente del beneficio fiscal. Art. 5-A CFF.",
+      "articulo_relacionado": "CFF Art. 5-A",
+      "uso_en_plataforma": "A1_ESTRATEGIA evalúa razón de negocios en F0"
+    },
+    {
+      "term": "Beneficio Económico Esperado (BEE)",
+      "definition": "Cuantificación o descripción del valor económico que se espera obtener de una operación o servicio.",
+      "articulo_relacionado": "CFF Art. 5-A",
+      "uso_en_plataforma": "A1 describe cualitativamente, A5 cuantifica"
+    },
+    {
+      "term": "Estricta Indispensabilidad",
+      "definition": "Requisito de deducibilidad que exige que el gasto sea razonablemente necesario para los fines del negocio. LISR Art. 27 Fracción I.",
+      "articulo_relacionado": "LISR Art. 27-I",
+      "uso_en_plataforma": "A3_FISCAL verifica en F6"
+    },
+    {
+      "term": "EFOS",
+      "definition": "Empresas que Facturan Operaciones Simuladas. Contribuyentes que emiten CFDI sin capacidad material para prestar servicios.",
+      "articulo_relacionado": "CFF Art. 69-B",
+      "uso_en_plataforma": "A6_PROVEEDOR verifica estatus en listas 69-B"
+    },
+    {
+      "term": "Materialidad",
+      "definition": "Conjunto de evidencias que demuestran que un servicio fue efectivamente prestado y recibido.",
+      "articulo_relacionado": "LISR Art. 27",
+      "uso_en_plataforma": "A3 y A7 evalúan materialidad del proyecto"
+    },
+    {
+      "term": "Opinión de Cumplimiento (32-D)",
+      "definition": "Documento emitido por SAT que certifica que un contribuyente está al corriente en sus obligaciones fiscales.",
+      "articulo_relacionado": "CFF Art. 32-D",
+      "uso_en_plataforma": "A6_PROVEEDOR lo requiere como documento clave"
+    },
+    {
+      "term": "CFDI",
+      "definition": "Comprobante Fiscal Digital por Internet. Documento fiscal electrónico que ampara operaciones comerciales.",
+      "articulo_relacionado": "CFF Art. 29, 29-A",
+      "uso_en_plataforma": "A3_FISCAL verifica validez y conceptos específicos"
+    },
+    {
+      "term": "Defense File",
+      "definition": "Expediente documental estructurado que integra toda la evidencia de un proyecto para defensa ante SAT.",
+      "articulo_relacionado": "N/A - Metodología interna",
+      "uso_en_plataforma": "A7_DEFENSA genera y consolida el Defense File"
+    },
+    {
+      "term": "Deducción",
+      "definition": "Gasto o inversión que puede restarse de los ingresos acumulables para determinar la base gravable.",
+      "articulo_relacionado": "LISR Arts. 25-28",
+      "uso_en_plataforma": "A3_FISCAL valida requisitos de deducibilidad"
+    },
+    {
+      "term": "Acreditamiento",
+      "definition": "Derecho a disminuir el IVA pagado en compras contra el IVA cobrado en ventas.",
+      "articulo_relacionado": "LIVA Art. 5",
+      "uso_en_plataforma": "A3_FISCAL verifica requisitos de acreditamiento"
+    },
+    {
+      "term": "REPSE",
+      "definition": "Registro de Prestadoras de Servicios Especializados u Obras Especializadas. Obligatorio para subcontratación.",
+      "articulo_relacionado": "LFT Art. 15",
+      "uso_en_plataforma": "A6_PROVEEDOR verifica registro cuando aplica"
+    },
+    {
+      "term": "NOM-151",
+      "definition": "Norma Oficial Mexicana que establece requisitos para conservación de mensajes de datos y digitalización de documentos.",
+      "articulo_relacionado": "NOM-151-SCFI-2016",
+      "uso_en_plataforma": "Define estándares de trazabilidad documental"
+    },
+    {
+      "term": "Simulación Fiscal",
+      "definition": "Actos jurídicos que aparentan una realidad diferente a la verdadera, con el propósito de obtener beneficios fiscales indebidos.",
+      "articulo_relacionado": "CFF Art. 5-A",
+      "uso_en_plataforma": "La plataforma documenta para prevenir presunciones de simulación"
+    },
+    {
+      "term": "Candado",
+      "definition": "Punto de control en el flujo F0-F9 que requiere dictámenes de agentes para avanzar.",
+      "articulo_relacionado": "N/A - Metodología interna",
+      "uso_en_plataforma": "F2, F6 y F8 son candados principales"
+    },
+    {
+      "term": "3-Way Match",
+      "definition": "Verificación de coincidencia entre orden de compra/SOW, acta de aceptación y CFDI/pago.",
+      "articulo_relacionado": "N/A - Mejor práctica contable",
+      "uso_en_plataforma": "A2_PMO verifica en F8"
+    }
+  ]
+}

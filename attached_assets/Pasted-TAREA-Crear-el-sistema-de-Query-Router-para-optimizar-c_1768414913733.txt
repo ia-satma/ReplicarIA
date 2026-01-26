@@ -1,0 +1,137 @@
+TAREA: Crear el sistema de Query Router para optimizar costos de LLM.
+
+PASO 1: Crea un nuevo archivo services/query_router.py con este código EXACTO:
+
+```python
+"""
+Query Router - Selecciona el modelo óptimo según complejidad de la query
+Reduce costos en 60-70% usando modelos apropiados
+"""
+
+from typing import Literal, Dict, Any
+import tiktoken
+import logging
+
+logger = logging.getLogger(__name__)
+
+class QueryRouter:
+    """
+    Router que selecciona el modelo óptimo basado en:
+    1. Complejidad de la query (tokens)
+    2. Tipo de tarea (RAG, razonamiento, validación)
+    """
+
+    MODELS = {
+        "simple": {
+            "name": "gpt-4o-mini",
+            "cost_per_1k_input": 0.00015,
+            "cost_per_1k_output": 0.0006,
+            "max_tokens": 128000
+        },
+        "medium": {
+            "name": "gpt-4o",
+            "cost_per_1k_input": 0.0025,
+            "cost_per_1k_output": 0.01,
+            "max_tokens": 128000
+        },
+        "complex": {
+            "name": "gpt-4o",
+            "cost_per_1k_input": 0.0025,
+            "cost_per_1k_output": 0.01,
+            "max_tokens": 128000
+        }
+    }
+
+    # THRESHOLDS DE DECISIÓN
+    SIMPLE_THRESHOLD = 500  # tokens
+    MEDIUM_THRESHOLD = 2000  # tokens
+
+    def __init__(self):
+        try:
+            self.encoder = tiktoken.encoding_for_model("gpt-4")
+        except Exception as e:
+            logger.warning(f"Error al cargar tiktoken: {e}. Usando estimación aproximada.")
+            self.encoder = None
+
+    def count_tokens(self, text: str) -> int:
+        """Cuenta tokens de manera segura"""
+        if self.encoder:
+            return len(self.encoder.encode(text))
+        else:
+            # Estimación aproximada: ~4 caracteres por token
+            return len(text) // 4
+
+    def route_query(
+        self,
+        prompt: str,
+        task_type: Literal["rag", "reasoning", "validation", "summary"] = "reasoning",
+        force_model: str = None
+    ) -> Dict[str, Any]:
+        """
+        INPUT:
+            prompt: El texto completo del prompt
+            task_type: Tipo de tarea
+            force_model: Modelo forzado (opcional)
+
+        OUTPUT:
+            {
+                "model": "gpt-4o-mini",
+                "estimated_cost": 0.00045,
+                "token_count": 1500,
+                "reasoning": "Query simple, RAG lookup",
+                "tier": "simple"
+            }
+        """
+        if force_model:
+            return self._build_response("medium", prompt, "Modelo forzado por usuario")
+
+        token_count = self.count_tokens(prompt)
+
+        # REGLAS DE ROUTING
+        if task_type == "rag" and token_count < self.SIMPLE_THRESHOLD:
+            model_tier = "simple"
+            reasoning = "RAG simple, contexto reducido"
+
+        elif task_type == "summary" and token_count < self.MEDIUM_THRESHOLD:
+            model_tier = "simple"
+            reasoning = "Resumen sin razonamiento complejo"
+
+        elif task_type == "validation" and token_count < self.SIMPLE_THRESHOLD:
+            model_tier = "simple"
+            reasoning = "Validación estructural básica"
+
+        elif task_type == "reasoning" or token_count > self.MEDIUM_THRESHOLD:
+            model_tier = "medium"
+            reasoning = "Razonamiento multi-paso requerido"
+
+        else:
+            model_tier = "medium"
+            reasoning = "Complejidad media, modelo balanceado"
+
+        return self._build_response(model_tier, prompt, reasoning)
+
+    def _build_response(self, tier: str, prompt: str, reasoning: str) -> Dict:
+        model_config = self.MODELS[tier]
+        token_count = self.count_tokens(prompt)
+
+        # Estimación conservadora (asume 500 tokens de output)
+        estimated_output_tokens = 500
+        estimated_cost = (
+            (token_count / 1000) * model_config["cost_per_1k_input"] +
+            (estimated_output_tokens / 1000) * model_config["cost_per_1k_output"]
+        )
+
+        return {
+            "model": model_config["name"],
+            "estimated_cost": round(estimated_cost, 6),
+            "token_count": token_count,
+            "reasoning": reasoning,
+            "tier": tier
+        }
+
+# SINGLETON
+_router = QueryRouter()
+
+def route_query(prompt: str, task_type: str = "reasoning", force_model: str = None):
+    """Función de conveniencia para usar el router global"""
+    return _router.route_query(prompt, task_type, force_model)

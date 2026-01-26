@@ -1,0 +1,212 @@
+{
+  "timestamp": "2026-01-24T19:59:34.167216",
+  "sistema": "REVISAR.IA",
+  "version": "1.0",
+  "diagnosticos": {
+    "variables_entorno": {
+      "requeridas": {
+        "DATABASE_URL": {
+          "presente": true,
+          "estado": "✅"
+        }
+      },
+      "opcionales": {
+        "REDIS_URL": {
+          "presente": false,
+          "estado": "⚠️"
+        },
+        "ANTHROPIC_API_KEY": {
+          "presente": false,
+          "estado": "⚠️"
+        },
+        "OPENAI_API_KEY": {
+          "presente": true,
+          "estado": "✅"
+        }
+      },
+      "variables_detectadas": 2,
+      "database_configurada": true,
+      "api_keys_configuradas": true
+    },
+    "base_datos": {
+      "conexion_exitosa": true,
+      "tablas": {
+        "empresas": {
+          "existe": true,
+          "registros": 0,
+          "descripcion": "Empresas/Tenants"
+        },
+        "users": {
+          "existe": true,
+          "registros": 2,
+          "descripcion": "Usuarios"
+        },
+        "projects": {
+          "existe": true,
+          "registros": 0,
+          "descripcion": "Proyectos"
+        },
+        "deliberations": {
+          "existe": true,
+          "registros": 0,
+          "descripcion": "Deliberaciones"
+        },
+        "knowledge_chunks": {
+          "existe": true,
+          "registros": 0,
+          "descripcion": "Chunks RAG"
+        },
+        "usage_tracking": {
+          "existe": true,
+          "registros": 0,
+          "descripcion": "Tracking de Uso"
+        },
+        "planes": {
+          "existe": true,
+          "registros": 4,
+          "descripcion": "Planes"
+        }
+      },
+      "indices": 194,
+      "total_registros": 6
+    },
+    "pgvector": {
+      "extension_instalada": true,
+      "columna_embedding": true,
+      "chunks_totales": 0,
+      "chunks_con_embedding": 0,
+      "cobertura_porcentaje": 0.0
+    },
+    "frontend_build": {
+      "build_existe": true,
+      "archivos": {
+        "index.html": true,
+        "manifest.json": false,
+        "css_count": 1,
+        "js_count": 2
+      },
+      "archivos_clave": [
+        "index.html"
+      ],
+      "archivos_faltantes": [
+        "manifest.json"
+      ],
+      "build_path": "/home/runner/workspace/frontend/build"
+    },
+    "endpoints_api": {
+      "endpoints_probados": [
+        {
+          "endpoint": "/api/health",
+          "accesible": true,
+          "status_code": 200,
+          "latencia_ms": 39.8
+        },
+        {
+          "endpoint": "/docs",
+          "accesible": true,
+          "status_code": 200,
+          "latencia_ms": 5.3
+        },
+        {
+          "endpoint": "/api/usage/plans",
+          "accesible": true,
+          "status_code": 401,
+          "latencia_ms": 5.7
+        }
+      ],
+      "endpoints_accesibles": 3,
+      "base_url": "http://localhost:5000",
+      "servidor_disponible": true
+    },
+    "agentes": {
+      "agentes_configurados": 10,
+      "agentes": {
+        "A1_RECEPCION": {
+          "nombre": "Agente de Recepción",
+          "rol": "Recibir y clasificar documentos del contribuyente",
+          "capacidades": 3
+        },
+        "A2_ANALISIS": {
+          "nombre": "Agente de Análisis Fiscal",
+          "rol": "Analizar implicaciones fiscales de operaciones",
+          "capacidades": 4
+        },
+        "A3_NORMATIVO": {
+          "nombre": "Agente Normativo",
+          "rol": "Verificar cumplimiento de normatividad fiscal",
+          "capacidades": 4
+        },
+        "A4_CONTABLE": {
+          "nombre": "Agente Contable",
+          "rol": "Validar registro y soporte contable",
+          "capacidades": 4
+        },
+        "A5_OPERATIVO": {
+          "nombre": "Agente Operativo",
+          "rol": "Validar materialidad y sustancia operativa",
+          "capacidades": 3
+        },
+        "A6_FINANCIERO": {
+          "nombre": "Agente Financiero",
+          "rol": "Analizar flujos financieros y bancarización",
+          "capacidades": 4
+        },
+        "A7_LEGAL": {
+          "nombre": "Agente Legal",
+          "rol": "Revisar aspectos contractuales y legales",
+          "capacidades": 4
+        },
+        "A8_REDTEAM": {
+          "nombre": "Agente Red Team",
+          "rol": "Simular objeciones del SAT",
+          "capacidades": 3
+        },
+        "A9_SINTESIS": {
+          "nombre": "Agente de Síntesis",
+          "rol": "Consolidar análisis y generar reporte final",
+          "capacidades": 4
+        },
+        "A10_ARCHIVO": {
+          "nombre": "Agente de Archivo",
+          "rol": "Organizar y catalogar el expediente",
+          "capacidades": 4
+        }
+      },
+      "orquestador_disponible": true
+    },
+    "busqueda_vectorial": {
+      "servicio_disponible": true,
+      "embedder_disponible": true,
+      "pgvector_funcional": true
+    },
+    "cache": {
+      "redis_url_configurada": false,
+      "conexion_exitosa": false,
+      "tipo_cache": "En Memoria"
+    },
+    "calidad_codigo": {
+      "archivos_python": 295,
+      "archivos_javascript": 35969,
+      "directorios_analizados": [],
+      "lineas_python_totales": 102984,
+      "lineas_javascript_totales": 3860131
+    }
+  },
+  "metricas": {
+    "variables_entorno_detectadas": 2,
+    "registros_totales": 6,
+    "lineas_codigo_totales": 3963115
+  },
+  "errores": [],
+  "recomendaciones": [
+    {
+      "prioridad": "baja",
+      "area": "Frontend",
+      "problema": "Archivos faltantes: manifest.json",
+      "solucion": "Reconstruye el frontend"
+    }
+  ],
+  "estado_general": "🟢 SALUDABLE",
+  "puntuacion_salud": 85.0,
+  "puntos_diagnostico": "85/100"
+}

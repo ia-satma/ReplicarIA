@@ -1,0 +1,727 @@
+# FASE 8: NUEVOS SUBAGENTES ESPECIALIZADOS
+## Prompt TOON para Replit
+
+```
+=============================================================================
+TOON FASE 8: SUBAGENTES DE TIPIFICACIÓN, MATERIALIDAD, RIESGOS Y DEFENSA
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta todas las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. SOLO EJECUTA.
+
+PRERREQUISITO: Las Fases 1-7 deben estar completadas.
+
+CONTEXTO: El diagnóstico identificó que el sistema necesita agentes más 
+especializados para tareas críticas:
+
+1. SUB_TIPIFICACION: Clasifica proyectos en la tipología correcta al inicio
+2. SUB_MATERIALIDAD: Monitorea continuamente la matriz de materialidad
+3. SUB_RIESGOS_ESPECIALES: Detecta alertas de EFOS, TP, esquemas reportables
+4. A7_DEFENSA: Genera el Defense File consolidado y evalúa defendibilidad
+
+=============================================================================
+PASO 1: CREAR CONFIGURACIÓN DEL SUBAGENTE DE TIPIFICACIÓN
+=============================================================================
+
+Crea archivo "configAgentes/sub_tipificacion.js":
+
+const SUB_TIPIFICACION_CONFIG = {
+  
+  id: "SUB_TIPIFICACION",
+  nombre: "Subagente de Tipificación de Proyectos",
+  
+  rol: "Clasificar cada proyecto nuevo en la tipología correcta (CONSULTORIA_MACRO_MERCADO, SOFTWARE_SAAS_DESARROLLO, INTRAGRUPO_MANAGEMENT_FEE, etc.) basándose en la descripción, objetivo y características del servicio. Esta clasificación determina qué checklists aplican y qué nivel de rigor se requiere.",
+  
+  contexto_requerido: {
+    obligatorio: [
+      "proyecto.nombre",
+      "proyecto.descripcion",
+      "proyecto.objetivo_declarado",
+      "proveedor.tipo_relacion",
+      "monto"
+    ],
+    deseable: [
+      "sow_preliminar",
+      "entregables_esperados"
+    ]
+  },
+  
+  fases_participacion: ["F0"],
+  
+  puede_bloquear_avance: false,
+  
+  logica_clasificacion: `
+REGLAS DE CLASIFICACIÓN:
+
+1. INTRAGRUPO_MANAGEMENT_FEE:
+   - SI proveedor.tipo_relacion != 'TERCERO_INDEPENDIENTE'
+   - Y descripción incluye: management fee, servicios corporativos, soporte centralizado, regalías
+   → Clasificar como INTRAGRUPO_MANAGEMENT_FEE
+   → ALERTA: Requiere revisión humana obligatoria
+
+2. SOFTWARE_SAAS_DESARROLLO:
+   - SI descripción incluye: desarrollo, sistema, aplicación, software, SaaS, implementación, ERP, CRM
+   - Y entregables esperados incluyen: código, sistema, licencia, plataforma
+   → Clasificar como SOFTWARE_SAAS_DESARROLLO
+
+3. CONSULTORIA_MACRO_MERCADO:
+   - SI descripción incluye: estudio de mercado, análisis macroeconómico, investigación, factibilidad, regulatorio
+   - Y entregables incluyen: informe, análisis, modelo, proyecciones
+   → Clasificar como CONSULTORIA_MACRO_MERCADO
+
+4. MARKETING_BRANDING:
+   - SI descripción incluye: marketing, publicidad, campaña, branding, SEO, redes sociales, contenido
+   → Clasificar como MARKETING_BRANDING
+   → ALERTA: Tipología de alto escrutinio SAT
+
+5. CONSULTORIA_ESTRATEGICA:
+   - SI descripción incluye: estrategia, transformación, consultoría de gestión, diagnóstico organizacional
+   - Y NO clasifica en las anteriores
+   → Clasificar como CONSULTORIA_ESTRATEGICA
+
+6. REESTRUCTURAS:
+   - SI descripción incluye: fusión, escisión, adquisición, M&A, due diligence, valuación de empresa
+   → Clasificar como REESTRUCTURAS
+   → ALERTA: Requiere revisión humana obligatoria
+
+7. SERVICIOS_ESG_CUMPLIMIENTO:
+   - SI descripción incluye: ESG, sostenibilidad, compliance, cumplimiento, certificación ambiental
+   → Clasificar como SERVICIOS_ESG_CUMPLIMIENTO
+
+8. OTROS:
+   - SI no encaja en ninguna de las anteriores
+   → Clasificar como OTROS
+   → ALERTA: Requiere tipificación manual por humano
+  `,
+  
+  output_schema: {
+    tipologia_asignada: {
+      tipo: "enum",
+      valores: [
+        "CONSULTORIA_ESTRATEGICA",
+        "CONSULTORIA_MACRO_MERCADO",
+        "SOFTWARE_SAAS_DESARROLLO",
+        "MARKETING_BRANDING",
+        "INTRAGRUPO_MANAGEMENT_FEE",
+        "SERVICIOS_ESG_CUMPLIMIENTO",
+        "REESTRUCTURAS",
+        "OTROS"
+      ],
+      obligatorio: true
+    },
+    confianza_clasificacion: {
+      tipo: "enum",
+      valores: ["ALTA", "MEDIA", "BAJA"],
+      obligatorio: true
+    },
+    justificacion: {
+      tipo: "string",
+      min_length: 50,
+      obligatorio: true
+    },
+    palabras_clave_detectadas: {
+      tipo: "array",
+      items: "string",
+      obligatorio: true
+    },
+    alertas_tipologia: {
+      tipo: "array",
+      items: "string",
+      obligatorio: true
+    },
+    requiere_validacion_humana: {
+      tipo: "boolean",
+      obligatorio: true
+    },
+    checklist_aplicable: {
+      tipo: "string",
+      descripcion: "Nombre del checklist que aplica según la tipología",
+      obligatorio: true
+    }
+  }
+};
+
+module.exports = { SUB_TIPIFICACION_CONFIG };
+
+=============================================================================
+PASO 2: CREAR CONFIGURACIÓN DEL SUBAGENTE DE MATERIALIDAD
+=============================================================================
+
+Crea archivo "configAgentes/sub_materialidad.js":
+
+const SUB_MATERIALIDAD_CONFIG = {
+  
+  id: "SUB_MATERIALIDAD",
+  nombre: "Subagente de Monitoreo de Materialidad",
+  
+  rol: "Monitorear continuamente la matriz de materialidad del proyecto, verificando que cada hecho relevante (contratación, ejecución, entrega, pago) tenga evidencia documental asociada. Calcular el porcentaje de completitud y alertar cuando hay brechas críticas.",
+  
+  contexto_requerido: {
+    obligatorio: [
+      "proyecto.id",
+      "proyecto.tipologia",
+      "proyecto.fase_actual",
+      "documentos_cargados",
+      "checklist_tipologia_fase"
+    ],
+    deseable: [
+      "deliberaciones_previas",
+      "defense_file_actual"
+    ]
+  },
+  
+  fases_participacion: ["F5", "F6"],
+  
+  puede_bloquear_avance: true,
+  
+  hechos_relevantes_por_fase: {
+    F0: ["SIB con BEE documentado", "Evaluación inicial de riesgo"],
+    F1: ["SOW con entregables listados", "Cronograma de hitos"],
+    F2: ["Contrato firmado", "Presupuesto confirmado"],
+    F3: ["Minuta kick-off", "Entregable V1"],
+    F4: ["Versiones iterativas", "Minutas de revisión"],
+    F5: ["Entregable final", "Acta de aceptación técnica"],
+    F6: ["Matriz completa", "VBC Fiscal", "VBC Legal"],
+    F8: ["CFDI específico", "Comprobante pago", "3-way match"]
+  },
+  
+  output_schema: {
+    matriz_materialidad: {
+      tipo: "array",
+      items: {
+        hecho_relevante: "string",
+        fase: "string",
+        evidencia_esperada: "string",
+        evidencia_encontrada: { tipo: "string", nullable: true },
+        documento_id: { tipo: "string", nullable: true },
+        estado: { tipo: "enum", valores: ["OK", "FALTA", "INCONSISTENTE"] }
+      },
+      obligatorio: true
+    },
+    completitud_porcentaje: {
+      tipo: "number",
+      min: 0,
+      max: 100,
+      obligatorio: true
+    },
+    items_ok: {
+      tipo: "number",
+      obligatorio: true
+    },
+    items_total: {
+      tipo: "number",
+      obligatorio: true
+    },
+    brechas_criticas: {
+      tipo: "array",
+      items: {
+        hecho: "string",
+        fase: "string",
+        impacto: "string",
+        accion_requerida: "string"
+      },
+      obligatorio: true
+    },
+    puede_emitir_vbc: {
+      tipo: "boolean",
+      obligatorio: true
+    },
+    razon_bloqueo_vbc: {
+      tipo: "string",
+      nullable: true
+    }
+  }
+};
+
+module.exports = { SUB_MATERIALIDAD_CONFIG };
+
+=============================================================================
+PASO 3: CREAR CONFIGURACIÓN DEL SUBAGENTE DE RIESGOS ESPECIALES
+=============================================================================
+
+Crea archivo "configAgentes/sub_riesgos_especiales.js":
+
+const SUB_RIESGOS_ESPECIALES_CONFIG = {
+  
+  id: "SUB_RIESGOS_ESPECIALES",
+  nombre: "Subagente de Detección de Riesgos Especiales",
+  
+  rol: "Detectar alertas de riesgo que requieren atención especial: operaciones con EFOS potenciales, partes relacionadas sin documentación de TP, posibles esquemas reportables, y otras señales de simulación o planeación fiscal agresiva.",
+  
+  contexto_requerido: {
+    obligatorio: [
+      "proyecto.id",
+      "proyecto.descripcion",
+      "proyecto.monto",
+      "proyecto.tipologia",
+      "proveedor.rfc",
+      "proveedor.tipo_relacion",
+      "proveedor.alerta_efos",
+      "proveedor.historial_riesgo_score"
+    ],
+    deseable: [
+      "lista_69b_sat",
+      "proyectos_similares_proveedor"
+    ]
+  },
+  
+  fases_participacion: ["F0", "F6"],
+  
+  puede_bloquear_avance: true,
+  
+  reglas_deteccion: `
+REGLAS PARA DETECTAR RIESGOS ESPECIALES:
+
+RIESGO EFOS:
+- Proveedor con alerta_efos = true → ALERTA CRÍTICA
+- Proveedor sin empleados visibles + monto alto → ALERTA ALTA
+- CFDI genérico + sin entregables → ALERTA ALTA
+- RFC en lista 69-B del SAT → RECHAZAR
+
+RIESGO PARTE RELACIONADA:
+- tipo_relacion != TERCERO_INDEPENDIENTE → ALERTA
+- Sin estudio de TP vigente → BLOQUEO
+- Sin análisis de no duplicidad → ALERTA ALTA
+
+RIESGO ESQUEMA REPORTABLE:
+- Transferencia de valor a jurisdicción de baja imposición → ALERTA
+- Operación que genera beneficio fiscal sin sustancia económica → ALERTA
+- Estructuras complejas con múltiples entidades relacionadas → ALERTA
+
+RIESGO TP PENDIENTE:
+- Operación intra-grupo > $1M sin estudio de TP → BLOQUEO
+- Estudio de TP vencido (> 1 año) → ALERTA ALTA
+
+RIESGO MONTO ALTO:
+- Monto > $5M → Revisión humana obligatoria
+- Monto > 3% de ingresos anuales → ALERTA MEDIA
+  `,
+  
+  output_schema: {
+    alertas_detectadas: {
+      tipo: "array",
+      items: {
+        tipo_riesgo: {
+          tipo: "enum",
+          valores: ["EFOS", "PARTE_RELACIONADA", "ESQUEMA_REPORTABLE", "TP_PENDIENTE", "MONTO_ALTO", "OTRO"]
+        },
+        severidad: {
+          tipo: "enum",
+          valores: ["BAJA", "MEDIA", "ALTA", "CRITICA"]
+        },
+        descripcion: "string",
+        evidencia: "string",
+        accion_requerida: "string",
+        bloquea_avance: "boolean"
+      },
+      obligatorio: true
+    },
+    nivel_riesgo_global: {
+      tipo: "enum",
+      valores: ["BAJO", "MEDIO", "ALTO", "CRITICO"],
+      obligatorio: true
+    },
+    puede_continuar: {
+      tipo: "boolean",
+      obligatorio: true
+    },
+    condiciones_para_continuar: {
+      tipo: "array",
+      items: "string",
+      obligatorio: true
+    },
+    requiere_revision_humana_inmediata: {
+      tipo: "boolean",
+      obligatorio: true
+    },
+    recomendacion: {
+      tipo: "string",
+      obligatorio: true
+    }
+  }
+};
+
+module.exports = { SUB_RIESGOS_ESPECIALES_CONFIG };
+
+=============================================================================
+PASO 4: CREAR CONFIGURACIÓN DEL AGENTE DE DEFENSA (A7)
+=============================================================================
+
+Crea archivo "configAgentes/a7_defensa.js":
+
+const A7_DEFENSA_CONFIG = {
+  
+  id: "A7_DEFENSA",
+  nombre: "Agente de Defense File y Defendibilidad",
+  
+  rol: "Consolidar toda la documentación del proyecto en un Defense File estructurado, evaluar su defendibilidad ante una auditoría SAT o juicio TFJA, identificar fortalezas y debilidades probatorias, y generar recomendaciones de refuerzo.",
+  
+  contexto_requerido: {
+    obligatorio: [
+      "proyecto.id",
+      "proyecto.nombre",
+      "proyecto.tipologia",
+      "proyecto.monto",
+      "proyecto.risk_score_total",
+      "matriz_materialidad",
+      "deliberaciones_todos_agentes",
+      "documentos_todos",
+      "vbc_fiscal",
+      "vbc_legal"
+    ],
+    deseable: [
+      "historial_fases",
+      "minutas_sesiones",
+      "correspondencia_relevante"
+    ]
+  },
+  
+  fases_participacion: ["F6", "F9"],
+  
+  puede_bloquear_avance: false,
+  emite_defense_file: true,
+  
+  criterios_defendibilidad: `
+CRITERIOS PARA EVALUAR DEFENDIBILIDAD:
+
+1. RAZÓN DE NEGOCIOS (Art. 5-A CFF)
+   - ¿Existe SIB con objetivo económico específico?
+   - ¿Hay vinculación documentada con plan estratégico?
+   - ¿Se puede explicar por qué se necesitó este servicio?
+
+2. BENEFICIO ECONÓMICO (Art. 5-A CFF)
+   - ¿Hay BEE con ROI documentado?
+   - ¿Se pueden mostrar los usos concretos del servicio?
+   - ¿Existe evidencia de seguimiento post-implementación?
+
+3. MATERIALIDAD (Art. 69-B CFF)
+   - ¿Existe contrato con entregables específicos?
+   - ¿Hay entregables tangibles verificables?
+   - ¿Se pueden reconstruir las sesiones de trabajo?
+   - ¿El CFDI es específico y coincide con el contrato?
+
+4. TRAZABILIDAD (NOM-151)
+   - ¿Todos los documentos tienen fecha cierta?
+   - ¿Se puede reconstruir el timeline completo?
+   - ¿Los documentos tienen integridad verificable?
+
+5. COHERENCIA GLOBAL
+   - ¿Todo el expediente cuenta una historia consistente?
+   - ¿Hay contradicciones entre documentos?
+   - ¿El expediente resistiría un cuestionamiento adverso?
+  `,
+  
+  output_schema: {
+    defense_file_completo: {
+      tipo: "boolean",
+      obligatorio: true
+    },
+    indice_defendibilidad: {
+      tipo: "number",
+      min: 0,
+      max: 100,
+      descripcion: "0-40: Débil, 41-60: Moderado, 61-80: Bueno, 81-100: Excelente",
+      obligatorio: true
+    },
+    evaluacion_por_criterio: {
+      tipo: "object",
+      campos: {
+        razon_negocios: {
+          score: "number",
+          fortalezas: "array",
+          debilidades: "array"
+        },
+        beneficio_economico: {
+          score: "number",
+          fortalezas: "array",
+          debilidades: "array"
+        },
+        materialidad: {
+          score: "number",
+          fortalezas: "array",
+          debilidades: "array"
+        },
+        trazabilidad: {
+          score: "number",
+          fortalezas: "array",
+          debilidades: "array"
+        },
+        coherencia_global: {
+          score: "number",
+          fortalezas: "array",
+          debilidades: "array"
+        }
+      },
+      obligatorio: true
+    },
+    documentos_clave: {
+      tipo: "array",
+      items: {
+        tipo_documento: "string",
+        nombre: "string",
+        importancia: { tipo: "enum", valores: ["CRITICO", "IMPORTANTE", "COMPLEMENTARIO"] },
+        presente: "boolean",
+        observaciones: "string"
+      },
+      obligatorio: true
+    },
+    argumentos_defensa: {
+      tipo: "array",
+      items: "string",
+      descripcion: "Argumentos que se usarían para defender ante SAT",
+      obligatorio: true
+    },
+    puntos_vulnerables: {
+      tipo: "array",
+      items: {
+        vulnerabilidad: "string",
+        impacto_potencial: "string",
+        mitigacion_sugerida: "string"
+      },
+      obligatorio: true
+    },
+    recomendaciones_refuerzo: {
+      tipo: "array",
+      items: "string",
+      obligatorio: true
+    },
+    conclusion: {
+      tipo: "string",
+      obligatorio: true
+    }
+  }
+};
+
+module.exports = { A7_DEFENSA_CONFIG };
+
+=============================================================================
+PASO 5: ACTUALIZAR ÍNDICE DE CONFIGURACIONES DE AGENTES
+=============================================================================
+
+Actualiza archivo "configAgentes/index.js" para incluir los nuevos:
+
+const { A1_SPONSOR_CONFIG } = require('./a1_sponsor');
+const { A2_PMO_CONFIG } = require('./a2_pmo');
+const { A3_FISCAL_CONFIG } = require('./a3_fiscal');
+const { A4_LEGAL_CONFIG } = require('./a4_legal');
+const { A5_FINANZAS_CONFIG } = require('./a5_finanzas');
+const { A6_PROVEEDOR_CONFIG } = require('./a6_proveedor');
+const { A7_DEFENSA_CONFIG } = require('./a7_defensa');
+const { SUB_TIPIFICACION_CONFIG } = require('./sub_tipificacion');
+const { SUB_MATERIALIDAD_CONFIG } = require('./sub_materialidad');
+const { SUB_RIESGOS_ESPECIALES_CONFIG } = require('./sub_riesgos_especiales');
+
+const AGENT_CONFIGS = {
+  A1_SPONSOR: A1_SPONSOR_CONFIG,
+  A2_PMO: A2_PMO_CONFIG,
+  A3_FISCAL: A3_FISCAL_CONFIG,
+  A4_LEGAL: A4_LEGAL_CONFIG,
+  A5_FINANZAS: A5_FINANZAS_CONFIG,
+  A6_PROVEEDOR: A6_PROVEEDOR_CONFIG,
+  A7_DEFENSA: A7_DEFENSA_CONFIG,
+  SUB_TIPIFICACION: SUB_TIPIFICACION_CONFIG,
+  SUB_MATERIALIDAD: SUB_MATERIALIDAD_CONFIG,
+  SUB_RIESGOS_ESPECIALES: SUB_RIESGOS_ESPECIALES_CONFIG
+};
+
+function getAgentConfig(agentId) {
+  return AGENT_CONFIGS[agentId] || null;
+}
+
+function getAgentesParaFase(fase) {
+  return Object.values(AGENT_CONFIGS).filter(config => 
+    config.fases_participacion && config.fases_participacion.includes(fase)
+  );
+}
+
+function getSubagentes() {
+  return Object.entries(AGENT_CONFIGS)
+    .filter(([id]) => id.startsWith('SUB_'))
+    .map(([id, config]) => ({ id, ...config }));
+}
+
+function getAgentesQueBloquean() {
+  return Object.values(AGENT_CONFIGS).filter(config => 
+    config.puede_bloquear_avance === true
+  );
+}
+
+module.exports = {
+  AGENT_CONFIGS,
+  getAgentConfig,
+  getAgentesParaFase,
+  getSubagentes,
+  getAgentesQueBloquean,
+  // Exportar configs individuales
+  A1_SPONSOR_CONFIG,
+  A2_PMO_CONFIG,
+  A3_FISCAL_CONFIG,
+  A4_LEGAL_CONFIG,
+  A5_FINANZAS_CONFIG,
+  A6_PROVEEDOR_CONFIG,
+  A7_DEFENSA_CONFIG,
+  SUB_TIPIFICACION_CONFIG,
+  SUB_MATERIALIDAD_CONFIG,
+  SUB_RIESGOS_ESPECIALES_CONFIG
+};
+
+=============================================================================
+PASO 6: CREAR SCHEMAS DE VALIDACIÓN PARA NUEVOS AGENTES
+=============================================================================
+
+Actualiza "validation/agentSchemas.js" agregando:
+
+// Agregar al archivo existente:
+
+// Schema SUB_TIPIFICACION
+const SubTipificacionOutputSchema = z.object({
+  tipologia_asignada: z.enum([
+    'CONSULTORIA_ESTRATEGICA',
+    'CONSULTORIA_MACRO_MERCADO',
+    'SOFTWARE_SAAS_DESARROLLO',
+    'MARKETING_BRANDING',
+    'INTRAGRUPO_MANAGEMENT_FEE',
+    'SERVICIOS_ESG_CUMPLIMIENTO',
+    'REESTRUCTURAS',
+    'OTROS'
+  ]),
+  confianza_clasificacion: z.enum(['ALTA', 'MEDIA', 'BAJA']),
+  justificacion: z.string().min(50),
+  palabras_clave_detectadas: z.array(z.string()),
+  alertas_tipologia: z.array(z.string()),
+  requiere_validacion_humana: z.boolean(),
+  checklist_aplicable: z.string()
+});
+
+// Schema SUB_MATERIALIDAD
+const SubMaterialidadOutputSchema = z.object({
+  matriz_materialidad: z.array(z.object({
+    hecho_relevante: z.string(),
+    fase: z.string(),
+    evidencia_esperada: z.string(),
+    evidencia_encontrada: z.string().nullable(),
+    documento_id: z.string().nullable(),
+    estado: z.enum(['OK', 'FALTA', 'INCONSISTENTE'])
+  })),
+  completitud_porcentaje: z.number().min(0).max(100),
+  items_ok: z.number(),
+  items_total: z.number(),
+  brechas_criticas: z.array(z.object({
+    hecho: z.string(),
+    fase: z.string(),
+    impacto: z.string(),
+    accion_requerida: z.string()
+  })),
+  puede_emitir_vbc: z.boolean(),
+  razon_bloqueo_vbc: z.string().nullable()
+});
+
+// Schema SUB_RIESGOS_ESPECIALES
+const SubRiesgosEspecialesOutputSchema = z.object({
+  alertas_detectadas: z.array(z.object({
+    tipo_riesgo: z.enum(['EFOS', 'PARTE_RELACIONADA', 'ESQUEMA_REPORTABLE', 'TP_PENDIENTE', 'MONTO_ALTO', 'OTRO']),
+    severidad: z.enum(['BAJA', 'MEDIA', 'ALTA', 'CRITICA']),
+    descripcion: z.string(),
+    evidencia: z.string(),
+    accion_requerida: z.string(),
+    bloquea_avance: z.boolean()
+  })),
+  nivel_riesgo_global: z.enum(['BAJO', 'MEDIO', 'ALTO', 'CRITICO']),
+  puede_continuar: z.boolean(),
+  condiciones_para_continuar: z.array(z.string()),
+  requiere_revision_humana_inmediata: z.boolean(),
+  recomendacion: z.string()
+});
+
+// Schema A7_DEFENSA
+const A7DefensaOutputSchema = z.object({
+  defense_file_completo: z.boolean(),
+  indice_defendibilidad: z.number().min(0).max(100),
+  evaluacion_por_criterio: z.object({
+    razon_negocios: z.object({
+      score: z.number(),
+      fortalezas: z.array(z.string()),
+      debilidades: z.array(z.string())
+    }),
+    beneficio_economico: z.object({
+      score: z.number(),
+      fortalezas: z.array(z.string()),
+      debilidades: z.array(z.string())
+    }),
+    materialidad: z.object({
+      score: z.number(),
+      fortalezas: z.array(z.string()),
+      debilidades: z.array(z.string())
+    }),
+    trazabilidad: z.object({
+      score: z.number(),
+      fortalezas: z.array(z.string()),
+      debilidades: z.array(z.string())
+    }),
+    coherencia_global: z.object({
+      score: z.number(),
+      fortalezas: z.array(z.string()),
+      debilidades: z.array(z.string())
+    })
+  }),
+  documentos_clave: z.array(z.object({
+    tipo_documento: z.string(),
+    nombre: z.string(),
+    importancia: z.enum(['CRITICO', 'IMPORTANTE', 'COMPLEMENTARIO']),
+    presente: z.boolean(),
+    observaciones: z.string()
+  })),
+  argumentos_defensa: z.array(z.string()),
+  puntos_vulnerables: z.array(z.object({
+    vulnerabilidad: z.string(),
+    impacto_potencial: z.string(),
+    mitigacion_sugerida: z.string()
+  })),
+  recomendaciones_refuerzo: z.array(z.string()),
+  conclusion: z.string()
+});
+
+// Agregar al AGENT_OUTPUT_SCHEMAS:
+AGENT_OUTPUT_SCHEMAS.SUB_TIPIFICACION = SubTipificacionOutputSchema;
+AGENT_OUTPUT_SCHEMAS.SUB_MATERIALIDAD = SubMaterialidadOutputSchema;
+AGENT_OUTPUT_SCHEMAS.SUB_RIESGOS_ESPECIALES = SubRiesgosEspecialesOutputSchema;
+AGENT_OUTPUT_SCHEMAS.A7_DEFENSA = A7DefensaOutputSchema;
+
+// Exportar los nuevos schemas
+module.exports = {
+  // ... exports existentes ...
+  SubTipificacionOutputSchema,
+  SubMaterialidadOutputSchema,
+  SubRiesgosEspecialesOutputSchema,
+  A7DefensaOutputSchema
+};
+
+=============================================================================
+PASO 7: VERIFICACIÓN
+=============================================================================
+
+Al terminar, verifica:
+
+1. Los 4 nuevos agentes tienen configuración completa
+2. Se agregaron al índice de agentes
+3. Los schemas de validación existen para cada uno
+4. Puedes consultar getAgentesParaFase('F0') e incluye SUB_TIPIFICACION
+5. Puedes consultar getSubagentes() y retorna los 3 subagentes
+
+Si algo falla, corregirlo antes de continuar a Fase 9.
+
+=============================================================================
+FIN FASE 8
+=============================================================================
+```
+
+## Verificación Post-Implementación
+
+Los nuevos subagentes cumplen funciones especializadas:
+
+1. **SUB_TIPIFICACION**: Evita que proyectos se clasifiquen mal y usen checklists incorrectos
+2. **SUB_MATERIALIDAD**: Monitorea que el expediente esté completo antes de VBC
+3. **SUB_RIESGOS_ESPECIALES**: Detecta señales de alerta temprana (EFOS, TP, etc.)
+4. **A7_DEFENSA**: Evalúa si el expediente completo sería defendible ante SAT
+
+Estos agentes trabajan en conjunto con los A1-A6 para crear un sistema robusto.

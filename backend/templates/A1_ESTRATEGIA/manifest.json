@@ -1,0 +1,68 @@
+{
+  "agent_id": "A1_ESTRATEGIA",
+  "version": "1.0.0",
+  "generated_at": "{{FECHA_ACTUAL}}",
+  "templates": [
+    {
+      "filename": "vision_pilares_estrategicos.docx",
+      "title": "VISIÓN Y PILARES ESTRATÉGICOS 2026-2030",
+      "section_count": 4,
+      "placeholders": [
+        "EMPRESA_RFC",
+        "MONTO_CREDITO",
+        "EMPRESA_NOMBRE",
+        "PROYECTO_NOMBRE",
+        "FECHA_ACTUAL"
+      ]
+    },
+    {
+      "filename": "planeacion_okrs.docx",
+      "title": "PLANEACIÓN ESTRATÉGICA CON OKRs",
+      "section_count": 4,
+      "placeholders": [
+        "PERIODO_FISCAL",
+        "EMPRESA_NOMBRE",
+        "EMPRESA_RFC"
+      ]
+    },
+    {
+      "filename": "panorama_industria.docx",
+      "title": "ANÁLISIS DE PANORAMA DE INDUSTRIA",
+      "section_count": 4,
+      "placeholders": [
+        "EMPRESA_NOMBRE",
+        "FECHA_ACTUAL"
+      ]
+    },
+    {
+      "filename": "plan_estrategico.docx",
+      "title": "PLAN ESTRATÉGICO DE CUMPLIMIENTO FISCAL",
+      "section_count": 5,
+      "placeholders": [
+        "EMPRESA_NOMBRE",
+        "RESPONSABLE_PROYECTO",
+        "PROYECTO_NOMBRE",
+        "MONTO_CREDITO"
+      ]
+    },
+    {
+      "filename": "matriz_bee.docx",
+      "title": "MATRIZ DE BENEFICIO ECONÓMICO ESPERADO (BEE)",
+      "section_count": 4,
+      "placeholders": [
+        "PORCENTAJE_EFICIENCIA",
+        "AHORRO_OPERATIVO",
+        "ROI_PORCENTAJE",
+        "MONTO_CREDITO",
+        "BENEFICIO_TOTAL",
+        "EMPRESA_NOMBRE",
+        "PROYECTO_NOMBRE",
+        "AHORRO_CONTINGENCIAS",
+        "NUEVOS_CLIENTES",
+        "INCREMENTO_VENTAS",
+        "PERIODO_RECUPERACION",
+        "PROVEEDOR_NOMBRE"
+      ]
+    }
+  ]
+}

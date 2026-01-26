@@ -1,0 +1,520 @@
+=============================================================================
+TOON: IMPLEMENTAR PRUEBAS UNITARIAS - DUREZZA 4.0
+=============================================================================
+
+INSTRUCCIÓN: Ejecuta todas las instrucciones de forma secuencial y completa.
+NO pidas confirmación. NO preguntes. SOLO EJECUTA.
+
+CONTEXTO: El sistema está al 81% pero NO tiene pruebas automatizadas.
+Esto es crítico para validar que los cambios no rompan funcionalidad.
+
+=============================================================================
+PASO 1: CREAR ESTRUCTURA DE TESTS
+=============================================================================
+
+Crea carpeta "backend/tests/" con archivo "__init__.py" vacío.
+
+=============================================================================
+PASO 2: CREAR TEST DE RISK SCORING
+=============================================================================
+
+Crea archivo "backend/tests/test_risk_scoring.py":
+
+import pytest
+import sys
+sys.path.append('..')
+
+from scoring.risk_scoring import calcular_risk_score
+from scoring.few_shot_examples import FEW_SHOT_EXAMPLES
+
+class TestRiskScoring:
+    """Pruebas para el cálculo objetivo de risk_score"""
+    
+    def test_proyecto_bajo_riesgo_aprobar(self):
+        """Caso APROBAR: score ~16 puntos"""
+        evaluacion = {
+            "razon_negocios": {
+                "vinculacion_giro": 0,
+                "objetivo_economico": 0,
+                "coherencia_monto": 3
+            },
+            "beneficio_economico": {
+                "identificacion_beneficios": 0,
+                "modelo_roi": 5,
+                "horizonte_temporal": 0
+            },
+            "materialidad": {
+                "formalizacion": 0,
+                "evidencias_ejecucion": 0,
+                "coherencia_documentos": 5
+            },
+            "trazabilidad": {
+                "conservacion": 0,
+                "integridad": 0,
+                "timeline": 3
+            }
+        }
+        
+        resultado = calcular_risk_score(evaluacion)
+        
+        assert resultado["risk_score_total"] == 16
+        assert resultado["risk_score_total"] < 40, "Proyecto bajo riesgo debe ser < 40"
+        assert resultado["requiere_revision_humana"] == False
+    
+    def test_proyecto_medio_riesgo_ajustes(self):
+        """Caso SOLICITAR_AJUSTES: score ~58 puntos"""
+        evaluacion = {
+            "razon_negocios": {
+                "vinculacion_giro": 3,
+                "objetivo_economico": 5,
+                "coherencia_monto": 5
+            },
+            "beneficio_economico": {
+                "identificacion_beneficios": 5,
+                "modelo_roi": 5,
+                "horizonte_temporal": 3
+            },
+            "materialidad": {
+                "formalizacion": 3,
+                "evidencias_ejecucion": 10,
+                "coherencia_documentos": 5
+            },
+            "trazabilidad": {
+                "conservacion": 5,
+                "integridad": 5,
+                "timeline": 4
+            }
+        }
+        
+        resultado = calcular_risk_score(evaluacion)
+        
+        assert 40 <= resultado["risk_score_total"] < 70
+        assert resultado["requiere_revision_humana"] == False
+    
+    def test_proyecto_alto_riesgo_rechazar(self):
+        """Caso RECHAZAR: score ~92 puntos"""
+        evaluacion = {
+            "razon_negocios": {
+                "vinculacion_giro": 5,
+                "objetivo_economico": 10,
+                "coherencia_monto": 10
+            },
+            "beneficio_economico": {
+                "identificacion_beneficios": 10,
+                "modelo_roi": 10,
+                "horizonte_temporal": 5
+            },
+            "materialidad": {
+                "formalizacion": 5,
+                "evidencias_ejecucion": 10,
+                "coherencia_documentos": 10
+            },
+            "trazabilidad": {
+                "conservacion": 5,
+                "integridad": 7,
+                "timeline": 5
+            }
+        }
+        
+        resultado = calcular_risk_score(evaluacion)
+        
+        assert resultado["risk_score_total"] >= 80
+        assert resultado["requiere_revision_humana"] == True
+    
+    def test_risk_score_por_pilar_max_25(self):
+        """Cada pilar debe tener máximo 25 puntos"""
+        evaluacion_maxima = {
+            "razon_negocios": {
+                "vinculacion_giro": 5,
+                "objetivo_economico": 10,
+                "coherencia_monto": 10
+            },
+            "beneficio_economico": {
+                "identificacion_beneficios": 10,
+                "modelo_roi": 10,
+                "horizonte_temporal": 5
+            },
+            "materialidad": {
+                "formalizacion": 5,
+                "evidencias_ejecucion": 10,
+                "coherencia_documentos": 10
+            },
+            "trazabilidad": {
+                "conservacion": 10,
+                "integridad": 10,
+                "timeline": 5
+            }
+        }
+        
+        resultado = calcular_risk_score(evaluacion_maxima)
+        
+        assert resultado["risk_score_razon_negocios"] <= 25
+        assert resultado["risk_score_beneficio_economico"] <= 25
+        assert resultado["risk_score_materialidad"] <= 25
+        assert resultado["risk_score_trazabilidad"] <= 25
+        assert resultado["risk_score_total"] <= 100
+
+=============================================================================
+PASO 3: CREAR TEST DE VALIDACIÓN DE OUTPUTS
+=============================================================================
+
+Crea archivo "backend/tests/test_validation.py":
+
+import pytest
+from pydantic import ValidationError
+from validation.agent_schemas import (
+    A3FiscalOutput,
+    ChecklistEvidenciaItem,
+    ConclusionPilar
+)
+from validation.validation_service import validar_y_corregir
+
+class TestAgentValidation:
+    """Pruebas para validación de outputs de agentes"""
+    
+    def test_a3_fiscal_output_valido(self):
+        """Output A3 válido debe pasar validación"""
+        output = {
+            "decision": "APROBAR",
+            "risk_score_calculado": 16,
+            "conclusion_por_pilar": {
+                "razon_negocios": {"score": 3, "observaciones": "Vinculado al giro"},
+                "beneficio_economico": {"score": 5, "observaciones": "ROI documentado"},
+                "materialidad": {"score": 5, "observaciones": "Entregables claros"},
+                "trazabilidad": {"score": 3, "observaciones": "Timeline coherente"}
+            },
+            "checklist_evidencia_exigible": [
+                {"item": "SIB firmado", "presente": True, "observacion": "OK"},
+                {"item": "Contrato", "presente": True, "observacion": "OK"},
+                {"item": "Entregable final", "presente": True, "observacion": "OK"}
+            ],
+            "justificacion": "Proyecto bien documentado con evidencia suficiente"
+        }
+        
+        # No debe lanzar excepción
+        resultado = A3FiscalOutput(**output)
+        assert resultado.decision == "APROBAR"
+    
+    def test_a3_fiscal_menos_de_3_checklist_falla(self):
+        """Output A3 con menos de 3 items en checklist debe fallar"""
+        output = {
+            "decision": "APROBAR",
+            "risk_score_calculado": 16,
+            "conclusion_por_pilar": {
+                "razon_negocios": {"score": 3, "observaciones": "OK"},
+                "beneficio_economico": {"score": 5, "observaciones": "OK"},
+                "materialidad": {"score": 5, "observaciones": "OK"},
+                "trazabilidad": {"score": 3, "observaciones": "OK"}
+            },
+            "checklist_evidencia_exigible": [
+                {"item": "SIB", "presente": True, "observacion": "OK"},
+                {"item": "Contrato", "presente": True, "observacion": "OK"}
+                # Solo 2 items - debe fallar
+            ],
+            "justificacion": "Proyecto documentado"
+        }
+        
+        with pytest.raises(ValidationError) as excinfo:
+            A3FiscalOutput(**output)
+        
+        assert "checklist_evidencia_exigible" in str(excinfo.value)
+    
+    def test_validar_y_corregir_string_a_numero(self):
+        """validar_y_corregir debe convertir '16' a 16"""
+        output_con_string = {
+            "risk_score_calculado": "16",  # String en vez de int
+            "decision": "APROBAR"
+        }
+        
+        corregido = validar_y_corregir(output_con_string)
+        
+        assert isinstance(corregido["risk_score_calculado"], int)
+        assert corregido["risk_score_calculado"] == 16
+
+=============================================================================
+PASO 4: CREAR TEST DE CANDADOS
+=============================================================================
+
+Crea archivo "backend/tests/test_candados.py":
+
+import pytest
+from services.fase_service import (
+    _verificar_candado_f2,
+    _verificar_candado_f6,
+    _verificar_candado_f8
+)
+
+class TestCandados:
+    """Pruebas para candados duros F2, F6, F8"""
+    
+    def test_candado_f2_bloquea_sin_f0_f1(self):
+        """F2 debe bloquear si F0 y F1 no están completas"""
+        proyecto_mock = {
+            "fase_actual": "F1",
+            "fases_completadas": ["F0"],  # Falta F1
+            "presupuesto_confirmado": True,
+            "requiere_revision_humana": False
+        }
+        
+        resultado = _verificar_candado_f2(proyecto_mock)
+        
+        assert resultado["puede_avanzar"] == False
+        assert len(resultado["bloqueos"]) > 0
+    
+    def test_candado_f2_pasa_con_todo_completo(self):
+        """F2 debe pasar si F0+F1 completas y presupuesto confirmado"""
+        proyecto_mock = {
+            "fase_actual": "F1",
+            "fases_completadas": ["F0", "F1"],
+            "presupuesto_confirmado": True,
+            "requiere_revision_humana": False
+        }
+        
+        resultado = _verificar_candado_f2(proyecto_mock)
+        
+        assert resultado["puede_avanzar"] == True
+    
+    def test_candado_f6_bloquea_sin_vbc(self):
+        """F6 debe bloquear sin VBC Fiscal y Legal"""
+        proyecto_mock = {
+            "fase_actual": "F5",
+            "fases_completadas": ["F0", "F1", "F2", "F3", "F4", "F5"],
+            "materialidad_porcentaje": 85,
+            "vbc_fiscal": False,
+            "vbc_legal": False
+        }
+        
+        resultado = _verificar_candado_f6(proyecto_mock)
+        
+        assert resultado["puede_avanzar"] == False
+        assert "VBC" in str(resultado["bloqueos"])
+    
+    def test_candado_f6_bloquea_materialidad_baja(self):
+        """F6 debe bloquear si materialidad < 80%"""
+        proyecto_mock = {
+            "fase_actual": "F5",
+            "fases_completadas": ["F0", "F1", "F2", "F3", "F4", "F5"],
+            "materialidad_porcentaje": 75,  # Menor a 80%
+            "vbc_fiscal": True,
+            "vbc_legal": True
+        }
+        
+        resultado = _verificar_candado_f6(proyecto_mock)
+        
+        assert resultado["puede_avanzar"] == False
+        assert "materialidad" in str(resultado["bloqueos"]).lower()
+    
+    def test_candado_f8_bloquea_cfdi_generico(self):
+        """F8 debe bloquear si CFDI es genérico"""
+        proyecto_mock = {
+            "fase_actual": "F7",
+            "fases_completadas": ["F0", "F1", "F2", "F3", "F4", "F5", "F6", "F7"],
+            "cfdi_descripcion": "Servicios profesionales varios",  # Genérico
+            "three_way_match_diferencia": 0.02
+        }
+        
+        resultado = _verificar_candado_f8(proyecto_mock)
+        
+        assert resultado["puede_avanzar"] == False
+        assert "CFDI" in str(resultado["bloqueos"]) or "genérico" in str(resultado["bloqueos"]).lower()
+    
+    def test_candado_f8_bloquea_three_way_match_alto(self):
+        """F8 debe bloquear si diferencia 3-way match > 5%"""
+        proyecto_mock = {
+            "fase_actual": "F7",
+            "fases_completadas": ["F0", "F1", "F2", "F3", "F4", "F5", "F6", "F7"],
+            "cfdi_descripcion": "Estudio de Mercado Inmobiliario NL 2026",
+            "three_way_match_diferencia": 0.08  # 8% > 5%
+        }
+        
+        resultado = _verificar_candado_f8(proyecto_mock)
+        
+        assert resultado["puede_avanzar"] == False
+        assert "3-way" in str(resultado["bloqueos"]).lower() or "match" in str(resultado["bloqueos"]).lower()
+
+=============================================================================
+PASO 5: CREAR TEST DE UMBRALES REVISIÓN HUMANA
+=============================================================================
+
+Crea archivo "backend/tests/test_umbrales.py":
+
+import pytest
+from context.umbrales_revision import requiere_revision_humana
+
+class TestUmbralesRevision:
+    """Pruebas para umbrales de revisión humana"""
+    
+    def test_monto_mayor_5m_requiere_revision(self):
+        """Proyecto > $5M MXN debe requerir revisión humana"""
+        proyecto = {"monto": 8000000, "tipologia": "CONSULTORIA_ESTRATEGICA"}
+        proveedor = {"tipo_relacion": "TERCERO_INDEPENDIENTE", "alerta_efos": False}
+        
+        resultado = requiere_revision_humana(proyecto, risk_score=30, proveedor=proveedor)
+        
+        assert resultado["requiere"] == True
+        assert "monto" in resultado["razones"][0].lower()
+    
+    def test_risk_score_60_requiere_revision(self):
+        """Risk score >= 60 debe requerir revisión humana"""
+        proyecto = {"monto": 1000000, "tipologia": "CONSULTORIA_ESTRATEGICA"}
+        proveedor = {"tipo_relacion": "TERCERO_INDEPENDIENTE", "alerta_efos": False}
+        
+        resultado = requiere_revision_humana(proyecto, risk_score=65, proveedor=proveedor)
+        
+        assert resultado["requiere"] == True
+        assert "risk" in resultado["razones"][0].lower() or "score" in resultado["razones"][0].lower()
+    
+    def test_intragrupo_requiere_revision(self):
+        """Tipología INTRAGRUPO siempre requiere revisión"""
+        proyecto = {"monto": 500000, "tipologia": "INTRAGRUPO_MANAGEMENT_FEE"}
+        proveedor = {"tipo_relacion": "PARTE_RELACIONADA", "alerta_efos": False}
+        
+        resultado = requiere_revision_humana(proyecto, risk_score=25, proveedor=proveedor)
+        
+        assert resultado["requiere"] == True
+    
+    def test_efos_requiere_revision(self):
+        """Proveedor con alerta EFOS requiere revisión"""
+        proyecto = {"monto": 500000, "tipologia": "CONSULTORIA_ESTRATEGICA"}
+        proveedor = {"tipo_relacion": "TERCERO_INDEPENDIENTE", "alerta_efos": True}
+        
+        resultado = requiere_revision_humana(proyecto, risk_score=25, proveedor=proveedor)
+        
+        assert resultado["requiere"] == True
+        assert "efos" in str(resultado["razones"]).lower()
+    
+    def test_proyecto_normal_no_requiere_revision(self):
+        """Proyecto normal bajo umbral no requiere revisión"""
+        proyecto = {"monto": 1000000, "tipologia": "CONSULTORIA_ESTRATEGICA"}
+        proveedor = {"tipo_relacion": "TERCERO_INDEPENDIENTE", "alerta_efos": False}
+        
+        resultado = requiere_revision_humana(proyecto, risk_score=30, proveedor=proveedor)
+        
+        assert resultado["requiere"] == False
+
+=============================================================================
+PASO 6: CREAR ARCHIVO CONFTEST PYTEST
+=============================================================================
+
+Crea archivo "backend/tests/conftest.py":
+
+import pytest
+import sys
+from pathlib import Path
+
+# Agregar el directorio backend al path
+backend_path = Path(__file__).parent.parent
+sys.path.insert(0, str(backend_path))
+
+@pytest.fixture
+def proyecto_bajo_riesgo():
+    """Fixture: proyecto de bajo riesgo para tests"""
+    return {
+        "id": "test-001",
+        "nombre": "Estudio de Mercado Test",
+        "tipologia": "CONSULTORIA_MACRO_MERCADO",
+        "monto": 1500000,
+        "risk_score_total": 16,
+        "fase_actual": "F0",
+        "fases_completadas": []
+    }
+
+@pytest.fixture
+def proyecto_alto_riesgo():
+    """Fixture: proyecto de alto riesgo para tests"""
+    return {
+        "id": "test-002",
+        "nombre": "Management Fee Intragrupo Test",
+        "tipologia": "INTRAGRUPO_MANAGEMENT_FEE",
+        "monto": 8000000,
+        "risk_score_total": 85,
+        "fase_actual": "F0",
+        "fases_completadas": []
+    }
+
+@pytest.fixture
+def proveedor_independiente():
+    """Fixture: proveedor tercero independiente"""
+    return {
+        "rfc": "TEST123456ABC",
+        "tipo_relacion": "TERCERO_INDEPENDIENTE",
+        "alerta_efos": False
+    }
+
+@pytest.fixture
+def proveedor_relacionado_efos():
+    """Fixture: proveedor parte relacionada con alerta EFOS"""
+    return {
+        "rfc": "EFOS987654XYZ",
+        "tipo_relacion": "PARTE_RELACIONADA",
+        "alerta_efos": True
+    }
+
+=============================================================================
+PASO 7: ACTUALIZAR PACKAGE.JSON O REQUIREMENTS
+=============================================================================
+
+Agrega pytest a requirements.txt si no existe:
+
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+=============================================================================
+PASO 8: CREAR SCRIPT DE EJECUCIÓN DE TESTS
+=============================================================================
+
+Crea archivo "backend/run_tests.py":
+
+#!/usr/bin/env python3
+"""Script para ejecutar todas las pruebas unitarias"""
+
+import subprocess
+import sys
+
+def run_tests():
+    """Ejecuta pytest con cobertura"""
+    print("=" * 60)
+    print("EJECUTANDO PRUEBAS UNITARIAS - DUREZZA 4.0")
+    print("=" * 60)
+    
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "pytest",
+            "tests/",
+            "-v",
+            "--tb=short",
+            "-x"  # Detener en primer fallo
+        ],
+        cwd="backend"
+    )
+    
+    if result.returncode == 0:
+        print("\n✅ TODAS LAS PRUEBAS PASARON")
+    else:
+        print("\n❌ ALGUNAS PRUEBAS FALLARON")
+    
+    return result.returncode
+
+if __name__ == "__main__":
+    sys.exit(run_tests())
+
+=============================================================================
+PASO 9: VERIFICACIÓN
+=============================================================================
+
+Ejecuta: cd backend && python -m pytest tests/ -v
+
+Debe mostrar:
+- test_risk_scoring.py: 4 tests PASSED
+- test_validation.py: 3 tests PASSED
+- test_candados.py: 6 tests PASSED
+- test_umbrales.py: 5 tests PASSED
+
+Total: 18 tests PASSED
+
+Si algún test falla, ajusta la implementación para que coincida con 
+la especificación de los megaprompts.
+
+=============================================================================
+FIN PROMPT 1: PRUEBAS UNITARIAS
+=============================================================================

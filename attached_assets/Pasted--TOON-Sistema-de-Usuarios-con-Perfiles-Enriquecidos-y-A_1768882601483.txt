@@ -1,0 +1,2120 @@
+# 🔧 TOON: Sistema de Usuarios con Perfiles Enriquecidos y Agente Deep Research
+
+## CONTEXTO DEL PROBLEMA
+La sección de "Todos los Usuarios" está vacía y sin funcionalidad. Se necesita un sistema completo de gestión de usuarios donde cada cliente tenga un perfil profesional con:
+- Información completa de la empresa/persona
+- Logo y branding
+- Bio profesional generada automáticamente por IA
+- Permisos por empresa
+- Capacidad de edición por parte del usuario
+
+---
+
+## 📋 ARQUITECTURA GENERAL
+
+### Flujo del Sistema:
+1. **Registro/Alta de Usuario** → Se capturan datos básicos
+2. **Creación de Empresa** → Usuario sube documentos (CSF, Acta)
+3. **OCR extrae datos** → Se puebla información automáticamente
+4. **Agente Deep Research** → Busca información pública y genera bio profesional
+5. **Usuario revisa y edita** → Puede ajustar, subir logo, completar datos
+6. **Perfil completo** → Visible en el sistema y usado por los agentes de auditoría
+
+---
+
+## PASO 1: Schema de Datos para Usuarios y Perfiles
+
+Crear `shared/schemas/usuario.schema.ts`:
+
+```typescript
+import { z } from 'zod';
+
+// ============================================
+// ENUMS
+// ============================================
+
+export const RolUsuarioEnum = z.enum([
+  'super_admin',      // Acceso total a la plataforma
+  'admin_empresa',    // Admin de una o más empresas
+  'auditor',          // Puede ver y auditar proyectos
+  'contador',         // Acceso a información fiscal
+  'consultor',        // Acceso limitado a proyectos asignados
+  'viewer'            // Solo lectura
+]);
+
+export const EstadoUsuarioEnum = z.enum([
+  'activo',
+  'inactivo', 
+  'pendiente_verificacion',
+  'suspendido'
+]);
+
+export const TipoEmpresaEnum = z.enum([
+  'corporativo',           // Gran empresa
+  'mediana_empresa',       // Mediana
+  'pequena_empresa',       // PyME
+  'startup',               // Startup
+  'despacho_contable',     // Despacho de contadores
+  'despacho_legal',        // Despacho de abogados
+  'consultoria',           // Firma de consultoría
+  'persona_fisica_ae',     // Persona física con actividad empresarial
+  'otro'
+]);
+
+export const IndustriaEnum = z.enum([
+  'tecnologia',
+  'servicios_financieros',
+  'manufactura',
+  'comercio_retail',
+  'salud',
+  'educacion',
+  'construccion',
+  'energia',
+  'telecomunicaciones',
+  'transporte_logistica',
+  'agricultura',
+  'turismo_hospitalidad',
+  'medios_entretenimiento',
+  'servicios_profesionales',
+  'inmobiliario',
+  'otro'
+]);
+
+// ============================================
+// SCHEMA DE BRANDING/IDENTIDAD VISUAL
+// ============================================
+
+export const BrandingEmpresaSchema = z.object({
+  logoUrl: z.string().url().optional(),
+  logoUrlDark: z.string().url().optional(), // Versión para fondo oscuro
+  faviconUrl: z.string().url().optional(),
+  coloresMarca: z.object({
+    primario: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    secundario: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    acento: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional()
+  }).optional(),
+  tipografia: z.string().optional(),
+  slogan: z.string().max(150).optional()
+});
+
+// ============================================
+// SCHEMA DE INFORMACIÓN DE CONTACTO
+// ============================================
+
+export const ContactoEmpresaSchema = z.object({
+  emailPrincipal: z.string().email(),
+  emailFacturacion: z.string().email().optional(),
+  emailSoporte: z.string().email().optional(),
+  telefonoPrincipal: z.string().min(10),
+  telefonoSecundario: z.string().optional(),
+  whatsapp: z.string().optional(),
+  direccionOficinasCorporativas: z.object({
+    calle: z.string(),
+    numeroExterior: z.string().optional(),
+    numeroInterior: z.string().optional(),
+    colonia: z.string(),
+    municipio: z.string(),
+    estado: z.string(),
+    codigoPostal: z.string(),
+    pais: z.string().default('México'),
+    referencia: z.string().optional()
+  }).optional()
+});
+
+// ============================================
+// SCHEMA DE PRESENCIA DIGITAL
+// ============================================
+
+export const PresenciaDigitalSchema = z.object({
+  sitioWeb: z.string().url().optional(),
+  linkedin: z.string().url().optional(),
+  linkedinCompany: z.string().url().optional(),
+  facebook: z.string().url().optional(),
+  instagram: z.string().url().optional(),
+  twitter: z.string().url().optional(),
+  youtube: z.string().url().optional(),
+  tiktok: z.string().url().optional(),
+  github: z.string().url().optional(),
+  crunchbase: z.string().url().optional(),
+  glassdoor: z.string().url().optional(),
+  // Verificación
+  sitioWebVerificado: z.boolean().default(false),
+  linkedinVerificado: z.boolean().default(false)
+});
+
+// ============================================
+// SCHEMA DE BIO/PERFIL GENERADO POR IA
+// ============================================
+
+export const BioEmpresaSchema = z.object({
+  // Bio corta (1-2 oraciones) para tarjetas y previews
+  bioCorta: z.string().max(200).optional(),
+  
+  // Bio media (1 párrafo) para perfiles
+  bioMedia: z.string().max(500).optional(),
+  
+  // Bio completa (varios párrafos) para página de empresa
+  bioCompleta: z.string().max(2000).optional(),
+  
+  // Puntos clave de la empresa
+  puntosDestacados: z.array(z.string().max(100)).max(5).optional(),
+  
+  // Historia resumida
+  historiaResumida: z.string().max(800).optional(),
+  
+  // Propuesta de valor
+  propuestaValor: z.string().max(300).optional(),
+  
+  // Servicios/productos principales
+  serviciosPrincipales: z.array(z.object({
+    nombre: z.string(),
+    descripcion: z.string().max(200).optional()
+  })).max(10).optional(),
+  
+  // Clientes notables (si es público)
+  clientesNotables: z.array(z.string()).max(10).optional(),
+  
+  // Premios/reconocimientos
+  reconocimientos: z.array(z.object({
+    titulo: z.string(),
+    otorgadoPor: z.string().optional(),
+    año: z.number().optional()
+  })).optional(),
+  
+  // Certificaciones relevantes
+  certificaciones: z.array(z.string()).optional(),
+  
+  // Metadatos de la generación
+  generadoPorIA: z.boolean().default(false),
+  fechaGeneracion: z.string().datetime().optional(),
+  fuentesUtilizadas: z.array(z.string()).optional(),
+  nivelConfianza: z.enum(['alto', 'medio', 'bajo']).optional(),
+  revisadoManualmente: z.boolean().default(false),
+  fechaRevision: z.string().datetime().optional()
+});
+
+// ============================================
+// SCHEMA DE DATOS FISCALES (extraídos por OCR)
+// ============================================
+
+export const DatosFiscalesEmpresaSchema = z.object({
+  rfc: z.string().min(12).max(13),
+  razonSocial: z.string(),
+  regimenFiscal: z.string(),
+  claveRegimenFiscal: z.string().optional(),
+  domicilioFiscal: z.object({
+    calle: z.string(),
+    numeroExterior: z.string().optional(),
+    numeroInterior: z.string().optional(),
+    colonia: z.string(),
+    municipio: z.string(),
+    estado: z.string(),
+    codigoPostal: z.string(),
+    pais: z.string().default('México')
+  }),
+  fechaAltaRfc: z.string().optional(),
+  fechaConstitucion: z.string().optional(),
+  objetoSocial: z.string().optional(),
+  capitalSocial: z.number().optional(),
+  tipoPersona: z.enum(['moral', 'fisica'])
+});
+
+// ============================================
+// SCHEMA DE MÉTRICAS DE EMPRESA (opcional)
+// ============================================
+
+export const MetricasEmpresaSchema = z.object({
+  añoFundacion: z.number().min(1900).max(new Date().getFullYear()).optional(),
+  numeroEmpleados: z.enum([
+    '1-10',
+    '11-50', 
+    '51-200',
+    '201-500',
+    '501-1000',
+    '1001-5000',
+    '5000+'
+  ]).optional(),
+  facturacionAnualRango: z.enum([
+    'menos_1m',      // < 1 millón MXN
+    '1m_10m',        // 1-10 millones
+    '10m_50m',       // 10-50 millones
+    '50m_100m',      // 50-100 millones
+    '100m_500m',     // 100-500 millones
+    '500m_1b',       // 500M - 1B
+    'mas_1b'         // > 1 billón
+  ]).optional(),
+  presenciaGeografica: z.array(z.string()).optional(), // Estados/países donde opera
+  numeroSucursales: z.number().optional()
+});
+
+// ============================================
+// SCHEMA PRINCIPAL DE EMPRESA/CLIENTE
+// ============================================
+
+export const EmpresaClienteSchema = z.object({
+  id: z.string().uuid(),
+  
+  // Información básica
+  nombreComercial: z.string().min(1),
+  razonSocial: z.string().optional(),
+  tipoEmpresa: TipoEmpresaEnum,
+  industria: IndustriaEnum,
+  subindustria: z.string().optional(),
+  
+  // Branding
+  branding: BrandingEmpresaSchema.optional(),
+  
+  // Contacto
+  contacto: ContactoEmpresaSchema,
+  
+  // Presencia digital
+  presenciaDigital: PresenciaDigitalSchema.optional(),
+  
+  // Bio generada por IA
+  bio: BioEmpresaSchema.optional(),
+  
+  // Datos fiscales (de OCR)
+  datosFiscales: DatosFiscalesEmpresaSchema.optional(),
+  
+  // Métricas
+  metricas: MetricasEmpresaSchema.optional(),
+  
+  // Documentos asociados
+  documentos: z.object({
+    constanciaSituacionFiscalId: z.string().uuid().optional(),
+    actaConstitutivaId: z.string().uuid().optional(),
+    poderNotarialId: z.string().uuid().optional(),
+    otrosDocumentos: z.array(z.object({
+      id: z.string().uuid(),
+      tipo: z.string(),
+      nombre: z.string()
+    })).optional()
+  }).optional(),
+  
+  // Estado y metadata
+  estadoOnboarding: z.enum([
+    'pendiente_documentos',
+    'documentos_en_revision',
+    'perfil_incompleto',
+    'bio_pendiente',
+    'activo',
+    'suspendido'
+  ]).default('pendiente_documentos'),
+  
+  porcentajeCompletitud: z.number().min(0).max(100).default(0),
+  
+  // Auditoría
+  createdAt: z.string().datetime(),
+  createdBy: z.string(),
+  updatedAt: z.string().datetime(),
+  updatedBy: z.string()
+});
+
+// ============================================
+// SCHEMA PRINCIPAL DE USUARIO
+// ============================================
+
+export const UsuarioSchema = z.object({
+  id: z.string().uuid(),
+  
+  // Autenticación
+  email: z.string().email(),
+  emailVerificado: z.boolean().default(false),
+  
+  // Datos personales
+  nombre: z.string().min(1),
+  apellidos: z.string().min(1),
+  nombreCompleto: z.string().optional(), // Computed
+  avatarUrl: z.string().url().optional(),
+  telefono: z.string().optional(),
+  
+  // Rol y permisos
+  rol: RolUsuarioEnum,
+  estado: EstadoUsuarioEnum.default('pendiente_verificacion'),
+  
+  // Empresas asociadas
+  empresasPermitidas: z.array(z.object({
+    empresaId: z.string().uuid(),
+    nombreEmpresa: z.string(),
+    rol: RolUsuarioEnum,
+    permisos: z.array(z.string()).optional(), // Permisos específicos
+    esPropietario: z.boolean().default(false),
+    fechaAsignacion: z.string().datetime()
+  })),
+  
+  // Empresa principal/default
+  empresaPrincipalId: z.string().uuid().optional(),
+  
+  // Preferencias
+  preferencias: z.object({
+    idioma: z.enum(['es', 'en']).default('es'),
+    zonaHoraria: z.string().default('America/Mexico_City'),
+    formatoFecha: z.string().default('DD/MM/YYYY'),
+    notificacionesEmail: z.boolean().default(true),
+    notificacionesPush: z.boolean().default(true),
+    temaOscuro: z.boolean().default(false)
+  }).optional(),
+  
+  // Actividad
+  ultimoAcceso: z.string().datetime().optional(),
+  ipUltimoAcceso: z.string().optional(),
+  
+  // Auditoría
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
+});
+
+// ============================================
+// TIPOS EXPORTADOS
+// ============================================
+
+export type Usuario = z.infer<typeof UsuarioSchema>;
+export type EmpresaCliente = z.infer<typeof EmpresaClienteSchema>;
+export type BioEmpresa = z.infer<typeof BioEmpresaSchema>;
+export type BrandingEmpresa = z.infer<typeof BrandingEmpresaSchema>;
+export type RolUsuario = z.infer<typeof RolUsuarioEnum>;
+export type EstadoUsuario = z.infer<typeof EstadoUsuarioEnum>;
+```
+
+---
+
+## PASO 2: Agente de Deep Research para Generación de Bio
+
+Crear `server/agents/deepResearchAgent.ts`:
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+
+interface DatosEntradaResearch {
+  nombreComercial: string;
+  razonSocial?: string;
+  rfc?: string;
+  sitioWeb?: string;
+  linkedin?: string;
+  industria?: string;
+  objetoSocial?: string;
+  añoFundacion?: number;
+}
+
+interface ResultadoDeepResearch {
+  exito: boolean;
+  bio: {
+    bioCorta: string;
+    bioMedia: string;
+    bioCompleta: string;
+    puntosDestacados: string[];
+    historiaResumida?: string;
+    propuestaValor?: string;
+    serviciosPrincipales: Array<{ nombre: string; descripcion?: string }>;
+    clientesNotables?: string[];
+    reconocimientos?: Array<{ titulo: string; otorgadoPor?: string; año?: number }>;
+    certificaciones?: string[];
+  };
+  metadatos: {
+    fuentesUtilizadas: string[];
+    nivelConfianza: 'alto' | 'medio' | 'bajo';
+    fechaGeneracion: string;
+    tiempoProcesamientoMs: number;
+  };
+  errores?: string[];
+}
+
+const SYSTEM_PROMPT_RESEARCH = `Eres un investigador empresarial experto especializado en el mercado mexicano. Tu trabajo es crear perfiles profesionales de empresas basándote en información disponible públicamente.
+
+OBJETIVO:
+Generar una bio profesional, completa y atractiva de una empresa mexicana que pueda usarse en:
+- Perfiles de plataforma
+- Presentaciones a clientes
+- Documentos oficiales
+- Materiales de marketing
+
+ESTILO DE ESCRITURA:
+- Profesional pero accesible
+- En tercera persona
+- Tono positivo pero objetivo
+- Evita superlativos exagerados
+- Usa datos concretos cuando estén disponibles
+- Estructura clara y bien organizada
+
+INFORMACIÓN A GENERAR:
+1. Bio corta (max 200 caracteres): Una oración que capture la esencia
+2. Bio media (max 500 caracteres): Un párrafo ejecutivo
+3. Bio completa (max 2000 caracteres): Descripción detallada con contexto
+4. Puntos destacados: 3-5 bullet points con logros/diferenciadores
+5. Propuesta de valor: Qué los hace únicos
+6. Servicios principales: Lista de lo que ofrecen
+7. Historia resumida: Si hay información disponible
+
+REGLAS:
+- Si no tienes información verificable, indica "información no disponible" en lugar de inventar
+- Basa tus conclusiones en el objeto social, industria y datos proporcionados
+- Si el sitio web está disponible, considera lo que típicamente ofrecería una empresa así
+- Sé honesto sobre el nivel de confianza de la información`;
+
+const SEARCH_PROMPT = (datos: DatosEntradaResearch) => `
+Necesito investigar y crear un perfil profesional para la siguiente empresa mexicana:
+
+DATOS PROPORCIONADOS:
+- Nombre comercial: ${datos.nombreComercial}
+${datos.razonSocial ? `- Razón social: ${datos.razonSocial}` : ''}
+${datos.rfc ? `- RFC: ${datos.rfc}` : ''}
+${datos.sitioWeb ? `- Sitio web: ${datos.sitioWeb}` : ''}
+${datos.linkedin ? `- LinkedIn: ${datos.linkedin}` : ''}
+${datos.industria ? `- Industria: ${datos.industria}` : ''}
+${datos.objetoSocial ? `- Objeto social: ${datos.objetoSocial}` : ''}
+${datos.añoFundacion ? `- Año de fundación: ${datos.añoFundacion}` : ''}
+
+INSTRUCCIONES:
+1. Busca información pública sobre esta empresa
+2. Revisa su sitio web si está disponible
+3. Busca menciones en noticias, premios, certificaciones
+4. Identifica sus servicios/productos principales
+5. Encuentra información sobre su historia y trayectoria
+
+Genera la bio profesional en el siguiente formato JSON (sin markdown, sin backticks):
+
+{
+  "bioCorta": "string máximo 200 caracteres",
+  "bioMedia": "string máximo 500 caracteres", 
+  "bioCompleta": "string máximo 2000 caracteres con párrafos separados por \\n\\n",
+  "puntosDestacados": ["punto 1", "punto 2", "punto 3"],
+  "historiaResumida": "string o null si no hay información",
+  "propuestaValor": "string describiendo su diferenciador",
+  "serviciosPrincipales": [
+    {"nombre": "Servicio 1", "descripcion": "Breve descripción"},
+    {"nombre": "Servicio 2", "descripcion": "Breve descripción"}
+  ],
+  "clientesNotables": ["Cliente 1", "Cliente 2"] o null si no hay información pública,
+  "reconocimientos": [
+    {"titulo": "Premio X", "otorgadoPor": "Organización", "año": 2023}
+  ] o null,
+  "certificaciones": ["ISO 9001", "Great Place to Work"] o null,
+  "fuentesUtilizadas": ["sitio web oficial", "LinkedIn", "nota en periódico X"],
+  "nivelConfianza": "alto" si hay mucha información verificable, "medio" si es limitada, "bajo" si es mayormente inferida
+}
+`;
+
+export class DeepResearchAgent {
+  private anthropic: Anthropic;
+
+  constructor() {
+    this.anthropic = new Anthropic();
+  }
+
+  async investigarEmpresa(datos: DatosEntradaResearch): Promise<ResultadoDeepResearch> {
+    const startTime = Date.now();
+
+    try {
+      // Usar Claude con herramienta de búsqueda web
+      const response = await this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        system: SYSTEM_PROMPT_RESEARCH,
+        tools: [
+          {
+            type: 'web_search_20250305',
+            name: 'web_search'
+          }
+        ],
+        messages: [
+          {
+            role: 'user',
+            content: SEARCH_PROMPT(datos)
+          }
+        ]
+      });
+
+      // Extraer el texto de la respuesta
+      let textoRespuesta = '';
+      for (const block of response.content) {
+        if (block.type === 'text') {
+          textoRespuesta += block.text;
+        }
+      }
+
+      // Limpiar y parsear JSON
+      const jsonLimpio = textoRespuesta
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
+
+      const resultado = JSON.parse(jsonLimpio);
+
+      return {
+        exito: true,
+        bio: {
+          bioCorta: resultado.bioCorta || '',
+          bioMedia: resultado.bioMedia || '',
+          bioCompleta: resultado.bioCompleta || '',
+          puntosDestacados: resultado.puntosDestacados || [],
+          historiaResumida: resultado.historiaResumida,
+          propuestaValor: resultado.propuestaValor,
+          serviciosPrincipales: resultado.serviciosPrincipales || [],
+          clientesNotables: resultado.clientesNotables,
+          reconocimientos: resultado.reconocimientos,
+          certificaciones: resultado.certificaciones
+        },
+        metadatos: {
+          fuentesUtilizadas: resultado.fuentesUtilizadas || [],
+          nivelConfianza: resultado.nivelConfianza || 'medio',
+          fechaGeneracion: new Date().toISOString(),
+          tiempoProcesamientoMs: Date.now() - startTime
+        }
+      };
+
+    } catch (error) {
+      console.error('Error en Deep Research:', error);
+      
+      // Fallback: generar bio básica sin búsqueda
+      return this.generarBioBasica(datos, startTime);
+    }
+  }
+
+  private async generarBioBasica(
+    datos: DatosEntradaResearch, 
+    startTime: number
+  ): Promise<ResultadoDeepResearch> {
+    try {
+      const response = await this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2048,
+        system: SYSTEM_PROMPT_RESEARCH,
+        messages: [
+          {
+            role: 'user',
+            content: `
+Sin acceso a búsqueda web, genera una bio profesional basándote ÚNICAMENTE en los datos proporcionados.
+Sé conservador y no inventes información que no tengas.
+
+DATOS:
+- Nombre: ${datos.nombreComercial}
+${datos.razonSocial ? `- Razón social: ${datos.razonSocial}` : ''}
+${datos.industria ? `- Industria: ${datos.industria}` : ''}
+${datos.objetoSocial ? `- Objeto social: ${datos.objetoSocial}` : ''}
+${datos.añoFundacion ? `- Año fundación: ${datos.añoFundacion}` : ''}
+
+Genera JSON con los campos: bioCorta, bioMedia, bioCompleta, puntosDestacados, propuestaValor, serviciosPrincipales.
+Indica nivelConfianza: "bajo" porque es información limitada.
+`
+          }
+        ]
+      });
+
+      const texto = response.content[0].type === 'text' ? response.content[0].text : '';
+      const resultado = JSON.parse(texto.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+
+      return {
+        exito: true,
+        bio: {
+          bioCorta: resultado.bioCorta || `${datos.nombreComercial} - Empresa mexicana del sector ${datos.industria || 'empresarial'}.`,
+          bioMedia: resultado.bioMedia || '',
+          bioCompleta: resultado.bioCompleta || '',
+          puntosDestacados: resultado.puntosDestacados || [],
+          propuestaValor: resultado.propuestaValor,
+          serviciosPrincipales: resultado.serviciosPrincipales || []
+        },
+        metadatos: {
+          fuentesUtilizadas: ['Datos proporcionados por el usuario'],
+          nivelConfianza: 'bajo',
+          fechaGeneracion: new Date().toISOString(),
+          tiempoProcesamientoMs: Date.now() - startTime
+        }
+      };
+    } catch (error) {
+      return {
+        exito: false,
+        bio: {
+          bioCorta: `${datos.nombreComercial} - Empresa mexicana.`,
+          bioMedia: '',
+          bioCompleta: '',
+          puntosDestacados: [],
+          serviciosPrincipales: []
+        },
+        metadatos: {
+          fuentesUtilizadas: [],
+          nivelConfianza: 'bajo',
+          fechaGeneracion: new Date().toISOString(),
+          tiempoProcesamientoMs: Date.now() - startTime
+        },
+        errores: ['No se pudo generar la bio automáticamente']
+      };
+    }
+  }
+
+  // Método para regenerar/mejorar una bio existente
+  async mejorarBio(
+    bioActual: string,
+    datosAdicionales: DatosEntradaResearch,
+    instruccionesUsuario?: string
+  ): Promise<ResultadoDeepResearch> {
+    const startTime = Date.now();
+
+    try {
+      const response = await this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2048,
+        system: SYSTEM_PROMPT_RESEARCH,
+        messages: [
+          {
+            role: 'user',
+            content: `
+Mejora la siguiente bio de empresa considerando los datos adicionales y las instrucciones del usuario.
+
+BIO ACTUAL:
+${bioActual}
+
+DATOS DE LA EMPRESA:
+- Nombre: ${datosAdicionales.nombreComercial}
+${datosAdicionales.industria ? `- Industria: ${datosAdicionales.industria}` : ''}
+${datosAdicionales.sitioWeb ? `- Sitio web: ${datosAdicionales.sitioWeb}` : ''}
+
+${instruccionesUsuario ? `INSTRUCCIONES DEL USUARIO:\n${instruccionesUsuario}` : ''}
+
+Genera la bio mejorada en formato JSON con: bioCorta, bioMedia, bioCompleta, puntosDestacados, propuestaValor.
+`
+          }
+        ]
+      });
+
+      const texto = response.content[0].type === 'text' ? response.content[0].text : '';
+      const resultado = JSON.parse(texto.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+
+      return {
+        exito: true,
+        bio: {
+          bioCorta: resultado.bioCorta,
+          bioMedia: resultado.bioMedia,
+          bioCompleta: resultado.bioCompleta,
+          puntosDestacados: resultado.puntosDestacados || [],
+          propuestaValor: resultado.propuestaValor,
+          serviciosPrincipales: resultado.serviciosPrincipales || []
+        },
+        metadatos: {
+          fuentesUtilizadas: ['Bio anterior', 'Instrucciones del usuario'],
+          nivelConfianza: 'medio',
+          fechaGeneracion: new Date().toISOString(),
+          tiempoProcesamientoMs: Date.now() - startTime
+        }
+      };
+    } catch (error) {
+      return {
+        exito: false,
+        bio: {
+          bioCorta: '',
+          bioMedia: '',
+          bioCompleta: bioActual,
+          puntosDestacados: [],
+          serviciosPrincipales: []
+        },
+        metadatos: {
+          fuentesUtilizadas: [],
+          nivelConfianza: 'bajo',
+          fechaGeneracion: new Date().toISOString(),
+          tiempoProcesamientoMs: Date.now() - startTime
+        },
+        errores: ['Error al mejorar la bio']
+      };
+    }
+  }
+}
+
+export const deepResearchAgent = new DeepResearchAgent();
+```
+
+---
+
+## PASO 3: API Endpoints para Usuarios y Empresas
+
+Crear `server/routes/usuarios.ts`:
+
+```typescript
+import { Router } from 'express';
+import { z } from 'zod';
+import { UsuarioSchema, EmpresaClienteSchema } from '@/shared/schemas/usuario.schema';
+import { deepResearchAgent } from '../agents/deepResearchAgent';
+import { proveedorOCRService } from '../services/ocr/proveedorOcrService';
+// import { db } from '../db';
+// import { uploadService } from '../services/upload';
+
+const router = Router();
+
+// ============================================
+// ENDPOINTS DE USUARIOS
+// ============================================
+
+// GET /api/usuarios
+// Listar todos los usuarios (con paginación y filtros)
+router.get('/', async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 20, 
+      estado, 
+      rol, 
+      empresaId,
+      busqueda 
+    } = req.query;
+
+    // Construir query con filtros
+    const filtros: any = {};
+    if (estado) filtros.estado = estado;
+    if (rol) filtros.rol = rol;
+    if (empresaId) filtros['empresasPermitidas.empresaId'] = empresaId;
+
+    // Simulación de respuesta (reemplazar con query real a BD)
+    const usuarios = [
+      {
+        id: '1',
+        email: 'admin@ejemplo.com',
+        nombre: 'Juan',
+        apellidos: 'Pérez García',
+        nombreCompleto: 'Juan Pérez García',
+        rol: 'admin_empresa',
+        estado: 'activo',
+        empresasPermitidas: [
+          {
+            empresaId: 'emp-1',
+            nombreEmpresa: 'Consultoría XYZ S.A. de C.V.',
+            rol: 'admin_empresa',
+            esPropietario: true
+          }
+        ],
+        avatarUrl: null,
+        ultimoAcceso: new Date().toISOString()
+      }
+    ];
+
+    return res.json({
+      usuarios,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: usuarios.length,
+        totalPages: 1
+      }
+    });
+  } catch (error) {
+    console.error('Error listando usuarios:', error);
+    return res.status(500).json({ error: 'Error al obtener usuarios' });
+  }
+});
+
+// GET /api/usuarios/:id
+// Obtener usuario por ID con todas sus empresas
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Obtener usuario con empresas pobladas
+    // const usuario = await db.usuarios.findById(id).populate('empresasPermitidas.empresaId');
+    
+    return res.json({ message: 'Implementar consulta a BD', id });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error al obtener usuario' });
+  }
+});
+
+// POST /api/usuarios
+// Crear nuevo usuario
+router.post('/', async (req, res) => {
+  try {
+    const datosUsuario = UsuarioSchema.omit({ id: true, createdAt: true, updatedAt: true }).parse(req.body);
+    
+    // Crear usuario en BD
+    // const usuario = await db.usuarios.create({
+    //   ...datosUsuario,
+    //   id: crypto.randomUUID(),
+    //   createdAt: new Date().toISOString(),
+    //   updatedAt: new Date().toISOString()
+    // });
+
+    return res.status(201).json({ message: 'Usuario creado', datos: datosUsuario });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Datos inválidos', detalles: error.errors });
+    }
+    return res.status(500).json({ error: 'Error al crear usuario' });
+  }
+});
+
+// PUT /api/usuarios/:id
+// Actualizar usuario
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const datosActualizados = req.body;
+    
+    // Actualizar en BD
+    // await db.usuarios.update(id, { ...datosActualizados, updatedAt: new Date().toISOString() });
+
+    return res.json({ message: 'Usuario actualizado', id });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error al actualizar usuario' });
+  }
+});
+
+// PUT /api/usuarios/:id/estado
+// Cambiar estado del usuario (activar, suspender, etc.)
+router.put('/:id/estado', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { estado } = req.body;
+    
+    // Validar estado
+    const estadoValido = ['activo', 'inactivo', 'suspendido', 'pendiente_verificacion'].includes(estado);
+    if (!estadoValido) {
+      return res.status(400).json({ error: 'Estado inválido' });
+    }
+
+    // Actualizar estado
+    // await db.usuarios.update(id, { estado, updatedAt: new Date().toISOString() });
+
+    return res.json({ message: 'Estado actualizado', id, estado });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error al cambiar estado' });
+  }
+});
+
+// POST /api/usuarios/:id/empresas
+// Asignar empresa a usuario
+router.post('/:id/empresas', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { empresaId, rol, permisos } = req.body;
+    
+    // Verificar que la empresa existe
+    // const empresa = await db.empresas.findById(empresaId);
+    // if (!empresa) return res.status(404).json({ error: 'Empresa no encontrada' });
+
+    // Agregar empresa al usuario
+    // await db.usuarios.addEmpresa(id, {
+    //   empresaId,
+    //   nombreEmpresa: empresa.nombreComercial,
+    //   rol,
+    //   permisos,
+    //   fechaAsignacion: new Date().toISOString()
+    // });
+
+    return res.json({ message: 'Empresa asignada al usuario' });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error al asignar empresa' });
+  }
+});
+
+// DELETE /api/usuarios/:id/empresas/:empresaId
+// Remover empresa de usuario
+router.delete('/:id/empresas/:empresaId', async (req, res) => {
+  try {
+    const { id, empresaId } = req.params;
+    
+    // Remover empresa del usuario
+    // await db.usuarios.removeEmpresa(id, empresaId);
+
+    return res.json({ message: 'Empresa removida del usuario' });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error al remover empresa' });
+  }
+});
+
+// ============================================
+// ENDPOINTS DE EMPRESAS/CLIENTES
+// ============================================
+
+// GET /api/empresas
+// Listar empresas
+router.get('/empresas', async (req, res) => {
+  try {
+    const { page = 1, limit = 20, busqueda, industria, estado } = req.query;
+    
+    // Query a BD con filtros
+    // const empresas = await db.empresas.find({ ...filtros }).paginate(page, limit);
+
+    return res.json({
+      empresas: [],
+      pagination: { page: Number(page), limit: Number(limit), total: 0, totalPages: 0 }
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error al obtener empresas' });
+  }
+});
+
+// GET /api/empresas/:id
+// Obtener empresa completa con bio
+router.get('/empresas/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // const empresa = await db.empresas.findById(id);
+
+    return res.json({ message: 'Implementar consulta a BD', id });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error al obtener empresa' });
+  }
+});
+
+// POST /api/empresas
+// Crear nueva empresa
+router.post('/empresas', async (req, res) => {
+  try {
+    const datosEmpresa = req.body;
+    
+    const empresaId = crypto.randomUUID();
+    const ahora = new Date().toISOString();
+
+    // Calcular porcentaje de completitud inicial
+    const completitud = calcularCompletitud(datosEmpresa);
+
+    const empresa = {
+      id: empresaId,
+      ...datosEmpresa,
+      estadoOnboarding: 'pendiente_documentos',
+      porcentajeCompletitud: completitud,
+      createdAt: ahora,
+      createdBy: req.body.usuarioId || 'system',
+      updatedAt: ahora,
+      updatedBy: req.body.usuarioId || 'system'
+    };
+
+    // Guardar en BD
+    // await db.empresas.create(empresa);
+
+    return res.status(201).json(empresa);
+  } catch (error) {
+    console.error('Error creando empresa:', error);
+    return res.status(500).json({ error: 'Error al crear empresa' });
+  }
+});
+
+// PUT /api/empresas/:id
+// Actualizar empresa
+router.put('/empresas/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const datosActualizados = req.body;
+    
+    // Recalcular completitud
+    const completitud = calcularCompletitud(datosActualizados);
+
+    // Actualizar
+    // await db.empresas.update(id, {
+    //   ...datosActualizados,
+    //   porcentajeCompletitud: completitud,
+    //   updatedAt: new Date().toISOString()
+    // });
+
+    return res.json({ message: 'Empresa actualizada', completitud });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error al actualizar empresa' });
+  }
+});
+
+// POST /api/empresas/:id/logo
+// Subir logo de empresa
+router.post('/empresas/:id/logo', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { logoBase64, nombreArchivo, tipo } = req.body; // tipo: 'principal' | 'dark'
+
+    // Subir a storage (S3, Cloudflare R2, etc.)
+    // const url = await uploadService.upload({
+    //   buffer: Buffer.from(logoBase64, 'base64'),
+    //   fileName: `empresas/${id}/logo-${tipo}.png`,
+    //   contentType: 'image/png'
+    // });
+
+    const url = `https://storage.example.com/empresas/${id}/logo-${tipo}.png`;
+
+    // Actualizar empresa
+    const campo = tipo === 'dark' ? 'branding.logoUrlDark' : 'branding.logoUrl';
+    // await db.empresas.update(id, { [campo]: url });
+
+    return res.json({ url, mensaje: 'Logo subido correctamente' });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error al subir logo' });
+  }
+});
+
+// POST /api/empresas/:id/generar-bio
+// Generar bio con Deep Research
+router.post('/empresas/:id/generar-bio', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Obtener datos actuales de la empresa
+    // const empresa = await db.empresas.findById(id);
+    // if (!empresa) return res.status(404).json({ error: 'Empresa no encontrada' });
+
+    // Simular datos de empresa para el ejemplo
+    const empresa = req.body.empresa || {
+      nombreComercial: req.body.nombreComercial,
+      razonSocial: req.body.razonSocial,
+      industria: req.body.industria,
+      sitioWeb: req.body.sitioWeb,
+      linkedin: req.body.linkedin,
+      objetoSocial: req.body.objetoSocial
+    };
+
+    // Ejecutar Deep Research
+    const resultado = await deepResearchAgent.investigarEmpresa({
+      nombreComercial: empresa.nombreComercial,
+      razonSocial: empresa.razonSocial,
+      sitioWeb: empresa.presenciaDigital?.sitioWeb || empresa.sitioWeb,
+      linkedin: empresa.presenciaDigital?.linkedin || empresa.linkedin,
+      industria: empresa.industria,
+      objetoSocial: empresa.datosFiscales?.objetoSocial || empresa.objetoSocial
+    });
+
+    if (resultado.exito) {
+      // Actualizar empresa con la bio generada
+      // await db.empresas.update(id, {
+      //   bio: {
+      //     ...resultado.bio,
+      //     generadoPorIA: true,
+      //     fechaGeneracion: resultado.metadatos.fechaGeneracion,
+      //     fuentesUtilizadas: resultado.metadatos.fuentesUtilizadas,
+      //     nivelConfianza: resultado.metadatos.nivelConfianza,
+      //     revisadoManualmente: false
+      //   },
+      //   estadoOnboarding: 'perfil_incompleto', // o 'activo' si todo está completo
+      //   updatedAt: new Date().toISOString()
+      // });
+    }
+
+    return res.json(resultado);
+  } catch (error) {
+    console.error('Error generando bio:', error);
+    return res.status(500).json({ error: 'Error al generar bio' });
+  }
+});
+
+// PUT /api/empresas/:id/bio
+// Actualizar/editar bio manualmente
+router.put('/empresas/:id/bio', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { bio } = req.body;
+
+    // await db.empresas.update(id, {
+    //   bio: {
+    //     ...bio,
+    //     revisadoManualmente: true,
+    //     fechaRevision: new Date().toISOString()
+    //   },
+    //   updatedAt: new Date().toISOString()
+    // });
+
+    return res.json({ message: 'Bio actualizada' });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error al actualizar bio' });
+  }
+});
+
+// POST /api/empresas/:id/mejorar-bio
+// Mejorar bio existente con IA
+router.post('/empresas/:id/mejorar-bio', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { instrucciones } = req.body;
+
+    // Obtener bio actual
+    // const empresa = await db.empresas.findById(id);
+    const bioActual = req.body.bioActual || '';
+
+    const resultado = await deepResearchAgent.mejorarBio(
+      bioActual,
+      {
+        nombreComercial: req.body.nombreComercial,
+        industria: req.body.industria,
+        sitioWeb: req.body.sitioWeb
+      },
+      instrucciones
+    );
+
+    return res.json(resultado);
+  } catch (error) {
+    return res.status(500).json({ error: 'Error al mejorar bio' });
+  }
+});
+
+// POST /api/empresas/:id/procesar-documentos
+// Procesar documentos con OCR y extraer datos
+router.post('/empresas/:id/procesar-documentos', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { tipoDocumento, archivoBase64, mediaType } = req.body;
+
+    let resultado;
+
+    switch (tipoDocumento) {
+      case 'constancia_situacion_fiscal':
+        resultado = await proveedorOCRService.procesarConstanciaFiscal(archivoBase64, mediaType);
+        break;
+      case 'acta_constitutiva':
+        resultado = await proveedorOCRService.procesarActaConstitutiva(archivoBase64, mediaType);
+        break;
+      default:
+        return res.status(400).json({ error: 'Tipo de documento no soportado' });
+    }
+
+    if (resultado.exito) {
+      // Actualizar datos de la empresa con lo extraído
+      // await db.empresas.update(id, {
+      //   datosFiscales: resultado.datosExtraidos,
+      //   updatedAt: new Date().toISOString()
+      // });
+    }
+
+    return res.json(resultado);
+  } catch (error) {
+    return res.status(500).json({ error: 'Error procesando documento' });
+  }
+});
+
+// ============================================
+// FUNCIONES AUXILIARES
+// ============================================
+
+function calcularCompletitud(empresa: any): number {
+  let puntos = 0;
+  const total = 100;
+
+  // Datos básicos (30 puntos)
+  if (empresa.nombreComercial) puntos += 10;
+  if (empresa.tipoEmpresa) puntos += 5;
+  if (empresa.industria) puntos += 5;
+  if (empresa.contacto?.emailPrincipal) puntos += 5;
+  if (empresa.contacto?.telefonoPrincipal) puntos += 5;
+
+  // Branding (15 puntos)
+  if (empresa.branding?.logoUrl) puntos += 10;
+  if (empresa.branding?.coloresMarca?.primario) puntos += 5;
+
+  // Documentos fiscales (25 puntos)
+  if (empresa.datosFiscales?.rfc) puntos += 10;
+  if (empresa.datosFiscales?.razonSocial) puntos += 5;
+  if (empresa.documentos?.constanciaSituacionFiscalId) puntos += 5;
+  if (empresa.documentos?.actaConstitutivaId) puntos += 5;
+
+  // Presencia digital (10 puntos)
+  if (empresa.presenciaDigital?.sitioWeb) puntos += 5;
+  if (empresa.presenciaDigital?.linkedin) puntos += 5;
+
+  // Bio (20 puntos)
+  if (empresa.bio?.bioCorta) puntos += 5;
+  if (empresa.bio?.bioMedia) puntos += 5;
+  if (empresa.bio?.bioCompleta) puntos += 10;
+
+  return Math.min(puntos, total);
+}
+
+export default router;
+```
+
+---
+
+## PASO 4: Componentes de UI
+
+### 4.1 Tabla de Usuarios
+
+Crear `client/components/usuarios/TablaUsuarios.tsx`:
+
+```tsx
+import React, { useState, useEffect } from 'react';
+import { 
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
+} from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { 
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, 
+  DropdownMenuTrigger, DropdownMenuSeparator 
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { 
+  MoreHorizontal, Search, UserPlus, Building2, 
+  Shield, Mail, Eye, Edit, Trash2, RefreshCw 
+} from 'lucide-react';
+
+interface Usuario {
+  id: string;
+  email: string;
+  nombre: string;
+  apellidos: string;
+  nombreCompleto?: string;
+  avatarUrl?: string;
+  rol: string;
+  estado: string;
+  empresasPermitidas: Array<{
+    empresaId: string;
+    nombreEmpresa: string;
+    rol: string;
+    esPropietario: boolean;
+  }>;
+  ultimoAcceso?: string;
+}
+
+interface TablaUsuariosProps {
+  onVerUsuario: (usuario: Usuario) => void;
+  onEditarUsuario: (usuario: Usuario) => void;
+  onNuevoUsuario: () => void;
+}
+
+export function TablaUsuarios({ 
+  onVerUsuario, 
+  onEditarUsuario, 
+  onNuevoUsuario 
+}: TablaUsuariosProps) {
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState<string | null>(null);
+  const [filtroRol, setFiltroRol] = useState<string | null>(null);
+
+  useEffect(() => {
+    cargarUsuarios();
+  }, [busqueda, filtroEstado, filtroRol]);
+
+  const cargarUsuarios = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (busqueda) params.append('busqueda', busqueda);
+      if (filtroEstado) params.append('estado', filtroEstado);
+      if (filtroRol) params.append('rol', filtroRol);
+
+      const response = await fetch(`/api/usuarios?${params}`);
+      const data = await response.json();
+      setUsuarios(data.usuarios);
+    } catch (error) {
+      console.error('Error cargando usuarios:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getEstadoBadge = (estado: string) => {
+    const config: Record<string, { color: string; label: string }> = {
+      activo: { color: 'bg-green-100 text-green-800', label: 'Activo' },
+      inactivo: { color: 'bg-gray-100 text-gray-800', label: 'Inactivo' },
+      pendiente_verificacion: { color: 'bg-yellow-100 text-yellow-800', label: 'Pendiente' },
+      suspendido: { color: 'bg-red-100 text-red-800', label: 'Suspendido' }
+    };
+    const { color, label } = config[estado] || config.inactivo;
+    return <Badge className={color}>{label}</Badge>;
+  };
+
+  const getRolBadge = (rol: string) => {
+    const config: Record<string, { color: string; label: string }> = {
+      super_admin: { color: 'bg-purple-100 text-purple-800', label: 'Super Admin' },
+      admin_empresa: { color: 'bg-blue-100 text-blue-800', label: 'Admin' },
+      auditor: { color: 'bg-indigo-100 text-indigo-800', label: 'Auditor' },
+      contador: { color: 'bg-cyan-100 text-cyan-800', label: 'Contador' },
+      consultor: { color: 'bg-teal-100 text-teal-800', label: 'Consultor' },
+      viewer: { color: 'bg-gray-100 text-gray-600', label: 'Viewer' }
+    };
+    const { color, label } = config[rol] || config.viewer;
+    return <Badge className={color}>{label}</Badge>;
+  };
+
+  const getInitials = (nombre: string, apellidos: string) => {
+    return `${nombre.charAt(0)}${apellidos.charAt(0)}`.toUpperCase();
+  };
+
+  const cambiarEstado = async (usuarioId: string, nuevoEstado: string) => {
+    try {
+      await fetch(`/api/usuarios/${usuarioId}/estado`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: nuevoEstado })
+      });
+      cargarUsuarios();
+    } catch (error) {
+      console.error('Error cambiando estado:', error);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Todos los Usuarios</h2>
+          <p className="text-sm text-gray-500">
+            Lista completa de usuarios registrados - configura permisos por empresa
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
+            {usuarios.length} usuarios
+          </Badge>
+          <Button onClick={onNuevoUsuario}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Nuevo Usuario
+          </Button>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-lg">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Buscar por nombre o email..."
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        <select
+          className="border rounded-md px-3 py-2 text-sm"
+          value={filtroEstado || ''}
+          onChange={(e) => setFiltroEstado(e.target.value || null)}
+        >
+          <option value="">Todos los estados</option>
+          <option value="activo">Activos</option>
+          <option value="inactivo">Inactivos</option>
+          <option value="pendiente_verificacion">Pendientes</option>
+          <option value="suspendido">Suspendidos</option>
+        </select>
+
+        <select
+          className="border rounded-md px-3 py-2 text-sm"
+          value={filtroRol || ''}
+          onChange={(e) => setFiltroRol(e.target.value || null)}
+        >
+          <option value="">Todos los roles</option>
+          <option value="super_admin">Super Admin</option>
+          <option value="admin_empresa">Admin Empresa</option>
+          <option value="auditor">Auditor</option>
+          <option value="contador">Contador</option>
+          <option value="consultor">Consultor</option>
+          <option value="viewer">Viewer</option>
+        </select>
+
+        <Button variant="outline" size="icon" onClick={cargarUsuarios}>
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+        </Button>
+      </div>
+
+      {/* Tabla */}
+      <div className="border rounded-lg overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-50">
+              <TableHead className="w-[250px]">USUARIO</TableHead>
+              <TableHead>EMAIL</TableHead>
+              <TableHead>ESTADO</TableHead>
+              <TableHead>ROL</TableHead>
+              <TableHead>EMPRESAS PERMITIDAS</TableHead>
+              <TableHead className="text-right">ACCIONES</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8">
+                  <RefreshCw className="h-6 w-6 animate-spin mx-auto text-gray-400" />
+                  <p className="mt-2 text-sm text-gray-500">Cargando usuarios...</p>
+                </TableCell>
+              </TableRow>
+            ) : usuarios.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-12">
+                  <div className="flex flex-col items-center">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                      <UserPlus className="h-8 w-8 text-gray-400" />
+                    </div>
+                    <p className="text-gray-900 font-medium">No hay usuarios registrados</p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Comienza agregando el primer usuario al sistema
+                    </p>
+                    <Button className="mt-4" onClick={onNuevoUsuario}>
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Agregar Usuario
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              usuarios.map((usuario) => (
+                <TableRow key={usuario.id} className="hover:bg-gray-50">
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={usuario.avatarUrl} />
+                        <AvatarFallback className="bg-blue-100 text-blue-700">
+                          {getInitials(usuario.nombre, usuario.apellidos)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {usuario.nombre} {usuario.apellidos}
+                        </p>
+                        {usuario.ultimoAcceso && (
+                          <p className="text-xs text-gray-500">
+                            Último acceso: {new Date(usuario.ultimoAcceso).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-gray-400" />
+                      <span className="text-sm">{usuario.email}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{getEstadoBadge(usuario.estado)}</TableCell>
+                  <TableCell>{getRolBadge(usuario.rol)}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1 max-w-[200px]">
+                      {usuario.empresasPermitidas.slice(0, 2).map((emp) => (
+                        <Badge 
+                          key={emp.empresaId} 
+                          variant="outline" 
+                          className="text-xs"
+                        >
+                          <Building2 className="h-3 w-3 mr-1" />
+                          {emp.nombreEmpresa.substring(0, 15)}
+                          {emp.nombreEmpresa.length > 15 ? '...' : ''}
+                          {emp.esPropietario && (
+                            <Shield className="h-3 w-3 ml-1 text-yellow-600" />
+                          )}
+                        </Badge>
+                      ))}
+                      {usuario.empresasPermitidas.length > 2 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{usuario.empresasPermitidas.length - 2} más
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onVerUsuario(usuario)}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          Ver perfil
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onEditarUsuario(usuario)}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {usuario.estado === 'activo' ? (
+                          <DropdownMenuItem 
+                            onClick={() => cambiarEstado(usuario.id, 'suspendido')}
+                            className="text-orange-600"
+                          >
+                            Suspender
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem 
+                            onClick={() => cambiarEstado(usuario.id, 'activo')}
+                            className="text-green-600"
+                          >
+                            Activar
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem className="text-red-600">
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Eliminar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+```
+
+### 4.2 Perfil de Empresa con Editor de Bio
+
+Crear `client/components/empresas/PerfilEmpresa.tsx`:
+
+```tsx
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Building2, Upload, Globe, Linkedin, Sparkles, RefreshCw, 
+  CheckCircle, Edit, Save, X, Camera, FileText, AlertCircle
+} from 'lucide-react';
+
+interface EmpresaCliente {
+  id: string;
+  nombreComercial: string;
+  razonSocial?: string;
+  tipoEmpresa: string;
+  industria: string;
+  branding?: {
+    logoUrl?: string;
+    coloresMarca?: {
+      primario?: string;
+      secundario?: string;
+    };
+  };
+  contacto: {
+    emailPrincipal: string;
+    telefonoPrincipal: string;
+  };
+  presenciaDigital?: {
+    sitioWeb?: string;
+    linkedin?: string;
+  };
+  bio?: {
+    bioCorta?: string;
+    bioMedia?: string;
+    bioCompleta?: string;
+    puntosDestacados?: string[];
+    generadoPorIA?: boolean;
+    nivelConfianza?: string;
+    revisadoManualmente?: boolean;
+  };
+  datosFiscales?: {
+    rfc: string;
+    razonSocial: string;
+  };
+  porcentajeCompletitud: number;
+}
+
+interface PerfilEmpresaProps {
+  empresa: EmpresaCliente;
+  onUpdate: (datos: Partial<EmpresaCliente>) => Promise<void>;
+  onGenerarBio: () => Promise<void>;
+  onSubirLogo: (archivo: File) => Promise<void>;
+}
+
+export function PerfilEmpresa({
+  empresa,
+  onUpdate,
+  onGenerarBio,
+  onSubirLogo
+}: PerfilEmpresaProps) {
+  const [editandoBio, setEditandoBio] = useState(false);
+  const [bioEditada, setBioEditada] = useState(empresa.bio?.bioCompleta || '');
+  const [generandoBio, setGenerandoBio] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+
+  const handleGenerarBio = async () => {
+    setGenerandoBio(true);
+    try {
+      await onGenerarBio();
+    } finally {
+      setGenerandoBio(false);
+    }
+  };
+
+  const handleGuardarBio = async () => {
+    setGuardando(true);
+    try {
+      await onUpdate({
+        bio: {
+          ...empresa.bio,
+          bioCompleta: bioEditada,
+          revisadoManualmente: true
+        }
+      });
+      setEditandoBio(false);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onSubirLogo(file);
+    }
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto p-6 space-y-6">
+      {/* Header con Logo y Datos Principales */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex gap-6">
+            {/* Logo */}
+            <div className="relative group">
+              <div className="w-32 h-32 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center bg-gray-50 overflow-hidden">
+                {empresa.branding?.logoUrl ? (
+                  <img 
+                    src={empresa.branding.logoUrl} 
+                    alt={empresa.nombreComercial}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <Building2 className="h-12 w-12 text-gray-400" />
+                )}
+              </div>
+              <label className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-xl">
+                <Camera className="h-8 w-8 text-white" />
+                <input 
+                  type="file" 
+                  className="hidden" 
+                  accept="image/*"
+                  onChange={handleLogoChange}
+                />
+              </label>
+            </div>
+
+            {/* Información Principal */}
+            <div className="flex-1">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    {empresa.nombreComercial}
+                  </h1>
+                  {empresa.razonSocial && (
+                    <p className="text-sm text-gray-500">{empresa.razonSocial}</p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm text-gray-500">Perfil completado</span>
+                    <Badge 
+                      className={
+                        empresa.porcentajeCompletitud >= 80 
+                          ? 'bg-green-100 text-green-800' 
+                          : empresa.porcentajeCompletitud >= 50 
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                      }
+                    >
+                      {empresa.porcentajeCompletitud}%
+                    </Badge>
+                  </div>
+                  <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all ${
+                        empresa.porcentajeCompletitud >= 80 
+                          ? 'bg-green-500' 
+                          : empresa.porcentajeCompletitud >= 50 
+                            ? 'bg-yellow-500'
+                            : 'bg-red-500'
+                      }`}
+                      style={{ width: `${empresa.porcentajeCompletitud}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 mt-4">
+                <Badge variant="outline">{empresa.tipoEmpresa}</Badge>
+                <Badge variant="outline">{empresa.industria}</Badge>
+                {empresa.datosFiscales?.rfc && (
+                  <Badge variant="outline" className="font-mono">
+                    RFC: {empresa.datosFiscales.rfc}
+                  </Badge>
+                )}
+              </div>
+
+              <div className="flex items-center gap-4 mt-4">
+                {empresa.presenciaDigital?.sitioWeb && (
+                  <a 
+                    href={empresa.presenciaDigital.sitioWeb}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
+                  >
+                    <Globe className="h-4 w-4" />
+                    Sitio web
+                  </a>
+                )}
+                {empresa.presenciaDigital?.linkedin && (
+                  <a 
+                    href={empresa.presenciaDigital.linkedin}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
+                  >
+                    <Linkedin className="h-4 w-4" />
+                    LinkedIn
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabs de contenido */}
+      <Tabs defaultValue="bio" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="bio">Bio & Perfil</TabsTrigger>
+          <TabsTrigger value="contacto">Contacto</TabsTrigger>
+          <TabsTrigger value="documentos">Documentos</TabsTrigger>
+          <TabsTrigger value="branding">Branding</TabsTrigger>
+        </TabsList>
+
+        {/* Tab Bio */}
+        <TabsContent value="bio">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Bio de la Empresa
+                  </CardTitle>
+                  <CardDescription>
+                    Descripción profesional generada automáticamente o editada manualmente
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  {empresa.bio?.generadoPorIA && (
+                    <Badge variant="outline" className="text-purple-600 border-purple-200">
+                      <Sparkles className="h-3 w-3 mr-1" />
+                      Generada por IA
+                    </Badge>
+                  )}
+                  {empresa.bio?.revisadoManualmente && (
+                    <Badge variant="outline" className="text-green-600 border-green-200">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Revisada
+                    </Badge>
+                  )}
+                  {empresa.bio?.nivelConfianza && (
+                    <Badge 
+                      variant="outline"
+                      className={
+                        empresa.bio.nivelConfianza === 'alto' 
+                          ? 'text-green-600 border-green-200'
+                          : empresa.bio.nivelConfianza === 'medio'
+                            ? 'text-yellow-600 border-yellow-200'
+                            : 'text-red-600 border-red-200'
+                      }
+                    >
+                      Confianza: {empresa.bio.nivelConfianza}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Bio Corta */}
+              {empresa.bio?.bioCorta && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                  <p className="text-sm font-medium text-blue-800 mb-1">Bio corta (para tarjetas)</p>
+                  <p className="text-blue-700">{empresa.bio.bioCorta}</p>
+                </div>
+              )}
+
+              {/* Bio Completa */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-700">Bio completa</p>
+                  {!editandoBio && (
+                    <Button variant="outline" size="sm" onClick={() => setEditandoBio(true)}>
+                      <Edit className="h-4 w-4 mr-1" />
+                      Editar
+                    </Button>
+                  )}
+                </div>
+
+                {editandoBio ? (
+                  <div className="space-y-3">
+                    <Textarea
+                      value={bioEditada}
+                      onChange={(e) => setBioEditada(e.target.value)}
+                      rows={8}
+                      placeholder="Escribe la bio de la empresa..."
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          setEditandoBio(false);
+                          setBioEditada(empresa.bio?.bioCompleta || '');
+                        }}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Cancelar
+                      </Button>
+                      <Button onClick={handleGuardarBio} disabled={guardando}>
+                        {guardando ? (
+                          <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4 mr-1" />
+                        )}
+                        Guardar
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-gray-50 rounded-lg border">
+                    {empresa.bio?.bioCompleta ? (
+                      <p className="text-gray-700 whitespace-pre-line">
+                        {empresa.bio.bioCompleta}
+                      </p>
+                    ) : (
+                      <div className="text-center py-8">
+                        <AlertCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-gray-500 mb-4">
+                          No hay bio generada aún. Genera una automáticamente con IA.
+                        </p>
+                        <Button onClick={handleGenerarBio} disabled={generandoBio}>
+                          {generandoBio ? (
+                            <>
+                              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                              Investigando...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="h-4 w-4 mr-2" />
+                              Generar Bio con IA
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Puntos destacados */}
+              {empresa.bio?.puntosDestacados && empresa.bio.puntosDestacados.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Puntos destacados</p>
+                  <ul className="space-y-2">
+                    {empresa.bio.puntosDestacados.map((punto, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                        <span className="text-gray-700">{punto}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Botón de regenerar */}
+              {empresa.bio?.bioCompleta && (
+                <div className="pt-4 border-t">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleGenerarBio} 
+                    disabled={generandoBio}
+                  >
+                    {generandoBio ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Regenerando...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Regenerar Bio con IA
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Contacto */}
+        <TabsContent value="contacto">
+          <Card>
+            <CardHeader>
+              <CardTitle>Información de Contacto</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Email Principal</label>
+                  <Input value={empresa.contacto.emailPrincipal} readOnly />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Teléfono</label>
+                  <Input value={empresa.contacto.telefonoPrincipal} readOnly />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Documentos */}
+        <TabsContent value="documentos">
+          <Card>
+            <CardHeader>
+              <CardTitle>Documentos Fiscales</CardTitle>
+              <CardDescription>
+                Documentos subidos y procesados con OCR
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Lista de documentos */}
+              <p className="text-gray-500">Implementar lista de documentos...</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Branding */}
+        <TabsContent value="branding">
+          <Card>
+            <CardHeader>
+              <CardTitle>Identidad Visual</CardTitle>
+              <CardDescription>
+                Logo, colores y elementos de marca
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Editor de branding */}
+              <p className="text-gray-500">Implementar editor de branding...</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+```
+
+---
+
+## PASO 5: Schema de Base de Datos
+
+Agregar a `db/schema/usuarios.ts`:
+
+```typescript
+import { pgTable, uuid, varchar, text, boolean, integer, timestamp, jsonb, pgEnum } from 'drizzle-orm/pg-core';
+
+// Enums
+export const rolUsuarioEnum = pgEnum('rol_usuario', [
+  'super_admin', 'admin_empresa', 'auditor', 'contador', 'consultor', 'viewer'
+]);
+
+export const estadoUsuarioEnum = pgEnum('estado_usuario', [
+  'activo', 'inactivo', 'pendiente_verificacion', 'suspendido'
+]);
+
+export const tipoEmpresaEnum = pgEnum('tipo_empresa', [
+  'corporativo', 'mediana_empresa', 'pequena_empresa', 'startup',
+  'despacho_contable', 'despacho_legal', 'consultoria', 'persona_fisica_ae', 'otro'
+]);
+
+export const estadoOnboardingEnum = pgEnum('estado_onboarding', [
+  'pendiente_documentos', 'documentos_en_revision', 'perfil_incompleto',
+  'bio_pendiente', 'activo', 'suspendido'
+]);
+
+// Tabla de Usuarios
+export const usuarios = pgTable('usuarios', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  emailVerificado: boolean('email_verificado').default(false),
+  
+  nombre: varchar('nombre', { length: 100 }).notNull(),
+  apellidos: varchar('apellidos', { length: 100 }).notNull(),
+  avatarUrl: text('avatar_url'),
+  telefono: varchar('telefono', { length: 20 }),
+  
+  rol: rolUsuarioEnum('rol').notNull().default('viewer'),
+  estado: estadoUsuarioEnum('estado').notNull().default('pendiente_verificacion'),
+  
+  empresaPrincipalId: uuid('empresa_principal_id'),
+  preferencias: jsonb('preferencias'),
+  
+  ultimoAcceso: timestamp('ultimo_acceso'),
+  ipUltimoAcceso: varchar('ip_ultimo_acceso', { length: 45 }),
+  
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
+
+// Tabla de Empresas/Clientes
+export const empresasClientes = pgTable('empresas_clientes', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  
+  nombreComercial: varchar('nombre_comercial', { length: 255 }).notNull(),
+  razonSocial: varchar('razon_social', { length: 255 }),
+  tipoEmpresa: tipoEmpresaEnum('tipo_empresa').notNull(),
+  industria: varchar('industria', { length: 100 }),
+  
+  // JSON fields
+  branding: jsonb('branding'),
+  contacto: jsonb('contacto').notNull(),
+  presenciaDigital: jsonb('presencia_digital'),
+  bio: jsonb('bio'),
+  datosFiscales: jsonb('datos_fiscales'),
+  metricas: jsonb('metricas'),
+  documentos: jsonb('documentos'),
+  
+  estadoOnboarding: estadoOnboardingEnum('estado_onboarding').default('pendiente_documentos'),
+  porcentajeCompletitud: integer('porcentaje_completitud').default(0),
+  
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  createdBy: varchar('created_by', { length: 100 }).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  updatedBy: varchar('updated_by', { length: 100 }).notNull()
+});
+
+// Tabla de relación Usuario-Empresa
+export const usuariosEmpresas = pgTable('usuarios_empresas', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  usuarioId: uuid('usuario_id').notNull().references(() => usuarios.id),
+  empresaId: uuid('empresa_id').notNull().references(() => empresasClientes.id),
+  
+  rol: rolUsuarioEnum('rol').notNull(),
+  permisos: jsonb('permisos'),
+  esPropietario: boolean('es_propietario').default(false),
+  
+  fechaAsignacion: timestamp('fecha_asignacion').defaultNow().notNull()
+});
+
+// Índices
+// CREATE INDEX idx_usuarios_email ON usuarios(email);
+// CREATE INDEX idx_usuarios_estado ON usuarios(estado);
+// CREATE INDEX idx_empresas_nombre ON empresas_clientes(nombre_comercial);
+// CREATE INDEX idx_usuarios_empresas_usuario ON usuarios_empresas(usuario_id);
+// CREATE INDEX idx_usuarios_empresas_empresa ON usuarios_empresas(empresa_id);
+```
+
+---
+
+## 📝 RESUMEN DE IMPLEMENTACIÓN
+
+### Archivos a crear:
+1. `shared/schemas/usuario.schema.ts` - Schemas Zod
+2. `server/agents/deepResearchAgent.ts` - Agente de investigación IA
+3. `server/routes/usuarios.ts` - API endpoints
+4. `client/components/usuarios/TablaUsuarios.tsx` - Tabla de usuarios
+5. `client/components/empresas/PerfilEmpresa.tsx` - Perfil con editor de bio
+6. `db/schema/usuarios.ts` - Schema de base de datos
+
+### Funcionalidades incluidas:
+- ✅ Gestión completa de usuarios con roles y permisos
+- ✅ Perfiles de empresa con branding (logo, colores)
+- ✅ Deep Research Agent que busca info pública y genera bio
+- ✅ Editor de bio con capacidad de regenerar con IA
+- ✅ Indicador de completitud del perfil
+- ✅ Integración con OCR para datos fiscales
+- ✅ Sistema de estados y onboarding
+
+### Dependencias:
+```bash
+npm install @anthropic-ai/sdk
+```
+
+### Variables de entorno:
+```
+ANTHROPIC_API_KEY=your_key_here
+```
