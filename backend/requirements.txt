@@ -64,9 +64,10 @@ pytest-cov>=4.0.0
 # === Optional Services ===
 redis>=5.0.0
 
-# === RAG / Vector Database (CRÍTICO - faltaba para el chatbot ARCHIVO) ===
+# === RAG / Vector Database (usando OpenAI embeddings - más ligero que torch) ===
 chromadb>=0.4.0
-sentence-transformers>=2.2.0
+# NOTA: Usamos OpenAI embeddings en lugar de sentence-transformers
+# sentence-transformers requiere torch (915MB) y causa timeout en Railway
 
 # === Email (si se usa) ===
 google-api-python-client>=2.100.0
