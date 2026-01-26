@@ -15,7 +15,7 @@ from typing import Optional, Dict, Any
 from pathlib import Path
 import asyncpg
 
-from services.email_service import email_service
+from services.dreamhost_email_service import email_service as dreamhost_email
 
 logger = logging.getLogger(__name__)
 
@@ -342,11 +342,13 @@ Si no solicitaste este codigo, ignora este mensaje.
 2026 Revisar.IA - Plataforma de Cumplimiento Fiscal
         """
         
-        return await email_service.send_email(
-            to=email,
+        # Usar el agente PMO (Carlos Mendoza) para enviar códigos OTP
+        return dreamhost_email.send_email(
+            from_agent_id="A2_PMO",
+            to_email=email,
             subject=subject,
-            body_html=body_html,
-            body_text=body_text
+            body=body_text,
+            html_body=body_html
         )
 
 
