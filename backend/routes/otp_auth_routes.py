@@ -114,7 +114,7 @@ async def get_current_session(authorization: Optional[str] = Header(None)):
     
     from jose import jwt, exceptions as jose_exceptions
     import os
-    SECRET_KEY = os.getenv("SESSION_SECRET") or os.getenv("JWT_SECRET_KEY")
+    SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("SESSION_SECRET") or os.getenv("JWT_SECRET_KEY")
     ALGORITHM = "HS256"
     
     try:

@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/archivo", tags=["onboarding"])
 
 security = HTTPBearer(auto_error=False)
-SECRET_KEY: str = os.getenv("SESSION_SECRET") or os.getenv("JWT_SECRET_KEY") or "fallback-dev-key"
+SECRET_KEY: str = os.getenv("SECRET_KEY") or os.getenv("SESSION_SECRET") or os.getenv("JWT_SECRET_KEY") or "fallback-dev-key"
 if SECRET_KEY == "fallback-dev-key":
     logger.error("CRITICAL: SESSION_SECRET or JWT_SECRET_KEY must be configured")
 ALGORITHM = "HS256"

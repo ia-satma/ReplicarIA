@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
 security = HTTPBearer(auto_error=False)
-SECRET_KEY = os.getenv("SESSION_SECRET") or os.getenv("JWT_SECRET_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("SESSION_SECRET") or os.getenv("JWT_SECRET_KEY")
 ALGORITHM = "HS256"
 
 if not SECRET_KEY:

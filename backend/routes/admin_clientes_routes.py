@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin/clientes", tags=["admin-clientes"])
 
 security = HTTPBearer(auto_error=False)
-SECRET_KEY = os.getenv("SESSION_SECRET") or os.getenv("JWT_SECRET_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("SESSION_SECRET") or os.getenv("JWT_SECRET_KEY")
 if not SECRET_KEY:
-    logger.error("CRITICAL: SESSION_SECRET or JWT_SECRET_KEY must be configured")
+    logger.error("CRITICAL: SECRET_KEY, SESSION_SECRET or JWT_SECRET_KEY must be configured")
     SECRET_KEY = None
 ALGORITHM = "HS256"
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
