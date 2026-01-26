@@ -1,5 +1,5 @@
 """
-SSE Stream Routes for SATMA Multi-Agent Deliberation
+SSE Stream Routes for Revisar.IA Multi-Agent Deliberation
 Real-time event streaming for analysis progress updates
 """
 import asyncio
@@ -52,7 +52,7 @@ async def event_generator(
     try:
         initial_event = {
             "agent_id": "SYSTEM",
-            "agent_name": "Sistema SATMA",
+            "agent_name": "Sistema Revisar.IA",
             "status": "connected",
             "message": "Conexión establecida. Esperando eventos de análisis...",
             "timestamp": datetime.now(timezone.utc).isoformat(),

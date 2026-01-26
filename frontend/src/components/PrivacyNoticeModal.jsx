@@ -23,13 +23,12 @@ const PrivacyNoticeModal = ({ onClose }) => {
             </h3>
             <p className="mb-3">
               El responsable del tratamiento de los datos personales es{' '}
-              <strong>SERVICIOS DE ADMINISTRACIÓN, TECNOLOGÍA, Y MERCADOTECNIA PARA ABOGADOS</strong>{' '}
+              <strong>Revisar.IA</strong>{' '}
               (en adelante, "el Responsable"), con:
             </p>
             <ul className="list-disc ml-6 space-y-1 text-sm bg-gray-50 p-4 rounded">
-              <li><strong>RFC:</strong> SAT180723RW3</li>
-              <li><strong>Domicilio:</strong> Avenida Simón Bolívar 224, OF 301, Colonia Chepevera, CP 64030, Monterrey, Nuevo León, México</li>
-              <li><strong>Correo de contacto para temas de privacidad:</strong> santiago@satma.mx</li>
+              <li><strong>Domicilio:</strong> Monterrey, Nuevo León, México</li>
+              <li><strong>Correo de contacto para temas de privacidad:</strong> privacidad@revisar-ia.com</li>
             </ul>
             <p className="mt-3 text-sm">
               Este Aviso de Privacidad se emite en cumplimiento de la{' '}
@@ -106,7 +105,7 @@ const PrivacyNoticeModal = ({ onClose }) => {
 
             <p className="mt-3 bg-yellow-50 p-3 rounded text-sm">
               Puedes negarte al uso de tus datos para finalidades secundarias escribiendo a{' '}
-              <strong>santiago@satma.mx</strong>. Esto no afectará el uso de la plataforma.
+              <strong>privacidad@revisar-ia.com</strong>. Esto no afectará el uso de la plataforma.
             </p>
           </section>
 
@@ -159,7 +158,7 @@ const PrivacyNoticeModal = ({ onClose }) => {
               mediante solicitud enviada a:
             </p>
             <div className="bg-blue-50 p-4 rounded">
-              <p className="font-semibold">Correo: santiago@satma.mx</p>
+              <p className="font-semibold">Correo: privacidad@revisar-ia.com</p>
               <p className="text-sm mt-2">Asunto: "Ejercicio de derechos ARCO – Revisar‑IA"</p>
             </div>
             <p className="mt-3 text-sm">
@@ -193,9 +192,9 @@ const PrivacyNoticeModal = ({ onClose }) => {
               10. Contacto
             </h3>
             <div className="bg-gray-50 p-4 rounded">
-              <p><strong>Responsable:</strong> Pablo Santiago Álvarez Rincón</p>
-              <p><strong>Correo:</strong> santiago@satma.mx</p>
-              <p><strong>Domicilio:</strong> Av. Simón Bolívar 224, OF 301, Chepevera, CP 64030, Monterrey, N.L.</p>
+              <p><strong>Plataforma:</strong> Revisar.IA</p>
+              <p><strong>Correo:</strong> privacidad@revisar-ia.com</p>
+              <p><strong>Ubicación:</strong> Monterrey, Nuevo León, México</p>
             </div>
           </section>
 

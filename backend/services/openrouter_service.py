@@ -62,7 +62,7 @@ class OpenRouterService:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://revisar.ia",
-            "X-Title": "SATMA Multi-Agent System"
+            "X-Title": "Revisar.IA Multi-Agent System"
         }
     
     async def call_model(

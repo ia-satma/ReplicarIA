@@ -7,8 +7,18 @@ import re
 import json
 import tempfile
 import asyncio
+import logging
 from typing import List, Dict, Any, Optional
-import anthropic
+
+logger = logging.getLogger(__name__)
+
+# OpenAI provider
+try:
+    from services.openai_provider import openai_client, chat_completion_sync, is_configured
+    OPENAI_AVAILABLE = is_configured()
+except ImportError:
+    OPENAI_AVAILABLE = False
+    openai_client = None
 
 try:
     from services.security.security_layer import sanitize_message as _sanitize_message
@@ -181,18 +191,14 @@ Cuando sugieras claves SAT, incluye al final de tu respuesta un bloque JSON así
 
 class AsistenteFacturacionService:
     """Servicio para asistencia en facturación SAT"""
-    
+
     def __init__(self):
-        api_key = os.environ.get("AI_INTEGRATIONS_ANTHROPIC_API_KEY")
-        base_url = os.environ.get("AI_INTEGRATIONS_ANTHROPIC_BASE_URL")
-        
-        if api_key and base_url:
-            self.client = anthropic.Anthropic(api_key=api_key, base_url=base_url)
-        elif os.environ.get("ANTHROPIC_API_KEY"):
-            self.client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        if OPENAI_AVAILABLE:
+            self.client = openai_client
+            logger.info("✅ AsistenteFacturacionService initialized with OpenAI")
         else:
             self.client = None
-            print("⚠️ Anthropic no configurado - modo demo activo")
+            logger.warning("⚠️ OpenAI no configurado - modo demo activo")
     
     def _extraer_sugerencias(self, texto: str) -> List[Dict[str, Any]]:
         """Extrae sugerencias SAT del JSON en la respuesta"""
@@ -235,15 +241,16 @@ class AsistenteFacturacionService:
             
             messages.append({"role": "user", "content": mensaje_sanitizado})
             
+            all_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + messages
+
             response = await asyncio.to_thread(
-                self.client.messages.create,
-                model="claude-sonnet-4-5",
+                self.client.chat.completions.create,
+                model="gpt-4o",
                 max_tokens=1500,
-                system=SYSTEM_PROMPT,
-                messages=messages
+                messages=all_messages
             )
-            
-            respuesta_texto = getattr(response.content[0], 'text', '') if response.content else ""
+
+            respuesta_texto = response.choices[0].message.content if response.choices else ""
             
             response_check = sanitize_response(respuesta_texto)
             if response_check.get("blocked"):
@@ -299,14 +306,16 @@ Responde de forma clara y práctica. Al final incluye las sugerencias en formato
 """
             
             response = await asyncio.to_thread(
-                self.client.messages.create,
-                model="claude-sonnet-4-5",
+                self.client.chat.completions.create,
+                model="gpt-4o",
                 max_tokens=2000,
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt}
+                ]
             )
-            
-            respuesta_texto = getattr(response.content[0], 'text', '') if response.content else ""
+
+            respuesta_texto = response.choices[0].message.content if response.choices else ""
             
             response_check = sanitize_response(respuesta_texto)
             if response_check.get("blocked"):

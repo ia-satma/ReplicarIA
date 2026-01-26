@@ -82,7 +82,7 @@ class HealthMonitor:
     def __init__(self):
         self.mongo_uri = os.getenv("MONGODB_URI", os.getenv("MONGO_URL", ""))
         self.database_url = os.getenv("DATABASE_URL", "")
-        self.base_url = os.getenv("REPLIT_DEV_DOMAIN", "localhost:5000")
+        self.base_url = os.getenv("APP_URL", os.getenv("BACKEND_URL", "localhost:5000"))
         self._last_report: Optional[HealthReport] = None
         self._is_running = False
     
@@ -292,11 +292,11 @@ class HealthMonitor:
         """Verifica servicios críticos"""
         services_status = []
         
-        anthropic_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("AI_INTEGRATIONS_ANTHROPIC_API_KEY")
-        if anthropic_key:
-            services_status.append(("anthropic", True))
+        openai_key = os.getenv("OPENAI_API_KEY")
+        if openai_key:
+            services_status.append(("openai", True))
         else:
-            services_status.append(("anthropic", False))
+            services_status.append(("openai", False))
         
         sendgrid_key = os.getenv("SENDGRID_API_KEY")
         if sendgrid_key:

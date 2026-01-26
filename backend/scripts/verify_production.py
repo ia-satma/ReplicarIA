@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Verificación de preparación para producción del sistema SATMA/Revisar.ia
+Verificación de preparación para producción del sistema Revisar.IA
 Ejecutar: python backend/scripts/verify_production.py
 """
 import os
@@ -29,24 +29,18 @@ class ProductionVerifier:
             "JWT_SECRET": "JWT signing secret",
         }
         
-        anthropic_vars = [
-            "ANTHROPIC_API_KEY",
-            "AI_INTEGRATIONS_ANTHROPIC_API_KEY"
-        ]
-        
         for var, desc in required_vars.items():
             value = os.environ.get(var)
             if value and len(value) > 5:
                 self.add_result(f"ENV: {var}", True, desc)
             else:
                 self.add_result(f"ENV: {var}", False, f"Missing or empty: {desc}")
-        
-        anthropic_found = any(os.environ.get(v) for v in anthropic_vars)
-        if anthropic_found:
-            found_var = next(v for v in anthropic_vars if os.environ.get(v))
-            self.add_result("ENV: ANTHROPIC_API_KEY", True, f"Found as {found_var}")
+
+        openai_key = os.environ.get("OPENAI_API_KEY")
+        if openai_key:
+            self.add_result("ENV: OPENAI_API_KEY", True, "OpenAI API key configured")
         else:
-            self.add_result("ENV: ANTHROPIC_API_KEY", False, "Missing Anthropic API key")
+            self.add_result("ENV: OPENAI_API_KEY", False, "Missing OpenAI API key")
     
     def check_postgresql(self):
         database_url = os.environ.get("DATABASE_URL")
@@ -209,7 +203,7 @@ class ProductionVerifier:
     
     def print_report(self):
         print("\n" + "=" * 70)
-        print("  VERIFICACIÓN DE PRODUCCIÓN - SATMA/Revisar.ia")
+        print("  VERIFICACIÓN DE PRODUCCIÓN - Revisar.IA")
         print("=" * 70 + "\n")
         
         categories = {}

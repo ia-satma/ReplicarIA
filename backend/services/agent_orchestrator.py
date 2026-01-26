@@ -146,10 +146,10 @@ class AgentOrchestrator:
         self._cache = None
     
     @property
-    def claude(self):
+    def llm_client(self):
         if self._claude is None:
-            from anthropic import Anthropic
-            self._claude = Anthropic()
+            from services.openai_provider import openai_client
+            self._claude = openai_client
         return self._claude
     
     @property
@@ -315,23 +315,25 @@ Responde SOLO con información relevante para este tenant."""
         start_time = datetime.utcnow()
         
         response = await asyncio.to_thread(
-            self.claude.messages.create,
-            model="claude-sonnet-4-20250514",
+            self.llm_client.chat.completions.create,
+            model="gpt-4o",
             max_tokens=4096,
             temperature=0.3,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
         )
-        
+
         elapsed_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
-        
+
         return {
             "agent_id": agent_id,
             "agent_name": agent_config["name"],
-            "response": response.content[0].text,
+            "response": response.choices[0].message.content,
             "usage": {
-                "input_tokens": response.usage.input_tokens,
-                "output_tokens": response.usage.output_tokens,
+                "input_tokens": response.usage.prompt_tokens if response.usage else 0,
+                "output_tokens": response.usage.completion_tokens if response.usage else 0,
             },
             "elapsed_ms": elapsed_ms,
             "trace_id": trace_id,
@@ -359,17 +361,19 @@ INSTRUCCIONES:
 4. Lista las recomendaciones principales"""
         
         response = await asyncio.to_thread(
-            self.claude.messages.create,
-            model="claude-sonnet-4-20250514",
+            self.llm_client.chat.completions.create,
+            model="gpt-4o",
             max_tokens=4096,
             temperature=0.2,
-            system="Eres el Agente de Síntesis de REVISAR.IA.",
-            messages=[{"role": "user", "content": synthesis_prompt}],
+            messages=[
+                {"role": "system", "content": "Eres el Agente de Síntesis de REVISAR.IA."},
+                {"role": "user", "content": synthesis_prompt}
+            ],
         )
-        
+
         return {
             "synthesized": True,
-            "response": response.content[0].text,
+            "response": response.choices[0].message.content,
             "individual_responses": results,
         }
 

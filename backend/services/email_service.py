@@ -18,10 +18,8 @@ DREAMHOST_EMAIL_PASSWORD = os.environ.get('DREAMHOST_EMAIL_PASSWORD', '')
 
 async def get_sendgrid_credentials() -> Dict[str, str]:
     """
-    Get SendGrid credentials from environment variables or Replit connector.
-    Priority: Direct env vars > Replit connector
+    Get SendGrid credentials from environment variables.
     """
-    # First try direct environment variables (works on Railway, Render, etc.)
     api_key = os.environ.get('SENDGRID_API_KEY')
     from_email = os.environ.get('SENDGRID_FROM_EMAIL', 'noreply@revisar-ia.com')
 
@@ -29,60 +27,23 @@ async def get_sendgrid_credentials() -> Dict[str, str]:
         logger.debug("Using SendGrid credentials from environment variables")
         return {"api_key": api_key, "from_email": from_email}
 
-    # Fall back to Replit connector
-    hostname = os.environ.get('REPLIT_CONNECTORS_HOSTNAME')
-    if not hostname:
-        raise ValueError("SendGrid not configured - set SENDGRID_API_KEY or use Replit connector")
-
-    repl_identity = os.environ.get('REPL_IDENTITY')
-    web_repl_renewal = os.environ.get('WEB_REPL_RENEWAL')
-
-    if repl_identity:
-        x_replit_token = f"repl {repl_identity}"
-    elif web_repl_renewal:
-        x_replit_token = f"depl {web_repl_renewal}"
-    else:
-        raise ValueError("X_REPLIT_TOKEN not found for repl/depl")
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"https://{hostname}/api/v2/connection?include_secrets=true&connector_names=sendgrid",
-            headers={
-                "Accept": "application/json",
-                "X_REPLIT_TOKEN": x_replit_token
-            }
-        )
-        data = response.json()
-
-    connection_settings = data.get('items', [{}])[0] if data.get('items') else {}
-    settings = connection_settings.get('settings', {})
-
-    api_key = settings.get('api_key')
-    from_email = settings.get('from_email')
-
-    if not api_key or not from_email:
-        raise ValueError("SendGrid not connected - missing api_key or from_email")
-
-    return {"api_key": api_key, "from_email": from_email}
+    raise ValueError("SendGrid not configured - set SENDGRID_API_KEY to enable")
 
 
 def is_configured() -> bool:
-    """Check if email service is configured via SendGrid, DreamHost, or Replit connector"""
+    """Check if email service is configured via SendGrid or DreamHost"""
     return bool(
         os.environ.get('SENDGRID_API_KEY') or
-        os.environ.get('DREAMHOST_EMAIL_PASSWORD') or
-        os.environ.get('REPLIT_CONNECTORS_HOSTNAME')
+        os.environ.get('DREAMHOST_EMAIL_PASSWORD')
     )
 
 
 def get_email_provider() -> str:
     """Determine which email provider to use"""
-    if os.environ.get('SENDGRID_API_KEY'):
-        return 'sendgrid'
-    elif os.environ.get('DREAMHOST_EMAIL_PASSWORD'):
+    if os.environ.get('DREAMHOST_EMAIL_PASSWORD'):
         return 'dreamhost'
-    elif os.environ.get('REPLIT_CONNECTORS_HOSTNAME'):
-        return 'replit'
+    elif os.environ.get('SENDGRID_API_KEY'):
+        return 'sendgrid'
     return 'demo'
 
 
@@ -133,14 +94,12 @@ class EmailService:
         self._provider = get_email_provider()
 
         if self._configured:
-            if self._provider == 'sendgrid':
-                logger.info("✅ Email service configured with SendGrid")
-            elif self._provider == 'dreamhost':
+            if self._provider == 'dreamhost':
                 logger.info("✅ Email service configured with DreamHost SMTP")
-            elif self._provider == 'replit':
-                logger.info("✅ Email service configured with SendGrid via Replit connector")
+            elif self._provider == 'sendgrid':
+                logger.info("✅ Email service configured with SendGrid")
         else:
-            logger.warning("⚠️ Email service not configured - running in demo mode. Set SENDGRID_API_KEY or DREAMHOST_EMAIL_PASSWORD to enable.")
+            logger.warning("⚠️ Email service not configured - running in demo mode. Set DREAMHOST_EMAIL_PASSWORD or SENDGRID_API_KEY to enable.")
     
     def is_available(self) -> bool:
         return self._configured

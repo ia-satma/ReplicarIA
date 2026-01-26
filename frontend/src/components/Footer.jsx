@@ -15,11 +15,8 @@ const Footer = () => {
             <div>
               <h3 className="text-white font-bold text-lg mb-4">Revisar.IA</h3>
               <p className="text-sm">
-                Plataforma tecnológica de apoyo para la gestión de riesgos fiscales 
+                Plataforma tecnológica de apoyo para la gestión de riesgos fiscales
                 y cumplimiento en México.
-              </p>
-              <p className="text-xs text-gray-400 mt-3">
-                RFC: SAT180723RW3
               </p>
             </div>
 
@@ -48,14 +45,14 @@ const Footer = () => {
             <div>
               <h3 className="text-white font-bold text-lg mb-4">Contacto</h3>
               <div className="text-sm">
-                <a href="mailto:hola@satma.mx" className="hover:text-white transition-colors font-semibold">HOLA@SATMA.MX</a>
+                <a href="mailto:soporte@revisar-ia.com" className="hover:text-white transition-colors font-semibold">SOPORTE@REVISAR-IA.COM</a>
               </div>
             </div>
           </div>
 
           <div className="border-t border-gray-700 mt-8 pt-6 text-center">
             <p className="text-sm text-gray-400">
-              © {new Date().getFullYear()} SATMA - Revisar.IA 
+              © {new Date().getFullYear()} Revisar.IA
               <strong className="text-gray-300"> · Plataforma tecnológica de apoyo</strong>
             </p>
             <p className="text-xs text-gray-500 mt-2">

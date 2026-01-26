@@ -28,7 +28,7 @@ biblioteca_service = BibliotecaService()
 document_processor = kb_processor
 session_factory = None
 
-def init_kb_rag_services(sf, anthropic=None):
+def init_kb_rag_services(sf, llm_client=None):
     global document_processor, session_factory
     session_factory = sf
     logger.info("KB RAG services initialized with PostgreSQL (kb_processor)")

@@ -213,7 +213,7 @@ async def get_pending_projects(agent_id: str):
         
         satma_emails = [
             email for email in emails.get("emails", [])
-            if "[SATMA]" in email.get("subject", "")
+            if "[Revisar.IA]" in email.get("subject", "")
         ]
         
         return {
@@ -272,11 +272,11 @@ async def request_adjustment(request: AdjustmentRequest):
     
     tipo_solicitud = adjustment_types.get(request.adjustment_type, request.adjustment_type)
     
-    subject = f"[SATMA] Solicitud de {tipo_solicitud} - Proyecto {request.project_id}"
+    subject = f"[Revisar.IA] Solicitud de {tipo_solicitud} - Proyecto {request.project_id}"
     
     body = f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SISTEMA SATMA - SOLICITUD DE AJUSTE
+SISTEMA REVISAR.IA - SOLICITUD DE AJUSTE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Estimado Proveedor,
@@ -311,7 +311,7 @@ de Materialidad conforme al Artículo 69-B del CFF.
 🏢 Revisar.ia
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Este correo fue generado automáticamente por el Sistema SATMA.
+Este correo fue generado automáticamente por Revisar.IA.
 Cualquier respuesta será registrada como evidencia para auditorías SAT.
 """
     

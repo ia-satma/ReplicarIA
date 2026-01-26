@@ -69,41 +69,15 @@ class Alerta:
 
 
 async def get_sendgrid_credentials() -> Optional[Dict[str, str]]:
-    """Obtiene credenciales de SendGrid via Replit Connectors."""
-    hostname = os.environ.get('REPLIT_CONNECTORS_HOSTNAME')
-    token = None
-    
-    if os.environ.get('REPL_IDENTITY'):
-        token = f"repl {os.environ.get('REPL_IDENTITY')}"
-    elif os.environ.get('WEB_REPL_RENEWAL'):
-        token = f"depl {os.environ.get('WEB_REPL_RENEWAL')}"
-    
-    if not token or not hostname:
-        logger.warning("⚠️ Tráfico.IA: Credenciales de Replit Connectors no disponibles")
-        return None
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"https://{hostname}/api/v2/connection?include_secrets=true&connector_names=sendgrid",
-                headers={"Accept": "application/json", "X_REPLIT_TOKEN": token},
-                timeout=30.0
-            )
-            data = resp.json()
-            item = data.get('items', [{}])[0] if data.get('items') else {}
-            settings = item.get('settings', {})
-            
-            api_key = settings.get('api_key')
-            from_email = settings.get('from_email')
-            
-            if api_key and from_email:
-                return {"api_key": api_key, "from_email": from_email}
-            
-            logger.warning("⚠️ Tráfico.IA: SendGrid no configurado correctamente")
-            return None
-    except Exception as e:
-        logger.error(f"❌ Tráfico.IA: Error obteniendo credenciales SendGrid: {e}")
-        return None
+    """Obtiene credenciales de SendGrid desde variables de entorno."""
+    api_key = os.environ.get('SENDGRID_API_KEY')
+    from_email = os.environ.get('SENDGRID_FROM_EMAIL', 'noreply@revisar-ia.com')
+
+    if api_key:
+        return {"api_key": api_key, "from_email": from_email}
+
+    logger.warning("⚠️ Tráfico.IA: SENDGRID_API_KEY no configurada")
+    return None
 
 
 class TraficoIAService:

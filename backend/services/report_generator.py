@@ -379,7 +379,7 @@ class ReportGeneratorService:
             story.append(Spacer(1, 0.5*inch))
             
             footer = f"""
-            <i>Bitácora generada automáticamente por el Sistema SATMA<br/>
+            <i>Bitácora generada automáticamente por Revisar.IA<br/>
             Revisar.ia - Trazabilidad de Servicios Intangibles<br/>
             Fecha de generación: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}</i>
             """

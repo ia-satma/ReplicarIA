@@ -180,15 +180,12 @@ async def get_test_status():
     """Verifica el estado de los servicios para pruebas"""
     import os
     
-    anthropic_configured = bool(
-        os.getenv("AI_INTEGRATIONS_ANTHROPIC_API_KEY") or 
-        os.getenv("ANTHROPIC_API_KEY")
-    )
-    
+    openai_configured = bool(os.getenv("OPENAI_API_KEY"))
+
     return {
         "servicios": {
             "database": bool(os.getenv("DATABASE_URL")),
-            "anthropic": anthropic_configured,
+            "openai": openai_configured,
             "email": bool(os.getenv("DREAMHOST_EMAIL_PASSWORD")),
             "pcloud": bool(os.getenv("PCLOUD_USERNAME") and os.getenv("PCLOUD_PASSWORD"))
         },

@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
 import asyncpg
-from anthropic import Anthropic
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class ProcessResult:
 class KBDocumentProcessor:
     def __init__(self, db_url: str = None):
         self.db_url = db_url or os.getenv("DATABASE_URL")
-        self.anthropic = Anthropic()
+        self.openai_client = OpenAI()
         self.pool = None
     
     async def get_pool(self):
@@ -98,8 +98,8 @@ class KBDocumentProcessor:
     
     async def clasificar_documento(self, texto: str, categoria_hint: str, filename: str) -> Dict:
         try:
-            response = self.anthropic.messages.create(
-                model="claude-sonnet-4-5",
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o",
                 max_tokens=2000,
                 messages=[{
                     "role": "user",
@@ -129,8 +129,8 @@ Responde SOLO en JSON válido:
 }}"""
                 }]
             )
-            
-            content = response.content[0].text
+
+            content = response.choices[0].message.content
             content = content.strip()
             if content.startswith("```"):
                 content = content.split("```")[1]
@@ -154,9 +154,9 @@ Responde SOLO en JSON válido:
     async def chunk_documento(self, texto: str, config: Dict, clasificacion: Dict) -> List[Dict]:
         try:
             texto_truncado = texto[:30000]
-            
-            response = self.anthropic.messages.create(
-                model="claude-sonnet-4-5",
+
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o",
                 max_tokens=8000,
                 messages=[{
                     "role": "user",
@@ -193,8 +193,8 @@ Responde SOLO con JSON válido:
 }}"""
                 }]
             )
-            
-            content = response.content[0].text.strip()
+
+            content = response.choices[0].message.content.strip()
             if content.startswith("```"):
                 content = content.split("```")[1]
                 if content.startswith("json"):

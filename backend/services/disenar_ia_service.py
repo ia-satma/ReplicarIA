@@ -13,7 +13,14 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 from enum import Enum
-from anthropic import Anthropic
+
+# OpenAI provider
+try:
+    from services.openai_provider import openai_client, chat_completion_sync, is_configured
+    OPENAI_AVAILABLE = is_configured()
+except ImportError:
+    OPENAI_AVAILABLE = False
+    openai_client = None
 
 from config.design_system import (
     COLORES, COLORES_PROHIBIDOS, TIPOGRAFIAS, 
@@ -143,17 +150,14 @@ class DisenarIAService:
             "ultima_auditoria": None
         }
         
-        api_key = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_API_KEY')
-        base_url = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_BASE_URL')
-        
-        if api_key and base_url:
-            self.client = Anthropic(api_key=api_key, base_url=base_url)
-            logger.info("🎨 Diseñar.IA: Anthropic API configurada correctamente")
+        if OPENAI_AVAILABLE:
+            self.client = openai_client
+            logger.info("🎨 Diseñar.IA: OpenAI API configurada correctamente")
         else:
-            logger.warning("⚠️ Diseñar.IA: Replit AI Integrations no configurado - análisis con IA no disponible")
+            logger.warning("⚠️ Diseñar.IA: OpenAI no configurado - análisis con IA no disponible")
             self.client = None
-        
-        self.model = "claude-sonnet-4-5"
+
+        self.model = "gpt-4o"
         logger.info("🎨 Diseñar.IA: Servicio inicializado")
     
     def obtener_status(self) -> Dict[str, Any]:
@@ -372,30 +376,31 @@ Responde en español con formato estructurado:
             if contexto:
                 prompt_usuario += f"\n\nContexto adicional: {contexto}"
 
-            response = self.client.messages.create(
+            # OpenAI Vision API format
+            response = self.client.chat.completions.create(
                 model=self.model,
                 max_tokens=3000,
-                system=system_prompt,
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/png",
-                                "data": imagen_base64
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{imagen_base64}"
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": prompt_usuario
                             }
-                        },
-                        {
-                            "type": "text",
-                            "text": prompt_usuario
-                        }
-                    ]
-                }]
+                        ]
+                    }
+                ]
             )
             
-            analisis = response.content[0].text
+            analisis = response.choices[0].message.content
             
             reporte = ReporteAuditoria(tipo="screenshot")
             reporte.metricas = {
@@ -1099,15 +1104,17 @@ Cuando respondas:
                     })
             
             messages.append({"role": "user", "content": mensaje})
-            
-            response = self.client.messages.create(
+
+            # Add system message at the beginning for OpenAI
+            all_messages = [{"role": "system", "content": system_prompt}] + messages
+
+            response = self.client.chat.completions.create(
                 model=self.model,
                 max_tokens=2000,
-                system=system_prompt,
-                messages=messages
+                messages=all_messages
             )
-            
-            respuesta = response.content[0].text
+
+            respuesta = response.choices[0].message.content
             
             return {
                 'success': True,

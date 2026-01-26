@@ -201,7 +201,7 @@ Your output MUST be in JSON format:
         }
     }
     
-    CHAIRMAN_PROMPT = """You are the Chairman of a Quality Assurance Council for Revisar.ia's SATMA system.
+    CHAIRMAN_PROMPT = """You are the Chairman of a Quality Assurance Council for Revisar.IA's multi-agent system.
 You have received critiques from three specialized auditors:
 1. Fact Auditor - checked for factual accuracy against source documents
 2. Business Strategist - evaluated strategic alignment

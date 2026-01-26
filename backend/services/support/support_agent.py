@@ -21,8 +21,7 @@ from ..security.security_layer import (
 
 logger = logging.getLogger(__name__)
 
-AI_INTEGRATIONS_ANTHROPIC_API_KEY = os.environ.get("AI_INTEGRATIONS_ANTHROPIC_API_KEY")
-AI_INTEGRATIONS_ANTHROPIC_BASE_URL = os.environ.get("AI_INTEGRATIONS_ANTHROPIC_BASE_URL")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 WHATSAPP_NUMBER = "528123997852"
 
@@ -286,42 +285,38 @@ async def get_support_response(
     # Sanitize message before sending to LLM
     sanitized_message = sanitize_message(user_message)
     
-    if not AI_INTEGRATIONS_ANTHROPIC_API_KEY or not AI_INTEGRATIONS_ANTHROPIC_BASE_URL:
-        logger.warning("Anthropic AI Integrations not configured, using fallback responses")
+    if not OPENAI_API_KEY:
+        logger.warning("OpenAI API Key not configured, using fallback responses")
         response = get_fallback_response(sanitized_message)
         response["blocked"] = False
         return response
-    
+
     try:
-        from anthropic import Anthropic
-        
-        client = Anthropic(
-            api_key=AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-            base_url=AI_INTEGRATIONS_ANTHROPIC_BASE_URL
-        )
-        
-        messages = []
+        from openai import OpenAI
+
+        client = OpenAI(api_key=OPENAI_API_KEY)
+
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         if conversation_history:
             for msg in conversation_history[-10:]:
                 messages.append({
                     "role": msg.get("role", "user"),
                     "content": msg.get("content", "")
                 })
-        
+
         messages.append({
             "role": "user",
             "content": sanitized_message
         })
-        
-        response = client.messages.create(
-            model="claude-sonnet-4-5",
+
+        response = client.chat.completions.create(
+            model="gpt-4o",
             max_tokens=1024,
-            system=SYSTEM_PROMPT,
             messages=messages
         )
-        
-        if response.content and len(response.content) > 0:
-            response_text = response.content[0].text
+
+        if response.choices and len(response.choices) > 0:
+            response_text = response.choices[0].message.content
             
             # Sanitize response to ensure no sensitive info leaked
             response_text = sanitize_response(response_text)
@@ -342,18 +337,18 @@ async def get_support_response(
                 "blocked": False
             }
         else:
-            logger.warning("Empty response from Claude")
+            logger.warning("Empty response from OpenAI")
             fallback = get_fallback_response(sanitized_message)
             fallback["blocked"] = False
             return fallback
             
     except ImportError:
-        logger.error("anthropic package not installed")
+        logger.error("openai package not installed")
         fallback = get_fallback_response(sanitized_message)
         fallback["blocked"] = False
         return fallback
     except Exception as e:
-        logger.error(f"Error calling Anthropic API: {e}")
+        logger.error(f"Error calling OpenAI API: {e}")
         fallback = get_fallback_response(sanitized_message)
         fallback["blocked"] = False
         return fallback

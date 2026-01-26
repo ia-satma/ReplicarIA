@@ -21,20 +21,21 @@ LISTA_69B_KEYWORDS = ['69-b', '69b', 'lista_69', 'listado_69', 'efos']
 
 rag_processor = None
 agent_kb_service = None
-anthropic_client = None
+openai_client = None
 session_factory = None
 
 
-def init_biblioteca_services(sf, anthropic=None):
-    """Initialize biblioteca services with session factory and optional Anthropic client."""
-    global rag_processor, agent_kb_service, anthropic_client, session_factory
+def init_biblioteca_services(sf, llm_client=None):
+    """Initialize biblioteca services with session factory and optional LLM client."""
+    global rag_processor, agent_kb_service, openai_client, session_factory
     from services.knowledge_base.rag_processor import RAGProcessor
     from services.knowledge_base.agent_kb_service import AgentKBService
     from services.knowledge_base.embeddings_service import embeddings_service
-    
+    from services.openai_provider import openai_client as oai_client
+
     session_factory = sf
-    anthropic_client = anthropic
-    rag_processor = RAGProcessor(sf, anthropic)
+    openai_client = oai_client  # Use OpenAI client from provider
+    rag_processor = RAGProcessor(sf, openai_client)
     agent_kb_service = AgentKBService(sf, embeddings_service)
     logger.info("Biblioteca services initialized with RAG processor")
 
@@ -374,7 +375,7 @@ async def chat_with_biblioteca(
                 contexto_kb += f"(Relevancia: {r.get('similarity', 0):.2f})\n"
             contexto_kb += "--- FIN DOCUMENTOS ---\n"
         
-        if anthropic_client:
+        if openai_client:
             por_agente = stats.get('por_agente', {})
             agentes_info = ", ".join([f"{k}: {v} chunks" for k, v in por_agente.items()]) if por_agente else "Sin asignaciones"
             
@@ -414,22 +415,21 @@ MAPEO DE AGENTES:
 
 Responde siempre en español mexicano profesional. Si encuentras documentos relevantes, cítalos específicamente.'''
 
-            messages = []
+            messages = [{"role": "system", "content": system_prompt}]
             for h in (request.history or [])[-10:]:
                 messages.append({
                     "role": h.get("role", "user"),
                     "content": h.get("content", "")
                 })
             messages.append({"role": "user", "content": request.message})
-            
-            response = anthropic_client.messages.create(
-                model='claude-sonnet-4-5',
+
+            response = openai_client.chat.completions.create(
+                model='gpt-4o',
                 max_tokens=2000,
-                system=system_prompt,
                 messages=messages
             )
-            
-            response_text = response.content[0].text if response.content else "No pude generar una respuesta."
+
+            response_text = response.choices[0].message.content if response.choices else "No pude generar una respuesta."
         else:
             por_cat = stats.get('por_categoria', {})
             cat_info = "\n".join([f"  - {k}: {v} docs" for k, v in por_cat.items()]) if por_cat else "  Sin categorías"

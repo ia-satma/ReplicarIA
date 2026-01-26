@@ -135,15 +135,12 @@ class TestRunner:
     async def test_environment(self):
         """TEST 0: Verificar variables de entorno"""
         inicio = datetime.now()
-        
-        anthropic_configured = bool(
-            os.getenv("AI_INTEGRATIONS_ANTHROPIC_API_KEY") or 
-            os.getenv("ANTHROPIC_API_KEY")
-        )
-        
+
+        openai_configured = bool(os.getenv("OPENAI_API_KEY"))
+
         env_vars = {
             "DATABASE_URL": os.getenv("DATABASE_URL"),
-            "ANTHROPIC_API_KEY": anthropic_configured,
+            "OPENAI_API_KEY": openai_configured,
             "DREAMHOST_EMAIL_PASSWORD": os.getenv("DREAMHOST_EMAIL_PASSWORD"),
             "PCLOUD_USERNAME": os.getenv("PCLOUD_USERNAME"),
             "PCLOUD_PASSWORD": os.getenv("PCLOUD_PASSWORD"),

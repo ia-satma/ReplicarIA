@@ -26,13 +26,12 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 
 import asyncpg
-from anthropic import Anthropic
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-# Anthropic client usando Replit AI Integrations
-AI_INTEGRATIONS_ANTHROPIC_API_KEY = os.environ.get("AI_INTEGRATIONS_ANTHROPIC_API_KEY")
-AI_INTEGRATIONS_ANTHROPIC_BASE_URL = os.environ.get("AI_INTEGRATIONS_ANTHROPIC_BASE_URL")
+# OpenAI API Key
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 
 @dataclass
@@ -102,24 +101,21 @@ class DebuggerAgent:
         self._task: Optional[asyncio.Task] = None
         self._check_interval = 120  # segundos entre ciclos de análisis
         
-        # Cliente Anthropic usando Replit AI Integrations
-        self.anthropic_client: Optional[Anthropic] = None
-        self._init_anthropic_client()
-    
-    def _init_anthropic_client(self) -> None:
-        """Inicializa el cliente de Anthropic"""
-        if AI_INTEGRATIONS_ANTHROPIC_API_KEY and AI_INTEGRATIONS_ANTHROPIC_BASE_URL:
+        # Cliente OpenAI
+        self.openai_client: Optional[OpenAI] = None
+        self._init_openai_client()
+
+    def _init_openai_client(self) -> None:
+        """Inicializa el cliente de OpenAI"""
+        if OPENAI_API_KEY:
             try:
-                self.anthropic_client = Anthropic(
-                    api_key=AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-                    base_url=AI_INTEGRATIONS_ANTHROPIC_BASE_URL
-                )
-                logger.info("🔧 Debugger: Cliente Anthropic inicializado")
+                self.openai_client = OpenAI(api_key=OPENAI_API_KEY)
+                logger.info("🔧 Debugger: Cliente OpenAI inicializado")
             except Exception as e:
-                logger.error(f"Error inicializando cliente Anthropic: {e}")
-                self.anthropic_client = None
+                logger.error(f"Error inicializando cliente OpenAI: {e}")
+                self.openai_client = None
         else:
-            logger.warning("🔧 Debugger: Variables de Anthropic no configuradas")
+            logger.warning("🔧 Debugger: OPENAI_API_KEY no configurada")
     
     async def _init_db_pool(self) -> None:
         """Inicializa el pool de conexiones a PostgreSQL"""
@@ -373,25 +369,28 @@ class DebuggerAgent:
     async def diagnosticar_causa_raiz(self, bug: BugInfo) -> Optional[Diagnostico]:
         """
         Usa IA para diagnosticar la causa raíz de un bug.
-        
+
         Args:
             bug: Información del bug a diagnosticar
-            
+
         Returns:
             Diagnóstico con causa raíz y archivos afectados
         """
-        if not self.anthropic_client:
-            logger.error("Cliente Anthropic no disponible")
+        if not self.openai_client:
+            logger.error("Cliente OpenAI no disponible")
             return None
-        
+
         # Construir prompt para diagnóstico
         prompt = self._construir_prompt_diagnostico(bug)
-        
+
         try:
-            message = self.anthropic_client.messages.create(
-                model="claude-sonnet-4-5",
+            message = self.openai_client.chat.completions.create(
+                model="gpt-4o",
                 max_tokens=2048,
-                system="""Eres DEBUGGER.IA, un experto en diagnóstico de bugs y análisis de errores.
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """Eres DEBUGGER.IA, un experto en diagnóstico de bugs y análisis de errores.
 Tu trabajo es analizar bugs detectados en un sistema y diagnosticar su causa raíz.
 
 IMPORTANTE: Responde SIEMPRE en formato JSON válido con la siguiente estructura:
@@ -404,14 +403,16 @@ IMPORTANTE: Responde SIEMPRE en formato JSON válido con la siguiente estructura
     "confianza": 0.85
 }
 
-Donde "confianza" es un número entre 0 y 1 indicando tu nivel de certeza.""",
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }]
+Donde "confianza" es un número entre 0 y 1 indicando tu nivel de certeza."""
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
             )
-            
-            response_text = message.content[0].text
+
+            response_text = message.choices[0].message.content
             
             # Parsear respuesta JSON
             try:
@@ -447,31 +448,34 @@ Donde "confianza" es un número entre 0 y 1 indicando tu nivel de certeza.""",
             return None
     
     async def proponer_solucion(
-        self, 
-        bug: BugInfo, 
+        self,
+        bug: BugInfo,
         diagnostico: Diagnostico
     ) -> Optional[Solucion]:
         """
         Propone una solución basada en el diagnóstico.
-        
+
         Args:
             bug: Información del bug
             diagnostico: Diagnóstico del bug
-            
+
         Returns:
             Solución propuesta con pasos y archivos a modificar
         """
-        if not self.anthropic_client:
-            logger.error("Cliente Anthropic no disponible")
+        if not self.openai_client:
+            logger.error("Cliente OpenAI no disponible")
             return None
-        
+
         prompt = self._construir_prompt_solucion(bug, diagnostico)
-        
+
         try:
-            message = self.anthropic_client.messages.create(
-                model="claude-sonnet-4-5",
+            message = self.openai_client.chat.completions.create(
+                model="gpt-4o",
                 max_tokens=2048,
-                system="""Eres DEBUGGER.IA, un experto en resolver bugs y proponer soluciones.
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """Eres DEBUGGER.IA, un experto en resolver bugs y proponer soluciones.
 Basándote en el diagnóstico proporcionado, propón una solución clara y ejecutable.
 
 IMPORTANTE: Responde SIEMPRE en formato JSON válido con la siguiente estructura:
@@ -492,14 +496,16 @@ IMPORTANTE: Responde SIEMPRE en formato JSON válido con la siguiente estructura
     "requiere_supervision": true
 }
 
-Sé específico en los pasos y cambios necesarios.""",
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }]
+Sé específico en los pasos y cambios necesarios."""
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
             )
-            
-            response_text = message.content[0].text
+
+            response_text = message.choices[0].message.content
             
             try:
                 # Limpiar respuesta si tiene markdown
@@ -660,7 +666,7 @@ Por favor, proporciona:
         if not self.db_pool:
             return {
                 "activo": self.running,
-                "anthropic_disponible": self.anthropic_client is not None,
+                "openai_disponible": self.openai_client is not None,
                 "database_conectada": False
             }
         
@@ -680,7 +686,7 @@ Por favor, proporciona:
                 
                 return {
                     "activo": self.running,
-                    "anthropic_disponible": self.anthropic_client is not None,
+                    "openai_disponible": self.openai_client is not None,
                     "database_conectada": True,
                     "bugs": {
                         "total": stats['total_bugs'] or 0,
@@ -697,7 +703,7 @@ Por favor, proporciona:
             logger.error(f"Error obteniendo estado: {e}")
             return {
                 "activo": self.running,
-                "anthropic_disponible": self.anthropic_client is not None,
+                "openai_disponible": self.openai_client is not None,
                 "database_conectada": False,
                 "error": str(e)
             }

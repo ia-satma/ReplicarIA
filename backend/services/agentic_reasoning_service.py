@@ -394,7 +394,7 @@ PENDIENTES:
         
         message = f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SISTEMA SATMA - COMUNICACIÓN INTER-AGENTES
+SISTEMA REVISAR.IA - COMUNICACIÓN INTER-AGENTES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 De: {from_name} ({from_config.get('department', '')})
@@ -455,7 +455,7 @@ DECISIÓN: {delib.get('decision', 'N/A').upper()}
         system_prompt = f"""{agent_config.get('system_prompt', '')}
 
 IMPORTANTE: DEBES RESPONDER COMPLETAMENTE EN ESPAÑOL MEXICANO.
-Tu tarea es generar el REPORTE DE CONSOLIDACIÓN FINAL para el sistema SATMA de Revisar.ia.
+Tu tarea es generar el REPORTE DE CONSOLIDACIÓN FINAL para el sistema Revisar.IA de Revisar.ia.
 Este documento será enviado al solicitante original del proyecto.
 
 INSTRUCCIONES DE IDIOMA:
@@ -467,7 +467,7 @@ ESTRUCTURA OBLIGATORIA DEL REPORTE (mínimo 1500 palabras):
 
 1. ENCABEZADO Y RESUMEN EJECUTIVO (300+ palabras)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   REPORTE DE CONSOLIDACIÓN - SISTEMA SATMA
+   REPORTE DE CONSOLIDACIÓN - SISTEMA REVISAR.IA
    Revisar.ia - Control de Servicios de Consultoría
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    - Identificación completa del proyecto (nombre, ID, monto)
@@ -664,7 +664,7 @@ INSTRUCCIONES FINALES:
         ])
         
         consolidation = f"""
-REPORTE DE CONSOLIDACIÓN - SISTEMA SATMA
+REPORTE DE CONSOLIDACIÓN - SISTEMA REVISAR.IA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1. RESUMEN EJECUTIVO
@@ -681,7 +681,7 @@ Decisión Final: {final_status.upper()}
 
 3. CONCLUSIÓN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-El proyecto ha sido evaluado por todos los agentes del sistema SATMA.
+El proyecto ha sido evaluado por todos los agentes del sistema Revisar.IA.
 Se adjuntan los reportes individuales de cada agente para su revisión.
 
 4. DOCUMENTOS ADJUNTOS
@@ -808,13 +808,13 @@ Por favor, revise y atienda estos ajustes para completar el proceso de aprobaci�
         
         email_body = f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SISTEMA SATMA - REPORTE DE CONSOLIDACIÓN FINAL
+SISTEMA REVISAR.IA - REPORTE DE CONSOLIDACIÓN FINAL
 Revisar.ia
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Estimado(a) {client_name},
 
-Le informamos que su solicitud de proyecto ha completado el proceso de evaluación multi-agente del Sistema SATMA.
+Le informamos que su solicitud de proyecto ha completado el proceso de evaluación multi-agente de Revisar.IA.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 DATOS DEL PROYECTO

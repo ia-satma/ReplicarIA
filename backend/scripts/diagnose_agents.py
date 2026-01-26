@@ -72,30 +72,30 @@ async def check_orchestrator():
         return False
 
 
-async def check_claude():
-    """Verifica conexión a Claude API."""
-    print("\n🧠 Verificando Claude API...")
-    
+async def check_llm():
+    """Verifica conexión a OpenAI API."""
+    print("\n🧠 Verificando OpenAI API...")
+
     try:
-        from anthropic import Anthropic
-        
-        client = Anthropic()
-        
+        from openai import OpenAI
+
+        client = OpenAI()
+
         start = time.perf_counter()
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+        response = client.chat.completions.create(
+            model="gpt-4o",
             max_tokens=50,
             messages=[{"role": "user", "content": "Di 'OK'"}],
         )
         elapsed = (time.perf_counter() - start) * 1000
-        
-        print(f"   ✅ Claude API: OK ({elapsed:.0f}ms)")
-        RESULTS["metrics"]["claude_latency_ms"] = elapsed
-        RESULTS["checks"]["claude"] = True
+
+        print(f"   ✅ OpenAI API: OK ({elapsed:.0f}ms)")
+        RESULTS["metrics"]["openai_latency_ms"] = elapsed
+        RESULTS["checks"]["openai"] = True
         return True
     except Exception as e:
-        RESULTS["errors"].append(f"Claude: {e}")
-        RESULTS["checks"]["claude"] = False
+        RESULTS["errors"].append(f"OpenAI: {e}")
+        RESULTS["checks"]["openai"] = False
         print(f"   ❌ Error: {e}")
         return False
 

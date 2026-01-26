@@ -1,6 +1,6 @@
 """
 Deliberation Orchestrator Service
-Coordinates the 5-stage workflow between SATMA agents via email
+Coordinates the 5-stage workflow between Revisar.IA agents via email
 Creates audit trail for SAT Materialidad compliance
 """
 import os
@@ -279,7 +279,7 @@ class DeliberationOrchestrator:
         client_name = project.get("client_name", "N/A")
         amount = project.get("amount", 0)
         
-        subject = f"[SATMA] Deliberación Proyecto {project_id}: {project_name}"
+        subject = f"[Revisar.IA] Deliberación Proyecto {project_id}: {project_name}"
         
         rag_summary = ""
         if rag_context:
@@ -291,7 +291,7 @@ class DeliberationOrchestrator:
         
         body = f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SISTEMA SATMA - DELIBERACIÓN MULTI-AGENTES
+SISTEMA REVISAR.IA - DELIBERACIÓN MULTI-AGENTES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📋 PROYECTO: {project_name}
@@ -346,10 +346,10 @@ SISTEMA SATMA - DELIBERACIÓN MULTI-AGENTES
         rag_context = self.get_rag_context(first_agent_id, project_description)
         
         email_content = {
-            "subject": f"[SATMA] Nuevo Proyecto para Validación: {project.get('name', 'Sin nombre')}",
+            "subject": f"[Revisar.IA] Nuevo Proyecto para Validación: {project.get('name', 'Sin nombre')}",
             "body": f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SISTEMA SATMA - NUEVA SOLICITUD DE VALIDACIÓN
+SISTEMA REVISAR.IA - NUEVA SOLICITUD DE VALIDACIÓN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Estimada {first_agent.get('name', 'María')},
@@ -387,7 +387,7 @@ Responde a este correo con tu análisis y decisión:
 ⏰ Fecha de solicitud: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Sistema SATMA - Revisar.ia
+Sistema Revisar.IA - Revisar.ia
 """
         }
         
@@ -1022,7 +1022,7 @@ Sistema SATMA - Revisar.ia
                         stage=stage.value
                     )
                     
-                    email_subject = f"[SATMA] Deliberación {project_id}: {project.get('name', '')}"
+                    email_subject = f"[Revisar.IA] Deliberación {project_id}: {project.get('name', '')}"
                     
                     try:
                         attachments = []
@@ -1051,7 +1051,7 @@ Sistema SATMA - Revisar.ia
                             defense_file_service.add_email(project_id, {
                                 "from_email": agent_config.get("email", ""),
                                 "to_email": next_agent.get("email", ""),
-                                "subject": f"[SATMA] Deliberación {stage.value}",
+                                "subject": f"[Revisar.IA] Deliberación {stage.value}",
                                 "body": email_body[:500],
                                 "message_id": email_result.get("message_id", ""),
                                 "attachments": email_result.get("attachments", [])
@@ -1207,7 +1207,7 @@ Sistema SATMA - Revisar.ia
             approval_report_path = self.report_generator.generate_agent_report(
                 project_id=project_id,
                 agent_id="SYSTEM",
-                agent_name="Sistema SATMA",
+                agent_name="Sistema Revisar.IA",
                 agent_role="Aprobación Final",
                 report_type="aprobacion_final",
                 version=1,
@@ -1593,7 +1593,7 @@ Sistema SATMA - Revisar.ia
             
             pmo_email = "pmo@revisar-ia.com"
             
-            email_subject = f"[SATMA] Coordinación de Contrato - {project_name}"
+            email_subject = f"[Revisar.IA] Coordinación de Contrato - {project_name}"
             
             email_body = f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1603,7 +1603,7 @@ GRUPO FORTEZZA - COORDINACIÓN DE CONTRATO
 Estimado(a) {client_name},
 
 Le informamos que el proyecto "{project_name}" ha sido aprobado por 
-todos los departamentos de Revisar.ia a través del Sistema SATMA.
+todos los departamentos de Revisar.ia a través del Sistema Revisar.IA.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 DETALLES DEL PROYECTO APROBADO
@@ -1648,7 +1648,7 @@ Atentamente,
 Equipo Legal
 Revisar.ia
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Este correo es parte del trail de auditoría del Sistema SATMA 
+Este correo es parte del trail de auditoría del Sistema Revisar.IA 
 para cumplimiento SAT (Art. 69-B CFF / NOM-151)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
@@ -1915,7 +1915,7 @@ para cumplimiento SAT (Art. 69-B CFF / NOM-151)
                             attachments.append(str(pdf_file))
                             logger.info(f"📎 Adding attachment: {pdf_file.name}")
                 
-                email_subject = f"[SATMA] Resultado de Evaluación - {project.get('name', project_id)} - {final_status.upper()}"
+                email_subject = f"[Revisar.IA] Resultado de Evaluación - {project.get('name', project_id)} - {final_status.upper()}"
                 
                 try:
                     if attachments:

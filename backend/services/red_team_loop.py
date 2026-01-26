@@ -265,32 +265,28 @@ Responde en JSON:
 }}"""
         
         try:
-            import anthropic
-            
-            # Initialize Anthropic with Replit AI Integrations (priority) or ANTHROPIC_API_KEY
-            ai_api_key = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_API_KEY')
-            ai_base_url = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_BASE_URL')
-            
-            if ai_api_key and ai_base_url:
-                client = anthropic.Anthropic(api_key=ai_api_key, base_url=ai_base_url)
-                logger.info("[RedTeam] Using Replit AI Integrations (Anthropic)")
-            elif os.environ.get('ANTHROPIC_API_KEY'):
-                client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
-                logger.info("[RedTeam] Using ANTHROPIC_API_KEY fallback")
-            else:
-                logger.warning("[RedTeam] No Anthropic credentials - using fallback attack")
+            from openai import OpenAI
+
+            # Initialize OpenAI with OPENAI_API_KEY
+            openai_api_key = os.environ.get('OPENAI_API_KEY')
+
+            if not openai_api_key:
+                logger.warning("[RedTeam] No OpenAI credentials - using fallback attack")
                 return await self._fallback_attack(vector, project_data)
-            
-            response = client.messages.create(
-                model="claude-sonnet-4-5",
+
+            client = OpenAI(api_key=openai_api_key)
+            logger.info("[RedTeam] Using OpenAI GPT-4o")
+
+            response = client.chat.completions.create(
+                model="gpt-4o",
                 max_tokens=2000,
-                system=system_prompt,
                 messages=[
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt + "\n\nResponde SOLO con JSON válido."}
                 ]
             )
-            
-            result_text = response.content[0].text if response.content else "{}"
+
+            result_text = response.choices[0].message.content if response.choices else "{}"
             # Try to parse JSON from response
             try:
                 result = json.loads(result_text)
@@ -303,9 +299,9 @@ Responde en JSON:
                 else:
                     result = {"vulnerabilities": [], "passed_checks": [], "overall_risk": "LOW"}
             return result
-            
+
         except Exception as e:
-            logger.error(f"[RedTeam] Error en ataque LLM (Anthropic): {e}")
+            logger.error(f"[RedTeam] Error en ataque LLM (OpenAI): {e}")
             return await self._fallback_attack(vector, project_data)
     
     async def _fallback_attack(

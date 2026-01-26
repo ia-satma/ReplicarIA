@@ -1,6 +1,6 @@
 """
 Servicio de chat mejorado para ARCHIVO - el archivista digital de Revisar.IA
-Usa Claude via Replit AI Integrations con skills avanzadas
+Usa OpenAI GPT-4o con skills avanzadas
 Incluye detección de intenciones y búsqueda de clientes existentes
 """
 import os
@@ -9,10 +9,11 @@ import json
 import logging
 import asyncpg
 from typing import AsyncGenerator, Dict, Any, List, Optional
-from anthropic import Anthropic
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 
 
 class ArchivoChatService:
@@ -26,18 +27,12 @@ class ArchivoChatService:
     """
     
     def __init__(self):
-        api_key = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_API_KEY')
-        base_url = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_BASE_URL')
-        
-        if not api_key or not base_url:
-            logger.warning("Replit AI Integrations not configured - ARCHIVO chat will not work")
+        if not OPENAI_API_KEY:
+            logger.warning("OpenAI API Key not configured - ARCHIVO chat will not work")
             self.client = None
         else:
-            self.client = Anthropic(
-                api_key=api_key,
-                base_url=base_url
-            )
-        self.model = "claude-sonnet-4-5"
+            self.client = OpenAI(api_key=OPENAI_API_KEY)
+        self.model = "gpt-4o"
     
     async def buscar_cliente(self, termino: str) -> Dict[str, Any]:
         """
@@ -328,7 +323,7 @@ IMPORTANTE: No vuelvas a pedir estos datos. Enfócate en lo que falta."""
         Incluye detección de intención de búsqueda y contexto de usuario.
         """
         if not self.client:
-            yield "⚠️ Error: El servicio de chat no está configurado. Verifica la integración de Replit AI."
+            yield "⚠️ Error: El servicio de chat no está configurado. Verifica que OPENAI_API_KEY esté configurada."
             return
         
         if user_context is None:
@@ -356,21 +351,23 @@ IMPORTANTE: No vuelvas a pedir estos datos. Enfócate en lo que falta."""
         messages.append({"role": "user", "content": message})
         
         try:
-            with self.client.messages.stream(
+            stream = self.client.chat.completions.create(
                 model=self.model,
                 max_tokens=2048,
-                system=self.get_system_prompt(company_context, extracted_data, user_context),
-                messages=messages
-            ) as stream:
-                for text in stream.text_stream:
-                    yield text
+                messages=[
+                    {"role": "system", "content": self.get_system_prompt(company_context, extracted_data, user_context)},
+                    *messages
+                ],
+                stream=True
+            )
+            for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Chat error: {e}")
-            
-            if "FREE_CLOUD_BUDGET_EXCEEDED" in error_msg:
-                yield "⚠️ Se agotó el presupuesto de créditos de Replit. Por favor, recarga tu cuenta."
-            elif "rate_limit" in error_msg.lower():
+
+            if "rate_limit" in error_msg.lower():
                 yield "⚠️ Demasiadas solicitudes. Por favor espera unos segundos e intenta de nuevo."
             else:
                 yield f"⚠️ Error al procesar tu solicitud. Por favor intenta de nuevo."

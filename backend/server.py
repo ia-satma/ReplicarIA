@@ -15,6 +15,19 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 # ============================================================
+# RAILWAY AUTO-CONFIGURATION
+# ============================================================
+# Railway sets RAILWAY_PUBLIC_DOMAIN automatically
+RAILWAY_DOMAIN = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '')
+if RAILWAY_DOMAIN:
+    # Auto-configure APP_URL and BACKEND_URL from Railway's domain
+    if not os.environ.get('APP_URL'):
+        os.environ['APP_URL'] = f"https://{RAILWAY_DOMAIN}"
+    if not os.environ.get('BACKEND_URL'):
+        os.environ['BACKEND_URL'] = f"https://{RAILWAY_DOMAIN}"
+    logging.info(f"✅ Railway domain detected: {RAILWAY_DOMAIN}")
+
+# ============================================================
 # PRODUCTION STARTUP WARNINGS - Missing Environment Variables
 # ============================================================
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
@@ -703,7 +716,7 @@ else:
     async def app_root():
         """API root endpoint"""
         return {
-            "name": "SATMA Multi-Agent System API",
+            "name": "Revisar.IA Multi-Agent System API",
             "version": "2.0",
             "status": "running",
             "docs": "/docs",
@@ -767,7 +780,7 @@ async def seed_usuarios_autorizados():
         if count_otp == 0:
             logger.info("Seeding usuarios_autorizados table...")
             default_otp_users = [
-                ('usr-001', 'santiago@satma.mx', 'Santiago Administrador', 'SATMA', 'admin', True),
+                ('usr-001', 'admin@revisar-ia.com', 'Administrador Sistema', 'Revisar.IA', 'admin', True),
                 ('usr-002', 'demo@revisar-ia.com', 'Usuario Demo', 'Demo Corp', 'user', True),
             ]
             await conn.executemany(
@@ -865,12 +878,11 @@ async def startup_event():
     from services import user_db
     if user_db.async_session_factory:
         try:
-            from services.agent_service import anthropic_client
             if biblioteca_routes:
-                biblioteca_routes.init_biblioteca_services(user_db.async_session_factory, anthropic_client)
+                biblioteca_routes.init_biblioteca_services(user_db.async_session_factory)
                 logger.info("Biblioteca RAG services initialized")
             if kb_routes:
-                kb_routes.init_kb_rag_services(user_db.async_session_factory, anthropic_client)
+                kb_routes.init_kb_rag_services(user_db.async_session_factory)
                 logger.info("KB routes RAG services initialized")
         except Exception as e:
             logger.warning(f"Could not initialize RAG services: {e}")

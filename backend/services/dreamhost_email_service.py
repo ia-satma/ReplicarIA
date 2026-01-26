@@ -248,7 +248,7 @@ class DreamHostEmailService:
             msg['Subject'] = subject
             msg['Date'] = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000")
             msg['X-Agent-ID'] = from_agent_id
-            msg['X-System'] = "SATMA-Revisar.ia"
+            msg['X-System'] = "Revisar.IA"
             
             if cc_emails:
                 msg['Cc'] = ', '.join(cc_emails)
@@ -508,7 +508,7 @@ class DreamHostEmailService:
             msg['Subject'] = subject
             msg['Date'] = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000")
             msg['X-Agent-ID'] = from_agent_id
-            msg['X-System'] = "SATMA-Revisar.ia"
+            msg['X-System'] = "Revisar.IA"
             
             if cc_emails:
                 msg['Cc'] = ', '.join(cc_emails)

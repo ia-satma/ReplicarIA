@@ -1,5 +1,5 @@
 """
-Event Streaming Service for SATMA Multi-Agent Deliberation
+Event Streaming Service for Revisar.IA Multi-Agent Deliberation
 Manages Server-Sent Events (SSE) for real-time analysis updates
 WITH EVENT BUFFERING - Events are stored and replayed to late subscribers
 """

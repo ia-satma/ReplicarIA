@@ -32,20 +32,30 @@ class OTPResponse(BaseModel):
 
 @router.post("/request-code", response_model=OTPResponse)
 async def request_otp_code(input: OTPRequestInput):
+    from services.otp_auth_service import check_lockout, check_rate_limit
+
     email = input.email.lower()
-    
+
+    # Security: Check lockout first
+    if check_lockout(email):
+        raise HTTPException(
+            status_code=429,
+            detail="Cuenta temporalmente bloqueada por múltiples intentos fallidos. Intenta en 15 minutos."
+        )
+
     user = await otp_auth_service.check_authorized_email(email)
     if not user:
         raise HTTPException(
             status_code=403,
             detail="Este correo no está autorizado para acceder al sistema"
         )
-    
+
     codigo = await otp_auth_service.create_otp_code(email, user['id'])
     if not codigo:
+        # Could be rate limited or other error
         raise HTTPException(
-            status_code=500,
-            detail="Error al generar el código de verificación"
+            status_code=429,
+            detail="Demasiadas solicitudes. Por favor espera 1 minuto antes de solicitar otro código."
         )
     
     email_result = await otp_auth_service.send_otp_email(
@@ -69,20 +79,37 @@ async def request_otp_code(input: OTPRequestInput):
 
 @router.post("/verify-code", response_model=OTPResponse)
 async def verify_otp_code(input: OTPVerifyInput):
+    from services.otp_auth_service import check_lockout, MAX_VERIFICATION_ATTEMPTS, _verification_attempts
+
     email = input.email.lower()
     code = input.code.strip()
-    
+
+    # Security: Check lockout first
+    if check_lockout(email):
+        raise HTTPException(
+            status_code=429,
+            detail="Cuenta temporalmente bloqueada por múltiples intentos fallidos. Intenta en 15 minutos."
+        )
+
     if len(code) != 6 or not code.isdigit():
         raise HTTPException(
             status_code=400,
             detail="El código debe ser de 6 dígitos"
         )
-    
+
     session = await otp_auth_service.verify_otp_code(email, code)
     if not session:
+        # Check how many attempts remain
+        attempts = _verification_attempts.get(email.lower(), 0)
+        remaining = MAX_VERIFICATION_ATTEMPTS - attempts
+        if remaining <= 0:
+            raise HTTPException(
+                status_code=429,
+                detail="Cuenta bloqueada por múltiples intentos fallidos. Intenta en 15 minutos."
+            )
         raise HTTPException(
             status_code=401,
-            detail="Código inválido o expirado"
+            detail=f"Código inválido o expirado. Te quedan {remaining} intento(s)."
         )
     
     logger.info(f"OTP verified for {email}")
@@ -116,7 +143,15 @@ async def get_current_session(authorization: Optional[str] = Header(None)):
     import os
     SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("SESSION_SECRET") or os.getenv("JWT_SECRET_KEY")
     ALGORITHM = "HS256"
-    
+
+    # Security: Validate SECRET_KEY exists
+    if not SECRET_KEY or len(SECRET_KEY) < 16:
+        logger.error("SECRET_KEY not configured or too short - JWT validation disabled")
+        raise HTTPException(
+            status_code=401,
+            detail="Sesión inválida o expirada"
+        )
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("user_id")

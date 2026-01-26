@@ -138,18 +138,18 @@ class AgentOrchestrator:
     async def _self_heal(self, error: Exception):
         """Intenta auto-reparación del orquestador"""
         logger.info("Intentando auto-reparación del orquestador...")
-        
+
         try:
-            anthropic_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("AI_INTEGRATIONS_ANTHROPIC_API_KEY")
-            if not anthropic_key:
-                logger.warning("No hay API key de Anthropic para auto-diagnóstico")
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if not openai_key:
+                logger.warning("No hay API key de OpenAI para auto-diagnóstico")
                 return
-            
-            from anthropic import Anthropic
-            client = Anthropic(api_key=anthropic_key)
-            
-            response = client.messages.create(
-                model="claude-sonnet-4-20250514",
+
+            from openai import OpenAI
+            client = OpenAI(api_key=openai_key)
+
+            response = client.chat.completions.create(
+                model="gpt-4o",
                 max_tokens=1000,
                 messages=[{
                     "role": "user",
@@ -159,11 +159,11 @@ class AgentOrchestrator:
 Analiza el error y sugiere una solución breve en español."""
                 }]
             )
-            
-            if response.content:
-                diagnosis = response.content[0].text
+
+            if response.choices:
+                diagnosis = response.choices[0].message.content
                 logger.info(f"Diagnóstico IA: {diagnosis[:500]}")
-                
+
         except Exception as heal_error:
             logger.error(f"Fallo en auto-reparación: {heal_error}")
     

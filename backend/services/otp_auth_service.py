@@ -42,6 +42,86 @@ DATABASE_URL = os.environ.get('DATABASE_URL', '')
 OTP_EXPIRATION_MINUTES = 5
 SESSION_EXPIRATION_HOURS = 24
 
+# Security settings
+MAX_OTP_REQUESTS_PER_MINUTE = 3
+MAX_VERIFICATION_ATTEMPTS = 3
+LOCKOUT_DURATION_MINUTES = 15
+
+# In-memory rate limiting stores (for Railway deployment)
+_rate_limit_store: Dict[str, list] = {}  # email -> [timestamps]
+_verification_attempts: Dict[str, int] = {}  # email -> attempt_count
+_lockout_store: Dict[str, datetime] = {}  # email -> lockout_until
+
+
+def check_rate_limit(email: str) -> bool:
+    """Check if email has exceeded rate limit for OTP requests"""
+    now = datetime.now(timezone.utc)
+    email_key = email.lower()
+
+    # Clean old entries
+    if email_key in _rate_limit_store:
+        _rate_limit_store[email_key] = [
+            ts for ts in _rate_limit_store[email_key]
+            if (now - ts).total_seconds() < 60
+        ]
+    else:
+        _rate_limit_store[email_key] = []
+
+    # Check if under limit
+    if len(_rate_limit_store[email_key]) >= MAX_OTP_REQUESTS_PER_MINUTE:
+        logger.warning(f"Rate limit exceeded for {email}")
+        return False
+
+    # Add current request
+    _rate_limit_store[email_key].append(now)
+    return True
+
+
+def check_lockout(email: str) -> bool:
+    """Check if email is currently locked out"""
+    email_key = email.lower()
+    now = datetime.now(timezone.utc)
+
+    if email_key in _lockout_store:
+        if now < _lockout_store[email_key]:
+            remaining = (_lockout_store[email_key] - now).total_seconds() / 60
+            logger.warning(f"Account {email} is locked for {remaining:.1f} more minutes")
+            return True
+        else:
+            # Lockout expired, clean up
+            del _lockout_store[email_key]
+            if email_key in _verification_attempts:
+                del _verification_attempts[email_key]
+
+    return False
+
+
+def record_failed_attempt(email: str) -> int:
+    """Record a failed verification attempt, return total attempts"""
+    email_key = email.lower()
+
+    if email_key not in _verification_attempts:
+        _verification_attempts[email_key] = 0
+
+    _verification_attempts[email_key] += 1
+    attempts = _verification_attempts[email_key]
+
+    if attempts >= MAX_VERIFICATION_ATTEMPTS:
+        # Lock the account
+        _lockout_store[email_key] = datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
+        logger.warning(f"Account {email} locked after {attempts} failed attempts")
+
+    return attempts
+
+
+def clear_attempts(email: str):
+    """Clear verification attempts after successful verification"""
+    email_key = email.lower()
+    if email_key in _verification_attempts:
+        del _verification_attempts[email_key]
+    if email_key in _lockout_store:
+        del _lockout_store[email_key]
+
 
 async def get_db_connection():
     if not DATABASE_URL:
@@ -88,15 +168,25 @@ class OTPAuthService:
             await conn.close()
     
     async def create_otp_code(self, email: str, usuario_id: int) -> Optional[str]:
+        # Security: Check rate limit
+        if not check_rate_limit(email):
+            logger.warning(f"OTP request rate limited for {email}")
+            return None
+
+        # Security: Check lockout
+        if check_lockout(email):
+            logger.warning(f"OTP request rejected - account locked: {email}")
+            return None
+
         conn = await get_db_connection()
         if not conn:
             return None
-        
+
         try:
             await conn.execute(
                 """
-                UPDATE codigos_otp 
-                SET usado = true 
+                UPDATE codigos_otp
+                SET usado = true
                 WHERE email = $1 AND usado = false
                 """,
                 email
@@ -122,29 +212,40 @@ class OTPAuthService:
             await conn.close()
     
     async def verify_otp_code(self, email: str, codigo: str) -> Optional[Dict[str, Any]]:
+        # Security: Check lockout first
+        if check_lockout(email):
+            logger.warning(f"OTP verification rejected - account locked: {email}")
+            return None
+
         conn = await get_db_connection()
         if not conn:
             return None
-        
+
         try:
             row = await conn.fetchrow(
                 """
                 SELECT c.id, c.usuario_id, c.email, u.nombre, u.empresa, u.rol
                 FROM codigos_otp c
                 JOIN usuarios_autorizados u ON c.usuario_id = u.id
-                WHERE LOWER(c.email) = LOWER($1) 
-                  AND c.codigo = $2 
-                  AND c.usado = false 
+                WHERE LOWER(c.email) = LOWER($1)
+                  AND c.codigo = $2
+                  AND c.usado = false
                   AND c.fecha_expiracion > NOW()
                 ORDER BY c.fecha_creacion DESC
                 LIMIT 1
                 """,
                 email, codigo
             )
-            
+
             if not row:
-                logger.warning(f"Invalid or expired OTP for {email}")
+                # Security: Record failed attempt
+                attempts = record_failed_attempt(email)
+                remaining = MAX_VERIFICATION_ATTEMPTS - attempts
+                logger.warning(f"Invalid or expired OTP for {email} (attempt {attempts}/{MAX_VERIFICATION_ATTEMPTS})")
                 return None
+
+            # Security: Clear attempts on success
+            clear_attempts(email)
             
             await conn.execute(
                 "UPDATE codigos_otp SET usado = true WHERE id = $1",

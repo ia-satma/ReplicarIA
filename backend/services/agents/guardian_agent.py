@@ -60,9 +60,9 @@ class GuardianAgent:
     def __init__(self, base_url: Optional[str] = None, database_url: Optional[str] = None):
         """
         Inicializa el agente guardián.
-        
+
         Args:
-            base_url: URL base para pruebas HTTP. Por defecto usa REPLIT_DEV_DOMAIN o localhost:5000
+            base_url: URL base para pruebas HTTP. Por defecto usa APP_URL o localhost:5000
             database_url: URL de PostgreSQL. Por defecto usa DATABASE_URL del environment
         """
         self.base_url = base_url or self._get_default_base_url()
@@ -107,9 +107,9 @@ class GuardianAgent:
     
     def _get_default_base_url(self) -> str:
         """Obtiene la URL base por defecto del environment"""
-        domain = os.environ.get("REPLIT_DEV_DOMAIN")
-        if domain:
-            return f"https://{domain}"
+        app_url = os.environ.get("APP_URL") or os.environ.get("BACKEND_URL")
+        if app_url:
+            return app_url
         return "http://localhost:5000"
     
     async def _init_db_pool(self) -> None:
