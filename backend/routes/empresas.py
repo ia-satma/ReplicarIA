@@ -8,7 +8,6 @@ from typing import List, Optional
 import os
 import logging
 import json
-import anthropic
 
 from models.empresa import (
     Empresa, EmpresaCreate, EmpresaUpdate,
@@ -18,14 +17,13 @@ from services.empresa_service import empresa_service
 
 logger = logging.getLogger(__name__)
 
-# Initialize Anthropic client
-anthropic_client = None
-ai_api_key = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_API_KEY')
-ai_base_url = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_BASE_URL')
-if ai_api_key and ai_base_url:
-    anthropic_client = anthropic.Anthropic(api_key=ai_api_key, base_url=ai_base_url)
-elif os.environ.get('ANTHROPIC_API_KEY'):
-    anthropic_client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+# OpenAI provider
+try:
+    from services.openai_provider import openai_client, chat_completion_sync, is_configured
+    OPENAI_AVAILABLE = is_configured()
+except ImportError:
+    OPENAI_AVAILABLE = False
+    openai_client = None
 
 router = APIRouter(prefix="/empresas", tags=["empresas"])
 
@@ -207,10 +205,10 @@ async def autofill_empresa_con_ia(data: AutofillRequest):
     Auto-rellena los campos de perfil de empresa usando IA.
     Genera vision, mision, valores y sugerencias basadas en el nombre/RFC.
     """
-    if not anthropic_client:
+    if not OPENAI_AVAILABLE:
         raise HTTPException(
-            status_code=503, 
-            detail="Servicio de IA no disponible. Configure las credenciales de Anthropic."
+            status_code=503,
+            detail="Servicio de IA no disponible. Configure OPENAI_API_KEY."
         )
     
     try:
@@ -240,13 +238,11 @@ Responde UNICAMENTE en este formato JSON exacto, sin explicaciones adicionales:
     "ventajas_competitivas": ["Ventaja 1", "Ventaja 2", "Ventaja 3"]
 }}"""
 
-        response = anthropic_client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        
-        response_text = response.content[0].text.strip()
+        response_text = chat_completion_sync(
+            messages=[{"role": "user", "content": prompt}],
+            model="gpt-4o",
+            max_tokens=1024
+        ).strip()
         
         # Clean up response if wrapped in markdown code blocks
         if response_text.startswith("```"):

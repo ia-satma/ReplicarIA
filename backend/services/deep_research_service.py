@@ -1,7 +1,7 @@
 """
 Deep Research Engine - Servicio de Auto-completado Inteligente de Formularios
 Investiga automáticamente datos empresariales a partir de inputs mínimos.
-Usa Claude via Replit AI Integrations + Web Scraping para máxima efectividad.
+Usa OpenAI GPT-4o + Web Scraping para máxima efectividad.
 """
 import os
 import re
@@ -13,9 +13,17 @@ from datetime import datetime
 
 import requests
 from bs4 import BeautifulSoup
-from anthropic import Anthropic
 
 logger = logging.getLogger(__name__)
+
+# OpenAI provider
+try:
+    from services.openai_provider import openai_client, chat_completion_sync, is_configured
+    OPENAI_AVAILABLE = is_configured()
+except ImportError:
+    OPENAI_AVAILABLE = False
+    openai_client = None
+    logger.warning("OpenAI provider not available for DeepResearchService")
 
 
 class DeepResearchService:
@@ -24,21 +32,18 @@ class DeepResearchService:
     Orquesta múltiples fuentes de datos: web scraping, análisis de documentos,
     validación de RFC y verificación con IA.
     """
-    
+
     def __init__(self):
-        api_key = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_API_KEY')
-        base_url = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_BASE_URL')
-        
-        if api_key and base_url:
-            self.client = Anthropic(api_key=api_key, base_url=base_url)
+        if OPENAI_AVAILABLE:
+            self.client = openai_client
             self.available = True
-            logger.info("DeepResearchService inicializado con Replit AI Integrations")
+            logger.info("DeepResearchService inicializado con OpenAI")
         else:
             self.client = None
             self.available = False
-            logger.warning("DeepResearchService: Anthropic no configurado")
-        
-        self.model = "claude-sonnet-4-5"
+            logger.warning("DeepResearchService: OpenAI no configurado")
+
+        self.model = "gpt-4o"
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -355,13 +360,11 @@ REGLAS:
         try:
             if not self.client:
                 return {}
-            response = self.client.messages.create(
+            content = chat_completion_sync(
+                messages=[{"role": "user", "content": prompt}],
                 model=self.model,
-                max_tokens=2000,
-                messages=[{"role": "user", "content": prompt}]
+                max_tokens=2000
             )
-            
-            content = getattr(response.content[0], 'text', '')
             
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0]

@@ -2,24 +2,30 @@ import json
 import logging
 import os
 from typing import Dict, List, Any, Optional
-from anthropic import Anthropic
 
 logger = logging.getLogger(__name__)
 
+# OpenAI provider
+try:
+    from services.openai_provider import openai_client, chat_completion_sync, is_configured
+    OPENAI_AVAILABLE = is_configured()
+except ImportError:
+    OPENAI_AVAILABLE = False
+    openai_client = None
+
+
 class WebSearchService:
     """Servicio de búsqueda web para completar datos de empresas"""
-    
+
     def __init__(self):
-        api_key = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_API_KEY')
-        base_url = os.environ.get('AI_INTEGRATIONS_ANTHROPIC_BASE_URL')
-        
-        if not api_key or not base_url:
-            logger.warning("Replit AI Integrations not configured for web search")
-            self.client = None
+        if OPENAI_AVAILABLE:
+            self.client = openai_client
+            logger.info("WebSearchService initialized with OpenAI")
         else:
-            self.client = Anthropic(api_key=api_key, base_url=base_url)
-        
-        self.model = "claude-sonnet-4-5"
+            logger.warning("OpenAI not configured for web search")
+            self.client = None
+
+        self.model = "gpt-4o"
     
     async def buscar_datos_empresa(
         self,
@@ -81,13 +87,11 @@ Responde SOLO con JSON:
 }}"""
 
         try:
-            response = self.client.messages.create(
+            texto = chat_completion_sync(
+                messages=[{"role": "user", "content": prompt}],
                 model=self.model,
-                max_tokens=1500,
-                messages=[{"role": "user", "content": prompt}]
+                max_tokens=1500
             )
-            
-            texto = response.content[0].text
             
             if "```json" in texto:
                 texto = texto.split("```json")[1].split("```")[0]
