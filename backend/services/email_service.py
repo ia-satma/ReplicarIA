@@ -1,10 +1,19 @@
 import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import httpx
 import logging
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# DreamHost SMTP configuration
+DREAMHOST_SMTP_HOST = 'smtp.dreamhost.com'
+DREAMHOST_SMTP_PORT = 587
+DREAMHOST_FROM_EMAIL = os.environ.get('DREAMHOST_FROM_EMAIL', 'noreply@revisar-ia.com')
+DREAMHOST_EMAIL_PASSWORD = os.environ.get('DREAMHOST_EMAIL_PASSWORD', '')
 
 
 async def get_sendgrid_credentials() -> Dict[str, str]:
@@ -58,25 +67,80 @@ async def get_sendgrid_credentials() -> Dict[str, str]:
 
 
 def is_configured() -> bool:
-    """Check if email service is configured via env vars or Replit connector"""
+    """Check if email service is configured via SendGrid, DreamHost, or Replit connector"""
     return bool(
         os.environ.get('SENDGRID_API_KEY') or
+        os.environ.get('DREAMHOST_EMAIL_PASSWORD') or
         os.environ.get('REPLIT_CONNECTORS_HOSTNAME')
     )
+
+
+def get_email_provider() -> str:
+    """Determine which email provider to use"""
+    if os.environ.get('SENDGRID_API_KEY'):
+        return 'sendgrid'
+    elif os.environ.get('DREAMHOST_EMAIL_PASSWORD'):
+        return 'dreamhost'
+    elif os.environ.get('REPLIT_CONNECTORS_HOSTNAME'):
+        return 'replit'
+    return 'demo'
+
+
+async def send_via_dreamhost(
+    to: str,
+    subject: str,
+    body_html: str,
+    body_text: Optional[str] = None,
+    from_email: Optional[str] = None
+) -> Dict[str, Any]:
+    """Send email via DreamHost SMTP"""
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['From'] = from_email or DREAMHOST_FROM_EMAIL
+        msg['To'] = to
+        msg['Subject'] = subject
+
+        if body_text:
+            msg.attach(MIMEText(body_text, 'plain', 'utf-8'))
+        msg.attach(MIMEText(body_html, 'html', 'utf-8'))
+
+        with smtplib.SMTP(DREAMHOST_SMTP_HOST, DREAMHOST_SMTP_PORT, timeout=30) as smtp:
+            smtp.starttls()
+            smtp.login(from_email or DREAMHOST_FROM_EMAIL, DREAMHOST_EMAIL_PASSWORD)
+            smtp.sendmail(msg['From'], [to], msg.as_string())
+
+        logger.info(f"✅ Email enviado via DreamHost SMTP a {to}: {subject}")
+        return {
+            "success": True,
+            "provider": "dreamhost",
+            "to": to,
+            "subject": subject
+        }
+    except Exception as e:
+        logger.error(f"❌ DreamHost SMTP error: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "to": to,
+            "subject": subject
+        }
 
 
 class EmailService:
     
     def __init__(self):
         self._configured = is_configured()
+        self._provider = get_email_provider()
 
         if self._configured:
-            if os.environ.get('SENDGRID_API_KEY'):
-                logger.info("✅ Email service configured with SendGrid via environment variables")
-            else:
+            if self._provider == 'sendgrid':
+                logger.info("✅ Email service configured with SendGrid")
+            elif self._provider == 'dreamhost':
+                logger.info("✅ Email service configured with DreamHost SMTP")
+            elif self._provider == 'replit':
                 logger.info("✅ Email service configured with SendGrid via Replit connector")
         else:
-            logger.warning("⚠️ Email service not configured - running in demo mode. Set SENDGRID_API_KEY to enable.")
+            logger.warning("⚠️ Email service not configured - running in demo mode. Set SENDGRID_API_KEY or DREAMHOST_EMAIL_PASSWORD to enable.")
     
     def is_available(self) -> bool:
         return self._configured
@@ -100,7 +164,12 @@ class EmailService:
                 "to": to,
                 "subject": subject
             }
-        
+
+        # Use DreamHost SMTP if configured
+        if self._provider == 'dreamhost':
+            return await send_via_dreamhost(to, subject, body_html, body_text)
+
+        # Use SendGrid (via env vars or Replit connector)
         try:
             credentials = await get_sendgrid_credentials()
             api_key = credentials["api_key"]
