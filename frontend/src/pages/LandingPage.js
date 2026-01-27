@@ -1038,7 +1038,7 @@ const LandingPage = () => {
               Solicitar Acceso
             </Link>
             <a 
-              href="mailto:hola@satma.mx" 
+              href="mailto:hola@revisar-ia.com" 
               className="px-8 py-3.5 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:border-indigo-300 hover:text-indigo-600 transition-all"
             >
               Contactar Ventas
@@ -1087,7 +1087,7 @@ const LandingPage = () => {
                 <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Términos y Condiciones</a></li>
                 <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Tu Privacidad</a></li>
                 <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Compliance SAT</a></li>
-                <li><a href="mailto:hola@satma.mx" className="hover:text-[#7FEDD8] transition-colors">Hablemos</a></li>
+                <li><a href="mailto:hola@revisar-ia.com" className="hover:text-[#7FEDD8] transition-colors">Hablemos</a></li>
               </ul>
             </div>
           </div>
