@@ -728,6 +728,9 @@ Responde SOLO en JSON válido:
                 if embedding:
                     embedding_str = f"[{','.join(str(x) for x in embedding)}]"
                 
+                # Store embedding as JSONB since pgvector is not available
+                embedding_json = json.dumps(embedding) if embedding else None
+
                 chunk_result = await session.execute(
                     text('''
                         INSERT INTO kb_chunks (
@@ -735,7 +738,7 @@ Responde SOLO en JSON válido:
                             tokens, metadata, categoria_chunk, agentes_asignados,
                             score_calidad, articulo, tipo_contenido
                         ) VALUES (
-                            :doc_id, :contenido, CAST(:embedding AS vector), :idx,
+                            :doc_id, :contenido, :embedding::jsonb, :idx,
                             :tokens, :meta, :cat, :agentes,
                             :score, :articulo, :tipo
                         )
@@ -744,7 +747,7 @@ Responde SOLO en JSON válido:
                     {
                         'doc_id': documento_id,
                         'contenido': chunk['contenido'],
-                        'embedding': embedding_str,
+                        'embedding': embedding_json,
                         'idx': idx,
                         'tokens': chunk.get('tokens', 0),
                         'meta': json.dumps(chunk.get('metadata', {})),
@@ -876,12 +879,11 @@ Responde SOLO en JSON válido:
                     params['categoria'] = categoria
                 
                 where_sql = " AND ".join(where_clauses)
-                
-                query_vector = f"CAST('{embedding_str}' AS vector)"
-                
+
+                # Without pgvector, fetch chunks and compute similarity in Python
                 result = await session.execute(
                     text(f'''
-                        SELECT 
+                        SELECT
                             c.id,
                             c.contenido,
                             c.articulo,
@@ -889,29 +891,47 @@ Responde SOLO en JSON válido:
                             d.nombre as documento,
                             d.categoria,
                             d.ley_codigo,
-                            1 - (c.contenido_embedding <=> {query_vector}) as similarity
+                            c.contenido_embedding
                         FROM kb_chunks c
                         JOIN kb_documentos d ON d.id = c.documento_id
                         WHERE c.contenido_embedding IS NOT NULL
                         AND ({where_sql})
-                        ORDER BY c.contenido_embedding <=> {query_vector}
-                        LIMIT :limit
+                        LIMIT 500
                     '''),
                     params
                 )
-                
+
                 rows = result.fetchall()
-                
-                return [{
-                    'chunk_id': str(row[0]),
-                    'contenido': row[1],
-                    'articulo': row[2],
-                    'tipo_contenido': row[3],
-                    'documento': row[4],
-                    'categoria': row[5],
-                    'ley_codigo': row[6],
-                    'similarity': float(row[7]) if row[7] else 0
-                } for row in rows]
+
+                # Compute cosine similarity in Python
+                def cosine_similarity(vec1, vec2):
+                    if not vec1 or not vec2:
+                        return 0.0
+                    dot = sum(a * b for a, b in zip(vec1, vec2))
+                    norm1 = sum(a * a for a in vec1) ** 0.5
+                    norm2 = sum(b * b for b in vec2) ** 0.5
+                    return dot / (norm1 * norm2) if norm1 and norm2 else 0.0
+
+                results_with_sim = []
+                for row in rows:
+                    stored_embedding = row[7]
+                    if isinstance(stored_embedding, str):
+                        stored_embedding = json.loads(stored_embedding)
+                    similarity = cosine_similarity(query_embedding, stored_embedding) if stored_embedding else 0.0
+                    results_with_sim.append({
+                        'chunk_id': str(row[0]),
+                        'contenido': row[1],
+                        'articulo': row[2],
+                        'tipo_contenido': row[3],
+                        'documento': row[4],
+                        'categoria': row[5],
+                        'ley_codigo': row[6],
+                        'similarity': similarity
+                    })
+
+                # Sort by similarity and return top results
+                results_with_sim.sort(key=lambda x: x['similarity'], reverse=True)
+                return results_with_sim[:limit]
                 
         except Exception as e:
             logger.error(f"Error in semantic search: {e}")
