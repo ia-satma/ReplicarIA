@@ -63,7 +63,7 @@ class TipologiasRequest(BaseModel):
     tipologias: List[ConfiguracionTipologia]
 
 
-@router.post("/", response_model=Empresa)
+@router.post("", response_model=Empresa)
 async def crear_empresa(data: EmpresaCreate):
     try:
         empresa = await empresa_service.crear_empresa(data)
@@ -75,7 +75,7 @@ async def crear_empresa(data: EmpresaCreate):
         raise HTTPException(status_code=500, detail="Error interno al crear empresa")
 
 
-@router.get("/", response_model=List[Empresa])
+@router.get("", response_model=List[Empresa])
 async def listar_empresas(only_active: bool = True):
     try:
         empresas = await empresa_service.get_all_empresas(only_active)
