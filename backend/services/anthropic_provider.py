@@ -7,7 +7,8 @@ from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-anthropic_client = None
+_anthropic_client = None
+_initialized = False
 ANTHROPIC_AVAILABLE = False
 
 try:
@@ -16,19 +17,32 @@ try:
 except ImportError:
     logger.warning("anthropic package not available")
 
-ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
-
-if ANTHROPIC_AVAILABLE and ANTHROPIC_API_KEY:
-    try:
-        anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        logger.info("Anthropic client initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize Anthropic client: {e}")
-else:
-    if not ANTHROPIC_API_KEY:
-        logger.warning("ANTHROPIC_API_KEY not configured")
-
 DEFAULT_MODEL = "claude-sonnet-4-20250514"
+
+
+def _get_client():
+    """Lazy initialization of Anthropic client"""
+    global _anthropic_client, _initialized
+
+    if _initialized:
+        return _anthropic_client
+
+    _initialized = True
+    api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+
+    if ANTHROPIC_AVAILABLE and api_key:
+        try:
+            _anthropic_client = anthropic.Anthropic(api_key=api_key)
+            logger.info("✅ Anthropic client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Anthropic client: {e}")
+            _anthropic_client = None
+    else:
+        if not api_key:
+            logger.warning("ANTHROPIC_API_KEY not configured")
+        _anthropic_client = None
+
+    return _anthropic_client
 
 
 def chat_completion_sync(
@@ -39,8 +53,10 @@ def chat_completion_sync(
     temperature: float = 0.7
 ) -> str:
     """Synchronous chat completion using Claude"""
-    if not anthropic_client:
-        logger.warning("Anthropic client not available")
+    client = _get_client()
+
+    if not client:
+        logger.warning("Anthropic client not available, returning error")
         return '{"error": "Anthropic not configured"}'
 
     try:
@@ -60,7 +76,7 @@ def chat_completion_sync(
         if system_message:
             kwargs["system"] = system_message
 
-        response = anthropic_client.messages.create(**kwargs)
+        response = client.messages.create(**kwargs)
 
         if response.content and len(response.content) > 0:
             return response.content[0].text
@@ -84,4 +100,4 @@ async def chat_completion(
 
 def is_configured() -> bool:
     """Check if Anthropic is properly configured"""
-    return anthropic_client is not None
+    return _get_client() is not None
