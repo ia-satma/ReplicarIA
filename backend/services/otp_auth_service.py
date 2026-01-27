@@ -39,6 +39,13 @@ def get_logo_base64() -> str:
 
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
+# Demo/Fallback mode settings (when PostgreSQL is not available)
+DEMO_MODE = os.environ.get('OTP_DEMO_MODE', 'false').lower() == 'true'
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@revisar-ia.com')
+ADMIN_NAME = os.environ.get('ADMIN_NAME', 'Administrador')
+ADMIN_COMPANY = os.environ.get('ADMIN_COMPANY', 'Revisar.IA')
+DEMO_OTP_CODE = '123456'  # Fixed OTP for demo mode
+
 OTP_EXPIRATION_MINUTES = 5
 SESSION_EXPIRATION_HOURS = 24
 
@@ -46,6 +53,10 @@ SESSION_EXPIRATION_HOURS = 24
 MAX_OTP_REQUESTS_PER_MINUTE = 3
 MAX_VERIFICATION_ATTEMPTS = 3
 LOCKOUT_DURATION_MINUTES = 15
+
+# In-memory stores for demo mode
+_demo_sessions: Dict[str, Dict[str, Any]] = {}  # token -> session data
+_demo_otp_codes: Dict[str, str] = {}  # email -> otp code
 
 # In-memory rate limiting stores (for Railway deployment)
 _rate_limit_store: Dict[str, list] = {}  # email -> [timestamps]
@@ -143,29 +154,42 @@ def generate_session_token() -> str:
 
 
 class OTPAuthService:
-    
+
     async def check_authorized_email(self, email: str) -> Optional[Dict[str, Any]]:
+        # Try database first
         conn = await get_db_connection()
-        if not conn:
-            return None
-        
-        try:
-            row = await conn.fetchrow(
-                """
-                SELECT id, email, nombre, empresa, rol, activo 
-                FROM usuarios_autorizados 
-                WHERE LOWER(email) = LOWER($1) AND activo = true
-                """,
-                email
-            )
-            if row:
-                return dict(row)
-            return None
-        except Exception as e:
-            logger.error(f"Error checking authorized email: {e}")
-            return None
-        finally:
-            await conn.close()
+        if conn:
+            try:
+                row = await conn.fetchrow(
+                    """
+                    SELECT id, email, nombre, empresa, rol, activo
+                    FROM usuarios_autorizados
+                    WHERE LOWER(email) = LOWER($1) AND activo = true
+                    """,
+                    email
+                )
+                if row:
+                    return dict(row)
+                return None
+            except Exception as e:
+                logger.error(f"Error checking authorized email: {e}")
+            finally:
+                await conn.close()
+
+        # Fallback to demo mode if DB not available and email matches admin
+        if email.lower() == ADMIN_EMAIL.lower():
+            logger.info(f"Demo mode: Authorized admin email {email}")
+            return {
+                'id': 1,
+                'email': ADMIN_EMAIL,
+                'nombre': ADMIN_NAME,
+                'empresa': ADMIN_COMPANY,
+                'rol': 'admin',
+                'activo': True
+            }
+
+        logger.warning(f"No database and email {email} is not admin - auth denied")
+        return None
     
     async def create_otp_code(self, email: str, usuario_id: int) -> Optional[str]:
         # Security: Check rate limit
@@ -178,134 +202,192 @@ class OTPAuthService:
             logger.warning(f"OTP request rejected - account locked: {email}")
             return None
 
+        # Try database first
         conn = await get_db_connection()
-        if not conn:
-            return None
+        if conn:
+            try:
+                await conn.execute(
+                    """
+                    UPDATE codigos_otp
+                    SET usado = true
+                    WHERE email = $1 AND usado = false
+                    """,
+                    email
+                )
 
-        try:
-            await conn.execute(
-                """
-                UPDATE codigos_otp
-                SET usado = true
-                WHERE email = $1 AND usado = false
-                """,
-                email
-            )
-            
+                codigo = generate_otp_code()
+                otp_id = f"otp-{uuid.uuid4().hex[:8]}"
+
+                await conn.execute(
+                    """
+                    INSERT INTO codigos_otp (id, usuario_id, email, codigo, usado, fecha_creacion, fecha_expiracion)
+                    VALUES ($1, $2, $3, $4, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '5 minutes')
+                    """,
+                    otp_id, str(usuario_id), email, codigo
+                )
+
+                logger.info(f"OTP created for {email}")
+                return codigo
+            except Exception as e:
+                logger.error(f"Error creating OTP: {e}")
+            finally:
+                await conn.close()
+
+        # Fallback to demo mode if DB not available and email is admin
+        if email.lower() == ADMIN_EMAIL.lower():
             codigo = generate_otp_code()
-            otp_id = f"otp-{uuid.uuid4().hex[:8]}"
-            
-            await conn.execute(
-                """
-                INSERT INTO codigos_otp (id, usuario_id, email, codigo, usado, fecha_creacion, fecha_expiracion)
-                VALUES ($1, $2, $3, $4, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '5 minutes')
-                """,
-                otp_id, str(usuario_id), email, codigo
-            )
-            
-            logger.info(f"OTP created for {email}")
+            _demo_otp_codes[email.lower()] = codigo
+            logger.info(f"Demo mode: OTP created for admin {email}")
             return codigo
-        except Exception as e:
-            logger.error(f"Error creating OTP: {e}")
-            return None
-        finally:
-            await conn.close()
-    
+
+        logger.warning(f"No database available and email {email} is not admin")
+        return None
+
     async def verify_otp_code(self, email: str, codigo: str) -> Optional[Dict[str, Any]]:
         # Security: Check lockout first
         if check_lockout(email):
             logger.warning(f"OTP verification rejected - account locked: {email}")
             return None
 
+        # Try database first
         conn = await get_db_connection()
-        if not conn:
-            return None
+        if conn:
+            try:
+                row = await conn.fetchrow(
+                    """
+                    SELECT c.id, c.usuario_id, c.email, u.nombre, u.empresa, u.rol
+                    FROM codigos_otp c
+                    JOIN usuarios_autorizados u ON c.usuario_id = u.id
+                    WHERE LOWER(c.email) = LOWER($1)
+                      AND c.codigo = $2
+                      AND c.usado = false
+                      AND c.fecha_expiracion > NOW()
+                    ORDER BY c.fecha_creacion DESC
+                    LIMIT 1
+                    """,
+                    email, codigo
+                )
 
-        try:
-            row = await conn.fetchrow(
-                """
-                SELECT c.id, c.usuario_id, c.email, u.nombre, u.empresa, u.rol
-                FROM codigos_otp c
-                JOIN usuarios_autorizados u ON c.usuario_id = u.id
-                WHERE LOWER(c.email) = LOWER($1)
-                  AND c.codigo = $2
-                  AND c.usado = false
-                  AND c.fecha_expiracion > NOW()
-                ORDER BY c.fecha_creacion DESC
-                LIMIT 1
-                """,
-                email, codigo
-            )
+                if not row:
+                    # Security: Record failed attempt
+                    attempts = record_failed_attempt(email)
+                    logger.warning(f"Invalid or expired OTP for {email} (attempt {attempts}/{MAX_VERIFICATION_ATTEMPTS})")
+                    return None
 
-            if not row:
-                # Security: Record failed attempt
+                # Security: Clear attempts on success
+                clear_attempts(email)
+
+                await conn.execute(
+                    "UPDATE codigos_otp SET usado = true WHERE id = $1",
+                    row['id']
+                )
+
+                token = generate_session_token()
+                session_id = f"ses-{uuid.uuid4().hex[:8]}"
+
+                session_row = await conn.fetchrow(
+                    """
+                    INSERT INTO sesiones_otp (id, usuario_id, token, activa, fecha_creacion, fecha_expiracion)
+                    VALUES ($1, $2, $3, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '24 hours')
+                    RETURNING fecha_expiracion
+                    """,
+                    session_id, row['usuario_id'], token
+                )
+
+                logger.info(f"Session created for {email}")
+                expires_at = session_row['fecha_expiracion'].isoformat() if session_row else None
+                return {
+                    "token": token,
+                    "user": {
+                        "id": row['usuario_id'],
+                        "email": row['email'],
+                        "nombre": row['nombre'],
+                        "empresa": row['empresa'],
+                        "rol": row['rol'],
+                        "role": row['rol']
+                    },
+                    "expires_at": expires_at
+                }
+            except Exception as e:
+                logger.error(f"Error verifying OTP: {e}")
+            finally:
+                await conn.close()
+
+        # Fallback to demo mode for admin email
+        if email.lower() == ADMIN_EMAIL.lower():
+            stored_code = _demo_otp_codes.get(email.lower())
+            if stored_code and stored_code == codigo:
+                # Clear the used OTP
+                del _demo_otp_codes[email.lower()]
+                clear_attempts(email)
+
+                token = generate_session_token()
+                expires_at = (datetime.now(timezone.utc) + timedelta(hours=SESSION_EXPIRATION_HOURS)).isoformat()
+
+                # Store session in memory
+                _demo_sessions[token] = {
+                    "user": {
+                        "id": "1",
+                        "email": ADMIN_EMAIL,
+                        "nombre": ADMIN_NAME,
+                        "empresa": ADMIN_COMPANY,
+                        "rol": "admin",
+                        "role": "admin"
+                    },
+                    "expires_at": expires_at
+                }
+
+                logger.info(f"Demo mode: Session created for admin {email}")
+                return {
+                    "token": token,
+                    "user": _demo_sessions[token]["user"],
+                    "expires_at": expires_at
+                }
+            else:
                 attempts = record_failed_attempt(email)
-                remaining = MAX_VERIFICATION_ATTEMPTS - attempts
-                logger.warning(f"Invalid or expired OTP for {email} (attempt {attempts}/{MAX_VERIFICATION_ATTEMPTS})")
+                logger.warning(f"Demo mode: Invalid OTP for {email} (attempt {attempts})")
                 return None
 
-            # Security: Clear attempts on success
-            clear_attempts(email)
-            
-            await conn.execute(
-                "UPDATE codigos_otp SET usado = true WHERE id = $1",
-                row['id']
-            )
-            
-            token = generate_session_token()
-            session_id = f"ses-{uuid.uuid4().hex[:8]}"
-            
-            session_row = await conn.fetchrow(
-                """
-                INSERT INTO sesiones_otp (id, usuario_id, token, activa, fecha_creacion, fecha_expiracion)
-                VALUES ($1, $2, $3, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '24 hours')
-                RETURNING fecha_expiracion
-                """,
-                session_id, row['usuario_id'], token
-            )
-            
-            logger.info(f"Session created for {email}")
-            expires_at = session_row['fecha_expiracion'].isoformat() if session_row else None
-            return {
-                "token": token,
-                "user": {
-                    "id": row['usuario_id'],
-                    "email": row['email'],
-                    "nombre": row['nombre'],
-                    "empresa": row['empresa'],
-                    "rol": row['rol'],
-                    "role": row['rol']
-                },
-                "expires_at": expires_at
-            }
-        except Exception as e:
-            logger.error(f"Error verifying OTP: {e}")
-            return None
-        finally:
-            await conn.close()
-    
+        return None
+
     async def validate_session(self, token: str) -> Optional[Dict[str, Any]]:
+        # Check demo sessions first (in-memory)
+        if token in _demo_sessions:
+            session = _demo_sessions[token]
+            expires_at = datetime.fromisoformat(session["expires_at"].replace('Z', '+00:00'))
+            if datetime.now(timezone.utc) < expires_at:
+                return {
+                    "session_id": f"demo-{token[:8]}",
+                    "user": session["user"],
+                    "expires_at": session["expires_at"]
+                }
+            else:
+                # Session expired, clean up
+                del _demo_sessions[token]
+                return None
+
+        # Try database
         conn = await get_db_connection()
         if not conn:
             return None
-        
+
         try:
             row = await conn.fetchrow(
                 """
-                SELECT s.id, s.usuario_id, s.fecha_expiracion, 
+                SELECT s.id, s.usuario_id, s.fecha_expiracion,
                        u.email, u.nombre, u.empresa, u.rol
                 FROM sesiones_otp s
                 JOIN usuarios_autorizados u ON s.usuario_id = u.id
-                WHERE s.token = $1 
-                  AND s.activa = true 
+                WHERE s.token = $1
+                  AND s.activa = true
                   AND s.fecha_expiracion > NOW()
                 """,
                 token
             )
-            
+
             if not row:
                 return None
-            
+
             return {
                 "session_id": row['id'],
                 "user": {
@@ -325,10 +407,17 @@ class OTPAuthService:
             await conn.close()
     
     async def end_session(self, token: str) -> bool:
+        # Check demo sessions first
+        if token in _demo_sessions:
+            del _demo_sessions[token]
+            logger.info("Demo session ended")
+            return True
+
+        # Try database
         conn = await get_db_connection()
         if not conn:
             return False
-        
+
         try:
             result = await conn.execute(
                 "UPDATE sesiones_otp SET activa = false WHERE token = $1",

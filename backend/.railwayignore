@@ -1,0 +1,88 @@
+# Large video files
+*.mp4
+*.webm
+*.mov
+*.avi
+
+# Large static assets (will be served from frontend/CDN)
+static/futuristic_office_with_ai_robots.mp4
+static/revisar-ia-background.mp4
+static/static/
+
+# Uploaded files (will be stored in cloud storage or recreated)
+uploads/
+defense_files/
+
+# Backup folders
+backup_*/
+backups/
+
+# Development files
+*.log
+*.md
+!README.md
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Data files (will be in databases)
+*.db
+*.sqlite
+chroma_db/
+
+# Large document uploads
+*.docx
+*.pdf
+*.xlsx
+
+# Reports (generated, can be recreated)
+reports/
+
+# Reference repos
+reference_repos/
+
+# RAG data (will be rebuilt)
+rag/
+
+# Tests (not needed for production)
+tests/
+
+# Development scripts
+run_tests.py
+
+# Nested backend folder (if exists)
+backend/
+
+# Knowledge base files (will be in database/S3)
+kb/
+kb_legal/
+knowledge_base/
+
+# Agent training data
+agent_training/
+
+# Large scripts
+scripts/
+
+# Config files not needed in prod
+CONFIGURACION_AGENTES.md
+full_diagnostic_report.json
+
+# Bitacoras
+bitacoras/

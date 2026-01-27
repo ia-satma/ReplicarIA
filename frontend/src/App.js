@@ -266,7 +266,7 @@ const AGENT_INFO = {
   },
   'SYSTEM': {
     name: 'Sistema',
-    role: 'Sistema SATMA',
+    role: 'Sistema Revisar.IA',
     color: 'gray',
     initial: 'S',
     bgColor: 'bg-gray-100',
