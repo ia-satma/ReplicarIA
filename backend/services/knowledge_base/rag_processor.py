@@ -681,20 +681,17 @@ Responde SOLO en JSON válido:
         async with self.session_factory() as session:
             extension = filename.split('.')[-1].lower()
             
+            # Use only columns that exist in the basic kb_documentos schema
             doc_result = await session.execute(
                 text('''
                     INSERT INTO kb_documentos (
                         nombre, tipo_archivo, categoria, subcategoria, version,
                         es_version_vigente, fuente, hash_contenido, tamaño_bytes,
-                        estado, metadata, empresa_id, ley_codigo,
-                        contenido_completo, total_caracteres, total_chunks,
-                        resumen, procesado, fecha_procesamiento, activo
+                        estado, metadata, empresa_id, created_at, updated_at
                     ) VALUES (
                         :nombre, :tipo, :cat, :subcat, :version,
                         :vigente, :fuente, :hash, :size,
-                        'procesado', :meta, :empresa, :ley,
-                        :contenido, :chars, :chunks,
-                        :resumen, TRUE, NOW(), TRUE
+                        'procesado', :meta, :empresa, NOW(), NOW()
                     )
                     RETURNING id
                 '''),
@@ -708,13 +705,15 @@ Responde SOLO en JSON válido:
                     'fuente': clasificacion.get('fuente'),
                     'hash': hash_contenido,
                     'size': len(texto.encode()),
-                    'meta': json.dumps({**(metadata or {}), **clasificacion.get('metadata', {})}),
-                    'empresa': empresa_id,
-                    'ley': clasificacion.get('ley_codigo'),
-                    'contenido': texto,
-                    'chars': len(texto),
-                    'chunks': len(chunks),
-                    'resumen': clasificacion.get('metadata', {}).get('resumen', '')
+                    'meta': json.dumps({
+                        **(metadata or {}),
+                        **clasificacion.get('metadata', {}),
+                        'ley_codigo': clasificacion.get('ley_codigo'),
+                        'contenido_chars': len(texto),
+                        'total_chunks': len(chunks),
+                        'resumen': clasificacion.get('metadata', {}).get('resumen', '')
+                    }),
+                    'empresa': empresa_id
                 }
             )
             
@@ -730,16 +729,17 @@ Responde SOLO en JSON válido:
                 # Store embedding as JSONB since pgvector is not available
                 embedding_json = json.dumps(embedding) if embedding else None
 
+                # Use only columns from original schema
                 chunk_result = await session.execute(
                     text('''
                         INSERT INTO kb_chunks (
                             documento_id, contenido, contenido_embedding, chunk_index,
                             tokens, metadata, categoria_chunk, agentes_asignados,
-                            score_calidad, articulo, tipo_contenido
+                            score_calidad, created_at
                         ) VALUES (
                             :doc_id, :contenido, :embedding::jsonb, :idx,
                             :tokens, :meta, :cat, :agentes,
-                            :score, :articulo, :tipo
+                            :score, NOW()
                         )
                         RETURNING id
                     '''),
@@ -749,12 +749,14 @@ Responde SOLO en JSON válido:
                         'embedding': embedding_json,
                         'idx': idx,
                         'tokens': chunk.get('tokens', 0),
-                        'meta': json.dumps(chunk.get('metadata', {})),
+                        'meta': json.dumps({
+                            **chunk.get('metadata', {}),
+                            'articulo': chunk.get('articulo'),
+                            'tipo_contenido': chunk.get('tipo_contenido', 'parrafo')
+                        }),
                         'cat': clasificacion.get('categoria'),
                         'agentes': [a['agente_id'] for a in chunk.get('agentes', [])],
-                        'score': 0.8,
-                        'articulo': chunk.get('articulo'),
-                        'tipo': chunk.get('tipo_contenido', 'parrafo')
+                        'score': 0.8
                     }
                 )
                 
@@ -765,20 +767,20 @@ Responde SOLO en JSON válido:
                     await session.execute(
                         text('''
                             INSERT INTO kb_chunk_agente (
-                                chunk_id, agente_id, score_relevancia, es_conocimiento_core,
-                                relevancia, usado_en_respuestas, feedback_positivo, feedback_negativo
+                                chunk_id, agente_id, relevancia,
+                                usado_en_respuestas, feedback_positivo, feedback_negativo,
+                                created_at
                             ) VALUES (
-                                :chunk, :agente, :score, :core,
-                                :relevancia, 0, 0, 0
+                                :chunk, :agente, :relevancia,
+                                0, 0, 0,
+                                NOW()
                             )
                             ON CONFLICT (chunk_id, agente_id) DO NOTHING
                         '''),
                         {
                             'chunk': chunk_id,
                             'agente': agente_asig['agente_id'],
-                            'score': agente_asig['score_relevancia'],
-                            'core': agente_asig['es_conocimiento_core'],
-                            'relevancia': agente_asig['score_relevancia']
+                            'relevancia': agente_asig.get('score_relevancia', 1.0)
                         }
                     )
             
