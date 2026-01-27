@@ -34,12 +34,14 @@ const LoginPage = () => {
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
     if (!email.trim()) return;
-    
+
     setLoading(true);
     setError('');
-    
+
+    const API_URL = process.env.REACT_APP_BACKEND_URL || '';
+
     try {
-      const response = await fetch('/api/auth/otp/request-code', {
+      const response = await fetch(`${API_URL}/api/auth/otp/request-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() })
