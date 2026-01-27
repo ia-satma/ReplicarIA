@@ -267,6 +267,74 @@ async def crear_cliente_postgresql(
         return None
 
 
+async def guardar_cliente_pcloud(
+    datos: Dict[str, Any],
+    cliente_id: str,
+    tipo_entidad: str = "cliente"
+) -> Optional[Dict[str, Any]]:
+    """
+    Guarda los datos del cliente en pCloud para referencia futura.
+    Crea estructura: DEFENSE_FILES/{RFC}/{cliente_info.json}
+    """
+    try:
+        rfc = datos.get("rfc", "SIN_RFC").upper().replace(" ", "_")
+        fecha = datetime.now().strftime("%Y-%m-%d")
+
+        # Create client info document
+        cliente_doc = {
+            "id": cliente_id,
+            "tipo": tipo_entidad,
+            "fecha_creacion": fecha,
+            "ultima_actualizacion": datetime.now().isoformat(),
+            "datos": {
+                "nombre": datos.get("nombre"),
+                "razon_social": datos.get("razon_social"),
+                "rfc": datos.get("rfc"),
+                "direccion": datos.get("direccion"),
+                "telefono": datos.get("telefono"),
+                "email": datos.get("email"),
+                "giro": datos.get("giro"),
+                "regimen_fiscal": datos.get("regimen_fiscal"),
+                "representante_legal": datos.get("representante_legal"),
+                "sitio_web": datos.get("sitio_web"),
+                "capital_social": datos.get("capital_social")
+            },
+            "fuentes": datos.get("fuentes", []),
+            "proyectos": [],
+            "versiones": [
+                {
+                    "version": "1.0",
+                    "fecha": fecha,
+                    "cambios": "Creación inicial"
+                }
+            ]
+        }
+
+        # Save to pCloud
+        content = json.dumps(cliente_doc, indent=2, ensure_ascii=False, default=str)
+        folder_path = f"DEFENSE_FILES/{rfc}"
+
+        result = await pcloud_service.upload_file(
+            content=content.encode('utf-8'),
+            filename=f"cliente_info_{cliente_id}.json",
+            folder_path=folder_path
+        )
+
+        if result and result.get("success"):
+            logger.info(f"Client data saved to pCloud: {folder_path}/cliente_info_{cliente_id}.json")
+            return {
+                "pcloud_path": f"{folder_path}/cliente_info_{cliente_id}.json",
+                "pcloud_file_id": result.get("file_id")
+            }
+        else:
+            logger.warning(f"pCloud upload failed: {result}")
+            return None
+
+    except Exception as e:
+        logger.error(f"Error saving client to pCloud: {e}")
+        return None
+
+
 class DocumentUploadRequest(BaseModel):
     cliente_id: int
     tipo_documento: Optional[str] = None
@@ -351,7 +419,7 @@ async def analizar_documentos(
         documentos=documentos_procesados,
         tipo_entidad=tipo_entidad
     )
-    
+
     if email_contacto and not datos.get("email"):
         datos["email"] = email_contacto
         if "fuentes" not in datos:
@@ -361,12 +429,54 @@ async def analizar_documentos(
             "fuente": "usuario",
             "confianza": 1.0
         })
-    
+
+    # Auto-trigger deep research if critical data is missing
+    campos_criticos_faltantes = []
+    if not datos.get("rfc"):
+        campos_criticos_faltantes.append("rfc")
+    if not datos.get("nombre") and not datos.get("razon_social"):
+        campos_criticos_faltantes.append("nombre")
+    if not datos.get("direccion"):
+        campos_criticos_faltantes.append("direccion")
+
+    datos_investigacion = {}
+    if campos_criticos_faltantes and (datos.get("nombre") or datos.get("razon_social") or datos.get("rfc")):
+        try:
+            logger.info(f"Auto-triggering deep research for missing fields: {campos_criticos_faltantes}")
+            investigacion = await deep_research_service.investigar_empresa(
+                nombre=datos.get("nombre") or datos.get("razon_social"),
+                rfc=datos.get("rfc"),
+                documento=documentos_procesados[0]["texto"] if documentos_procesados else None
+            )
+
+            if investigacion.get("data"):
+                datos_investigacion = investigacion["data"]
+                # Merge found data
+                for campo in campos_criticos_faltantes:
+                    if datos_investigacion.get(campo) and not datos.get(campo):
+                        datos[campo] = datos_investigacion[campo]
+                        if "fuentes" not in datos:
+                            datos["fuentes"] = []
+                        datos["fuentes"].append({
+                            "campo": campo,
+                            "fuente": "deep_research",
+                            "confianza": investigacion.get("field_confidence", {}).get(campo, {}).get("confidence", 70) / 100
+                        })
+                        logger.info(f"Deep research found: {campo} = {datos[campo]}")
+
+                # Update missing fields list
+                datos["datosFaltantes"] = [f for f in datos.get("datosFaltantes", []) if f not in datos_investigacion]
+
+        except Exception as e:
+            logger.warning(f"Deep research failed (non-critical): {e}")
+
     return {
         "success": True,
         "datos": datos,
         "archivos_procesados": len(documentos_procesados),
-        "archivos_nombres": [d["nombre"] for d in documentos_procesados]
+        "archivos_nombres": [d["nombre"] for d in documentos_procesados],
+        "investigacion_automatica": bool(datos_investigacion),
+        "campos_investigados": list(datos_investigacion.keys()) if datos_investigacion else []
     }
 
 
@@ -525,7 +635,14 @@ async def crear_entidad(request: CrearEntidadRequest, credentials: HTTPAuthoriza
             pg_cliente_id = pg_cliente.get("id") if pg_cliente else None
             
             logger.info(f"Created cliente {cliente['id']} for empresa {user_empresa_id}, PostgreSQL ID: {pg_cliente_id}")
-            
+
+            # Save to pCloud for persistent storage
+            pcloud_result = await guardar_cliente_pcloud(
+                datos=datos,
+                cliente_id=str(cliente["id"]),
+                tipo_entidad="cliente"
+            )
+
             return {
                 "success": True,
                 "cliente_id": cliente["id"],
@@ -538,7 +655,8 @@ async def crear_entidad(request: CrearEntidadRequest, credentials: HTTPAuthoriza
                     "nombre": cliente.get("razon_social"),
                     "rfc": cliente.get("rfc"),
                     "giro": cliente.get("giro")
-                }
+                },
+                "pcloud": pcloud_result
             }
         
         industria = IndustriaEnum.OTRO
