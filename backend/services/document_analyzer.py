@@ -5,25 +5,43 @@ from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-# OpenAI provider
+# Try Anthropic first, then OpenAI as fallback
+AI_PROVIDER = None
+chat_fn = None
+
 try:
-    from services.openai_provider import chat_completion_sync, is_configured
-    OPENAI_AVAILABLE = is_configured()
+    from services.anthropic_provider import chat_completion_sync as anthropic_chat, is_configured as anthropic_configured
+    if anthropic_configured():
+        AI_PROVIDER = "anthropic"
+        chat_fn = anthropic_chat
+        logger.info("DocumentAnalyzer using Anthropic Claude")
 except ImportError:
-    OPENAI_AVAILABLE = False
-    logger.warning("OpenAI provider not available for DocumentAnalyzer")
+    pass
+
+if not AI_PROVIDER:
+    try:
+        from services.openai_provider import chat_completion_sync as openai_chat, is_configured as openai_configured
+        if openai_configured():
+            AI_PROVIDER = "openai"
+            chat_fn = openai_chat
+            logger.info("DocumentAnalyzer using OpenAI")
+    except ImportError:
+        pass
+
+if not AI_PROVIDER:
+    logger.warning("No AI provider available for DocumentAnalyzer")
 
 
 class DocumentAnalyzerService:
     """Servicio de análisis de documentos con IA para extracción de datos"""
 
     def __init__(self):
-        self.client = OPENAI_AVAILABLE
-        self.model = "gpt-4o"
+        self.provider = AI_PROVIDER
+        self.model = "claude-sonnet-4-20250514" if AI_PROVIDER == "anthropic" else "gpt-4o"
 
-        if not self.client:
-            logger.warning("OpenAI not configured for DocumentAnalyzer")
-    
+        if not self.provider:
+            logger.warning("No AI provider configured for DocumentAnalyzer")
+
     async def analizar_documentos(
         self,
         documentos: List[Dict[str, Any]],
@@ -31,27 +49,20 @@ class DocumentAnalyzerService:
     ) -> Dict[str, Any]:
         """
         Analiza múltiples documentos y extrae datos de cliente/proveedor
-        
-        Args:
-            documentos: Lista de dicts con 'nombre' y 'texto'
-            tipo_entidad: 'cliente' o 'proveedor'
-        
-        Returns:
-            Dict con datos extraídos, fuentes y datos faltantes
         """
-        if not self.client:
+        if not self.provider or not chat_fn:
             return {
-                "error": "Servicio de IA no configurado",
+                "error": "Servicio de IA no configurado. Configure ANTHROPIC_API_KEY o OPENAI_API_KEY.",
                 "datosFaltantes": ["nombre", "rfc", "direccion", "email"],
                 "datosCompletos": False,
                 "fuentes": []
             }
-        
+
         textos = "\n\n---DOCUMENTO---\n".join([
             f"Archivo: {d['nombre']}\n{d['texto'][:8000]}"
             for d in documentos
         ])
-        
+
         prompt = f"""Analiza los siguientes documentos de un {tipo_entidad} mexicano y extrae todos los datos que puedas encontrar.
 
 DOCUMENTOS:
@@ -98,26 +109,26 @@ Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
 }}"""
 
         try:
-            texto_respuesta = chat_completion_sync(
+            texto_respuesta = chat_fn(
                 messages=[{"role": "user", "content": prompt}],
                 model=self.model,
                 max_tokens=2500
             )
-            
+
             if "```json" in texto_respuesta:
                 texto_respuesta = texto_respuesta.split("```json")[1].split("```")[0]
             elif "```" in texto_respuesta:
                 texto_respuesta = texto_respuesta.split("```")[1].split("```")[0]
-            
+
             datos = json.loads(texto_respuesta.strip())
-            
+
             for key in datos:
                 if datos[key] == "null" or datos[key] == "":
                     datos[key] = None
-            
+
             campos_requeridos = ["nombre", "rfc", "email"]
             campos_opcionales = ["direccion", "telefono", "giro", "razon_social"]
-            
+
             datos_faltantes = []
             for campo in campos_requeridos:
                 if not datos.get(campo):
@@ -125,13 +136,13 @@ Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
             for campo in campos_opcionales:
                 if not datos.get(campo):
                     datos_faltantes.append(campo)
-            
+
             datos["datosFaltantes"] = datos_faltantes
             datos["datosCompletos"] = len([c for c in campos_requeridos if not datos.get(c)]) == 0
             datos["tipo"] = tipo_entidad
-            
+
             return datos
-            
+
         except json.JSONDecodeError as e:
             logger.error(f"Error parsing AI response: {e}")
             return {
