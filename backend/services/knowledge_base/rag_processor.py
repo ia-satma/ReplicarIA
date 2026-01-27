@@ -737,8 +737,8 @@ Responde SOLO en JSON válido:
                             tokens, metadata, categoria_chunk, agentes_asignados,
                             score_calidad, created_at
                         ) VALUES (
-                            :doc_id, :contenido, :embedding::jsonb, :idx,
-                            :tokens, :meta, :cat, :agentes,
+                            :doc_id, :contenido, CAST(:embedding AS jsonb), :idx,
+                            :tokens, CAST(:meta AS jsonb), :cat, :agentes,
                             :score, NOW()
                         )
                         RETURNING id
