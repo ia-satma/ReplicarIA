@@ -686,13 +686,13 @@ Responde SOLO en JSON válido:
                     INSERT INTO kb_documentos (
                         nombre, tipo_archivo, categoria, subcategoria, version,
                         es_version_vigente, fuente, hash_contenido, tamaño_bytes,
-                        estado, metadata, empresa_id, ley_codigo, tipo_documento,
-                        contenido_completo, total_caracteres, total_chunks, 
+                        estado, metadata, empresa_id, ley_codigo,
+                        contenido_completo, total_caracteres, total_chunks,
                         resumen, procesado, fecha_procesamiento, activo
                     ) VALUES (
                         :nombre, :tipo, :cat, :subcat, :version,
                         :vigente, :fuente, :hash, :size,
-                        'procesado', :meta, :empresa, :ley, :tipo_doc,
+                        'procesado', :meta, :empresa, :ley,
                         :contenido, :chars, :chunks,
                         :resumen, TRUE, NOW(), TRUE
                     )
@@ -711,7 +711,6 @@ Responde SOLO en JSON válido:
                     'meta': json.dumps({**(metadata or {}), **clasificacion.get('metadata', {})}),
                     'empresa': empresa_id,
                     'ley': clasificacion.get('ley_codigo'),
-                    'tipo_doc': clasificacion.get('categoria'),
                     'contenido': texto,
                     'chars': len(texto),
                     'chunks': len(chunks),
