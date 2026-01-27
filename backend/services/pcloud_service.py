@@ -9,7 +9,17 @@ logger = logging.getLogger(__name__)
 PCLOUD_API_EU = "https://eapi.pcloud.com"
 PCLOUD_API_US = "https://api.pcloud.com"
 
-REVISAR_IA_FOLDER_NAME = "REVISAR.ia"
+# Carpeta de configuración agéntica (skills, knowledge base)
+REVISAR_IA_CONFIG_FOLDER_NAME = "REVISAR.IA"
+REVISAR_IA_CONFIG_FOLDER_ID = 29789401752
+
+# Carpeta de operaciones (evidencias, resultados mensuales)
+REVISAR_IA_OPERATIONS_FOLDER_NAME = "REVISAR_IA"
+REVISAR_IA_OPERATIONS_FOLDER_ID = 29799555433
+EVIDENCIAS_FOLDER_ID = 29799555482
+
+# Legacy compatibility
+REVISAR_IA_FOLDER_NAME = "REVISAR.IA"
 
 REQUIRED_SUBFOLDERS = [
     "A1_ESTRATEGIA",
@@ -46,6 +56,7 @@ AGENT_FOLDER_NAMES = {
 }
 
 AGENT_FOLDER_IDS = {
+    # Carpetas de agentes en REVISAR.IA (configuración)
     "A1_ESTRATEGIA": 29789474359,
     "A1_SPONSOR": 29789474359,
     "A2_PMO": 29789474388,
@@ -55,14 +66,17 @@ AGENT_FOLDER_IDS = {
     "A5_FINANZAS": 29789474462,
     "A6_PROVEEDOR": 29789474493,
     "A7_DEFENSA": 29789474511,
-    "A8_AUDITOR": 29789474531,
+    "A8_AUDITOR": 29897074462,  # Updated from pCloud
     "DEFENSE_FILES": 29789474531,
     "KNOWLEDGE_BASE": 29789474559,
     "PROYECTOS": 29789474598,
-    "REVISAR_IA": 29789401752,
-    "SUB_TIPIFICACION": 29789474600,
-    "SUB_MATERIALIDAD": 29789474601,
-    "SUB_RIESGOS": 29789474602
+    "SUB_TIPIFICACION": 29897074474,  # Updated from pCloud
+    "SUB_MATERIALIDAD": 29897074492,  # Updated from pCloud
+    "SUB_RIESGOS": 29897074499,  # Updated from pCloud
+    # Carpetas raíz
+    "REVISAR_IA_CONFIG": 29789401752,  # REVISAR.IA - configuración agéntica
+    "REVISAR_IA_OPERATIONS": 29799555433,  # REVISAR_IA - operaciones/evidencias
+    "EVIDENCIAS": 29799555482,  # Subcarpeta de evidencias mensuales
 }
 
 # Modelo de permisos entre agentes
