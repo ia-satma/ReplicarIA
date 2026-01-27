@@ -24,6 +24,7 @@ from services.documento_versionado_service import documento_versionado_service
 from models.empresa import EmpresaCreate, IndustriaEnum
 from repositories.empresa_repository import empresa_repository
 from services.deep_research_service import deep_research_service
+from services.pcloud_service import pcloud_service
 
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
@@ -149,22 +150,45 @@ def extract_text_from_pdf(file_content: bytes) -> str:
 
 
 def extract_text_from_docx(file_content: bytes) -> str:
-    """Extrae texto de un archivo DOCX"""
+    """Extrae texto de un archivo DOCX incluyendo tablas"""
     if not DOCX_AVAILABLE or DocxDocument is None:
-        return "[DOCX no soportado - instalar python-docx]"
-    
-    try:
-        with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as tmp:
-            tmp.write(file_content)
-            tmp_path = tmp.name
-        
-        doc = DocxDocument(tmp_path)
-        text = "\n".join([p.text for p in doc.paragraphs])
-        os.unlink(tmp_path)
-        return text[:30000]
-    except Exception as e:
-        logger.error(f"Error extracting DOCX: {e}")
+        logger.warning("python-docx not available for DOCX extraction")
         return ""
+
+    try:
+        import io
+        doc = DocxDocument(io.BytesIO(file_content))
+        text_parts = []
+
+        # Extract paragraphs
+        for paragraph in doc.paragraphs:
+            if paragraph.text.strip():
+                text_parts.append(paragraph.text.strip())
+
+        # Extract tables (important for company data)
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                if row_text:
+                    text_parts.append(" | ".join(row_text))
+
+        text = "\n".join(text_parts)
+        logger.info(f"DOCX extracted: {len(text)} chars from {len(text_parts)} elements")
+        return text[:30000] if text else ""
+    except Exception as e:
+        logger.error(f"Error extracting DOCX: {e}", exc_info=True)
+        # Try alternative method with temp file
+        try:
+            with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as tmp:
+                tmp.write(file_content)
+                tmp_path = tmp.name
+            doc = DocxDocument(tmp_path)
+            text = "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
+            os.unlink(tmp_path)
+            return text[:30000] if text else ""
+        except Exception as e2:
+            logger.error(f"Fallback DOCX extraction also failed: {e2}")
+            return ""
 
 
 async def crear_cliente_postgresql(
@@ -262,40 +286,66 @@ async def analizar_documentos(
     """
     if not files:
         raise HTTPException(status_code=400, detail="No se proporcionaron archivos")
-    
+
     documentos_procesados = []
-    
+    archivos_fallidos = []
+
+    logger.info(f"Analizando {len(files)} archivos para {tipo_entidad}")
+
     for file in files:
         try:
             content = await file.read()
             texto = ""
-            filename = file.filename or ""
-            
-            if file.content_type == "application/pdf" or filename.lower().endswith('.pdf'):
+            filename = file.filename or "unknown"
+            content_type = file.content_type or ""
+
+            logger.info(f"Procesando archivo: {filename} ({content_type}, {len(content)} bytes)")
+
+            # Determine file type and extract text
+            is_pdf = content_type == "application/pdf" or filename.lower().endswith('.pdf')
+            is_docx = content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or filename.lower().endswith('.docx')
+            is_text = content_type.startswith("text/") if content_type else False
+
+            if is_pdf:
                 texto = extract_text_from_pdf(content)
-            elif file.content_type in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] or filename.lower().endswith('.docx'):
+                logger.info(f"PDF extraction result: {len(texto)} chars")
+            elif is_docx:
                 texto = extract_text_from_docx(content)
-            elif file.content_type and file.content_type.startswith("text/"):
+                logger.info(f"DOCX extraction result: {len(texto)} chars")
+            elif is_text or filename.lower().endswith(('.txt', '.csv')):
                 texto = content.decode('utf-8', errors='ignore')[:30000]
+                logger.info(f"Text file decoded: {len(texto)} chars")
             else:
-                texto = content.decode('utf-8', errors='ignore')[:30000]
-            
-            if texto.strip():
+                # Try to decode as text anyway
+                try:
+                    texto = content.decode('utf-8', errors='ignore')[:30000]
+                    logger.info(f"Generic decode: {len(texto)} chars")
+                except:
+                    logger.warning(f"Could not decode {filename}")
+                    texto = ""
+
+            if texto and texto.strip():
                 documentos_procesados.append({
-                    "nombre": file.filename,
+                    "nombre": filename,
                     "texto": texto,
-                    "tipo": file.content_type
+                    "tipo": content_type
                 })
-                
+                logger.info(f"Successfully processed: {filename}")
+            else:
+                archivos_fallidos.append(filename)
+                logger.warning(f"No text extracted from: {filename}")
+
         except Exception as e:
-            logger.error(f"Error processing file {file.filename}: {e}")
+            logger.error(f"Error processing file {file.filename}: {e}", exc_info=True)
+            archivos_fallidos.append(file.filename or "unknown")
             continue
-    
+
     if not documentos_procesados:
-        raise HTTPException(
-            status_code=400, 
-            detail="No se pudo extraer texto de ningún documento"
-        )
+        error_msg = "No se pudo extraer texto de ningún documento"
+        if archivos_fallidos:
+            error_msg += f". Archivos fallidos: {', '.join(archivos_fallidos)}"
+        logger.error(error_msg)
+        raise HTTPException(status_code=400, detail=error_msg)
     
     datos = await document_analyzer.analizar_documentos(
         documentos=documentos_procesados,
