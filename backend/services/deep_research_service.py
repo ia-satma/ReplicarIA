@@ -16,14 +16,33 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-# OpenAI provider
+# Try Anthropic first, then OpenAI as fallback
+AI_PROVIDER = None
+ai_client = None
+chat_fn = None
+
 try:
-    from services.openai_provider import openai_client, chat_completion_sync, is_configured
-    OPENAI_AVAILABLE = is_configured()
+    from services.anthropic_provider import chat_completion_sync as anthropic_chat, is_configured as anthropic_configured
+    if anthropic_configured():
+        AI_PROVIDER = "anthropic"
+        chat_fn = anthropic_chat
+        logger.info("DeepResearchService using Anthropic Claude")
 except ImportError:
-    OPENAI_AVAILABLE = False
-    openai_client = None
-    logger.warning("OpenAI provider not available for DeepResearchService")
+    pass
+
+if not AI_PROVIDER:
+    try:
+        from services.openai_provider import openai_client, chat_completion_sync, is_configured
+        if is_configured():
+            AI_PROVIDER = "openai"
+            ai_client = openai_client
+            chat_fn = chat_completion_sync
+            logger.info("DeepResearchService using OpenAI")
+    except ImportError:
+        pass
+
+if not AI_PROVIDER:
+    logger.warning("No AI provider available for DeepResearchService")
 
 
 class DeepResearchService:
@@ -34,16 +53,17 @@ class DeepResearchService:
     """
 
     def __init__(self):
-        if OPENAI_AVAILABLE:
-            self.client = openai_client
-            self.available = True
-            logger.info("DeepResearchService inicializado con OpenAI")
-        else:
-            self.client = None
-            self.available = False
-            logger.warning("DeepResearchService: OpenAI no configurado")
+        self.provider = AI_PROVIDER
+        self.client = ai_client
+        self.chat_fn = chat_fn
+        self.available = AI_PROVIDER is not None
 
-        self.model = "gpt-4o"
+        if self.available:
+            logger.info(f"DeepResearchService inicializado con {AI_PROVIDER}")
+        else:
+            logger.warning("DeepResearchService: Ningún proveedor AI configurado")
+
+        self.model = "claude-sonnet-4-20250514" if AI_PROVIDER == "anthropic" else "gpt-4o"
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -358,9 +378,9 @@ REGLAS:
 - Responde SOLO con el JSON, sin explicaciones"""
 
         try:
-            if not self.client:
+            if not self.chat_fn:
                 return {}
-            content = chat_completion_sync(
+            content = self.chat_fn(
                 messages=[{"role": "user", "content": prompt}],
                 model=self.model,
                 max_tokens=2000
@@ -578,15 +598,13 @@ REGLAS:
 - Responde SOLO con JSON válido"""
 
         try:
-            if not self.client:
+            if not self.chat_fn:
                 return {}
-            response = self.client.messages.create(
+            content = self.chat_fn(
+                messages=[{"role": "user", "content": prompt}],
                 model=self.model,
-                max_tokens=2500,
-                messages=[{"role": "user", "content": prompt}]
+                max_tokens=2500
             )
-            
-            content = getattr(response.content[0], 'text', '')
             
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0]
@@ -719,15 +737,13 @@ No inventes datos que no tengas.
 Responde SOLO con JSON válido."""
 
         try:
-            if not self.client:
+            if not self.chat_fn:
                 return {"success": False, "error": "AI no disponible"}
-            response = self.client.messages.create(
+            content = self.chat_fn(
+                messages=[{"role": "user", "content": prompt}],
                 model=self.model,
-                max_tokens=1500,
-                messages=[{"role": "user", "content": prompt}]
+                max_tokens=1500
             )
-            
-            content = getattr(response.content[0], 'text', '')
             
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0]

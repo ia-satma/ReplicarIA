@@ -151,44 +151,95 @@ def extract_text_from_pdf(file_content: bytes) -> str:
 
 def extract_text_from_docx(file_content: bytes) -> str:
     """Extrae texto de un archivo DOCX incluyendo tablas"""
-    if not DOCX_AVAILABLE or DocxDocument is None:
-        logger.warning("python-docx not available for DOCX extraction")
-        return ""
+    logger.info(f"DOCX extraction starting, content size: {len(file_content)} bytes")
 
-    try:
-        import io
-        doc = DocxDocument(io.BytesIO(file_content))
-        text_parts = []
+    # Method 1: Try with python-docx via BytesIO
+    if DOCX_AVAILABLE and DocxDocument is not None:
+        try:
+            import io
+            doc = DocxDocument(io.BytesIO(file_content))
+            text_parts = []
 
-        # Extract paragraphs
-        for paragraph in doc.paragraphs:
-            if paragraph.text.strip():
-                text_parts.append(paragraph.text.strip())
+            # Extract paragraphs
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    text_parts.append(paragraph.text.strip())
 
-        # Extract tables (important for company data)
-        for table in doc.tables:
-            for row in table.rows:
-                row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
-                if row_text:
-                    text_parts.append(" | ".join(row_text))
+            # Extract tables (important for company data)
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                    if row_text:
+                        text_parts.append(" | ".join(row_text))
 
-        text = "\n".join(text_parts)
-        logger.info(f"DOCX extracted: {len(text)} chars from {len(text_parts)} elements")
-        return text[:30000] if text else ""
-    except Exception as e:
-        logger.error(f"Error extracting DOCX: {e}", exc_info=True)
-        # Try alternative method with temp file
+            text = "\n".join(text_parts)
+            logger.info(f"DOCX BytesIO extracted: {len(text)} chars from {len(text_parts)} elements")
+            if text.strip():
+                return text[:30000]
+        except Exception as e:
+            logger.warning(f"DOCX BytesIO extraction failed: {e}")
+
+    # Method 2: Try with temp file
+    if DOCX_AVAILABLE and DocxDocument is not None:
         try:
             with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as tmp:
                 tmp.write(file_content)
                 tmp_path = tmp.name
             doc = DocxDocument(tmp_path)
-            text = "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
+            text_parts = []
+            for p in doc.paragraphs:
+                if p.text.strip():
+                    text_parts.append(p.text.strip())
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                    if row_text:
+                        text_parts.append(" | ".join(row_text))
+            text = "\n".join(text_parts)
             os.unlink(tmp_path)
-            return text[:30000] if text else ""
+            logger.info(f"DOCX temp file extracted: {len(text)} chars from {len(text_parts)} elements")
+            if text.strip():
+                return text[:30000]
         except Exception as e2:
-            logger.error(f"Fallback DOCX extraction also failed: {e2}")
-            return ""
+            logger.warning(f"DOCX temp file extraction failed: {e2}")
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+
+    # Method 3: Raw XML extraction from ZIP (DOCX is a ZIP with XML files)
+    try:
+        import zipfile
+        import io
+        import re
+
+        with zipfile.ZipFile(io.BytesIO(file_content)) as zf:
+            # Read the main document.xml
+            if 'word/document.xml' in zf.namelist():
+                xml_content = zf.read('word/document.xml').decode('utf-8', errors='ignore')
+                # Extract text between <w:t> tags
+                text_matches = re.findall(r'<w:t[^>]*>([^<]+)</w:t>', xml_content)
+                text = ' '.join(text_matches)
+                # Clean up excessive whitespace
+                text = re.sub(r'\s+', ' ', text).strip()
+                logger.info(f"DOCX raw XML extracted: {len(text)} chars")
+                if text:
+                    return text[:30000]
+    except Exception as e3:
+        logger.warning(f"DOCX raw XML extraction failed: {e3}")
+
+    # Method 4: Try to decode as plain text (in case it's not a real DOCX)
+    try:
+        text = file_content.decode('utf-8', errors='ignore')[:30000]
+        # Check if it looks like text
+        if text and len([c for c in text[:1000] if c.isalpha()]) > 100:
+            logger.info(f"DOCX decoded as plain text: {len(text)} chars")
+            return text
+    except:
+        pass
+
+    logger.error("All DOCX extraction methods failed")
+    return ""
 
 
 async def crear_cliente_postgresql(
