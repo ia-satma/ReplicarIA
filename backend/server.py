@@ -793,31 +793,47 @@ async def seed_usuarios_autorizados():
             logger.info(f"Found {count_otp} existing OTP users")
         
         # Seed users table (for password login - admin)
-        count_users = await conn.fetchval("SELECT COUNT(*) FROM users WHERE role = 'admin'")
-        if count_users == 0:
-            # SEGURIDAD: Obtener contraseña de variable de entorno
-            admin_password = os.environ.get('ADMIN_PASSWORD')
-            admin_email = os.environ.get('ADMIN_EMAIL', 'admin@example.com')
-            admin_name = os.environ.get('ADMIN_NAME', 'Administrator')
-            admin_company = os.environ.get('ADMIN_COMPANY', 'Default')
+        # Support multiple admin users via ADMIN_EMAIL, ADMIN_EMAIL_2, ADMIN_EMAIL_3, etc.
+        admin_configs = []
 
-            if not admin_password:
-                logger.warning("⚠️ ADMIN_PASSWORD not set - skipping admin user seeding")
-                logger.warning("   Set ADMIN_PASSWORD environment variable to create admin user")
-            else:
-                logger.info("Seeding admin user in users table...")
-                password_hash = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        # Primary admin
+        admin_password = os.environ.get('ADMIN_PASSWORD')
+        admin_email = os.environ.get('ADMIN_EMAIL')
+        if admin_email and admin_password:
+            admin_configs.append({
+                'email': admin_email,
+                'password': admin_password,
+                'name': os.environ.get('ADMIN_NAME', 'Administrator'),
+                'company': os.environ.get('ADMIN_COMPANY', 'Default')
+            })
+
+        # Additional admins (ADMIN_EMAIL_2, ADMIN_EMAIL_3, etc.)
+        for i in range(2, 10):
+            admin_email_n = os.environ.get(f'ADMIN_EMAIL_{i}')
+            admin_password_n = os.environ.get(f'ADMIN_PASSWORD_{i}')
+            if admin_email_n and admin_password_n:
+                admin_configs.append({
+                    'email': admin_email_n,
+                    'password': admin_password_n,
+                    'name': os.environ.get(f'ADMIN_NAME_{i}', f'Administrator {i}'),
+                    'company': os.environ.get(f'ADMIN_COMPANY_{i}', 'Default')
+                })
+
+        if not admin_configs:
+            logger.warning("⚠️ No ADMIN_EMAIL/ADMIN_PASSWORD configured - skipping admin user seeding")
+        else:
+            logger.info(f"Seeding {len(admin_configs)} admin users in users table...")
+            for admin_config in admin_configs:
+                password_hash = bcrypt.hashpw(admin_config['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
                 admin_id = str(uuid.uuid4())
 
                 await conn.execute(
                     """INSERT INTO users (id, email, full_name, password_hash, role, is_active, approval_status, company, auth_provider)
                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                        ON CONFLICT (email) DO UPDATE SET password_hash = $4, is_active = $6, approval_status = $7""",
-                    admin_id, admin_email, admin_name, password_hash, 'admin', True, 'approved', admin_company, 'email'
+                    admin_id, admin_config['email'], admin_config['name'], password_hash, 'admin', True, 'approved', admin_config['company'], 'email'
                 )
-                logger.info(f"Admin user seeded: {admin_email}")
-        else:
-            logger.info(f"Found {count_users} existing admin users")
+                logger.info(f"Admin user seeded/updated: {admin_config['email']}")
         
         await conn.close()
         logger.info("User seeding completed successfully")
