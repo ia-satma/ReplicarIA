@@ -16,6 +16,17 @@ logger = logging.getLogger(__name__)
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
 
+def safe_uuid(id_string: str) -> uuid.UUID:
+    """Convert ID string to UUID safely, generating deterministic UUID for non-UUID strings."""
+    if not id_string:
+        raise ValueError("ID string cannot be empty")
+    try:
+        return uuid.UUID(id_string)
+    except (ValueError, AttributeError):
+        namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')
+        return uuid.uuid5(namespace, id_string)
+
+
 async def get_db_connection():
     """Get asyncpg connection for database operations"""
     if not DATABASE_URL:
@@ -325,7 +336,7 @@ class IngestionService:
                 WHERE document_id = $1 AND empresa_id = $2
                 """,
                 uuid.UUID(document_id),
-                uuid.UUID(empresa_id)
+                safe_uuid(empresa_id)
             )
             
             if existing:
@@ -348,7 +359,7 @@ class IngestionService:
                     metadata.get('extraction_method'),
                     json.dumps(metadata.get('extraction_meta', {})),
                     uuid.UUID(document_id),
-                    uuid.UUID(empresa_id)
+                    safe_uuid(empresa_id)
                 )
             else:
                 text_id = uuid.uuid4()
@@ -360,7 +371,7 @@ class IngestionService:
                     """,
                     text_id,
                     uuid.UUID(document_id),
-                    uuid.UUID(empresa_id),
+                    safe_uuid(empresa_id),
                     text,
                     metadata.get('language', 'es'),
                     metadata.get('page_count'),
@@ -396,7 +407,7 @@ class IngestionService:
                 """,
                 status,
                 uuid.UUID(document_id),
-                uuid.UUID(empresa_id)
+                safe_uuid(empresa_id)
             )
             logger.debug(f"Updated document {document_id} status to {status}")
             return True
@@ -426,7 +437,7 @@ class IngestionService:
                 WHERE document_id = $1 AND empresa_id = $2
                 """,
                 uuid.UUID(document_id),
-                uuid.UUID(empresa_id)
+                safe_uuid(empresa_id)
             )
             
             if not row:

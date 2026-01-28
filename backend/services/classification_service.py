@@ -17,6 +17,18 @@ logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
+
+def safe_uuid(id_string: str) -> uuid.UUID:
+    """Convert ID string to UUID safely, generating deterministic UUID for non-UUID strings."""
+    if not id_string:
+        raise ValueError("ID string cannot be empty")
+    try:
+        return uuid.UUID(id_string)
+    except (ValueError, AttributeError):
+        namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')
+        return uuid.uuid5(namespace, id_string)
+
+
 FISCAL_TAXONOMY = {
     "fiscal": {
         "name": "Fiscal",
@@ -243,7 +255,7 @@ Valores para nivel_confidencialidad: "publico", "interno", "confidencial", "rest
                 classification.get("requires_review", False),
                 classification.get("nivel_confidencialidad", "interno"),
                 uuid.UUID(document_id),
-                uuid.UUID(empresa_id)
+                safe_uuid(empresa_id)
             )
         finally:
             await conn.close()
@@ -333,7 +345,7 @@ class ChunkingService:
             await conn.execute(
                 "DELETE FROM knowledge_chunks WHERE document_id = $1 AND empresa_id = $2",
                 uuid.UUID(document_id),
-                uuid.UUID(empresa_id)
+                safe_uuid(empresa_id)
             )
             
             texts = [chunk["content"] for chunk in chunks]
@@ -353,7 +365,7 @@ class ChunkingService:
                         """,
                         uuid.uuid4(),
                         uuid.UUID(document_id),
-                        uuid.UUID(empresa_id),
+                        safe_uuid(empresa_id),
                         chunk["index"],
                         chunk["content"],
                         chunk["tokens"],
@@ -368,7 +380,7 @@ class ChunkingService:
                         """,
                         uuid.uuid4(),
                         uuid.UUID(document_id),
-                        uuid.UUID(empresa_id),
+                        safe_uuid(empresa_id),
                         chunk["index"],
                         chunk["content"],
                         chunk["tokens"]
@@ -401,7 +413,7 @@ class ChunkingService:
                 """,
                 count,
                 uuid.UUID(document_id),
-                uuid.UUID(empresa_id)
+                safe_uuid(empresa_id)
             )
         finally:
             await conn.close()
@@ -483,7 +495,7 @@ class RAGQueryService:
                 AND c.contenido ~* $2
             """
             
-            params = [uuid.UUID(empresa_id), search_pattern]
+            params = [safe_uuid(empresa_id), search_pattern]
             
             if categoria_filter:
                 base_query += " AND d.categoria_principal = $3"

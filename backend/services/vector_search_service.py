@@ -16,6 +16,17 @@ logger = logging.getLogger(__name__)
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
 
+def safe_uuid(id_string: str) -> uuid.UUID:
+    """Convert ID string to UUID safely, generating deterministic UUID for non-UUID strings."""
+    if not id_string:
+        raise ValueError("ID string cannot be empty")
+    try:
+        return uuid.UUID(id_string)
+    except (ValueError, AttributeError):
+        namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')
+        return uuid.uuid5(namespace, id_string)
+
+
 async def get_db_connection():
     """Get a database connection."""
     if not DATABASE_URL:
@@ -79,7 +90,7 @@ class VectorSearchService:
                 AND 1 - (c.embedding <=> $1::vector) > $3
             """
             
-            params = [embedding_str, uuid.UUID(empresa_id), similarity_threshold]
+            params = [embedding_str, safe_uuid(empresa_id), similarity_threshold]
             
             if categoria_filter:
                 sql += " AND d.categoria_principal = $4"
@@ -150,7 +161,7 @@ class VectorSearchService:
                 AND c.contenido ~* $2
             """
             
-            params = [uuid.UUID(empresa_id), search_pattern]
+            params = [safe_uuid(empresa_id), search_pattern]
             
             if categoria_filter:
                 sql += " AND d.categoria_principal = $3"
@@ -284,7 +295,7 @@ class VectorSearchService:
                 UPDATE knowledge_chunks
                 SET embedding = $1::vector
                 WHERE id = $2 AND empresa_id = $3
-            """, embedding_str, uuid.UUID(chunk_id), uuid.UUID(empresa_id))
+            """, embedding_str, uuid.UUID(chunk_id), safe_uuid(empresa_id))
             
             return True
         except Exception as e:

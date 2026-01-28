@@ -18,6 +18,25 @@ DATABASE_URL = os.environ.get('DATABASE_URL', '')
 KNOWLEDGE_UPLOADS_DIR = "backend/uploads/knowledge"
 
 
+def safe_uuid(id_string: str) -> uuid.UUID:
+    """
+    Convert an ID string to UUID safely.
+    If the string is already a valid UUID, return it.
+    Otherwise, generate a deterministic UUID from the string using UUID5.
+    This allows compatibility with legacy IDs like 'satma-001'.
+    """
+    if not id_string:
+        raise ValueError("ID string cannot be empty")
+
+    try:
+        # Try parsing as UUID directly
+        return uuid.UUID(id_string)
+    except (ValueError, AttributeError):
+        # Generate deterministic UUID from string using namespace
+        namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')  # DNS namespace
+        return uuid.uuid5(namespace, id_string)
+
+
 async def get_db_connection():
     """Get asyncpg connection for database operations"""
     if not DATABASE_URL:
@@ -58,7 +77,7 @@ class KnowledgeService:
                 WHERE empresa_id = $1 AND parent_path = $2
                 ORDER BY name
                 """,
-                uuid.UUID(empresa_id),
+                safe_uuid(empresa_id),
                 normalized_path
             )
             
@@ -69,7 +88,7 @@ class KnowledgeService:
                 WHERE empresa_id = $1 AND path = $2 AND status != 'archived'
                 ORDER BY filename
                 """,
-                uuid.UUID(empresa_id),
+                safe_uuid(empresa_id),
                 normalized_path
             )
             
@@ -116,7 +135,7 @@ class KnowledgeService:
                 SELECT id FROM knowledge_folders
                 WHERE empresa_id = $1 AND path = $2
                 """,
-                uuid.UUID(empresa_id),
+                safe_uuid(empresa_id),
                 folder_path
             )
             
@@ -130,7 +149,7 @@ class KnowledgeService:
                 VALUES ($1, $2, $3, $4, $5, $6, NOW())
                 """,
                 folder_id,
-                uuid.UUID(empresa_id),
+                safe_uuid(empresa_id),
                 folder_path,
                 name,
                 parent_path,
@@ -191,7 +210,7 @@ class KnowledgeService:
                 VALUES ($1, $2, $3, $4, $5, $6, $7, 'uploaded', $8, NOW(), NOW())
                 """,
                 doc_id,
-                uuid.UUID(empresa_id),
+                safe_uuid(empresa_id),
                 normalized_path,
                 filename,
                 mime_type,
@@ -273,7 +292,7 @@ class KnowledgeService:
                     WHERE id = $1 AND empresa_id = $2
                     """,
                     uuid.UUID(document_id),
-                    uuid.UUID(empresa_id)
+                    safe_uuid(empresa_id)
                 )
             else:
                 doc = await conn.fetchrow(
@@ -333,7 +352,7 @@ class KnowledgeService:
                 WHERE id = $1 AND empresa_id = $2
                 """,
                 uuid.UUID(document_id),
-                uuid.UUID(empresa_id)
+                safe_uuid(empresa_id)
             )
             
             if not doc:
@@ -409,7 +428,7 @@ class KnowledgeService:
                 """,
                 status,
                 uuid.UUID(document_id),
-                uuid.UUID(empresa_id)
+                safe_uuid(empresa_id)
             )
             return result == "UPDATE 1"
         finally:
@@ -465,7 +484,7 @@ class KnowledgeService:
                     SELECT id FROM knowledge_folders
                     WHERE empresa_id = $1 AND path = $2
                     """,
-                    uuid.UUID(empresa_id),
+                    safe_uuid(empresa_id),
                     folder_path
                 )
                 
@@ -480,7 +499,7 @@ class KnowledgeService:
                     VALUES ($1, $2, $3, $4, $5, $6, NOW())
                     """,
                     folder_id,
-                    uuid.UUID(empresa_id),
+                    safe_uuid(empresa_id),
                     folder_path,
                     folder_name,
                     parent_path,
@@ -520,7 +539,7 @@ class KnowledgeService:
                 FROM knowledge_documents
                 WHERE empresa_id = $1 AND status != 'archived'
                 """,
-                uuid.UUID(empresa_id)
+                safe_uuid(empresa_id)
             )
             
             status_counts = await conn.fetch(
@@ -530,7 +549,7 @@ class KnowledgeService:
                 WHERE empresa_id = $1 AND status != 'archived'
                 GROUP BY status
                 """,
-                uuid.UUID(empresa_id)
+                safe_uuid(empresa_id)
             )
             
             last_upload = await conn.fetchrow(
@@ -541,7 +560,7 @@ class KnowledgeService:
                 ORDER BY created_at DESC
                 LIMIT 1
                 """,
-                uuid.UUID(empresa_id)
+                safe_uuid(empresa_id)
             )
             
             folder_count = await conn.fetchrow(
@@ -550,7 +569,7 @@ class KnowledgeService:
                 FROM knowledge_folders
                 WHERE empresa_id = $1
                 """,
-                uuid.UUID(empresa_id)
+                safe_uuid(empresa_id)
             )
             
             status_dict = {row['status']: row['count'] for row in status_counts}
@@ -586,7 +605,7 @@ class KnowledgeService:
                 ORDER BY created_at DESC
                 LIMIT $3
                 """,
-                uuid.UUID(empresa_id),
+                safe_uuid(empresa_id),
                 search_pattern,
                 limit
             )
@@ -621,7 +640,7 @@ class KnowledgeService:
                 WHERE document_id = $1 AND empresa_id = $2
                 """,
                 uuid.UUID(document_id),
-                uuid.UUID(empresa_id)
+                safe_uuid(empresa_id)
             )
             return row['extracted_text'] if row else None
         finally:
@@ -642,7 +661,7 @@ class KnowledgeService:
                 ORDER BY chunk_index
                 """,
                 uuid.UUID(document_id),
-                uuid.UUID(empresa_id)
+                safe_uuid(empresa_id)
             )
             return [
                 {
@@ -671,7 +690,7 @@ class KnowledgeService:
                 WHERE empresa_id = $1 AND status != 'archived'
                 ORDER BY created_at DESC
                 """,
-                uuid.UUID(empresa_id)
+                safe_uuid(empresa_id)
             )
             return [
                 {
@@ -704,7 +723,7 @@ class KnowledgeService:
                     ORDER BY created_at DESC
                     LIMIT 100
                     """,
-                    uuid.UUID(empresa_id),
+                    safe_uuid(empresa_id),
                     status
                 )
             else:
@@ -716,7 +735,7 @@ class KnowledgeService:
                     ORDER BY created_at DESC
                     LIMIT 100
                     """,
-                    uuid.UUID(empresa_id)
+                    safe_uuid(empresa_id)
                 )
             
             return [
@@ -755,7 +774,7 @@ class KnowledgeService:
                 VALUES ($1, $2, $3, $4, 'pending', 0, NOW())
                 """,
                 job_id,
-                uuid.UUID(empresa_id),
+                safe_uuid(empresa_id),
                 uuid.UUID(document_id) if document_id else None,
                 tipo
             )
