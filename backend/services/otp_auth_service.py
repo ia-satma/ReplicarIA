@@ -257,7 +257,7 @@ class OTPAuthService:
                     """
                     SELECT c.id, c.usuario_id, c.email, u.nombre, u.empresa, u.rol
                     FROM codigos_otp c
-                    JOIN usuarios_autorizados u ON c.usuario_id = u.id
+                    JOIN usuarios_autorizados u ON c.usuario_id::text = u.id::text
                     WHERE LOWER(c.email) = LOWER($1)
                       AND c.codigo = $2
                       AND c.usado = false
@@ -377,7 +377,7 @@ class OTPAuthService:
                 SELECT s.id, s.usuario_id, s.fecha_expiracion,
                        u.email, u.nombre, u.empresa, u.rol
                 FROM sesiones_otp s
-                JOIN usuarios_autorizados u ON s.usuario_id = u.id
+                JOIN usuarios_autorizados u ON s.usuario_id::text = u.id::text
                 WHERE s.token = $1
                   AND s.activa = true
                   AND s.fecha_expiracion > NOW()
