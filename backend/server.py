@@ -105,10 +105,19 @@ except ImportError as e:
     logging.warning(f"Proveedores routes not available: {e}")
     proveedores = None
 
+# Sistema de autenticación unificado (reemplaza auth y otp_auth_routes)
+try:
+    from routes import unified_auth_routes
+    unified_auth = unified_auth_routes
+except ImportError as e:
+    logging.warning(f"Unified auth routes not available: {e}")
+    unified_auth = None
+
+# Legacy auth routes (mantener para compatibilidad, pero unified_auth tiene prioridad)
 try:
     from routes import auth
 except ImportError as e:
-    logging.warning(f"Auth routes not available: {e}")
+    logging.warning(f"Legacy auth routes not available: {e}")
     auth = None
 
 try:
@@ -552,8 +561,13 @@ api_router.include_router(stream_routes.router)
 api_router.include_router(metrics.router)
 
 # Include optional routers - only if dependencies available
-if auth:
+# Unified auth tiene prioridad sobre legacy auth
+if unified_auth:
+    api_router.include_router(unified_auth.router)
+    logging.info("✅ Sistema de autenticación unificado habilitado")
+elif auth:
     api_router.include_router(auth.router)
+    logging.info("⚠️ Usando sistema de autenticación legacy")
 if rag:
     api_router.include_router(rag.router)
 if kg_routes:
@@ -878,12 +892,40 @@ async def start_trafico_ia():
 async def startup_event():
     """Initialize services on startup"""
     import asyncio
-    from services.user_db import init_db
     from services.event_stream import event_emitter
     from services.database import create_multi_tenant_indexes
-    
-    await init_db()
-    await seed_usuarios_autorizados()
+
+    # ============================================================
+    # INICIALIZACIÓN DE BASE DE DATOS UNIFICADA
+    # ============================================================
+    try:
+        from services.database_init import initialize_database
+        from services.unified_auth_service import init_auth_service
+
+        # Inicializar schema y migrar usuarios
+        db_result = await initialize_database()
+        if db_result['success']:
+            logger.info(f"✅ Base de datos inicializada: {db_result['admins_created']} admins")
+        else:
+            logger.error(f"❌ Error en base de datos: {db_result['errors']}")
+
+        # Inicializar servicio de auth unificado
+        auth_ok = await init_auth_service()
+        if auth_ok:
+            logger.info("✅ Servicio de autenticación unificado inicializado")
+        else:
+            logger.warning("⚠️ Auth service en modo degradado")
+
+    except Exception as e:
+        logger.error(f"Error inicializando auth unificado: {e}")
+        # Fallback al sistema legacy
+        try:
+            from services.user_db import init_db
+            await init_db()
+            await seed_usuarios_autorizados()
+            logger.info("⚠️ Usando sistema de autenticación legacy como fallback")
+        except Exception as e2:
+            logger.error(f"Error también en sistema legacy: {e2}")
     
     # Start Guardian Agent for system monitoring
     await start_guardian_agent()
@@ -937,6 +979,14 @@ async def startup_event():
 async def shutdown_db_client():
     from services.scheduler_service import scheduler_service
     await scheduler_service.stop()
+
+    # Cerrar servicio de auth unificado
+    try:
+        from services.unified_auth_service import shutdown_auth_service
+        await shutdown_auth_service()
+        logger.info("✅ Servicio de autenticación cerrado")
+    except Exception as e:
+        logger.warning(f"Error cerrando auth service: {e}")
     
     # Stop Guardian Agent
     try:
