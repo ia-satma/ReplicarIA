@@ -164,10 +164,22 @@ SKIP_TENANT_CHECK_PREFIXES = (
     "/api/trafico",
     "/api/guardian",
     "/api/lista-69b",
+    "/api/agentes",
+    "/api/checklists",
+    "/api/proveedores",
+    "/api/durezza",
+    "/api/contexto",
+    "/api/scoring",
+    "/api/versioning",
+    "/api/loops",
+    "/api/validacion",
+    "/api/documentos",
+    "/templates",
 )
 
 AUTH_ONLY_PREFIXES = (
     "/api/knowledge",
+    "/knowledge",
 )
 
 
