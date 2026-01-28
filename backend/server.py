@@ -957,4 +957,4 @@ async def shutdown_db_client():
     except Exception as e:
         logger.warning(f"Error stopping Tráfico.IA: {e}")
     
-    client.close()
+    client.close()# CORS fix martes, 27 de enero de 2026, 18:48:27 CST
