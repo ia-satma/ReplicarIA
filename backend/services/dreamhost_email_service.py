@@ -34,6 +34,11 @@ AGENT_PASSWORDS = {
     "SUB_MATERIALIDAD": SHARED_PASSWORD,
     "SUB_RIESGOS": SHARED_PASSWORD,
     "A7_DEFENSA": SHARED_PASSWORD,
+    # Agentes de sistema
+    "BIBLIOTECARIA": SHARED_PASSWORD,
+    "TRAFICO": SHARED_PASSWORD,
+    "SOPORTE": SHARED_PASSWORD,
+    "SYSTEM": SHARED_PASSWORD,
 }
 
 AGENT_EMAILS = {
@@ -48,6 +53,11 @@ AGENT_EMAILS = {
     "SUB_MATERIALIDAD": "materialidad@revisar-ia.com",
     "SUB_RIESGOS": "riesgos@revisar-ia.com",
     "A7_DEFENSA": "defensa@revisar-ia.com",
+    # Agentes de sistema
+    "BIBLIOTECARIA": "kb@revisar-ia.com",
+    "TRAFICO": "trafico@revisar-ia.com",
+    "SOPORTE": "soporte@revisar-ia.com",
+    "SYSTEM": "noreply@revisar-ia.com",
 }
 
 AGENT_NAMES = {
@@ -62,6 +72,11 @@ AGENT_NAMES = {
     "SUB_MATERIALIDAD": "Fernando Ruiz",
     "SUB_RIESGOS": "Gabriela Vega",
     "A7_DEFENSA": "Héctor Mora",
+    # Agentes de sistema
+    "BIBLIOTECARIA": "Dra. Elena Vázquez",
+    "TRAFICO": "Tráfico.IA",
+    "SOPORTE": "Soporte Técnico",
+    "SYSTEM": "Revisar.IA Sistema",
 }
 
 BCC_MASTER = "proveedor@revisar-ia.com"
