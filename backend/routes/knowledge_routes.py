@@ -67,9 +67,116 @@ async def health_check():
     """Health check endpoint for Knowledge Repository - no auth required"""
     return {
         "status": "healthy",
-        "service": "knowledge_repository", 
+        "service": "knowledge_repository",
         "version": "1.0.0"
     }
+
+
+@router.get("/migrate", include_in_schema=True)
+async def run_migration():
+    """Create knowledge repository tables if they don't exist - no auth required for initial setup"""
+    import asyncpg
+    import os
+
+    DATABASE_URL = os.environ.get('DATABASE_URL', '')
+    if not DATABASE_URL:
+        return {"success": False, "error": "DATABASE_URL not configured"}
+
+    SQL_STATEMENTS = [
+        """CREATE TABLE IF NOT EXISTS knowledge_folders (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            empresa_id UUID NOT NULL,
+            path VARCHAR(1024) NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            parent_path VARCHAR(1024) NOT NULL DEFAULT '/',
+            created_by UUID,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            CONSTRAINT unique_folder_path UNIQUE (empresa_id, path)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_folders_empresa ON knowledge_folders(empresa_id)",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_folders_parent ON knowledge_folders(empresa_id, parent_path)",
+        """CREATE TABLE IF NOT EXISTS knowledge_documents (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            empresa_id UUID NOT NULL,
+            path VARCHAR(1024) NOT NULL DEFAULT '/',
+            filename VARCHAR(512) NOT NULL,
+            mime_type VARCHAR(255),
+            size_bytes BIGINT,
+            checksum_sha256 VARCHAR(64),
+            status VARCHAR(50) DEFAULT 'uploaded',
+            extracted_text TEXT,
+            metadata JSONB DEFAULT '{}',
+            created_by UUID,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_documents_empresa ON knowledge_documents(empresa_id)",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_documents_path ON knowledge_documents(empresa_id, path)",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_documents_status ON knowledge_documents(status)",
+        """CREATE TABLE IF NOT EXISTS knowledge_chunks (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            document_id UUID REFERENCES knowledge_documents(id) ON DELETE CASCADE,
+            empresa_id UUID NOT NULL,
+            chunk_index INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            tokens INTEGER,
+            embedding JSONB,
+            metadata JSONB DEFAULT '{}',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_document ON knowledge_chunks(document_id)",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_empresa ON knowledge_chunks(empresa_id)",
+        """CREATE TABLE IF NOT EXISTS knowledge_audit_log (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            entity_id UUID NOT NULL,
+            entity_type VARCHAR(50) NOT NULL,
+            action VARCHAR(50) NOT NULL,
+            user_id UUID,
+            details JSONB DEFAULT '{}',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_audit_entity ON knowledge_audit_log(entity_id)",
+        """CREATE TABLE IF NOT EXISTS knowledge_jobs (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            empresa_id UUID NOT NULL,
+            document_id UUID REFERENCES knowledge_documents(id) ON DELETE SET NULL,
+            job_type VARCHAR(50) NOT NULL,
+            status VARCHAR(50) DEFAULT 'pending',
+            progress INTEGER DEFAULT 0,
+            result JSONB,
+            error_message TEXT,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            started_at TIMESTAMP WITH TIME ZONE,
+            completed_at TIMESTAMP WITH TIME ZONE
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_jobs_empresa ON knowledge_jobs(empresa_id)",
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_jobs_status ON knowledge_jobs(status)"
+    ]
+
+    try:
+        conn = await asyncpg.connect(DATABASE_URL)
+        results = []
+        errors = []
+
+        for stmt in SQL_STATEMENTS:
+            try:
+                await conn.execute(stmt)
+                results.append(stmt[:50] + "...")
+            except Exception as e:
+                errors.append(f"{stmt[:30]}...: {str(e)}")
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "message": f"Migration complete: {len(results)} statements executed",
+            "executed": len(results),
+            "errors": errors if errors else None
+        }
+    except Exception as e:
+        logger.error(f"Migration failed: {e}")
+        return {"success": False, "error": str(e)}
 
 
 @router.get("/public/health")
