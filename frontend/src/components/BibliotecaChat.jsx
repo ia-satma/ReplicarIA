@@ -2,8 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
+// Usar la URL del backend desde las variables de entorno
+const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || '';
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: `${API_BASE_URL}/api`,
   headers: { 'Content-Type': 'application/json' }
 });
 
