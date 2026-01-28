@@ -193,7 +193,7 @@ def cargar_catalogo_completo() -> Dict[str, Dict[str, Any]]:
 PLANTILLAS_CATALOGO = cargar_catalogo_completo()
 
 
-@router.get("/", response_model=List[PlantillaCatalogo])
+@router.get("", response_model=List[PlantillaCatalogo])
 async def listar_plantillas():
     """Lista todas las plantillas disponibles organizadas por agente"""
     global PLANTILLAS_CATALOGO

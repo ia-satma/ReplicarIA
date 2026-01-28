@@ -392,7 +392,8 @@ class TrailingSlashMiddleware(BaseHTTPMiddleware):
 app = FastAPI(
     title="Agent Network System - Trazabilidad de Servicios",
     description="Sistema de red de agentes IA para trazabilidad de servicios intangibles y consultorías especializadas",
-    version="1.0.0"
+    version="1.0.0",
+    redirect_slashes=False  # Prevent redirect loops with TrailingSlashMiddleware
 )
 
 # Add trailing slash normalization middleware

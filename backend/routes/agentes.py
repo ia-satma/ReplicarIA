@@ -27,7 +27,7 @@ from services.contexto_service import (
 router = APIRouter(prefix="/api/agentes", tags=["Agentes Revisar.IA"])
 
 
-@router.get("/")
+@router.get("")
 async def list_agentes() -> Dict[str, Any]:
     """Lista todos los agentes disponibles"""
     return {
