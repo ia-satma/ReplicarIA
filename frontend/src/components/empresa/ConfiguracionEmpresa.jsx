@@ -454,10 +454,54 @@ const TabBaseConocimiento = ({ empresa }) => {
   const [plantillas, setPlantillas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [documentos, setDocumentos] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const API_BASE = process.env.REACT_APP_BACKEND_URL
+    ? `${process.env.REACT_APP_BACKEND_URL}/api`
+    : '/api';
 
   useEffect(() => {
     loadPlantillas();
-  }, []);
+    if (empresa?.id) {
+      loadKBData();
+    }
+  }, [empresa?.id]);
+
+  const loadKBData = async () => {
+    try {
+      // Load KB stats for this empresa
+      const statsRes = await fetch(`${API_BASE}/biblioteca/stats?empresa_id=${empresa.id}`);
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        setStats(statsData);
+      }
+
+      // Load chunks/documents for this empresa
+      const chunksRes = await fetch(`${API_BASE}/biblioteca/chunks?empresa_id=${empresa.id}&limit=50`);
+      if (chunksRes.ok) {
+        const chunksData = await chunksRes.json();
+        // Group by document
+        const docsMap = {};
+        (chunksData.chunks || []).forEach(chunk => {
+          if (!docsMap[chunk.documento_id]) {
+            docsMap[chunk.documento_id] = {
+              id: chunk.documento_id,
+              nombre: chunk.documento_nombre,
+              chunks: 0,
+              agentes: new Set()
+            };
+          }
+          docsMap[chunk.documento_id].chunks++;
+          (chunk.agentes_asignados || []).forEach(a => docsMap[chunk.documento_id].agentes.add(a));
+        });
+        setDocumentos(Object.values(docsMap).map(d => ({...d, agentes: Array.from(d.agentes)})));
+      }
+    } catch (err) {
+      console.error('Error loading KB data:', err);
+    }
+  };
 
   const loadPlantillas = async () => {
     try {
@@ -468,6 +512,45 @@ const TabBaseConocimiento = ({ empresa }) => {
       console.error('Error loading templates:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !empresa?.id) return;
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const formData = new FormData();
+        formData.append('files', files[i]);
+        formData.append('categoria', 'informacion_empresa');
+        formData.append('empresa_id', empresa.id);
+
+        const response = await fetch(`${API_BASE}/biblioteca/upload`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.detail || 'Error al subir archivo');
+        }
+
+        setUploadProgress(Math.round(((i + 1) / files.length) * 100));
+      }
+
+      // Reload data
+      await loadKBData();
+      alert('Documentos subidos exitosamente');
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+      e.target.value = '';
     }
   };
 
@@ -489,22 +572,38 @@ const TabBaseConocimiento = ({ empresa }) => {
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-6 text-white mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-xl font-bold mb-1">Sistema RAG Multi-Tenant</h3>
+            <h3 className="text-xl font-bold mb-1">Oráculo de Conocimiento - {empresa?.nombre || 'Empresa'}</h3>
             <p className="text-blue-100 text-sm">
               Documentos de contexto para que los agentes IA entiendan su empresa
             </p>
           </div>
           <div className="flex gap-4">
             <div className="text-center">
-              <div className="text-3xl font-bold">{plantillas.length}</div>
-              <div className="text-xs text-blue-200">Agentes</div>
+              <div className="text-3xl font-bold">{stats?.total_documentos || 0}</div>
+              <div className="text-xs text-blue-200">Documentos</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold">{totalDocs}</div>
-              <div className="text-xs text-blue-200">Plantillas</div>
+              <div className="text-3xl font-bold">{stats?.total_chunks || 0}</div>
+              <div className="text-xs text-blue-200">Chunks RAG</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold">{Object.keys(stats?.por_agente || {}).length}</div>
+              <div className="text-xs text-blue-200">Agentes</div>
             </div>
           </div>
         </div>
+        {stats?.por_agente && Object.keys(stats.por_agente).length > 0 && (
+          <div className="mt-4 pt-4 border-t border-white/20">
+            <p className="text-xs text-blue-200 mb-2">Distribución por Agente:</p>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(stats.por_agente).map(([agente, chunks]) => (
+                <span key={agente} className="px-2 py-1 bg-white/20 rounded text-xs">
+                  {agente}: {chunks} chunks
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div>
@@ -570,25 +669,70 @@ const TabBaseConocimiento = ({ empresa }) => {
       </div>
 
       <div className="border-t border-gray-200 pt-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-2">Documentos de su Empresa</h3>
+        <h3 className="text-lg font-semibold text-gray-800 mb-2">Documentos del Acervo</h3>
         <p className="text-gray-500 text-sm mb-4">
-          Suba los documentos completados para que los agentes puedan entender el contexto de su empresa.
+          Suba documentos para que los agentes conozcan mejor a su empresa: informes, contratos, políticas, etc.
         </p>
-        
-        <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+
+        {uploading && (
+          <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-blue-700 text-sm">Subiendo documentos...</span>
+              <span className="text-blue-700 text-sm font-medium">{uploadProgress}%</span>
+            </div>
+            <div className="h-2 bg-blue-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-600 transition-all duration-300"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors">
           <svg className="w-10 h-10 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
           </svg>
           <p className="text-gray-500 text-sm mb-2">Arrastre archivos aquí o</p>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm" disabled>
-            Seleccionar Archivos (Próximamente)
-          </button>
-          <p className="text-xs text-gray-400 mt-2">PDF, Word, Markdown. Máx 10MB</p>
+          <label className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm cursor-pointer inline-block">
+            Seleccionar Archivos
+            <input
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx,.txt,.md"
+              className="hidden"
+              onChange={handleFileUpload}
+              disabled={uploading}
+            />
+          </label>
+          <p className="text-xs text-gray-400 mt-2">PDF, Word, TXT, Markdown. Máx 10MB</p>
         </div>
 
-        {documentos.length === 0 && (
+        {documentos.length > 0 ? (
+          <div className="mt-6">
+            <h4 className="text-md font-medium text-gray-700 mb-3">Documentos Cargados ({documentos.length})</h4>
+            <div className="space-y-3">
+              {documentos.map((doc) => (
+                <div key={doc.id} className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-300 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <div>
+                      <p className="font-medium text-gray-800">{doc.nombre}</p>
+                      <p className="text-xs text-gray-500">{doc.chunks} chunks • Agentes: {doc.agentes.join(', ')}</p>
+                    </div>
+                  </div>
+                  <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                    Indexado
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
           <p className="text-center text-gray-400 text-sm mt-4">
-            No hay documentos cargados aún
+            No hay documentos cargados aún. Suba documentos para que los agentes conozcan a su empresa.
           </p>
         )}
       </div>
