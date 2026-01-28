@@ -603,3 +603,45 @@ async def update_user_profile(user_id: str, request: UpdateUserRequest, admin_us
         raise
     except Exception as e:
         return handle_route_error(e, "actualizar usuario")
+
+
+class ResetPasswordRequest(BaseModel):
+    new_password: str
+
+
+@router.post("/admin/user/{user_id}/reset-password")
+async def reset_user_password(user_id: str, request: ResetPasswordRequest, admin_user = Depends(get_admin_user)):
+    """Reset a user's password (admin only)"""
+    from services.user_db import user_service
+
+    try:
+        user = await user_service.get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+        if len(request.new_password.encode('utf-8')) > 72:
+            raise HTTPException(status_code=400, detail="La contraseña no puede exceder 72 bytes")
+
+        if len(request.new_password) < 8:
+            raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 8 caracteres")
+
+        new_hash = hash_password(request.new_password)
+
+        success = await user_service.update_user(user_id, {
+            "password_hash": new_hash,
+            "updated_at": datetime.now(timezone.utc)
+        })
+
+        if success:
+            logger.info(f"Password reset for user {user_id} ({user.email}) by admin {str(admin_user.email)}")
+            return {
+                "success": True,
+                "message": f"Contraseña actualizada exitosamente para {user.email}"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Error al actualizar contraseña")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        return handle_route_error(e, "resetear contraseña")
