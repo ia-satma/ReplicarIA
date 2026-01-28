@@ -196,21 +196,31 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        
-        if path in SKIP_TENANT_CHECK_PATHS or path.startswith(SKIP_TENANT_CHECK_PREFIXES):
-            return await call_next(request)
-        
-        if not path.startswith("/api") and not path.startswith("/deliberation"):
-            return await call_next(request)
-        
+
+        # Always try to build tenant context if there's auth, even for skipped routes
+        # This allows decorators like @require_empresa to work on skipped routes
         try:
             context = await self._build_tenant_context(request)
             set_tenant_context(context)
-            
+        except Exception as e:
+            logger.debug(f"Could not build tenant context: {e}")
+            # Set empty context on error
+            set_tenant_context(TenantContext())
+
+        # Skip validation for explicitly excluded paths
+        if path in SKIP_TENANT_CHECK_PATHS or path.startswith(SKIP_TENANT_CHECK_PREFIXES):
+            return await call_next(request)
+
+        # Skip non-API routes
+        if not path.startswith("/api") and not path.startswith("/deliberation"):
+            return await call_next(request)
+
+        try:
+            context = get_current_tenant()
             is_auth_only_route = path.startswith(AUTH_ONLY_PREFIXES)
             is_api_route = path.startswith("/api") or path.startswith("/deliberation")
             empresa_header = request.headers.get("X-Empresa-ID")
-            
+
             if is_auth_only_route:
                 if not context.is_authenticated:
                     return JSONResponse(
@@ -221,7 +231,7 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
                         }
                     )
                 return await call_next(request)
-            
+
             if is_api_route:
                 if not context.is_authenticated:
                     return JSONResponse(
@@ -231,7 +241,7 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
                             "error_code": "AUTHENTICATION_REQUIRED"
                         }
                     )
-                
+
                 if not empresa_header:
                     return JSONResponse(
                         status_code=400,
@@ -240,7 +250,7 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
                             "error_code": "EMPRESA_HEADER_REQUIRED"
                         }
                     )
-                
+
                 if not context.can_access_empresa(empresa_header):
                     logger.warning(
                         f"Tenant access denied: user={context.user_id} "
@@ -253,10 +263,10 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
                             "error_code": "EMPRESA_NOT_AUTHORIZED"
                         }
                     )
-            
+
             response = await call_next(request)
             return response
-            
+
         except Exception as e:
             logger.error(f"TenantContextMiddleware error: {e}")
             return await call_next(request)
