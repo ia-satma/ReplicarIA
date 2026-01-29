@@ -185,7 +185,23 @@ async def upload_files(
                     "error": f"Tipo de archivo no permitido: {ext}"
                 })
                 continue
-            
+
+            # Validate MIME type if provided
+            declared_mime = file.content_type or ''
+            if declared_mime and declared_mime not in ALLOWED_MIME_TYPES:
+                # Allow if MIME is generic but extension is valid
+                if declared_mime not in ('application/octet-stream', ''):
+                    logger.warning(f"MIME type no permitido: {file.filename} ({declared_mime})")
+                    resultados.append({
+                        "id": str(uuid.uuid4()),
+                        "nombre": file.filename,
+                        "tipo": "mime_no_permitido",
+                        "tamaño": 0,
+                        "estado": "rechazado",
+                        "error": f"Tipo MIME no permitido: {declared_mime}"
+                    })
+                    continue
+
             content = await file.read()
             file_size = len(content)
             

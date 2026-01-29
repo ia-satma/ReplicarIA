@@ -85,7 +85,7 @@ def validar_y_corregir(agente_id: str, output: Any) -> Dict[str, Any]:
             datos = json.loads(output)
         else:
             datos = output.copy() if isinstance(output, dict) else output
-    except:
+    except (json.JSONDecodeError, TypeError, AttributeError):
         return resultado
     
     correcciones_aplicadas = []
@@ -124,8 +124,8 @@ def validar_y_corregir(agente_id: str, output: Any) -> Dict[str, Any]:
             try:
                 obj[campo] = int(obj[campo])
                 correcciones.append(f"Convertido {campo} de string a número")
-            except:
-                pass
+            except (ValueError, TypeError):
+                pass  # String not convertible to int, skip
     
     for campo in campos_numericos:
         corregir_numerico(datos, campo, correcciones_aplicadas)
@@ -274,7 +274,7 @@ def calcular_completitud(agente_id: str, output: Any) -> Dict[str, Any]:
             datos = json.loads(output)
         else:
             datos = output
-    except:
+    except (json.JSONDecodeError, TypeError):
         return {
             "campos_totales": 0,
             "campos_llenos": 0,
