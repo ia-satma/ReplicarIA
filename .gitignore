@@ -47,8 +47,12 @@ next-env.d.ts
 !.env.example
 .env.local
 .env.*.local
+.env.railway
 *token.json*
 *credentials.json*
+
+# Railway setup scripts with credentials
+setup-railway-vars.sh
 
 # Logs
 npm-debug.log*
