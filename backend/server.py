@@ -729,13 +729,23 @@ else:
             }
         }
 
+# CORS configuration with secure defaults
+CORS_DEFAULT_ORIGINS = "https://replicar-ia.vercel.app,http://localhost:3000,http://localhost:5173"
+cors_origins_str = os.environ.get('CORS_ORIGINS', '')
+if not cors_origins_str or cors_origins_str.strip() == '*':
+    # Use secure defaults instead of wildcard
+    cors_origins = CORS_DEFAULT_ORIGINS.split(',')
+    logging.info(f"CORS: Using default origins (no wildcard): {cors_origins}")
+else:
+    cors_origins = [origin.strip() for origin in cors_origins_str.split(',') if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"]
+    allow_origins=cors_origins,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Empresa-ID", "X-Request-ID"],
+    expose_headers=["Content-Type", "X-Request-ID"]
 )
 
 # Add middleware to prevent caching

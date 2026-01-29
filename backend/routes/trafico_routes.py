@@ -2,10 +2,13 @@
 Tráfico.IA - Rutas API para Sistema de Monitoreo de Proyectos
 Endpoints para gestión de alertas, métricas y configuración del monitoreo
 """
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import logging
+
+# Auth dependency for protected routes
+from services.auth_service import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +80,8 @@ async def obtener_status():
 @router.get("/alertas")
 async def obtener_alertas(
     solo_activas: bool = True,
-    limite: int = 50
+    limite: int = 50,
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Obtiene la lista de alertas del sistema.
@@ -109,7 +113,7 @@ async def obtener_alertas(
 
 
 @router.get("/metricas")
-async def obtener_metricas():
+async def obtener_metricas(current_user: dict = Depends(get_current_user)):
     """
     Obtiene métricas detalladas del sistema de monitoreo.
     
@@ -130,7 +134,7 @@ async def obtener_metricas():
 
 
 @router.post("/configurar")
-async def configurar_monitoreo(config: ConfiguracionRequest):
+async def configurar_monitoreo(config: ConfiguracionRequest, current_user: dict = Depends(get_current_user)):
     """
     Configura los parámetros del sistema de monitoreo.
     
@@ -160,7 +164,7 @@ async def configurar_monitoreo(config: ConfiguracionRequest):
 
 
 @router.post("/enviar-resumen")
-async def enviar_resumen_manual(request: EnviarResumenRequest):
+async def enviar_resumen_manual(request: EnviarResumenRequest, current_user: dict = Depends(get_current_user)):
     """
     Envía un resumen manual de alertas y métricas por email.
     
@@ -192,7 +196,7 @@ async def enviar_resumen_manual(request: EnviarResumenRequest):
 
 
 @router.post("/ejecutar-monitoreo")
-async def ejecutar_monitoreo_manual(background_tasks: BackgroundTasks):
+async def ejecutar_monitoreo_manual(background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     """
     Ejecuta un ciclo de monitoreo manualmente.
     
@@ -215,7 +219,7 @@ async def ejecutar_monitoreo_manual(background_tasks: BackgroundTasks):
 
 
 @router.post("/iniciar")
-async def iniciar_scheduler():
+async def iniciar_scheduler(current_user: dict = Depends(get_current_user)):
     """
     Inicia el scheduler de monitoreo automático.
     
@@ -237,7 +241,7 @@ async def iniciar_scheduler():
 
 
 @router.post("/detener")
-async def detener_scheduler():
+async def detener_scheduler(current_user: dict = Depends(get_current_user)):
     """
     Detiene el scheduler de monitoreo automático.
     """
@@ -255,7 +259,7 @@ async def detener_scheduler():
 
 
 @router.post("/alertas/resolver")
-async def resolver_alerta(request: ResolverAlertaRequest):
+async def resolver_alerta(request: ResolverAlertaRequest, current_user: dict = Depends(get_current_user)):
     """
     Marca una alerta como resuelta.
     
@@ -282,7 +286,7 @@ async def resolver_alerta(request: ResolverAlertaRequest):
 
 
 @router.post("/alertas/marcar-leida/{alerta_id}")
-async def marcar_alerta_leida(alerta_id: str):
+async def marcar_alerta_leida(alerta_id: str, current_user: dict = Depends(get_current_user)):
     """
     Marca una alerta como leída.
     """
@@ -302,7 +306,7 @@ async def marcar_alerta_leida(alerta_id: str):
 
 
 @router.post("/reiniciar-metricas")
-async def reiniciar_metricas_diarias():
+async def reiniciar_metricas_diarias(current_user: dict = Depends(get_current_user)):
     """
     Reinicia los contadores de métricas diarias.
     
@@ -323,7 +327,7 @@ async def reiniciar_metricas_diarias():
 
 
 @router.get("/dashboard")
-async def obtener_dashboard():
+async def obtener_dashboard(current_user: dict = Depends(get_current_user)):
     """
     Obtiene datos consolidados para el dashboard de Tráfico.IA.
     

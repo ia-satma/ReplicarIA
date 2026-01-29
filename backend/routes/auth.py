@@ -220,7 +220,7 @@ async def login(credentials: UserLogin):
                         {"name": user_company}
                     )
                     row = result.fetchone()
-                    if row:
+                    if row and len(row) > 0 and row[0] is not None:
                         empresa_id = str(row[0])
                         logger.info(f"Found empresa_id {empresa_id} for company '{user_company}'")
                     else:

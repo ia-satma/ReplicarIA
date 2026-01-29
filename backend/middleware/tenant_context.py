@@ -271,8 +271,16 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
             return response
 
         except Exception as e:
-            logger.error(f"TenantContextMiddleware error: {e}")
-            return await call_next(request)
+            logger.error(f"TenantContextMiddleware error: {e}", exc_info=True)
+            # Don't silently continue - return error response
+            from starlette.responses import JSONResponse
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "detail": "Error interno de autenticación",
+                    "error_code": "AUTH_MIDDLEWARE_ERROR"
+                }
+            )
     
     async def _build_tenant_context(self, request: Request) -> TenantContext:
         """Extract and validate tenant context from request."""
