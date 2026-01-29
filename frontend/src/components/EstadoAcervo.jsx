@@ -1,19 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: '/api',
-  headers: { 'Content-Type': 'application/json' }
-});
-
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+import api from '../services/api';
 
 const getCriticidadColor = (criticidad) => {
   switch (criticidad) {
@@ -333,8 +320,8 @@ const EstadoAcervo = () => {
   const loadEstadoAcervo = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/biblioteca/estado-acervo');
-      setData(response.data);
+      const response = await api.get('/api/biblioteca/estado-acervo');
+      setData(response);
       setError(null);
     } catch (err) {
       console.error('Error loading estado acervo:', err);
@@ -350,17 +337,17 @@ const EstadoAcervo = () => {
 
   const handleReingestar = async (docId) => {
     if (!docId || reingestando) return;
-    
+
     try {
       setReingestando(docId);
-      const response = await api.post(`/biblioteca/documento/${docId}/reingestar`);
-      
-      if (response.data?.success) {
-        alert(`✅ Documento reingestado exitosamente.\n${response.data.message || ''}`);
+      const response = await api.post(`/api/biblioteca/documento/${docId}/reingestar`);
+
+      if (response?.success) {
+        alert(`✅ Documento reingestado exitosamente.\n${response.message || ''}`);
       } else {
-        alert(`⚠️ ${response.data?.message || 'Documento procesado'}`);
+        alert(`⚠️ ${response?.message || 'Documento procesado'}`);
       }
-      
+
       await loadEstadoAcervo();
     } catch (err) {
       console.error('Error reingestando documento:', err);
@@ -372,20 +359,20 @@ const EstadoAcervo = () => {
 
   const handleReingestarTodos = async () => {
     if (reingestando) return;
-    
+
     const confirmar = window.confirm(`¿Desea procesar ${documentosPendientes} documento(s) pendiente(s)?`);
     if (!confirmar) return;
-    
+
     try {
       setReingestando('todos');
-      const response = await api.post('/biblioteca/reingestar-todos');
-      
-      if (response.data?.success) {
-        alert(`✅ ${response.data.procesados || documentosPendientes} documentos procesados exitosamente.`);
+      const response = await api.post('/api/biblioteca/reingestar-todos');
+
+      if (response?.success) {
+        alert(`✅ ${response.procesados || documentosPendientes} documentos procesados exitosamente.`);
       } else {
-        alert(`⚠️ ${response.data?.message || 'Proceso completado'}`);
+        alert(`⚠️ ${response?.message || 'Proceso completado'}`);
       }
-      
+
       await loadEstadoAcervo();
     } catch (err) {
       console.error('Error reingestando todos:', err);
@@ -397,10 +384,10 @@ const EstadoAcervo = () => {
 
   const handleVerStats = async (docId) => {
     if (!docId) return;
-    
+
     try {
-      const response = await api.get(`/biblioteca/documento/${docId}/stats`);
-      setStatsDoc(response.data);
+      const response = await api.get(`/api/biblioteca/documento/${docId}/stats`);
+      setStatsDoc(response);
     } catch (err) {
       console.error('Error obteniendo stats:', err);
       alert(`❌ Error al obtener estadísticas: ${err.response?.data?.detail || err.message}`);

@@ -1,19 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: '/api',
-  headers: { 'Content-Type': 'application/json' }
-});
-
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+import api from '../services/api';
 
 const AgentChecklist = () => {
   const navigate = useNavigate();
@@ -29,8 +16,8 @@ const AgentChecklist = () => {
   const loadAgentRequirements = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/kb/agent-requirements');
-      setData(response.data);
+      const response = await api.get('/api/kb/agent-requirements');
+      setData(response);
       setError(null);
     } catch (err) {
       console.error('Error loading agent requirements:', err);

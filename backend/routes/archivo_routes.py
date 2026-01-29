@@ -217,28 +217,87 @@ def extract_text_from_image(file_bytes: bytes) -> tuple[str, str]:
 
 def extract_text_from_docx(file_bytes: bytes) -> tuple[str, str]:
     """
-    Extract text from DOCX using python-docx.
+    Extract text from DOCX using multiple fallback methods.
     Returns (text, extraction_method)
     """
-    if not DOCX_AVAILABLE:
-        return "", "none"
-    
+    logger.info(f"DOCX extraction starting, content size: {len(file_bytes)} bytes")
+
+    # Method 1: Try with python-docx via BytesIO
+    if DOCX_AVAILABLE:
+        try:
+            doc = DocxDocument(io.BytesIO(file_bytes))
+            text_parts = []
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    text_parts.append(paragraph.text.strip())
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                    if row_text:
+                        text_parts.append(" | ".join(row_text))
+            text = "\n".join(text_parts)
+            if text.strip():
+                logger.info(f"DOCX BytesIO extracted: {len(text)} chars")
+                return text.strip()[:30000], "python-docx-bytesio"
+        except Exception as e:
+            logger.warning(f"DOCX BytesIO extraction failed: {e}")
+
+    # Method 2: Try with temp file
+    if DOCX_AVAILABLE:
+        try:
+            with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as tmp:
+                tmp.write(file_bytes)
+                tmp_path = tmp.name
+            doc = DocxDocument(tmp_path)
+            text_parts = []
+            for p in doc.paragraphs:
+                if p.text.strip():
+                    text_parts.append(p.text.strip())
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                    if row_text:
+                        text_parts.append(" | ".join(row_text))
+            text = "\n".join(text_parts)
+            os.unlink(tmp_path)
+            if text.strip():
+                logger.info(f"DOCX temp file extracted: {len(text)} chars")
+                return text.strip()[:30000], "python-docx-tempfile"
+        except Exception as e2:
+            logger.warning(f"DOCX temp file extraction failed: {e2}")
+            try:
+                os.unlink(tmp_path)
+            except (OSError, NameError):
+                pass
+
+    # Method 3: Raw XML extraction from ZIP (DOCX is a ZIP with XML files)
     try:
-        doc = DocxDocument(io.BytesIO(file_bytes))
-        text_parts = []
-        for paragraph in doc.paragraphs:
-            if paragraph.text.strip():
-                text_parts.append(paragraph.text)
-        for table in doc.tables:
-            for row in table.rows:
-                row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
-                if row_text:
-                    text_parts.append(" | ".join(row_text))
-        text = "\n".join(text_parts)
-        return text.strip(), "python-docx"
-    except Exception as e:
-        logger.warning(f"DOCX extraction failed: {e}")
-        return "", "none"
+        import zipfile
+        import re as regex
+
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
+            if 'word/document.xml' in zf.namelist():
+                xml_content = zf.read('word/document.xml').decode('utf-8', errors='ignore')
+                text_matches = regex.findall(r'<w:t[^>]*>([^<]+)</w:t>', xml_content)
+                text = ' '.join(text_matches)
+                text = regex.sub(r'\s+', ' ', text).strip()
+                if text:
+                    logger.info(f"DOCX raw XML extracted: {len(text)} chars")
+                    return text[:30000], "xml-extraction"
+    except Exception as e3:
+        logger.warning(f"DOCX raw XML extraction failed: {e3}")
+
+    # Method 4: Try to decode as plain text (in case it's not a real DOCX)
+    try:
+        text = file_bytes.decode('utf-8', errors='ignore')[:30000]
+        if text and len([c for c in text[:1000] if c.isalpha()]) > 100:
+            logger.info(f"DOCX decoded as plain text: {len(text)} chars")
+            return text, "plain-text"
+    except (UnicodeDecodeError, AttributeError):
+        pass
+
+    logger.error("All DOCX extraction methods failed")
+    return "", "none"
 
 
 @router.post("/archivo/analyze-document")

@@ -1,25 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import EditarUsuario from '../components/EditarUsuario';
-
-const api = axios.create({
-  baseURL: process.env.REACT_APP_BACKEND_URL 
-    ? `${process.env.REACT_APP_BACKEND_URL}/api`
-    : '/api',
-  headers: {
-    'Content-Type': 'application/json',
-  }
-});
-
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
 
 const getApprovalStatusBadge = (status) => {
   switch (status) {
@@ -82,18 +65,18 @@ export default function AdminPage() {
       setMessage({ type: 'error', text: 'Ingresa el nombre comercial primero' });
       return;
     }
-    
+
     setAutofillLoading(true);
     try {
-      const response = await api.post('/empresas/autofill-ia', {
+      const response = await api.post('/api/empresas/autofill-ia', {
         nombre_comercial: empresaForm.nombre_comercial,
         razon_social: empresaForm.razon_social,
         rfc: empresaForm.rfc,
         industria: empresaForm.industria
       });
-      
-      if (response.data.success) {
-        const data = response.data.data;
+
+      if (response.success) {
+        const data = response.data;
         setEmpresaForm(prev => ({
           ...prev,
           vision: data.vision || prev.vision,
@@ -121,11 +104,11 @@ export default function AdminPage() {
     try {
       setLoading(true);
       const [pendingRes, allRes] = await Promise.all([
-        api.get('/auth/admin/pending-users'),
-        api.get('/auth/admin/all-users')
+        api.get('/api/auth/admin/pending-users'),
+        api.get('/api/auth/admin/all-users')
       ]);
-      setPendingUsers(pendingRes.data.users || []);
-      setAllUsers(allRes.data.users || []);
+      setPendingUsers(pendingRes.users || []);
+      setAllUsers(allRes.users || []);
     } catch (error) {
       console.error('Error loading users:', error);
       setMessage({ type: 'error', text: 'Error al cargar usuarios' });
@@ -136,8 +119,8 @@ export default function AdminPage() {
 
   const loadCompanies = async () => {
     try {
-      const response = await api.get('/auth/admin/companies');
-      setAvailableCompanies(response.data.companies || []);
+      const response = await api.get('/api/auth/admin/companies');
+      setAvailableCompanies(response.companies || []);
     } catch (error) {
       console.error('Error loading companies:', error);
     }
@@ -145,8 +128,8 @@ export default function AdminPage() {
 
   const loadEmpresas = async () => {
     try {
-      const response = await api.get('/empresas/');
-      const data = response.data;
+      const response = await api.get('/api/empresas/');
+      const data = response;
       const empresasArray = Array.isArray(data) ? data : (data?.empresas || data?.data || []);
       setEmpresas(empresasArray);
     } catch (error) {
@@ -183,11 +166,11 @@ export default function AdminPage() {
 
   const saveEmpresa = async () => {
     if (!editingEmpresa) return;
-    
+
     try {
       setActionLoading(editingEmpresa.id);
-      const response = await api.patch(`/empresas/${editingEmpresa.id}`, empresaForm);
-      if (response.data) {
+      const response = await api.patch(`/api/empresas/${editingEmpresa.id}`, empresaForm);
+      if (response) {
         setMessage({ type: 'success', text: 'Empresa actualizada correctamente' });
         await loadEmpresas();
         await loadCompanies();
@@ -204,8 +187,8 @@ export default function AdminPage() {
   const createEmpresa = async () => {
     try {
       setActionLoading('new');
-      const response = await api.post('/empresas/', empresaForm);
-      if (response.data) {
+      const response = await api.post('/api/empresas/', empresaForm);
+      if (response) {
         setMessage({ type: 'success', text: 'Empresa creada correctamente' });
         await loadEmpresas();
         await loadCompanies();
@@ -230,10 +213,10 @@ export default function AdminPage() {
 
   const deleteEmpresa = async (empresaId) => {
     if (!window.confirm('¿Desactivar esta empresa? Los datos se conservarán.')) return;
-    
+
     try {
       setActionLoading(empresaId);
-      await api.delete(`/empresas/${empresaId}`);
+      await api.delete(`/api/empresas/${empresaId}`);
       setMessage({ type: 'success', text: 'Empresa desactivada correctamente' });
       await loadEmpresas();
       await loadCompanies();
@@ -248,9 +231,9 @@ export default function AdminPage() {
   const handleApprove = async (userId) => {
     try {
       setActionLoading(userId);
-      const response = await api.post(`/auth/admin/approve-user/${userId}`);
-      if (response.data.success) {
-        setMessage({ type: 'success', text: response.data.message });
+      const response = await api.post(`/api/auth/admin/approve-user/${userId}`);
+      if (response.success) {
+        setMessage({ type: 'success', text: response.message });
         await loadUsers();
       }
     } catch (error) {
@@ -264,9 +247,9 @@ export default function AdminPage() {
   const handleReject = async (userId) => {
     try {
       setActionLoading(userId);
-      const response = await api.post(`/auth/admin/reject-user/${userId}`);
-      if (response.data.success) {
-        setMessage({ type: 'success', text: response.data.message });
+      const response = await api.post(`/api/auth/admin/reject-user/${userId}`);
+      if (response.success) {
+        setMessage({ type: 'success', text: response.message });
         await loadUsers();
       }
     } catch (error) {
@@ -297,14 +280,14 @@ export default function AdminPage() {
 
   const saveAllowedCompanies = async () => {
     if (!editingUser) return;
-    
+
     try {
       setActionLoading(editingUser.user_id);
-      const response = await api.post(`/auth/admin/user/${editingUser.user_id}/allowed-companies`, {
+      const response = await api.post(`/api/auth/admin/user/${editingUser.user_id}/allowed-companies`, {
         allowed_companies: selectedCompanies
       });
-      if (response.data.success) {
-        setMessage({ type: 'success', text: response.data.message });
+      if (response.success) {
+        setMessage({ type: 'success', text: response.message });
         await loadUsers();
         closeCompanyEditor();
       }
@@ -333,12 +316,12 @@ export default function AdminPage() {
 
   const saveUserProfile = async () => {
     if (!editProfileUser) return;
-    
+
     try {
       setActionLoading(editProfileUser.user_id);
-      const response = await api.put(`/auth/admin/user/${editProfileUser.user_id}`, profileForm);
-      if (response.data.success) {
-        setMessage({ type: 'success', text: response.data.message });
+      const response = await api.put(`/api/auth/admin/user/${editProfileUser.user_id}`, profileForm);
+      if (response.success) {
+        setMessage({ type: 'success', text: response.message });
         await loadUsers();
         closeProfileEditor();
       }

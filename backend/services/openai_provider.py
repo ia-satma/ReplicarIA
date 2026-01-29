@@ -8,8 +8,9 @@ from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-# OpenAI client setup
-openai_client = None
+# OpenAI client setup - LAZY INITIALIZATION
+_openai_client = None
+_initialized = False
 OPENAI_AVAILABLE = False
 
 try:
@@ -18,18 +19,55 @@ try:
 except ImportError:
     logger.warning("openai package not available")
 
-# Initialize OpenAI client
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 
-if OPENAI_AVAILABLE and OPENAI_API_KEY:
-    try:
-        openai_client = OpenAI(api_key=OPENAI_API_KEY)
-        logger.info("✅ OpenAI client initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize OpenAI client: {e}")
-else:
-    if not OPENAI_API_KEY:
-        logger.warning("OPENAI_API_KEY not configured - AI features will be limited")
+def _get_client():
+    """Lazy initialization of OpenAI client"""
+    global _openai_client, _initialized
+
+    if _initialized:
+        return _openai_client
+
+    _initialized = True
+    api_key = os.environ.get('OPENAI_API_KEY', '')
+
+    if OPENAI_AVAILABLE and api_key:
+        try:
+            _openai_client = OpenAI(api_key=api_key)
+            logger.info("✅ OpenAI client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize OpenAI client: {e}")
+            _openai_client = None
+    else:
+        if not api_key:
+            logger.warning("OPENAI_API_KEY not configured - AI features will be limited")
+        _openai_client = None
+
+    return _openai_client
+
+
+def get_client():
+    """Public interface to get the OpenAI client"""
+    return _get_client()
+
+
+# Legacy compatibility - module-level client for backward compatibility
+# Services should use is_configured() and chat_completion_sync() instead
+class _LazyClient:
+    """Lazy client wrapper for backward compatibility"""
+
+    def __getattr__(self, name):
+        client = _get_client()
+        if client is None:
+            raise RuntimeError("OpenAI client not configured. Set OPENAI_API_KEY environment variable.")
+        return getattr(client, name)
+
+    def __bool__(self):
+        """Allow `if openai_client:` checks to work properly"""
+        return _get_client() is not None
+
+
+# This allows old code like `openai_client.chat.completions.create(...)` to work
+openai_client = _LazyClient()
 
 # Default model configuration
 DEFAULT_MODEL = "gpt-4o"
@@ -56,10 +94,10 @@ async def chat_completion(
     Returns:
         str: The assistant's response text
     """
-    if not openai_client:
-        logger.warning("OpenAI client not available - returning demo response")
-        user_content = messages[-1].get('content', '') if messages else ''
-        return f"[Demo Mode] Procesando solicitud: {user_content[:100]}..."
+    client = _get_client()
+    if not client:
+        logger.warning("OpenAI client not available - returning error")
+        return '{"error": "OpenAI not configured"}'
 
     try:
         # Build messages list
@@ -68,7 +106,7 @@ async def chat_completion(
             all_messages.append({"role": "system", "content": system_message})
         all_messages.extend(messages)
 
-        response = openai_client.chat.completions.create(
+        response = client.chat.completions.create(
             model=model,
             messages=all_messages,
             max_tokens=max_tokens,
@@ -79,7 +117,7 @@ async def chat_completion(
 
     except Exception as e:
         logger.error(f"OpenAI API error: {e}")
-        return f"[Error en LLM] No se pudo procesar la solicitud: {str(e)[:100]}"
+        return f'{{"error": "{str(e)[:100]}"}}'
 
 
 def chat_completion_sync(
@@ -92,10 +130,10 @@ def chat_completion_sync(
     """
     Synchronous version of chat_completion for non-async contexts.
     """
-    if not openai_client:
-        logger.warning("OpenAI client not available - returning demo response")
-        user_content = messages[-1].get('content', '') if messages else ''
-        return f"[Demo Mode] Procesando solicitud: {user_content[:100]}..."
+    client = _get_client()
+    if not client:
+        logger.warning("OpenAI client not available - returning error")
+        return '{"error": "OpenAI not configured"}'
 
     try:
         all_messages = []
@@ -103,7 +141,7 @@ def chat_completion_sync(
             all_messages.append({"role": "system", "content": system_message})
         all_messages.extend(messages)
 
-        response = openai_client.chat.completions.create(
+        response = client.chat.completions.create(
             model=model,
             messages=all_messages,
             max_tokens=max_tokens,
@@ -114,12 +152,12 @@ def chat_completion_sync(
 
     except Exception as e:
         logger.error(f"OpenAI API error: {e}")
-        return f"[Error en LLM] No se pudo procesar la solicitud: {str(e)[:100]}"
+        return f'{{"error": "{str(e)[:100]}"}}'
 
 
 def is_configured() -> bool:
     """Check if OpenAI is properly configured"""
-    return openai_client is not None
+    return _get_client() is not None
 
 
 # Compatibility layer for code that used Anthropic patterns

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Link, Navigate } from "react-router-dom";
-import axios from "axios";
+import api from "./services/api";
 import "@/App.css";
 import ProjectForm from "./ProjectForm";
 import LoginPage from "./pages/LoginPage";
@@ -41,45 +41,6 @@ const LoadingFallback = () => (
     </div>
   </div>
 );
-
-const api = axios.create({
-  baseURL: process.env.REACT_APP_BACKEND_URL 
-    ? `${process.env.REACT_APP_BACKEND_URL}/api`
-    : '/api',
-  headers: {
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-cache, no-store, must-revalidate',
-    'Pragma': 'no-cache',
-    'Expires': '0'
-  }
-});
-
-api.interceptors.request.use(config => {
-  config.params = { ...config.params, _t: Date.now() };
-  
-  const authEndpoints = ['/auth/login', '/auth/register', '/auth/otp/request-code', '/auth/otp/verify-code'];
-  const isAuthEndpoint = authEndpoints.some(endpoint => config.url?.includes(endpoint));
-  
-  if (!isAuthEndpoint) {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (payload.empresa_id) {
-          config.headers['X-Empresa-ID'] = payload.empresa_id;
-        }
-      } catch (e) {
-        console.warn('No se pudo extraer empresa_id del token');
-      }
-    }
-  }
-  const storedEmpresaId = localStorage.getItem('empresa_id');
-  if (!config.headers['X-Empresa-ID'] && storedEmpresaId) {
-    config.headers['X-Empresa-ID'] = storedEmpresaId;
-  }
-  return config;
-});
 
 const formatMonto = (amount) => {
   if (!amount || amount === 0) return "$0";
@@ -613,14 +574,14 @@ const Dashboard = () => {
     try {
       setLoading(true);
       const [projectsRes, statsRes, defenseFilesRes] = await Promise.all([
-        api.get('/projects'),
-        api.get('/stats'),
-        api.get('/defense-files')
+        api.get('/api/projects'),
+        api.get('/api/stats'),
+        api.get('/api/defense-files')
       ]);
 
-      setProjects(projectsRes.data.projects || []);
-      setStats(statsRes.data || { approved: 0, rejected: 0, in_review: 0, total_amount: 0 });
-      setDefenseFiles(defenseFilesRes.data.defense_files || []);
+      setProjects(projectsRes.projects || []);
+      setStats(statsRes || { approved: 0, rejected: 0, in_review: 0, total_amount: 0 });
+      setDefenseFiles(defenseFilesRes.defense_files || []);
     } catch (error) {
       console.error("Error loading dashboard:", error);
     } finally {
@@ -1520,9 +1481,9 @@ const ProjectDetails = () => {
 
   const loadProjectDetails = async () => {
     try {
-      const response = await api.get(`/projects/${projectId}`);
-      const data = response.data;
-      
+      const response = await api.get(`/api/projects/${projectId}`);
+      const data = response;
+
       const normalizedData = {
         project: data.project || {},
         defense_file: data.defense_file || {},
@@ -1531,7 +1492,7 @@ const ProjectDetails = () => {
         bitacora_link: data.defense_file?.bitacora_link || null,
         compliance_score: data.project?.compliance_score || data.defense_file?.compliance_score || 0
       };
-      
+
       setProjectData(normalizedData);
     } catch (error) {
       console.error("Error loading project:", error);

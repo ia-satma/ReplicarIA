@@ -1,21 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: process.env.REACT_APP_BACKEND_URL 
-    ? `${process.env.REACT_APP_BACKEND_URL}/api`
-    : '/api'
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token');
-  const empresaId = localStorage.getItem('empresa_id') || 'demo-empresa-001';
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  config.headers['X-Empresa-ID'] = empresaId;
-  return config;
-});
+import api from '../services/api';
 
 const severidadColors = {
   critica: 'bg-red-100 text-red-800 border-red-300',
@@ -71,13 +55,13 @@ export default function VersioningPanel({ proyectoId, onClose }) {
     setLoading(true);
     try {
       const [proyRes, verRes, bitRes] = await Promise.all([
-        api.get(`/versioning/proyectos/${proyectoId}`),
-        api.get(`/versioning/proyectos/${proyectoId}/versiones`),
-        api.get(`/versioning/proyectos/${proyectoId}/bitacora`)
+        api.get(`/api/versioning/proyectos/${proyectoId}`),
+        api.get(`/api/versioning/proyectos/${proyectoId}/versiones`),
+        api.get(`/api/versioning/proyectos/${proyectoId}/bitacora`)
       ]);
-      setProyecto(proyRes.data.proyecto);
-      setVersiones(verRes.data.versiones || []);
-      setBitacora(bitRes.data.bitacora || []);
+      setProyecto(proyRes.proyecto);
+      setVersiones(verRes.versiones || []);
+      setBitacora(bitRes.bitacora || []);
     } catch (error) {
       console.error('Error cargando datos:', error);
     }
@@ -87,7 +71,7 @@ export default function VersioningPanel({ proyectoId, onClose }) {
   const crearNuevaVersion = async () => {
     if (!motivo.trim()) return;
     try {
-      await api.post(`/versioning/proyectos/${proyectoId}/versiones`, {
+      await api.post(`/api/versioning/proyectos/${proyectoId}/versiones`, {
         datos_proyecto: proyecto?.ultima_version?.snapshot_proyecto || {},
         documentos: [],
         motivo: motivo,
@@ -105,7 +89,7 @@ export default function VersioningPanel({ proyectoId, onClose }) {
   const registrarComunicacion = async () => {
     if (!comunicacion.contraparte || !comunicacion.asunto) return;
     try {
-      await api.post(`/versioning/proyectos/${proyectoId}/bitacora/comunicacion`, {
+      await api.post(`/api/versioning/proyectos/${proyectoId}/bitacora/comunicacion`, {
         usuario: 'Usuario Dashboard',
         ...comunicacion
       });
@@ -119,16 +103,16 @@ export default function VersioningPanel({ proyectoId, onClose }) {
 
   const exportarBitacora = async (formato) => {
     try {
-      const res = await api.get(`/versioning/proyectos/${proyectoId}/bitacora/reporte?formato=${formato}`);
+      const res = await api.get(`/api/versioning/proyectos/${proyectoId}/bitacora/reporte?formato=${formato}`);
       if (formato === 'markdown') {
-        const blob = new Blob([res.data.contenido], { type: 'text/markdown' });
+        const blob = new Blob([res.contenido], { type: 'text/markdown' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = `bitacora_${proyectoId}.md`;
         a.click();
       } else {
-        const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+        const blob = new Blob([JSON.stringify(res, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;

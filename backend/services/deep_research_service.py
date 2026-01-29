@@ -16,33 +16,50 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-# Try Anthropic first, then OpenAI as fallback
+# AI Provider initialization - lazy loading
 AI_PROVIDER = None
 ai_client = None
 chat_fn = None
+_provider_initialized = False
 
-try:
-    from services.anthropic_provider import chat_completion_sync as anthropic_chat, is_configured as anthropic_configured
-    if anthropic_configured():
-        AI_PROVIDER = "anthropic"
-        chat_fn = anthropic_chat
-        logger.info("DeepResearchService using Anthropic Claude")
-except ImportError:
-    pass
 
-if not AI_PROVIDER:
+def _init_ai_provider():
+    """Lazy initialization of AI provider for DeepResearchService"""
+    global AI_PROVIDER, ai_client, chat_fn, _provider_initialized
+
+    if _provider_initialized:
+        return
+
+    _provider_initialized = True
+    logger.info("DeepResearchService: Initializing AI provider...")
+
+    # Try Anthropic first
     try:
-        from services.openai_provider import openai_client, chat_completion_sync, is_configured
+        from services.anthropic_provider import chat_completion_sync as anthropic_chat, is_configured as anthropic_configured
+        if anthropic_configured():
+            AI_PROVIDER = "anthropic"
+            chat_fn = anthropic_chat
+            logger.info("DeepResearchService: Using Anthropic Claude")
+            return
+    except ImportError as e:
+        logger.info(f"DeepResearchService: Anthropic not available: {e}")
+
+    # Fallback to OpenAI
+    try:
+        from services.openai_provider import chat_completion_sync, is_configured
         if is_configured():
             AI_PROVIDER = "openai"
-            ai_client = openai_client
             chat_fn = chat_completion_sync
-            logger.info("DeepResearchService using OpenAI")
-    except ImportError:
-        pass
+            logger.info("DeepResearchService: Using OpenAI GPT")
+            return
+    except ImportError as e:
+        logger.info(f"DeepResearchService: OpenAI not available: {e}")
 
-if not AI_PROVIDER:
-    logger.warning("No AI provider available for DeepResearchService")
+    logger.warning("DeepResearchService: No AI provider available - research features will be limited")
+
+
+# Initialize on module load
+_init_ai_provider()
 
 
 class DeepResearchService:
@@ -53,8 +70,11 @@ class DeepResearchService:
     """
 
     def __init__(self):
+        # Ensure provider is initialized
+        if not _provider_initialized:
+            _init_ai_provider()
+
         self.provider = AI_PROVIDER
-        self.client = ai_client
         self.chat_fn = chat_fn
         self.available = AI_PROVIDER is not None
 

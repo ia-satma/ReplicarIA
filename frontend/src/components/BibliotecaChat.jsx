@@ -1,22 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-
-// Usar la URL del backend desde las variables de entorno
-const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || '';
-
-const api = axios.create({
-  baseURL: `${API_BASE_URL}/api`,
-  headers: { 'Content-Type': 'application/json' }
-});
-
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+import api from '../services/api';
 
 const BibliotecaChat = () => {
   const navigate = useNavigate();
@@ -46,7 +30,7 @@ const BibliotecaChat = () => {
 
   const loadGreeting = async () => {
     try {
-      const response = await api.get('/kb/chat/greeting');
+      const response = await api.get('/api/kb/chat/greeting');
       setMessages([{
         id: '1',
         role: 'assistant',
@@ -71,7 +55,7 @@ Puedo ayudarte a:
 
   const loadStats = async () => {
     try {
-      const response = await api.get('/kb/dashboard');
+      const response = await api.get('/api/kb/dashboard');
       setStats(response.data);
     } catch (error) {
       console.error('Error loading stats:', error);
@@ -155,7 +139,7 @@ Puedo ayudarte a:
     setIsLoading(true);
 
     try {
-      const response = await api.post('/kb/chat', {
+      const response = await api.post('/api/kb/chat', {
         message: inputValue,
         session_id: sessionId
       });
@@ -204,7 +188,7 @@ Puedo ayudarte a:
       const formData = new FormData();
       formData.append('file', file);
       
-      const uploadResponse = await api.post('/kb/upload-file', formData, {
+      const uploadResponse = await api.post('/api/kb/upload-file', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       

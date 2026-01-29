@@ -1,15 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: process.env.REACT_APP_BACKEND_URL 
-    ? `${process.env.REACT_APP_BACKEND_URL}/api`
-    : '/api',
-  headers: {
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-cache'
-  }
-});
+import api from '../services/api';
 
 const BookOpenIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -432,18 +422,18 @@ function AdminDocumentacion() {
     setError(null);
     try {
       const [overviewRes, inventoryRes, phasesRes, pillarsRes, snapshotsRes] = await Promise.all([
-        api.get('/docs/overview'),
-        api.get('/docs/inventory'),
-        api.get('/docs/phases'),
-        api.get('/docs/pillars'),
-        api.get('/docs/snapshots')
+        api.get('/api/docs/overview'),
+        api.get('/api/docs/inventory'),
+        api.get('/api/docs/phases'),
+        api.get('/api/docs/pillars'),
+        api.get('/api/docs/snapshots')
       ]);
-      
-      setOverview(overviewRes.data);
-      setInventory(inventoryRes.data);
-      setPhases(phasesRes.data);
-      setPillars(pillarsRes.data);
-      setSnapshots(snapshotsRes.data);
+
+      setOverview(overviewRes);
+      setInventory(inventoryRes);
+      setPhases(phasesRes);
+      setPillars(pillarsRes);
+      setSnapshots(snapshotsRes);
     } catch (err) {
       console.error('Error loading documentation:', err);
       setError(err.response?.data?.detail || err.message || 'Error al cargar la documentación');
@@ -454,7 +444,7 @@ function AdminDocumentacion() {
   async function handleCreateSnapshot() {
     setCreatingSnapshot(true);
     try {
-      await api.post('/docs/snapshot');
+      await api.post('/api/docs/snapshot');
       await loadData();
     } catch (err) {
       console.error('Error creating snapshot:', err);
@@ -465,8 +455,8 @@ function AdminDocumentacion() {
 
   async function handleDownloadMarkdown(agentId) {
     try {
-      const response = await api.get(`/docs/agents/${agentId}/markdown`);
-      const blob = new Blob([response.data.markdown], { type: 'text/markdown' });
+      const response = await api.get(`/api/docs/agents/${agentId}/markdown`);
+      const blob = new Blob([response.markdown], { type: 'text/markdown' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

@@ -1,27 +1,6 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
 import AgentWorkflowVisualization from "./components/AgentWorkflowVisualization";
-
-const api = axios.create({
-  baseURL: process.env.REACT_APP_BACKEND_URL 
-    ? `${process.env.REACT_APP_BACKEND_URL}/api`
-    : '/api',
-  headers: {
-    'Content-Type': 'application/json',
-  }
-});
-
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  const empresaId = localStorage.getItem('selected_empresa_id');
-  if (empresaId) {
-    config.headers['X-Empresa-ID'] = empresaId;
-  }
-  return config;
-});
+import api from "./services/api";
 
 const ProjectForm = () => {
   const [loading, setLoading] = useState(false);
@@ -66,7 +45,7 @@ const ProjectForm = () => {
     const fetchCompanies = async () => {
       try {
         setLoadingCompanies(true);
-        const response = await api.get('/auth/companies');
+        const response = await api.get('/api/auth/companies');
         if (response.data.success && response.data.companies) {
           const companiesWithNew = [...response.data.companies, { id: "nueva", name: "Otra empresa (nueva)" }];
           setCompanies(companiesWithNew);
@@ -89,7 +68,7 @@ const ProjectForm = () => {
       const fetchFolios = async () => {
         try {
           setLoadingFolios(true);
-          const response = await api.get('/projects/folios');
+          const response = await api.get('/api/projects/folios');
           if (response.data.success && response.data.folios) {
             setFolios(response.data.folios);
           }
@@ -137,7 +116,7 @@ const ProjectForm = () => {
       const formDataFile = new FormData();
       formDataFile.append('file', file);
       
-      const response = await api.post('/projects/upload-file', formDataFile, {
+      const response = await api.post('/api/projects/upload-file', formDataFile, {
         headers: {
           'Content-Type': 'multipart/form-data',
         }
@@ -172,7 +151,7 @@ const ProjectForm = () => {
         const formDataFile = new FormData();
         formDataFile.append('file', file);
         
-        const response = await api.post('/projects/upload-file', formDataFile, {
+        const response = await api.post('/api/projects/upload-file', formDataFile, {
           headers: {
             'Content-Type': 'multipart/form-data',
           }
@@ -250,7 +229,7 @@ const ProjectForm = () => {
         modification_notes: formData.modification_notes
       };
 
-      const response = await api.post('/projects/submit', projectData);
+      const response = await api.post('/api/projects/submit', projectData);
       
       if (response.data.success) {
         setProjectId(response.data.project_id);

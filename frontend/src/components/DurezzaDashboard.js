@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import ProjectActions from './ProjectActions';
 import VersioningPanel from './VersioningPanel';
 import CargaDocumentos from './CargaDocumentos';
@@ -7,16 +7,6 @@ import ListaDocumentos from './ListaDocumentos';
 import Modal from './Modal';
 import RiskScoreBadge from './RiskScoreBadge';
 import RiskScoreMiniChart from './RiskScoreMiniChart';
-
-const api = axios.create({
-  baseURL: process.env.REACT_APP_BACKEND_URL 
-    ? `${process.env.REACT_APP_BACKEND_URL}/api`
-    : '/api',
-  headers: {
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-cache'
-  }
-});
 
 const BotIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -175,20 +165,20 @@ function DurezzaDashboard() {
     setLoading(true);
     try {
       const [subRes, fasesRes, estadisticasRes] = await Promise.all([
-        api.get('/subagentes/'),
-        api.get('/fases/'),
-        api.get('/durezza/estadisticas')
+        api.get('/api/subagentes/'),
+        api.get('/api/fases/'),
+        api.get('/api/durezza/estadisticas')
       ]);
-      setSubagentes(subRes.data.subagentes || []);
-      setFases(fasesRes.data);
-      setEstadisticas(estadisticasRes.data);
-      
-      const ejemploRes = await api.get('/subagentes/ejemplo/tipificacion');
-      setTipificacionResult(ejemploRes.data);
-      
-      const riesgosRes = await api.get('/subagentes/ejemplo/riesgos-criticos');
-      setRiesgosResult(riesgosRes.data);
-      
+      setSubagentes(subRes.subagentes || []);
+      setFases(fasesRes);
+      setEstadisticas(estadisticasRes);
+
+      const ejemploRes = await api.get('/api/subagentes/ejemplo/tipificacion');
+      setTipificacionResult(ejemploRes);
+
+      const riesgosRes = await api.get('/api/subagentes/ejemplo/riesgos-criticos');
+      setRiesgosResult(riesgosRes);
+
     } catch (err) {
       console.error('Error cargando datos:', err);
       setError(err.message);

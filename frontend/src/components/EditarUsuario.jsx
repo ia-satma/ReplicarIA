@@ -1,20 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: process.env.REACT_APP_BACKEND_URL 
-    ? `${process.env.REACT_APP_BACKEND_URL}/api`
-    : '/api',
-  headers: { 'Content-Type': 'application/json' }
-});
-
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+import api from '../services/api';
 
 const formatBytes = (bytes) => {
   if (bytes === 0) return '0 Bytes';
@@ -53,18 +38,18 @@ export default function EditarUsuario({ usuarioId, onClose, onSave }) {
     try {
       setLoading(true);
       setError('');
-      
-      const resUsuario = await api.get(`/admin/usuarios/${usuarioId}`);
-      const userData = resUsuario.data.usuario;
+
+      const resUsuario = await api.get(`/api/admin/usuarios/${usuarioId}`);
+      const userData = resUsuario.usuario;
       setUsuario(userData);
-      
+
       if (userData?.empresa_id) {
         try {
-          const resEmpresa = await api.get(`/admin/empresas/${userData.empresa_id}`);
-          setEmpresa(resEmpresa.data.empresa);
-          
-          const resDocs = await api.get(`/admin/empresas/${userData.empresa_id}/documentos`);
-          setDocumentos(resDocs.data.documentos || []);
+          const resEmpresa = await api.get(`/api/admin/empresas/${userData.empresa_id}`);
+          setEmpresa(resEmpresa.empresa);
+
+          const resDocs = await api.get(`/api/admin/empresas/${userData.empresa_id}/documentos`);
+          setDocumentos(resDocs.documentos || []);
         } catch (empError) {
           console.log('No empresa data found');
         }
@@ -80,16 +65,16 @@ export default function EditarUsuario({ usuarioId, onClose, onSave }) {
     if (!usuario) return;
     setSaving(true);
     setError('');
-    
+
     try {
-      await api.put(`/admin/usuarios/${usuarioId}`, {
+      await api.put(`/api/admin/usuarios/${usuarioId}`, {
         nombre: usuario.full_name,
         email: usuario.email,
         rol: usuario.role,
-        estado: usuario.approval_status === 'approved' ? 'aprobado' : 
+        estado: usuario.approval_status === 'approved' ? 'aprobado' :
                 usuario.approval_status === 'rejected' ? 'rechazado' : 'pendiente'
       });
-      
+
       onSave();
     } catch (err) {
       setError(err.response?.data?.detail || 'Error guardando usuario');
@@ -102,14 +87,14 @@ export default function EditarUsuario({ usuarioId, onClose, onSave }) {
     if (!empresa) return;
     setSaving(true);
     setError('');
-    
+
     try {
-      await api.put(`/admin/empresas/${empresa.id}`, {
+      await api.put(`/api/admin/empresas/${empresa.id}`, {
         nombre_comercial: empresa.nombre,
         razon_social: empresa.razon_social,
         rfc: empresa.rfc
       });
-      
+
       onSave();
     } catch (err) {
       setError(err.response?.data?.detail || 'Error guardando empresa');
@@ -125,7 +110,7 @@ export default function EditarUsuario({ usuarioId, onClose, onSave }) {
 
     setUploading(true);
     setError('');
-    
+
     try {
       // Upload each file separately to the cliente documentos endpoint
       for (let file of Array.from(files)) {
@@ -134,14 +119,14 @@ export default function EditarUsuario({ usuarioId, onClose, onSave }) {
         // Optional: add document type, category, subcategory if needed
         // formData.append('tipo_documento', 'documento');
 
-        await api.post(`/admin/clientes/${cliente_id}/documentos`, formData, {
+        await api.post(`/api/admin/clientes/${cliente_id}/documentos`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
       }
-      
+
       // Refresh documents from cliente endpoint
-      const resCliente = await api.get(`/admin/clientes/${cliente_id}`);
-      setDocumentos(resCliente.data.documentos || []);
+      const resCliente = await api.get(`/api/admin/clientes/${cliente_id}`);
+      setDocumentos(resCliente.documentos || []);
     } catch (err) {
       setError(err.response?.data?.detail || 'Error subiendo documentos');
     } finally {
@@ -152,9 +137,9 @@ export default function EditarUsuario({ usuarioId, onClose, onSave }) {
 
   const handleEliminarDocumento = async (docId) => {
     if (!window.confirm('¿Eliminar este documento del Knowledge Base?')) return;
-    
+
     try {
-      await api.delete(`/admin/knowledge-base/${docId}`);
+      await api.delete(`/api/admin/knowledge-base/${docId}`);
       setDocumentos(prev => prev.filter(d => d.id !== docId));
     } catch (err) {
       setError(err.response?.data?.detail || 'Error eliminando documento');
@@ -163,10 +148,10 @@ export default function EditarUsuario({ usuarioId, onClose, onSave }) {
 
   const handleReindexar = async () => {
     if (!empresa) return;
-    
+
     try {
-      const res = await api.post(`/admin/knowledge-base/reindex/${empresa.id}`);
-      alert(`Reindexacion iniciada: ${res.data.documentos_procesados} documento(s)`);
+      const res = await api.post(`/api/admin/knowledge-base/reindex/${empresa.id}`);
+      alert(`Reindexacion iniciada: ${res.documentos_procesados} documento(s)`);
     } catch (err) {
       setError(err.response?.data?.detail || 'Error reindexando');
     }
@@ -175,9 +160,9 @@ export default function EditarUsuario({ usuarioId, onClose, onSave }) {
   const handleEliminarUsuario = async () => {
     if (!window.confirm('¿ELIMINAR este usuario? Esta accion no se puede deshacer.')) return;
     if (!window.confirm('¿Estas SEGURO? Se eliminaran todos sus datos.')) return;
-    
+
     try {
-      await api.delete(`/admin/usuarios/${usuarioId}`);
+      await api.delete(`/api/admin/usuarios/${usuarioId}`);
       onClose();
       onSave();
     } catch (err) {

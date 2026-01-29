@@ -1,29 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 
 const AuthContext = createContext(null);
-
-const api = axios.create({
-  baseURL: process.env.REACT_APP_BACKEND_URL 
-    ? `${process.env.REACT_APP_BACKEND_URL}/api`
-    : '/api',
-  headers: {
-    'Content-Type': 'application/json',
-  }
-});
-
-api.interceptors.request.use(config => {
-  const authEndpoints = ['/auth/login', '/auth/register', '/auth/otp/request-code', '/auth/otp/verify-code'];
-  const isAuthEndpoint = authEndpoints.some(endpoint => config.url?.includes(endpoint));
-  
-  if (!isAuthEndpoint) {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-  }
-  return config;
-});
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -41,9 +19,9 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const response = await api.get('/auth/otp/session');
-      if (response.data.success && response.data.data?.user) {
-        setUser(response.data.data.user);
+      const response = await api.get('/api/auth/otp/session');
+      if (response.success && response.data?.user) {
+        setUser(response.data.user);
       } else {
         localStorage.removeItem('auth_token');
         setUser(null);
@@ -63,10 +41,10 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     setError(null);
     try {
-      const response = await api.post('/auth/login', { email, password });
-      if (response.data.access_token) {
-        localStorage.setItem('auth_token', response.data.access_token);
-        setUser(response.data.user);
+      const response = await api.post('/api/auth/login', { email, password });
+      if (response.access_token) {
+        localStorage.setItem('auth_token', response.access_token);
+        setUser(response.user);
         return { success: true };
       }
       return { success: false, error: 'Error de autenticación' };
@@ -81,22 +59,22 @@ export function AuthProvider({ children }) {
   const register = async (userData) => {
     setError(null);
     try {
-      const response = await api.post('/auth/register', userData);
-      if (response.data.success) {
-        if (response.data.pending_approval) {
-          return { 
-            success: true, 
-            pending_approval: true, 
-            message: response.data.message 
+      const response = await api.post('/api/auth/register', userData);
+      if (response.success) {
+        if (response.pending_approval) {
+          return {
+            success: true,
+            pending_approval: true,
+            message: response.message
           };
         }
-        if (response.data.access_token) {
-          localStorage.setItem('auth_token', response.data.access_token);
-          setUser(response.data.user);
+        if (response.access_token) {
+          localStorage.setItem('auth_token', response.access_token);
+          setUser(response.user);
           return { success: true };
         }
       }
-      return { success: false, error: response.data.message || 'Error en el registro' };
+      return { success: false, error: response.message || 'Error en el registro' };
     } catch (err) {
       const errorMsg = err.response?.data?.detail || 'Error al registrar';
       setError(errorMsg);
@@ -107,13 +85,13 @@ export function AuthProvider({ children }) {
   const loginWithOTP = async (email, code) => {
     setError(null);
     try {
-      const response = await api.post('/auth/otp/verify-code', { email, code });
-      if (response.data.success && response.data.data?.token) {
-        localStorage.setItem('auth_token', response.data.data.token);
-        setUser(response.data.data.user);
+      const response = await api.post('/api/auth/otp/verify-code', { email, code });
+      if (response.success && response.data?.token) {
+        localStorage.setItem('auth_token', response.data.token);
+        setUser(response.data.user);
         return { success: true };
       }
-      return { success: false, error: response.data.message || 'Error de verificación' };
+      return { success: false, error: response.message || 'Error de verificación' };
     } catch (err) {
       const errorMsg = err.response?.data?.detail || 'Código inválido o expirado';
       setError(errorMsg);
@@ -123,7 +101,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      await api.post('/auth/otp/logout');
+      await api.post('/api/auth/otp/logout');
     } catch (err) {
       // El logout puede fallar si el token ya expiró, lo cual está bien
       console.log('Logout request completed (may have already expired)');

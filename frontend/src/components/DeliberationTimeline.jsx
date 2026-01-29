@@ -1,19 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-
-const api = axios.create({
-  baseURL: '/api',
-  headers: { 'Content-Type': 'application/json' }
-});
-
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
 
 const AGENT_COLORS = {
   'A1': '#6366f1',
@@ -103,10 +90,10 @@ const DeliberationTimeline = ({ projectId }) => {
   const loadDeliberations = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/projects/${projectId}/deliberations`);
-      
-      if (response.data.deliberations && response.data.deliberations.length > 0) {
-        setDeliberations(response.data.deliberations.map(normalizeDeliberation));
+      const response = await api.get(`/api/projects/${projectId}/deliberations`);
+
+      if (response.deliberations && response.deliberations.length > 0) {
+        setDeliberations(response.deliberations.map(normalizeDeliberation));
         setUsingSampleData(false);
       } else {
         setDeliberations(SAMPLE_DELIBERATIONS.map(normalizeDeliberation));

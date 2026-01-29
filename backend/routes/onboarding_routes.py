@@ -110,11 +110,41 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 @router.get("/status")
 async def get_archivo_status():
     """Obtiene el estado del servicio ARCHIVO (onboarding chatbot)"""
+    # Check if AI provider is actually configured
+    ia_disponible = False
+    ia_provider = None
+    anthropic_status = "not_checked"
+    openai_status = "not_checked"
+
+    try:
+        from services.document_analyzer import AI_PROVIDER
+        ia_disponible = AI_PROVIDER is not None
+        ia_provider = AI_PROVIDER
+    except ImportError:
+        pass
+
+    # Check individual providers
+    try:
+        from services.anthropic_provider import is_configured as anthropic_configured
+        anthropic_status = "configured" if anthropic_configured() else "not_configured"
+    except ImportError:
+        anthropic_status = "not_installed"
+
+    try:
+        from services.openai_provider import is_configured as openai_configured
+        openai_status = "configured" if openai_configured() else "not_configured"
+    except ImportError:
+        openai_status = "not_installed"
+
+    # Check env vars (don't expose actual keys)
+    anthropic_key_set = bool(os.environ.get('ANTHROPIC_API_KEY', ''))
+    openai_key_set = bool(os.environ.get('OPENAI_API_KEY', ''))
+
     return {
         "active": True,
-        "status": "ready",
+        "status": "ready" if ia_disponible else "limited",
         "servicio": "ARCHIVO - Onboarding Inteligente",
-        "version": "1.0.0",
+        "version": "1.0.2",
         "capacidades": [
             "Análisis de documentos (PDF, DOCX, imágenes)",
             "Extracción automática de datos (RFC, razón social, dirección)",
@@ -127,8 +157,80 @@ async def get_archivo_status():
             "docx": DOCX_AVAILABLE,
             "imagenes": True
         },
-        "ia_disponible": True
+        "ia_disponible": ia_disponible,
+        "ia_provider": ia_provider,
+        "providers": {
+            "anthropic": anthropic_status,
+            "openai": openai_status,
+            "anthropic_key_set": anthropic_key_set,
+            "openai_key_set": openai_key_set
+        },
+        "warning": None if ia_disponible else "IA no configurada: Configure ANTHROPIC_API_KEY o OPENAI_API_KEY en las variables de entorno"
     }
+
+
+@router.get("/diagnostico")
+async def diagnostico_ia():
+    """
+    Endpoint de diagnóstico detallado para debugging de problemas con IA.
+    Solo para desarrollo/debugging.
+    """
+    result = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "environment": os.environ.get('ENVIRONMENT', 'unknown'),
+        "providers": {},
+        "extraction": {},
+        "env_vars": {}
+    }
+
+    # Check Anthropic
+    try:
+        from services.anthropic_provider import is_configured as anthropic_configured, ANTHROPIC_AVAILABLE
+        result["providers"]["anthropic"] = {
+            "package_installed": ANTHROPIC_AVAILABLE,
+            "is_configured": anthropic_configured(),
+            "api_key_set": bool(os.environ.get('ANTHROPIC_API_KEY', ''))
+        }
+    except Exception as e:
+        result["providers"]["anthropic"] = {"error": str(e)}
+
+    # Check OpenAI
+    try:
+        from services.openai_provider import is_configured as openai_configured, OPENAI_AVAILABLE
+        result["providers"]["openai"] = {
+            "package_installed": OPENAI_AVAILABLE,
+            "is_configured": openai_configured(),
+            "api_key_set": bool(os.environ.get('OPENAI_API_KEY', ''))
+        }
+    except Exception as e:
+        result["providers"]["openai"] = {"error": str(e)}
+
+    # Check document analyzer
+    try:
+        from services.document_analyzer import AI_PROVIDER, chat_fn
+        result["providers"]["document_analyzer"] = {
+            "ai_provider": AI_PROVIDER,
+            "chat_fn_available": chat_fn is not None
+        }
+    except Exception as e:
+        result["providers"]["document_analyzer"] = {"error": str(e)}
+
+    # Extraction capabilities
+    result["extraction"] = {
+        "pdf": PYMUPDF_AVAILABLE,
+        "docx": DOCX_AVAILABLE
+    }
+
+    # Relevant env vars (existence only, not values)
+    env_keys_to_check = [
+        'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'ENVIRONMENT',
+        'DATABASE_URL', 'MONGO_URL'
+    ]
+    for key in env_keys_to_check:
+        val = os.environ.get(key, '')
+        result["env_vars"][key] = "set" if val else "not_set"
+
+    return result
 
 
 def extract_text_from_pdf(file_content: bytes) -> str:
@@ -471,6 +573,21 @@ async def analizar_documentos(
         documentos=documentos_procesados,
         tipo_entidad=tipo_entidad
     )
+
+    # Check if AI analysis failed (no provider configured)
+    if datos.get("error"):
+        logger.error(f"Document analysis failed: {datos.get('error')}")
+        # Return partial success - text was extracted but AI analysis failed
+        return {
+            "success": False,
+            "error": datos.get("error"),
+            "datos": datos,
+            "archivos_procesados": len(documentos_procesados),
+            "archivos_nombres": [d["nombre"] for d in documentos_procesados],
+            "texto_extraido": True,
+            "ia_disponible": False,
+            "mensaje": "Se extrajo el texto de los documentos pero el análisis con IA falló. Verifique la configuración de ANTHROPIC_API_KEY o OPENAI_API_KEY."
+        }
 
     if email_contacto and not datos.get("email"):
         datos["email"] = email_contacto

@@ -5,37 +5,80 @@ from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-# Try Anthropic first, then OpenAI as fallback
+# AI Provider configuration - uses lazy initialization
 AI_PROVIDER = None
 chat_fn = None
+_provider_initialized = False
 
-try:
-    from services.anthropic_provider import chat_completion_sync as anthropic_chat, is_configured as anthropic_configured
-    if anthropic_configured():
-        AI_PROVIDER = "anthropic"
-        chat_fn = anthropic_chat
-        logger.info("DocumentAnalyzer using Anthropic Claude")
-except ImportError:
-    pass
 
-if not AI_PROVIDER:
+def _init_ai_provider():
+    """
+    Lazy initialization of AI provider.
+    Called on first use to ensure env vars are loaded.
+    """
+    global AI_PROVIDER, chat_fn, _provider_initialized
+
+    if _provider_initialized:
+        return
+
+    _provider_initialized = True
+    logger.info("DocumentAnalyzer: Initializing AI provider...")
+
+    # Log environment state for debugging
+    anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '')
+    openai_key = os.environ.get('OPENAI_API_KEY', '')
+    logger.info(f"  ANTHROPIC_API_KEY set: {bool(anthropic_key)}")
+    logger.info(f"  OPENAI_API_KEY set: {bool(openai_key)}")
+
+    # Try Anthropic first
+    try:
+        from services.anthropic_provider import chat_completion_sync as anthropic_chat, is_configured as anthropic_configured
+        if anthropic_configured():
+            AI_PROVIDER = "anthropic"
+            chat_fn = anthropic_chat
+            logger.info("DocumentAnalyzer: Using Anthropic Claude")
+            return
+        else:
+            logger.info("DocumentAnalyzer: Anthropic not configured, trying OpenAI...")
+    except ImportError as e:
+        logger.info(f"DocumentAnalyzer: Anthropic import failed: {e}")
+
+    # Fallback to OpenAI
     try:
         from services.openai_provider import chat_completion_sync as openai_chat, is_configured as openai_configured
         if openai_configured():
             AI_PROVIDER = "openai"
             chat_fn = openai_chat
-            logger.info("DocumentAnalyzer using OpenAI")
-    except ImportError:
-        pass
+            logger.info("DocumentAnalyzer: Using OpenAI GPT")
+            return
+        else:
+            logger.warning("DocumentAnalyzer: OpenAI not configured (key may be missing or invalid)")
+    except ImportError as e:
+        logger.warning(f"DocumentAnalyzer: OpenAI import failed: {e}")
 
-if not AI_PROVIDER:
-    logger.warning("No AI provider available for DocumentAnalyzer")
+    logger.error("DocumentAnalyzer: NO AI PROVIDER AVAILABLE - document analysis will fail!")
+    logger.error("  Please configure ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable")
+
+
+# Initialize on module load (but provider uses lazy init internally)
+_init_ai_provider()
+
+
+def reinit_ai_provider():
+    """Force re-initialization of AI provider (useful if env vars change)"""
+    global _provider_initialized
+    _provider_initialized = False
+    _init_ai_provider()
 
 
 class DocumentAnalyzerService:
     """Servicio de análisis de documentos con IA para extracción de datos"""
 
     def __init__(self):
+        # Ensure provider is initialized
+        if not _provider_initialized:
+            _init_ai_provider()
+
         self.provider = AI_PROVIDER
         self.model = "claude-sonnet-4-20250514" if AI_PROVIDER == "anthropic" else "gpt-4o"
 
@@ -109,11 +152,30 @@ Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
 }}"""
 
         try:
+            logger.info(f"DocumentAnalyzer: Calling AI ({self.provider}) with {len(documentos)} documents")
             texto_respuesta = chat_fn(
                 messages=[{"role": "user", "content": prompt}],
                 model=self.model,
                 max_tokens=2500
             )
+
+            # Check if AI returned an error response
+            if texto_respuesta.startswith('{"error"'):
+                try:
+                    error_data = json.loads(texto_respuesta)
+                    error_msg = error_data.get("error", "Error desconocido de IA")
+                    logger.error(f"AI provider returned error: {error_msg}")
+                    return {
+                        "error": f"Error del proveedor de IA: {error_msg}",
+                        "datosFaltantes": ["nombre", "rfc", "direccion", "email"],
+                        "datosCompletos": False,
+                        "fuentes": [],
+                        "tipo": tipo_entidad
+                    }
+                except json.JSONDecodeError:
+                    pass  # Not a JSON error, continue processing
+
+            logger.info(f"DocumentAnalyzer: Received {len(texto_respuesta)} chars from AI")
 
             if "```json" in texto_respuesta:
                 texto_respuesta = texto_respuesta.split("```json")[1].split("```")[0]
