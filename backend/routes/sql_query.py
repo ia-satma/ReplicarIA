@@ -21,7 +21,11 @@ DANGEROUS_KEYWORDS = [
     r'\bREVOKE\b', r'\bEXEC\b', r'\bEXECUTE\b', r'\bMERGE\b',
     r'\bCALL\b', r'\bSET\b', r'--', r'/\*', r'\*/', r';.*SELECT',
     r'UNION\s+ALL', r'INTO\s+OUTFILE', r'LOAD_FILE', r'BENCHMARK',
-    r'SLEEP\s*\(', r'WAITFOR', r'xp_', r'sp_'
+    r'SLEEP\s*\(', r'WAITFOR', r'xp_', r'sp_',
+    # Additional protections against comment-based injection
+    r'#', r'/*!', r'%00', r'\\x00', r'CHAR\s*\(',
+    r'0x[0-9a-fA-F]+',  # Hex encoding
+    r'\\\\',  # Escaped backslashes
 ]
 
 # Compilar patrones para eficiencia
