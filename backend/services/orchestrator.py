@@ -70,7 +70,7 @@ async def analyze(agent_id: str, user_text: str) -> Dict:
         df = sql_query(sql_text)
         try:
             llm_context = 'RESULTADOS SQL:\n' + df.head(20).to_csv(index=False)
-        except:
+        except (AttributeError, TypeError):
             llm_context = 'RESULTADOS SQL: (sin datos)'
         metas = _sql_metas(agent_id, sql_text)
         rag_hits = {'metadatas':[metas],'distances':[[0.0]*len(metas)]}

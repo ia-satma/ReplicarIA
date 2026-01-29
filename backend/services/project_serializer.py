@@ -126,8 +126,8 @@ def flatten_project_for_list(
             else:
                 created_dt = created_at
             days_elapsed = (datetime.now(created_dt.tzinfo) - created_dt).days
-        except:
-            pass
+        except (ValueError, TypeError, AttributeError):
+            pass  # Invalid date format, default to 0 days
     
     return {
         "project_id": defense_file.get("project_id", ""),

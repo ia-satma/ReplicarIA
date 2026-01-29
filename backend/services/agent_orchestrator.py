@@ -158,17 +158,19 @@ class AgentOrchestrator:
             try:
                 from services.vector_search_service import VectorSearchService
                 self._vector_search = VectorSearchService()
-            except:
+            except (ImportError, Exception) as e:
+                logging.debug(f"Vector search not available: {e}")
                 self._vector_search = None
         return self._vector_search
-    
+
     @property
     def cache(self):
         if self._cache is None:
             try:
                 from services.cache_service import get_cache
                 self._cache = get_cache()
-            except:
+            except (ImportError, Exception) as e:
+                logging.debug(f"Cache not available: {e}")
                 self._cache = None
         return self._cache
     
@@ -266,9 +268,10 @@ class AgentOrchestrator:
                     f"[Doc {i}: {result.get('filename', 'N/A')}]\n"
                     f"{result.get('contenido', '')}\n"
                 )
-            
+
             return "\n---\n".join(context_parts)
-        except:
+        except Exception as e:
+            logging.warning(f"RAG context retrieval failed: {e}")
             return ""
     
     async def _execute_agents_parallel(

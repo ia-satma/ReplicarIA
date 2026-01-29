@@ -231,8 +231,8 @@ class ProveedorService:
                 elif meses_antiguedad < 12:
                     flags.proveedor_reciente = True
                     score_fiscal += 15
-            except:
-                pass
+            except (ValueError, TypeError, AttributeError):
+                pass  # Invalid date format, skip calculation
 
         if not proveedor.documentos or not proveedor.documentos.opinion_cumplimiento or not proveedor.documentos.opinion_cumplimiento.archivo_url:
             flags.sin_opinion_cumplimiento = True
@@ -253,8 +253,8 @@ class ProveedorService:
                     if fecha_vig.replace(tzinfo=None) < datetime.utcnow():
                         flags.repse_vencido = True
                         score_legal += 25
-                except:
-                    pass
+                except (ValueError, TypeError, AttributeError):
+                    pass  # Invalid date format, skip validation
 
         if proveedor.domicilio_fiscal and proveedor.domicilio_fiscal.es_zona_alto_riesgo:
             flags.domicilio_alto_riesgo = True
