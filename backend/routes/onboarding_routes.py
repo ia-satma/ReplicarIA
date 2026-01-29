@@ -83,7 +83,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except:
+    except (jwt.JWTError, jwt.ExpiredSignatureError, jwt.JWTClaimsError, Exception) as e:
+        # JWT validation failed, will try OTP session next
         pass
     
     # Fallback to OTP session token
@@ -204,8 +205,8 @@ def extract_text_from_docx(file_content: bytes) -> str:
             logger.warning(f"DOCX temp file extraction failed: {e2}")
             try:
                 os.unlink(tmp_path)
-            except:
-                pass
+            except OSError:
+                pass  # File cleanup failed, not critical
 
     # Method 3: Raw XML extraction from ZIP (DOCX is a ZIP with XML files)
     try:
@@ -235,8 +236,8 @@ def extract_text_from_docx(file_content: bytes) -> str:
         if text and len([c for c in text[:1000] if c.isalpha()]) > 100:
             logger.info(f"DOCX decoded as plain text: {len(text)} chars")
             return text
-    except:
-        pass
+    except (UnicodeDecodeError, AttributeError):
+        pass  # Not decodable as text
 
     logger.error("All DOCX extraction methods failed")
     return ""
@@ -439,8 +440,8 @@ async def analizar_documentos(
                 try:
                     texto = content.decode('utf-8', errors='ignore')[:30000]
                     logger.info(f"Generic decode: {len(texto)} chars")
-                except:
-                    logger.warning(f"Could not decode {filename}")
+                except (UnicodeDecodeError, AttributeError) as e:
+                    logger.warning(f"Could not decode {filename}: {e}")
                     texto = ""
 
             if texto and texto.strip():

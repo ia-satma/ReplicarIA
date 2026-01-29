@@ -77,7 +77,8 @@ class User(Base):
             try:
                 import json
                 allowed = json.loads(self.allowed_companies)
-            except:
+            except (json.JSONDecodeError, TypeError, ValueError):
+                # Fallback: treat as comma-separated string
                 allowed = [c.strip() for c in self.allowed_companies.split(',') if c.strip()]
         return {
             'user_id': self.id,

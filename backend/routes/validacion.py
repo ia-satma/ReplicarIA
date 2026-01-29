@@ -2,9 +2,12 @@
 Rutas de API para Validación de Outputs de Agentes - Revisar.IA
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
+
+# Auth dependency for protected routes
+from services.auth_service import get_current_user
 
 from validation import (
     AGENT_OUTPUT_SCHEMAS,
@@ -70,7 +73,7 @@ async def get_template_agente(agente_id: str) -> Dict[str, Any]:
 
 
 @router.post("/validar")
-async def validar_output(request: ValidarOutputRequest) -> Dict[str, Any]:
+async def validar_output(request: ValidarOutputRequest, current_user: dict = Depends(get_current_user)) -> Dict[str, Any]:
     """
     Valida el output de un agente contra su schema.
     
@@ -97,7 +100,7 @@ async def validar_output(request: ValidarOutputRequest) -> Dict[str, Any]:
 
 
 @router.post("/validar-y-corregir")
-async def validar_y_corregir_output(request: ValidarOutputRequest) -> Dict[str, Any]:
+async def validar_y_corregir_output(request: ValidarOutputRequest, current_user: dict = Depends(get_current_user)) -> Dict[str, Any]:
     """
     Valida el output y aplica correcciones automáticas cuando es posible.
     
@@ -124,7 +127,7 @@ async def validar_y_corregir_output(request: ValidarOutputRequest) -> Dict[str, 
 
 
 @router.post("/completitud")
-async def calcular_completitud_output(request: ValidarOutputRequest) -> Dict[str, Any]:
+async def calcular_completitud_output(request: ValidarOutputRequest, current_user: dict = Depends(get_current_user)) -> Dict[str, Any]:
     """Calcula el porcentaje de completitud de un output"""
     completitud = calcular_completitud(request.agente_id.upper(), request.output)
     
@@ -139,7 +142,7 @@ async def calcular_completitud_output(request: ValidarOutputRequest) -> Dict[str
 
 
 @router.post("/deliberacion/validar")
-async def validar_deliberacion(request: DeliberacionRequest) -> Dict[str, Any]:
+async def validar_deliberacion(request: DeliberacionRequest, current_user: dict = Depends(get_current_user)) -> Dict[str, Any]:
     """
     Valida una deliberación completa antes de guardarla.
     

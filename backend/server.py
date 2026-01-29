@@ -468,16 +468,19 @@ async def health_check():
     """
     Production Health Check Endpoint
     Returns actual connectivity status for all critical services.
+    Note: Error details are hidden in production for security.
     """
     services = {}
     overall_healthy = True
-    
+    is_production = os.environ.get('ENVIRONMENT', '').lower() == 'production'
+
     # 1. Check MongoDB connectivity
     if DEMO_MODE:
         from services.demo_db import is_local_persistence, STORAGE_FILE
         if is_local_persistence():
             services["database"] = "local_persistence"
-            services["storage_file"] = str(STORAGE_FILE)
+            if not is_production:
+                services["storage_file"] = str(STORAGE_FILE)
         else:
             services["database"] = "local_persistence_new"
     else:
@@ -485,35 +488,62 @@ async def health_check():
             await db.command("ping")
             services["database"] = "connected"
         except Exception as e:
-            services["database"] = f"disconnected: {str(e)[:50]}"
+            # Don't expose error details in production
+            services["database"] = "disconnected" if is_production else f"disconnected: {str(e)[:50]}"
+            logging.error(f"MongoDB health check failed: {e}")
             overall_healthy = False
-    
-    # 2. Check OpenAI API Key
+
+    # 2. Check PostgreSQL connectivity
+    db_url = os.environ.get('DATABASE_URL', '')
+    if db_url:
+        try:
+            import asyncpg
+            conn = await asyncpg.connect(db_url)
+            await conn.close()
+            services["postgres"] = "connected"
+        except Exception as e:
+            services["postgres"] = "disconnected" if is_production else f"disconnected: {str(e)[:30]}"
+            logging.error(f"PostgreSQL health check failed: {e}")
+            overall_healthy = False
+    else:
+        services["postgres"] = "not_configured"
+
+    # 3. Check OpenAI API Key
     openai_key = os.environ.get('OPENAI_API_KEY', '')
     if openai_key and len(openai_key) > 10:
         services["llm"] = "ready"
     else:
         services["llm"] = "missing_key"
         overall_healthy = False
-    
-    # 3. Check Email Service
+
+    # 4. Check SECRET_KEY configuration
+    secret_key = os.environ.get('SECRET_KEY', '') or os.environ.get('JWT_SECRET_KEY', '')
+    if secret_key and len(secret_key) >= 16:
+        services["auth"] = "configured"
+    else:
+        services["auth"] = "insecure_default"
+        if is_production:
+            overall_healthy = False
+
+    # 5. Check Email Service
     email_password = os.environ.get('DREAMHOST_EMAIL_PASSWORD', '')
     if email_password and len(email_password) > 0:
         services["email"] = "configured"
     else:
         services["email"] = "not_configured"
-    
-    # 4. Check pCloud credentials
+
+    # 6. Check pCloud credentials
     pcloud_user = os.environ.get('PCLOUD_USERNAME', '')
     pcloud_pass = os.environ.get('PCLOUD_PASSWORD', '')
     if pcloud_user and pcloud_pass:
         services["pcloud"] = "configured"
     else:
         services["pcloud"] = "not_configured"
-    
+
     return {
         "status": "healthy" if overall_healthy else "degraded",
         "demo_mode": DEMO_MODE,
+        "environment": "production" if is_production else "development",
         "services": services,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "version": "4.0.0"

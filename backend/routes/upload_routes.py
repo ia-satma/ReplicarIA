@@ -253,8 +253,8 @@ async def upload_files(
     finally:
         try:
             os.rmdir(temp_dir)
-        except:
-            pass
+        except OSError:
+            pass  # Directory cleanup failed or not empty, not critical
     
     archivos_exitosos = [r for r in resultados if r.get('estado') == 'recibido']
     respuesta_chat = generar_respuesta_archivos(archivos_exitosos, mensaje)
