@@ -130,7 +130,7 @@ Respondes: ¿Para qué se contrata? ¿En qué estrategia/OKRs encaja? ¿Qué ben
 - **A7 Defensa**: Incorpora tu dictamen en sección de Razón de Negocios del Defense File
 """,
         "rag_source": "pCloud monthly structure",
-        "pcloud_folder": "María (Estrategia)",
+        "pcloud_folder": "A1_ESTRATEGIA",
         "pcloud_link": "https://u.pcloud.link/publink/show?code=kZHqng5ZeW36Cw3UbmY6lu1DsJ1QYj9hhCe7"
     },
     
@@ -298,7 +298,7 @@ Si falta algo y se quiere pagar:
 - Lo que A2 registra es material clave para mostrar diligencia ante SAT/TFJA
 """,
         "rag_source": "pCloud monthly structure",
-        "pcloud_folder": "Carlos (PMO)",
+        "pcloud_folder": "A2_PMO",
         "pcloud_link": "https://u.pcloud.link/publink/show?code=kZJqng5ZGDwXSRewkijTxOYa3WBCIkRXeUpV"
     },
     
@@ -400,7 +400,7 @@ Solo verificas que lo que A1/A5 plantean sea coherente con LISR/CFF.
 }
 """,
         "rag_source": "pCloud monthly structure",
-        "pcloud_folder": "Laura (Fiscal)",
+        "pcloud_folder": "A3_FISCAL",
         "pcloud_link": "https://u.pcloud.link/publink/show?code=kZQqng5ZE3BXwURDwrhkgreFBT4xXbyJDOa7"
     },
     
@@ -547,7 +547,7 @@ En F6: Emitir dos piezas clave:
 - **A7**: Incorpora tu dictamen en sección "Beneficio económico" del Defense File
 """,
         "rag_source": "pCloud monthly structure",
-        "pcloud_folder": "Roberto (Finanzas)",
+        "pcloud_folder": "A5_FINANZAS",
         "pcloud_link": "https://u.pcloud.link/publink/show?code=kZhqng5ZpurMT7tJ7wH9vDUXiGy2Mbju5M0X"
     },
     
@@ -697,7 +697,7 @@ Cuando: montoServicio > umbral o tipoProveedor crítico
 - **A7 Defensa**: Documenta la debida diligencia realizada
 """,
         "rag_source": "pCloud monthly structure",
-        "pcloud_folder": "Proveedores",
+        "pcloud_folder": "A6_PROVEEDOR",
         "pcloud_link": None
     },
     
@@ -848,7 +848,7 @@ Sin dictamen de A4, A2 no puede cerrar F6 en modo NORMAL.
 - **A7**: Tu dictamen se incluye en el Defense File como pieza clave
 """,
         "rag_source": "pCloud monthly structure",
-        "pcloud_folder": "Legal",
+        "pcloud_folder": "A4_LEGAL",
         "pcloud_link": None
     },
     
@@ -887,7 +887,7 @@ Toda comunicación con proveedores debe ser:
 - Con fecha límite de 7 días hábiles
 """,
         "rag_source": "pCloud monthly structure",
-        "pcloud_folder": "Auditoría",
+        "pcloud_folder": "A8_AUDITOR",
         "pcloud_link": None
     },
     
@@ -921,7 +921,7 @@ CRITERIOS DE TIPIFICACIÓN:
 - Servicios de gestión y administración
 """,
         "rag_source": "pCloud monthly structure",
-        "pcloud_folder": "Tipificación",
+        "pcloud_folder": "SUB_TIPIFICACION",
         "pcloud_link": None
     },
     
@@ -955,7 +955,7 @@ CRITERIOS DE MATERIALIDAD:
 - Correspondencia entre servicio y pago
 """,
         "rag_source": "pCloud monthly structure",
-        "pcloud_folder": "Materialidad",
+        "pcloud_folder": "SUB_MATERIALIDAD",
         "pcloud_link": None
     },
     
@@ -989,7 +989,7 @@ CATEGORÍAS DE RIESGO:
 - Falta de documentación soporte
 """,
         "rag_source": "pCloud monthly structure",
-        "pcloud_folder": "Riesgos",
+        "pcloud_folder": "SUB_RIESGOS",
         "pcloud_link": None
     },
     
@@ -1177,7 +1177,7 @@ OUTPUT: Para cada punto cuestionado:
 - Si hay contradicciones entre agentes, las marcas como riesgo a corregir
 """,
         "rag_source": "pCloud monthly structure",
-        "pcloud_folder": "Defensa",
+        "pcloud_folder": "A7_DEFENSA",
         "pcloud_link": None
     },
     
@@ -1307,7 +1307,7 @@ https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf
 **Nunca mezclar literal normativo con opiniones.**
 """,
         "rag_source": "pCloud monthly structure",
-        "pcloud_folder": "Knowledge Base",
+        "pcloud_folder": "KNOWLEDGE_BASE",
         "pcloud_link": None
     }
 }
