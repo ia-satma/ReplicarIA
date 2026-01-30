@@ -20,8 +20,13 @@ export function AuthProvider({ children }) {
 
     try {
       const response = await api.get('/api/auth/otp/session');
-      if (response.success && response.data?.user) {
-        setUser(response.data.user);
+      // Manejar diferentes formatos de respuesta del backend
+      const userData = response?.data?.user || response?.user || response?.data;
+      if (response?.success && userData) {
+        setUser(userData);
+      } else if (userData && !response?.success) {
+        // Si no hay flag success pero hay datos de usuario
+        setUser(userData);
       } else {
         localStorage.removeItem('auth_token');
         setUser(null);
@@ -86,14 +91,18 @@ export function AuthProvider({ children }) {
     setError(null);
     try {
       const response = await api.post('/api/auth/otp/verify-code', { email, code });
-      if (response.success && response.data?.token) {
-        localStorage.setItem('auth_token', response.data.token);
-        setUser(response.data.user);
+      // Manejar diferentes formatos de respuesta
+      const token = response?.data?.token || response?.token || response?.access_token;
+      const userData = response?.data?.user || response?.user;
+
+      if ((response?.success || token) && token) {
+        localStorage.setItem('auth_token', token);
+        if (userData) setUser(userData);
         return { success: true };
       }
-      return { success: false, error: response.message || 'Error de verificación' };
+      return { success: false, error: response?.message || 'Error de verificación' };
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Código inválido o expirado';
+      const errorMsg = err?.message || err?.detail || 'Código inválido o expirado';
       setError(errorMsg);
       return { success: false, error: errorMsg };
     }

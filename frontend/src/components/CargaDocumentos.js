@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import api from '../services/api';
 
 const TIPOS_DOCUMENTO = [
   { value: 'SIB_BEE', label: 'SIB / BEE (Solicitud Interna / Beneficio Económico Esperado)', fases: ['F0'] },
@@ -109,28 +110,29 @@ function CargaDocumentos({ proyectoId, faseActual, onDocumentoCargado, onClose }
       formData.append('descripcion', descripcion || archivo.name);
       formData.append('fase_asociada', faseActual);
 
-      const response = await fetch(`/api/proyectos/${proyectoId}/documentos`, {
-        method: 'POST',
-        body: formData
+      // Usar api.js para que incluya el token de autenticación
+      const data = await api.post(`/api/proyectos/${proyectoId}/documentos`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        }
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
+      // api.js ya extrae response.data
+      if (data?.id || data?.success) {
         setArchivo(null);
         setTipo('');
         setDescripcion('');
-        
+
         if (onDocumentoCargado) {
           onDocumentoCargado(data);
         }
       } else {
-        setError(data.error || 'Error al cargar el documento');
+        setError(data?.error || data?.detail || 'Error al cargar el documento');
       }
     } catch (err) {
-      setError('Error de conexión: ' + err.message);
+      setError(err?.message || err?.detail || 'Error de conexión');
     }
-    
+
     setUploading(false);
   }
 

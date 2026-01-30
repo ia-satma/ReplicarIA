@@ -164,20 +164,38 @@ function DurezzaDashboard() {
   async function cargarDatos() {
     setLoading(true);
     try {
-      const [subRes, fasesRes, estadisticasRes] = await Promise.all([
-        api.get('/api/subagentes/'),
-        api.get('/api/fases/'),
+      // Cargar datos principales - sin trailing slash para evitar redirects
+      const [subRes, fasesRes, estadisticasRes] = await Promise.allSettled([
+        api.get('/api/subagentes'),
+        api.get('/api/fases'),
         api.get('/api/durezza/estadisticas')
       ]);
-      setSubagentes(subRes.subagentes || []);
-      setFases(fasesRes);
-      setEstadisticas(estadisticasRes);
 
-      const ejemploRes = await api.get('/api/subagentes/ejemplo/tipificacion');
-      setTipificacionResult(ejemploRes);
+      // Manejar respuestas de forma defensiva
+      if (subRes.status === 'fulfilled') {
+        setSubagentes(subRes.value?.subagentes || []);
+      }
+      if (fasesRes.status === 'fulfilled') {
+        setFases(fasesRes.value || null);
+      }
+      if (estadisticasRes.status === 'fulfilled') {
+        setEstadisticas(estadisticasRes.value || null);
+      }
 
-      const riesgosRes = await api.get('/api/subagentes/ejemplo/riesgos-criticos');
-      setRiesgosResult(riesgosRes);
+      // Cargar ejemplos - estos pueden fallar sin romper el dashboard
+      try {
+        const ejemploRes = await api.get('/api/subagentes/ejemplo/tipificacion');
+        setTipificacionResult(ejemploRes);
+      } catch (e) {
+        console.warn('No se pudo cargar ejemplo tipificación:', e.message);
+      }
+
+      try {
+        const riesgosRes = await api.get('/api/subagentes/ejemplo/riesgos-criticos');
+        setRiesgosResult(riesgosRes);
+      } catch (e) {
+        console.warn('No se pudo cargar ejemplo riesgos:', e.message);
+      }
 
     } catch (err) {
       console.error('Error cargando datos:', err);

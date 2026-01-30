@@ -46,8 +46,13 @@ const ProjectForm = () => {
       try {
         setLoadingCompanies(true);
         const response = await api.get('/api/auth/companies');
-        if (response.data.success && response.data.companies) {
-          const companiesWithNew = [...response.data.companies, { id: "nueva", name: "Otra empresa (nueva)" }];
+        // api.js ya extrae response.data, así que accedemos directamente
+        if (response?.success && response?.companies) {
+          const companiesWithNew = [...response.companies, { id: "nueva", name: "Otra empresa (nueva)" }];
+          setCompanies(companiesWithNew);
+        } else if (Array.isArray(response)) {
+          // Si la respuesta es directamente un array
+          const companiesWithNew = [...response, { id: "nueva", name: "Otra empresa (nueva)" }];
           setCompanies(companiesWithNew);
         } else {
           setCompanies([{ id: "nueva", name: "Otra empresa (nueva)" }]);
@@ -69,11 +74,17 @@ const ProjectForm = () => {
         try {
           setLoadingFolios(true);
           const response = await api.get('/api/projects/folios');
-          if (response.data.success && response.data.folios) {
-            setFolios(response.data.folios);
+          // api.js ya extrae response.data
+          if (response?.success && response?.folios) {
+            setFolios(response.folios);
+          } else if (Array.isArray(response)) {
+            setFolios(response);
+          } else {
+            setFolios([]);
           }
         } catch (err) {
           console.error("Error fetching folios:", err);
+          setFolios([]);
         } finally {
           setLoadingFolios(false);
         }
@@ -122,10 +133,12 @@ const ProjectForm = () => {
         }
       });
 
-      if (response.data.success) {
+      // api.js ya extrae response.data
+      const fileUrl = response?.file_url || response?.data?.file_url || response?.url;
+      if (response?.success || fileUrl) {
         setFileUrls(prev => ({
           ...prev,
-          [fieldName]: response.data.file_url
+          [fieldName]: fileUrl
         }));
         setFormData(prev => ({
           ...prev,
@@ -133,7 +146,7 @@ const ProjectForm = () => {
         }));
       }
     } catch (err) {
-      setError(`No pudimos guardar tu archivo: ${err.response?.data?.detail || err.message}`);
+      setError(`No pudimos guardar tu archivo: ${err?.message || err?.detail || 'Error desconocido'}`);
     } finally {
       setUploadingFiles(false);
     }
@@ -150,14 +163,15 @@ const ProjectForm = () => {
       const uploadPromises = files.map(async (file) => {
         const formDataFile = new FormData();
         formDataFile.append('file', file);
-        
+
         const response = await api.post('/api/projects/upload-file', formDataFile, {
           headers: {
             'Content-Type': 'multipart/form-data',
           }
         });
 
-        return response.data.file_url;
+        // api.js ya extrae response.data
+        return response?.file_url || response?.data?.file_url || response?.url;
       });
 
       const urls = await Promise.all(uploadPromises);
@@ -230,9 +244,11 @@ const ProjectForm = () => {
       };
 
       const response = await api.post('/api/projects/submit', projectData);
-      
-      if (response.data.success) {
-        setProjectId(response.data.project_id);
+
+      // api.js ya extrae response.data
+      const projectIdResponse = response?.project_id || response?.data?.project_id || response?.id;
+      if (response?.success || projectIdResponse) {
+        setProjectId(projectIdResponse);
         setSuccess(true);
         setFormData({
           project_name: "",
@@ -254,7 +270,7 @@ const ProjectForm = () => {
         });
       }
     } catch (err) {
-      setError(err.response?.data?.detail || "Oops, algo no salió bien. Por favor intenta nuevamente.");
+      setError(err?.message || err?.detail || "Oops, algo no salió bien. Por favor intenta nuevamente.");
     } finally {
       setLoading(false);
     }

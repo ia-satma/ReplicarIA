@@ -30,7 +30,7 @@ from context import (
 router = APIRouter(prefix="/api/contexto", tags=["contexto"])
 
 
-@router.get("/")
+@router.get("")
 async def get_contexto_global():
     """Obtiene el contexto global completo."""
     return {

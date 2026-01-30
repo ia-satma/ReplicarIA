@@ -80,7 +80,7 @@ class EvaluarDefendibilidadRequest(BaseModel):
     vbc_legal: Optional[Dict[str, Any]] = None
 
 
-@router.get("/")
+@router.get("")
 async def get_subagentes_info() -> Dict[str, Any]:
     """Lista todos los subagentes disponibles y sus configuraciones"""
     subagentes = get_subagentes()

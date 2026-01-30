@@ -55,7 +55,7 @@ class VerificarFaseRequest(BaseModel):
     contexto: ContextoInput
 
 
-@router.get("/")
+@router.get("")
 async def get_todas_fases() -> Dict[str, Any]:
     """Lista todas las fases del POE con su configuración"""
     return {
