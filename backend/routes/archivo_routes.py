@@ -171,6 +171,25 @@ EXTENSION_TO_TYPE = {
     '.txt': 'text',
 }
 
+
+def detect_file_type(filename: str, content_type: str) -> tuple[str, bool]:
+    """
+    Detect file type from MIME type or extension.
+    Returns (file_type, is_valid)
+    """
+    file_ext = '.' + filename.split('.')[-1].lower() if '.' in filename else ''
+
+    # Try MIME type first
+    file_type = ALLOWED_MIME_TYPES.get(content_type)
+
+    # If MIME is generic or unknown, detect by extension
+    if file_type == 'auto' or file_type is None:
+        file_type = EXTENSION_TO_TYPE.get(file_ext)
+        if file_type:
+            logger.info(f"Detected file type '{file_type}' from extension '{file_ext}' (MIME was {content_type})")
+
+    return file_type, file_type is not None
+
 try:
     from docx import Document as DocxDocument
     DOCX_AVAILABLE = True
@@ -809,22 +828,25 @@ async def upload_client_document(
     user_email = user_context.get('email') if user_context else 'sistema'
     
     try:
-        if file.content_type not in ALLOWED_MIME_TYPES:
+        filename = file.filename or "unknown"
+        file_type, is_valid = detect_file_type(filename, file.content_type or '')
+
+        if not is_valid:
             raise HTTPException(
                 status_code=400,
-                detail=f"Tipo de archivo no permitido: {file.content_type}"
+                detail=f"Tipo de archivo no permitido: {file.content_type}. Extensión: {filename.split('.')[-1] if '.' in filename else 'none'}"
             )
-        
+
         file_bytes = await file.read()
-        
+
         if len(file_bytes) > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=400,
-                detail=f"El archivo excede el límite de 10MB"
+                detail=f"El archivo excede el límite de 50MB"
             )
-        
+
         conn = await get_db_connection()
-        
+
         try:
             cliente = await conn.fetchrow(
                 "SELECT id, nombre FROM clientes WHERE id = $1 AND activo = true",
@@ -832,8 +854,6 @@ async def upload_client_document(
             )
             if not cliente:
                 raise HTTPException(status_code=404, detail="Cliente no encontrado")
-            
-            file_type = ALLOWED_MIME_TYPES[file.content_type]
             extracted_text = ""
             extraction_method = "none"
             
@@ -1042,48 +1062,53 @@ async def analyze_and_ingest_document(
     user_email = user_context.get('email') if user_context else 'sistema'
     
     try:
-        if file.content_type not in ALLOWED_MIME_TYPES:
+        filename = file.filename or "unknown"
+        file_type, is_valid = detect_file_type(filename, file.content_type or '')
+
+        if not is_valid:
             raise HTTPException(
                 status_code=400,
-                detail=f"Tipo de archivo no permitido: {file.content_type}"
+                detail=f"Tipo de archivo no permitido: {file.content_type}. Extensión: {filename.split('.')[-1] if '.' in filename else 'none'}"
             )
-        
+
         file_bytes = await file.read()
-        
+
         if len(file_bytes) > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=400,
-                detail="El archivo excede el límite de 10MB"
+                detail="El archivo excede el límite de 50MB"
             )
-        
-        file_type = ALLOWED_MIME_TYPES[file.content_type]
+
         extracted_text = ""
         extraction_method = "none"
-        
+
         if file_type == 'pdf':
             extracted_text, extraction_method = extract_text_from_pdf(file_bytes)
         elif file_type == 'image':
             extracted_text, extraction_method = extract_text_from_image(file_bytes)
+        elif file_type == 'text':
+            extracted_text = file_bytes.decode('utf-8', errors='ignore')[:30000]
+            extraction_method = "plain-text"
         elif file_type in ['docx', 'doc']:
             extracted_text, extraction_method = extract_text_from_docx(file_bytes)
-        
+
         if not extracted_text:
             return {
                 "success": False,
                 "message": "No se pudo extraer texto del documento",
                 "extraction_method": extraction_method
             }
-        
+
         extracted_data = await archivo_service.extract_data_from_text(extracted_text)
-        
+
         if extracted_data.get('rfc'):
             validation = archivo_service.validate_rfc(extracted_data['rfc'])
             extracted_data['rfc_valido'] = validation.get('valid', False)
             extracted_data['tipo_persona'] = validation.get('tipo')
-        
+
         classification = archivo_service.classify_document_by_name(
-            file_name=file.filename,
-            file_type=file.content_type
+            file_name=filename,
+            file_type=file.content_type or ''
         )
         
         nombre = extracted_data.get('razon_social') or extracted_data.get('nombre')
