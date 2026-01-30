@@ -245,21 +245,44 @@ async def upload_documents(
                     "error": "Nombre de archivo inválido"
                 })
                 continue
-        try:
-            if not file.filename:
-                raise HTTPException(status_code=400, detail="Filename es requerido")
+            try:
+                if not file.filename:
+                    raise HTTPException(status_code=400, detail="Filename es requerido")
 
-            content = await file.read()
+                content = await file.read()
 
-            if not content:
-                raise HTTPException(status_code=400, detail=f"Archivo {file.filename} está vacío")
+                if not content:
+                    raise HTTPException(status_code=400, detail=f"Archivo {file.filename} está vacío")
 
-            if _is_large_csv(file.filename, content):
-                logger.info(f"Large file detected: {file.filename} ({len(content)} bytes) - skipping RAG processing")
-                result = await _store_large_file_metadata(
+                if _is_large_csv(file.filename, content):
+                    logger.info(f"Large file detected: {file.filename} ({len(content)} bytes) - skipping RAG processing")
+                    result = await _store_large_file_metadata(
+                        filename=file.filename,
+                        content=content,
+                        categoria=categoria,
+                        empresa_id=empresa_id
+                    )
+                    results.append({
+                        "filename": file.filename,
+                        "success": result.get('success', False),
+                        "documento_id": result.get('documento_id'),
+                        "chunks_created": result.get('chunks_created', 0),
+                        "agents_notified": result.get('agents_notified', []),
+                        "categoria": result.get('categoria'),
+                        "ley_codigo": result.get('ley_codigo'),
+                        "skipped_rag": True,
+                        "message": result.get('message', 'Archivo grande procesado sin RAG'),
+                        "errors": [result.get('error')] if result.get('error') else []
+                    })
+                    continue
+
+                if not rag_processor:
+                    raise HTTPException(status_code=503, detail="Servicio RAG no inicializado")
+
+                result = await rag_processor.process_document(
+                    file_content=content,
                     filename=file.filename,
-                    content=content,
-                    categoria=categoria,
+                    categoria_hint=categoria,
                     empresa_id=empresa_id
                 )
                 results.append({
@@ -270,40 +293,17 @@ async def upload_documents(
                     "agents_notified": result.get('agents_notified', []),
                     "categoria": result.get('categoria'),
                     "ley_codigo": result.get('ley_codigo'),
-                    "skipped_rag": True,
-                    "message": result.get('message', 'Archivo grande procesado sin RAG'),
-                    "errors": [result.get('error')] if result.get('error') else []
+                    "errors": result.get('errors', [])
                 })
-                continue
-
-            if not rag_processor:
-                raise HTTPException(status_code=503, detail="Servicio RAG no inicializado")
-            
-            result = await rag_processor.process_document(
-                file_content=content,
-                filename=file.filename,
-                categoria_hint=categoria,
-                empresa_id=empresa_id
-            )
-            results.append({
-                "filename": file.filename,
-                "success": result.get('success', False),
-                "documento_id": result.get('documento_id'),
-                "chunks_created": result.get('chunks_created', 0),
-                "agents_notified": result.get('agents_notified', []),
-                "categoria": result.get('categoria'),
-                "ley_codigo": result.get('ley_codigo'),
-                "errors": result.get('errors', [])
-            })
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error processing {file.filename if file else 'unknown'}: {e}")
-            results.append({
-                "filename": file.filename if file else "unknown",
-                "success": False,
-                "error": str(e)
-            })
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Error processing {file.filename if file else 'unknown'}: {e}")
+                results.append({
+                    "filename": file.filename if file else "unknown",
+                    "success": False,
+                    "error": str(e)
+                })
 
     except HTTPException:
         raise
@@ -663,13 +663,12 @@ async def delete_documento(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
     """Delete a document and its chunks from the knowledge base."""
-    try:
-        if not documento_id:
-            raise HTTPException(status_code=400, detail="documento_id es requerido")
+    if not documento_id:
+        raise HTTPException(status_code=400, detail="documento_id es requerido")
 
-        if not session_factory:
-            raise HTTPException(status_code=503, detail="Servicio no inicializado")
-    
+    if not session_factory:
+        raise HTTPException(status_code=503, detail="Servicio no inicializado")
+
     try:
         from sqlalchemy import text
         
@@ -1162,13 +1161,12 @@ async def reingestar_todos_pendientes(
     """
     Process all pending documents sequentially.
     """
-    try:
-        if not session_factory:
-            raise HTTPException(status_code=503, detail="Servicio no inicializado")
+    if not session_factory:
+        raise HTTPException(status_code=503, detail="Servicio no inicializado")
 
-        if not rag_processor:
-            raise HTTPException(status_code=503, detail="Procesador RAG no inicializado")
-    
+    if not rag_processor:
+        raise HTTPException(status_code=503, detail="Procesador RAG no inicializado")
+
     try:
         from sqlalchemy import text
         
@@ -1227,13 +1225,12 @@ async def get_documento_stats(doc_id: str):
     """
     Get detailed statistics for a specific document.
     """
-    try:
-        if not doc_id:
-            raise HTTPException(status_code=400, detail="doc_id es requerido")
+    if not doc_id:
+        raise HTTPException(status_code=400, detail="doc_id es requerido")
 
-        if not session_factory:
-            raise HTTPException(status_code=503, detail="Servicio no inicializado")
-    
+    if not session_factory:
+        raise HTTPException(status_code=503, detail="Servicio no inicializado")
+
     try:
         from sqlalchemy import text
         
@@ -1342,16 +1339,15 @@ async def actualizar_version_documento(
     """
     Update document version fields.
     """
-    try:
-        if not doc_id:
-            raise HTTPException(status_code=400, detail="doc_id es requerido")
+    if not doc_id:
+        raise HTTPException(status_code=400, detail="doc_id es requerido")
 
-        if not request:
-            raise HTTPException(status_code=400, detail="request es requerido")
+    if not request:
+        raise HTTPException(status_code=400, detail="request es requerido")
 
-        if not session_factory:
-            raise HTTPException(status_code=503, detail="Servicio no inicializado")
-    
+    if not session_factory:
+        raise HTTPException(status_code=503, detail="Servicio no inicializado")
+
     try:
         from sqlalchemy import text
         from datetime import datetime
