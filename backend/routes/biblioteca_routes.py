@@ -219,24 +219,41 @@ async def upload_documents(
 ):
     """
     Upload and process documents through the RAG pipeline.
-    
+
     - Classifies documents using Claude AI
     - Creates intelligent chunks (by articles for laws, semantic for others)
     - Generates embeddings
     - Assigns chunks to agents A1-A7
     - Updates metrics
-    
+
     For large CSV files (>1MB) like Lista 69-B, RAG processing is skipped
     to prevent timeout. These files are stored with metadata only.
     """
-    if not rag_processor and not session_factory:
-        raise HTTPException(status_code=500, detail="RAG service not initialized")
-    
-    results = []
-    for file in files:
+    try:
+        if not files:
+            raise HTTPException(status_code=400, detail="Al menos un archivo es requerido")
+
+        if not rag_processor and not session_factory:
+            raise HTTPException(status_code=503, detail="Servicio RAG no inicializado")
+
+        results = []
+        for file in files:
+            if not file or not file.filename:
+                results.append({
+                    "filename": "unknown",
+                    "success": False,
+                    "error": "Nombre de archivo inválido"
+                })
+                continue
         try:
+            if not file.filename:
+                raise HTTPException(status_code=400, detail="Filename es requerido")
+
             content = await file.read()
-            
+
+            if not content:
+                raise HTTPException(status_code=400, detail=f"Archivo {file.filename} está vacío")
+
             if _is_large_csv(file.filename, content):
                 logger.info(f"Large file detected: {file.filename} ({len(content)} bytes) - skipping RAG processing")
                 result = await _store_large_file_metadata(
@@ -258,9 +275,9 @@ async def upload_documents(
                     "errors": [result.get('error')] if result.get('error') else []
                 })
                 continue
-            
+
             if not rag_processor:
-                raise HTTPException(status_code=500, detail="RAG service not initialized")
+                raise HTTPException(status_code=503, detail="Servicio RAG no inicializado")
             
             result = await rag_processor.process_document(
                 file_content=content,
@@ -278,18 +295,32 @@ async def upload_documents(
                 "ley_codigo": result.get('ley_codigo'),
                 "errors": result.get('errors', [])
             })
+        except HTTPException:
+            raise
         except Exception as e:
-            logger.error(f"Error processing {file.filename}: {e}")
+            logger.error(f"Error processing {file.filename if file else 'unknown'}: {e}")
             results.append({
-                "filename": file.filename,
+                "filename": file.filename if file else "unknown",
                 "success": False,
                 "error": str(e)
             })
-    
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error en upload_documents: {e}")
+        if "permission" in str(e).lower():
+            status_code = 403
+        elif "timeout" in str(e).lower() or "memory" in str(e).lower():
+            status_code = 503
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=f"Error al procesar documentos: {str(e)}")
+
     successful = len([r for r in results if r.get("success")])
     failed = len([r for r in results if not r.get("success")])
     skipped_rag = len([r for r in results if r.get("skipped_rag")])
-    
+
     return {
         "processed": successful,
         "failed": failed,
@@ -632,8 +663,12 @@ async def delete_documento(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
     """Delete a document and its chunks from the knowledge base."""
-    if not session_factory:
-        raise HTTPException(status_code=500, detail="Service not initialized")
+    try:
+        if not documento_id:
+            raise HTTPException(status_code=400, detail="documento_id es requerido")
+
+        if not session_factory:
+            raise HTTPException(status_code=503, detail="Servicio no inicializado")
     
     try:
         from sqlalchemy import text
@@ -652,11 +687,17 @@ async def delete_documento(
                 {'doc_id': documento_id}
             )
             await session.commit()
-            
+
             return {"success": True, "deleted": documento_id}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error deleting document: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if "not found" in str(e).lower():
+            status_code = 404
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 @router.get("/metricas")
@@ -782,25 +823,34 @@ async def crear_solicitud(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
     """Create a document request."""
-    if not agent_kb_service:
-        raise HTTPException(status_code=500, detail="Service not initialized")
-    
     try:
+        if not request or not request.categoria:
+            raise HTTPException(status_code=400, detail="categoria es requerida")
+
+        if not agent_kb_service:
+            raise HTTPException(status_code=503, detail="Servicio no inicializado")
+
         solicitud_id = await agent_kb_service.crear_solicitud(
             categoria=request.categoria,
-            descripcion=request.descripcion,
-            solicitado_por=request.solicitado_por,
-            razon=request.razon,
-            prioridad=request.prioridad
+            descripcion=request.descripcion or "",
+            solicitado_por=request.solicitado_por or "sistema",
+            razon=request.razon or "",
+            prioridad=request.prioridad or "media"
         )
-        
+
         if solicitud_id:
             return {"success": True, "id": solicitud_id}
         else:
-            raise HTTPException(status_code=500, detail="Could not create solicitud")
+            raise HTTPException(status_code=503, detail="No se pudo crear la solicitud")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating solicitud: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if "not found" in str(e).lower():
+            status_code = 404
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 @router.get("/agente/{agente_id}/contexto")
@@ -879,13 +929,15 @@ async def reingestar_documento(
     """
     Reprocess a document: delete previous chunks, increment attempts, and reprocess.
     """
-    if not session_factory:
-        raise HTTPException(status_code=500, detail="Service not initialized")
-    
-    if not rag_processor:
-        raise HTTPException(status_code=500, detail="RAG processor not initialized")
-    
     try:
+        if not doc_id:
+            raise HTTPException(status_code=400, detail="doc_id es requerido")
+
+        if not session_factory:
+            raise HTTPException(status_code=503, detail="Servicio no inicializado")
+
+        if not rag_processor:
+            raise HTTPException(status_code=503, detail="Procesador RAG no inicializado")
         from sqlalchemy import text
         from datetime import datetime
         
@@ -1047,7 +1099,7 @@ async def reingestar_documento(
             async with session_factory() as session:
                 await session.execute(
                     text('''
-                        UPDATE kb_documentos 
+                        UPDATE kb_documentos
                         SET error_procesamiento = :error
                         WHERE id = :doc_id
                     '''),
@@ -1056,7 +1108,13 @@ async def reingestar_documento(
                 await session.commit()
         except:
             pass
-        raise HTTPException(status_code=500, detail=str(e))
+        if "not found" in str(e).lower():
+            status_code = 404
+        elif "timeout" in str(e).lower() or "memory" in str(e).lower():
+            status_code = 503
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 @router.get("/pendientes")
@@ -1104,11 +1162,12 @@ async def reingestar_todos_pendientes(
     """
     Process all pending documents sequentially.
     """
-    if not session_factory:
-        raise HTTPException(status_code=500, detail="Service not initialized")
-    
-    if not rag_processor:
-        raise HTTPException(status_code=500, detail="RAG processor not initialized")
+    try:
+        if not session_factory:
+            raise HTTPException(status_code=503, detail="Servicio no inicializado")
+
+        if not rag_processor:
+            raise HTTPException(status_code=503, detail="Procesador RAG no inicializado")
     
     try:
         from sqlalchemy import text
@@ -1156,7 +1215,11 @@ async def reingestar_todos_pendientes(
         raise
     except Exception as e:
         logger.error(f"Error in bulk reingestion: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if "timeout" in str(e).lower() or "memory" in str(e).lower():
+            status_code = 503
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 @router.get("/documento/{doc_id}/stats")
@@ -1164,8 +1227,12 @@ async def get_documento_stats(doc_id: str):
     """
     Get detailed statistics for a specific document.
     """
-    if not session_factory:
-        raise HTTPException(status_code=500, detail="Service not initialized")
+    try:
+        if not doc_id:
+            raise HTTPException(status_code=400, detail="doc_id es requerido")
+
+        if not session_factory:
+            raise HTTPException(status_code=503, detail="Servicio no inicializado")
     
     try:
         from sqlalchemy import text
@@ -1259,7 +1326,11 @@ async def get_documento_stats(doc_id: str):
         raise
     except Exception as e:
         logger.error(f"Error getting document stats for {doc_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if "not found" in str(e).lower():
+            status_code = 404
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 @router.put("/documento/{doc_id}/version")
@@ -1271,8 +1342,15 @@ async def actualizar_version_documento(
     """
     Update document version fields.
     """
-    if not session_factory:
-        raise HTTPException(status_code=500, detail="Service not initialized")
+    try:
+        if not doc_id:
+            raise HTTPException(status_code=400, detail="doc_id es requerido")
+
+        if not request:
+            raise HTTPException(status_code=400, detail="request es requerido")
+
+        if not session_factory:
+            raise HTTPException(status_code=503, detail="Servicio no inicializado")
     
     try:
         from sqlalchemy import text
@@ -1348,7 +1426,11 @@ async def actualizar_version_documento(
         raise
     except Exception as e:
         logger.error(f"Error updating document version for {doc_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if "not found" in str(e).lower():
+            status_code = 404
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 @router.get("/estado-acervo")

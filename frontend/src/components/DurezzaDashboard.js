@@ -171,35 +171,51 @@ function DurezzaDashboard() {
         api.get('/api/durezza/estadisticas')
       ]);
 
-      // Manejar respuestas de forma defensiva
-      if (subRes.status === 'fulfilled') {
-        setSubagentes(subRes.value?.subagentes || []);
-      }
-      if (fasesRes.status === 'fulfilled') {
-        setFases(fasesRes.value || null);
-      }
-      if (estadisticasRes.status === 'fulfilled') {
-        setEstadisticas(estadisticasRes.value || null);
+      // Handle responses defensively with null checks
+      if ((subRes?.status === 'fulfilled')) {
+        setSubagentes((subRes?.value?.subagentes) || []);
+      } else {
+        setSubagentes([]);
       }
 
-      // Cargar ejemplos - estos pueden fallar sin romper el dashboard
+      if ((fasesRes?.status === 'fulfilled')) {
+        setFases((fasesRes?.value) || null);
+      } else {
+        setFases(null);
+      }
+
+      if ((estadisticasRes?.status === 'fulfilled')) {
+        setEstadisticas((estadisticasRes?.value) || null);
+      } else {
+        setEstadisticas(null);
+      }
+
+      // Load examples - these can fail without breaking the dashboard
       try {
         const ejemploRes = await api.get('/api/subagentes/ejemplo/tipificacion');
-        setTipificacionResult(ejemploRes);
+        if (ejemploRes) {
+          setTipificacionResult(ejemploRes);
+        }
       } catch (e) {
-        console.warn('No se pudo cargar ejemplo tipificación:', e.message);
+        console.warn('No se pudo cargar ejemplo tipificación:', (e?.message) || 'Error desconocido');
       }
 
       try {
         const riesgosRes = await api.get('/api/subagentes/ejemplo/riesgos-criticos');
-        setRiesgosResult(riesgosRes);
+        if (riesgosRes) {
+          setRiesgosResult(riesgosRes);
+        }
       } catch (e) {
-        console.warn('No se pudo cargar ejemplo riesgos:', e.message);
+        console.warn('No se pudo cargar ejemplo riesgos:', (e?.message) || 'Error desconocido');
       }
 
     } catch (err) {
       console.error('Error cargando datos:', err);
-      setError(err.message);
+      setError((err?.message) || 'Error desconocido al cargar datos');
+      // Set safe defaults on error
+      setSubagentes([]);
+      setFases(null);
+      setEstadisticas(null);
     }
     setLoading(false);
   }

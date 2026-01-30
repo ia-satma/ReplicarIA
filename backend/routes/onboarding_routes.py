@@ -568,20 +568,24 @@ async def analizar_documentos(
             error_msg += f". Archivos fallidos: {', '.join(archivos_fallidos)}"
         logger.error(error_msg)
         raise HTTPException(status_code=400, detail=error_msg)
-    
-    datos = await document_analyzer.analizar_documentos(
-        documentos=documentos_procesados,
-        tipo_entidad=tipo_entidad
-    )
+
+    try:
+        datos = await document_analyzer.analizar_documentos(
+            documentos=documentos_procesados,
+            tipo_entidad=tipo_entidad
+        )
+    except Exception as e:
+        logger.error(f"Document analysis exception: {e}")
+        datos = {"error": str(e)}
 
     # Check if AI analysis failed (no provider configured)
-    if datos.get("error"):
-        logger.error(f"Document analysis failed: {datos.get('error')}")
+    if not datos or datos.get("error"):
+        logger.error(f"Document analysis failed: {datos.get('error') if datos else 'No response'}")
         # Return partial success - text was extracted but AI analysis failed
         return {
             "success": False,
-            "error": datos.get("error"),
-            "datos": datos,
+            "error": datos.get("error") if datos else "Analysis service unavailable",
+            "datos": datos or {},
             "archivos_procesados": len(documentos_procesados),
             "archivos_nombres": [d["nombre"] for d in documentos_procesados],
             "texto_extraido": True,
@@ -590,14 +594,16 @@ async def analizar_documentos(
         }
 
     if email_contacto and not datos.get("email"):
-        datos["email"] = email_contacto
-        if "fuentes" not in datos:
-            datos["fuentes"] = []
-        datos["fuentes"].append({
-            "campo": "email",
-            "fuente": "usuario",
-            "confianza": 1.0
-        })
+        # Null check
+        if email_contacto and email_contacto.strip():
+            datos["email"] = email_contacto
+            if "fuentes" not in datos:
+                datos["fuentes"] = []
+            datos["fuentes"].append({
+                "campo": "email",
+                "fuente": "usuario",
+                "confianza": 1.0
+            })
 
     # Auto-trigger deep research if critical data is missing
     campos_criticos_faltantes = []
@@ -695,21 +701,26 @@ async def investigar_empresa(
         )
     
     logger.info(f"Iniciando Deep Research: web={request.sitio_web}, rfc={request.rfc}, nombre={request.nombre}")
-    
+
     try:
         resultado = await deep_research_service.investigar_empresa(
             sitio_web=request.sitio_web,
             rfc=request.rfc,
             nombre=request.nombre
         )
-        
+
+        if not resultado:
+            raise HTTPException(status_code=503, detail="Research service returned no results")
+
         return resultado
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error en Deep Research: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Error durante la investigación: {str(e)}"
+            status_code=503,
+            detail="Investigation service temporarily unavailable. Please try again later."
         )
 
 
@@ -916,9 +927,12 @@ async def crear_entidad(request: CrearEntidadRequest, credentials: HTTPAuthoriza
         
     except HTTPException:
         raise
+    except ValueError as e:
+        logger.error(f"Validation error creating entity: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating entity: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=503, detail="Unable to create entity. Service temporarily unavailable.")
 
 
 @router.get("/tipos-entidad")
@@ -1031,4 +1045,4 @@ async def obtener_documentos_cliente(
         }
     except Exception as e:
         logger.error(f"Error listando documentos para cliente {cliente_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=503, detail="Unable to retrieve documents. Service temporarily unavailable.")

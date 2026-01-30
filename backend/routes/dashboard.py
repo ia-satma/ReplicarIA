@@ -142,7 +142,8 @@ async def _get_dashboard_stats(empresa_id: Optional[str] = None) -> Dict[str, An
         }
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # 503 for service unavailable (database issues)
+        raise HTTPException(status_code=503, detail="Servicio temporalmente no disponible. Intente nuevamente.")
 
 
 @router.get("/stats")
@@ -182,7 +183,8 @@ async def get_projects_by_empresa(
         raise
     except Exception as e:
         logger.error(f"Error getting projects for empresa {empresa_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # 503 for service unavailable
+        raise HTTPException(status_code=503, detail="Error retrieving projects. Service temporarily unavailable.")
 
 class CreateProjectRequest(BaseModel):
     empresa_id: str
@@ -263,8 +265,13 @@ async def humanize_report_endpoint(request: HumanizeReportRequest):
             'success': True,
             'reporte': reporte
         }
+    except ValueError as e:
+        # Validation errors
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Unexpected errors only
+        logger.exception(f"Unexpected error humanizing report: {e}")
+        raise HTTPException(status_code=500, detail="Error processing report. Please try again.")
 
 
 @router.get("/agents/persona-profiles", summary="List all agent personas")
@@ -337,7 +344,8 @@ async def get_interactions(project_id: Optional[str] = None):
         return {"interactions": interactions}
     except Exception as e:
         logger.error(f"Error getting interactions: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # 503 for database/service issues
+        raise HTTPException(status_code=503, detail="Unable to retrieve interactions. Service temporarily unavailable.")
 
 def _get_month_name_spanish(month: int) -> str:
     """Convert month number to Spanish month name"""

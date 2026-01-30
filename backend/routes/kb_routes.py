@@ -265,6 +265,9 @@ async def upload_kb_file(
 ) -> Dict[str, Any]:
     """Upload, analyze and process a file for the knowledge base RAG"""
     try:
+        if not file:
+            raise HTTPException(status_code=400, detail="File es requerido")
+
         filename = file.filename or "upload"
         file_extension = Path(filename).suffix.lower()
         unique_filename = f"kb_{uuid.uuid4().hex}{file_extension}"
@@ -372,9 +375,19 @@ async def upload_kb_file(
             "pcloud_link": pcloud_link,
             "message": message
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error uploading KB file: {e}")
-        raise HTTPException(status_code=500, detail=f"Error al subir archivo: {str(e)}")
+        if "file" in str(e).lower() or "not found" in str(e).lower():
+            status_code = 404
+        elif "permission" in str(e).lower():
+            status_code = 403
+        elif "timeout" in str(e).lower() or "memory" in str(e).lower():
+            status_code = 503
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=f"Error al subir archivo: {str(e)}")
 
 
 @router.get("/documentos-lista")
@@ -386,7 +399,13 @@ async def get_documentos_lista(
 ):
     """Get list of documents in the knowledge base with their status and chunk count."""
     try:
+        if not kb_processor:
+            raise HTTPException(status_code=503, detail="KB processor not initialized")
+
         pool = await kb_processor.get_pool()
+
+        if not pool:
+            raise HTTPException(status_code=503, detail="Database pool not available")
         async with pool.acquire() as conn:
             where_clauses = []
             params = []
@@ -515,9 +534,17 @@ async def reingest_documento(
                 }
     except HTTPException:
         raise
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error reingesting document {documento_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if "not found" in str(e).lower():
+            status_code = 404
+        elif "connection" in str(e).lower() or "timeout" in str(e).lower():
+            status_code = 503
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 AGENT_REQUIREMENTS = {
@@ -623,7 +650,13 @@ async def get_agent_requirements(
 ):
     """Get document requirements for each agent and their completion status."""
     try:
+        if not kb_processor:
+            raise HTTPException(status_code=503, detail="KB processor not initialized")
+
         pool = await kb_processor.get_pool()
+
+        if not pool:
+            raise HTTPException(status_code=503, detail="Database pool not available")
         async with pool.acquire() as conn:
             docs = await conn.fetch("""
                 SELECT id, nombre, categoria, subcategoria

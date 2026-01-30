@@ -46,13 +46,18 @@ const ProjectForm = () => {
       try {
         setLoadingCompanies(true);
         const response = await api.get('/api/auth/companies');
-        // api.js ya extrae response.data, así que accedemos directamente
-        if (response?.success && response?.companies) {
-          const companiesWithNew = [...response.companies, { id: "nueva", name: "Otra empresa (nueva)" }];
+
+        // Add null checks and multiple fallback paths for API response
+        if ((response?.success) && (response?.companies)) {
+          const companiesWithNew = [...(response.companies || []), { id: "nueva", name: "Otra empresa (nueva)" }];
           setCompanies(companiesWithNew);
         } else if (Array.isArray(response)) {
-          // Si la respuesta es directamente un array
+          // If the response is directly an array
           const companiesWithNew = [...response, { id: "nueva", name: "Otra empresa (nueva)" }];
+          setCompanies(companiesWithNew);
+        } else if ((response?.data) && Array.isArray(response.data)) {
+          // If response.data is the array
+          const companiesWithNew = [...response.data, { id: "nueva", name: "Otra empresa (nueva)" }];
           setCompanies(companiesWithNew);
         } else {
           setCompanies([{ id: "nueva", name: "Otra empresa (nueva)" }]);
@@ -74,11 +79,14 @@ const ProjectForm = () => {
         try {
           setLoadingFolios(true);
           const response = await api.get('/api/projects/folios');
-          // api.js ya extrae response.data
-          if (response?.success && response?.folios) {
-            setFolios(response.folios);
+
+          // Add null checks and safe property access
+          if ((response?.success) && (response?.folios)) {
+            setFolios((response.folios || []));
           } else if (Array.isArray(response)) {
             setFolios(response);
+          } else if ((response?.data) && Array.isArray(response.data)) {
+            setFolios(response.data);
           } else {
             setFolios([]);
           }
@@ -117,7 +125,7 @@ const ProjectForm = () => {
   };
 
   const handleFileChange = async (e, fieldName) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     setUploadingFiles(true);
@@ -126,16 +134,16 @@ const ProjectForm = () => {
     try {
       const formDataFile = new FormData();
       formDataFile.append('file', file);
-      
+
       const response = await api.post('/api/projects/upload-file', formDataFile, {
         headers: {
           'Content-Type': 'multipart/form-data',
         }
       });
 
-      // api.js ya extrae response.data
-      const fileUrl = response?.file_url || response?.data?.file_url || response?.url;
-      if (response?.success || fileUrl) {
+      // Add null checks and safe property access
+      const fileUrl = (response?.file_url) || (response?.data?.file_url) || (response?.url);
+      if ((response?.success) || (fileUrl)) {
         setFileUrls(prev => ({
           ...prev,
           [fieldName]: fileUrl
@@ -144,16 +152,18 @@ const ProjectForm = () => {
           ...prev,
           [fieldName]: file
         }));
+      } else {
+        setError('No se recibió URL válida del servidor');
       }
     } catch (err) {
-      setError(`No pudimos guardar tu archivo: ${err?.message || err?.detail || 'Error desconocido'}`);
+      setError(`No pudimos guardar tu archivo: ${(err?.message) || (err?.detail) || 'Error desconocido'}`);
     } finally {
       setUploadingFiles(false);
     }
   };
 
   const handleAdditionalFiles = async (e) => {
-    const files = Array.from(e.target.files);
+    const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
     setUploadingFiles(true);
@@ -161,32 +171,45 @@ const ProjectForm = () => {
 
     try {
       const uploadPromises = files.map(async (file) => {
-        const formDataFile = new FormData();
-        formDataFile.append('file', file);
+        try {
+          const formDataFile = new FormData();
+          formDataFile.append('file', file);
 
-        const response = await api.post('/api/projects/upload-file', formDataFile, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          }
-        });
+          const response = await api.post('/api/projects/upload-file', formDataFile, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            }
+          });
 
-        // api.js ya extrae response.data
-        return response?.file_url || response?.data?.file_url || response?.url;
+          // Add null checks and safe property access
+          return (response?.file_url) || (response?.data?.file_url) || (response?.url) || null;
+        } catch (uploadErr) {
+          console.error(`Error uploading file ${file.name}:`, uploadErr);
+          return null;
+        }
       });
 
       const urls = await Promise.all(uploadPromises);
-      
-      setFileUrls(prev => ({
-        ...prev,
-        project_documents: [...prev.project_documents, ...urls]
-      }));
-      
-      setFormData(prev => ({
-        ...prev,
-        project_documents: [...prev.project_documents, ...files]
-      }));
+      // Filter out null values (failed uploads)
+      const validUrls = urls.filter(url => url !== null && url !== undefined);
+
+      if (validUrls.length > 0) {
+        setFileUrls(prev => ({
+          ...prev,
+          project_documents: [...(prev.project_documents || []), ...validUrls]
+        }));
+
+        setFormData(prev => ({
+          ...prev,
+          project_documents: [...(prev.project_documents || []), ...files]
+        }));
+      }
+
+      if (validUrls.length < urls.length) {
+        setError(`${urls.length - validUrls.length} archivo(s) fallaron al subir. Por favor reintenta.`);
+      }
     } catch (err) {
-      setError(`No pudimos guardar algunos archivos: ${err.response?.data?.detail || err.message}`);
+      setError(`No pudimos guardar algunos archivos: ${(err?.response?.data?.detail) || (err?.message) || 'Error desconocido'}`);
     } finally {
       setUploadingFiles(false);
     }
@@ -207,7 +230,7 @@ const ProjectForm = () => {
     setError("");
     setSuccess(false);
 
-    const urlParams = new URLSearchParams(window.location.search);
+    const urlParams = new URLSearchParams(window.location.search || '');
     const isDemoMode = urlParams.get('demo') === 'true';
 
     if (isDemoMode) {
@@ -220,23 +243,23 @@ const ProjectForm = () => {
     }
 
     try {
-      const companyName = showNewCompanyFields ? formData.company_name : (selectedCompanyObj?.name || '');
+      const companyName = showNewCompanyFields ? formData.company_name : ((selectedCompanyObj?.name) || '');
       const projectData = {
         project_name: formData.project_name,
         sponsor_name: formData.sponsor_name,
         sponsor_email: formData.sponsor_email,
         company_name: companyName,
-        department: formData.departments.join(", "),
+        department: (formData.departments || []).join(", "),
         description: formData.description,
         strategic_alignment: formData.project_name,
-        expected_economic_benefit: parseFloat(formData.budget_estimate) * 2.5,
-        budget_estimate: parseFloat(formData.budget_estimate),
+        expected_economic_benefit: parseFloat(formData.budget_estimate) * 2.5 || 0,
+        budget_estimate: parseFloat(formData.budget_estimate) || 0,
         duration_months: 12,
         urgency_level: formData.urgency_level,
         requires_human: formData.requires_human,
         attachments: [
-          ...(showNewCompanyFields ? [fileUrls.fiscal_document, fileUrls.constitutiva] : []),
-          ...fileUrls.project_documents
+          ...(showNewCompanyFields ? [fileUrls.fiscal_document, fileUrls.constitutiva].filter(u => u) : []),
+          ...(fileUrls.project_documents || [])
         ].filter(url => url),
         is_modification: formData.is_modification,
         parent_folio: formData.parent_folio,
@@ -245,10 +268,10 @@ const ProjectForm = () => {
 
       const response = await api.post('/api/projects/submit', projectData);
 
-      // api.js ya extrae response.data
-      const projectIdResponse = response?.project_id || response?.data?.project_id || response?.id;
-      if (response?.success || projectIdResponse) {
-        setProjectId(projectIdResponse);
+      // Add null checks and safe property access for API response
+      const projectIdResponse = (response?.project_id) || (response?.data?.project_id) || (response?.id);
+      if ((response?.success) || (projectIdResponse)) {
+        setProjectId(projectIdResponse || 'PROJECT_SUBMITTED');
         setSuccess(true);
         setFormData({
           project_name: "",
@@ -268,9 +291,11 @@ const ProjectForm = () => {
           parent_folio: "",
           modification_notes: ""
         });
+      } else {
+        setError("No se recibió confirmación del servidor. Por favor intenta nuevamente.");
       }
     } catch (err) {
-      setError(err?.message || err?.detail || "Oops, algo no salió bien. Por favor intenta nuevamente.");
+      setError((err?.message) || (err?.detail) || "Oops, algo no salió bien. Por favor intenta nuevamente.");
     } finally {
       setLoading(false);
     }

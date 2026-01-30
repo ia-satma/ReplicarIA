@@ -64,17 +64,27 @@ async def list_clientes(
     Listar clientes del tenant actual.
     Los usuarios solo ven clientes de su empresa.
     """
-    empresa_id = get_empresa_id_from_user(user)
-    
-    clientes = await cliente_service.list_clientes(
-        empresa_id=empresa_id,
-        status=status,
-        search=search,
-        skip=skip,
-        limit=limit
-    )
-    
-    return clientes
+    try:
+        empresa_id = get_empresa_id_from_user(user)
+
+        # Null checks
+        if not empresa_id or not empresa_id.strip():
+            raise HTTPException(status_code=403, detail="No empresa assigned to user")
+
+        clientes = await cliente_service.list_clientes(
+            empresa_id=empresa_id,
+            status=status,
+            search=search,
+            skip=skip,
+            limit=limit
+        )
+
+        return clientes or []
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing clientes for empresa {user.get('empresa_id')}: {e}")
+        raise HTTPException(status_code=503, detail="Unable to retrieve clients. Service temporarily unavailable.")
 
 
 @router.get("/count")
@@ -83,9 +93,20 @@ async def count_clientes(
     user: dict = Depends(get_current_user)
 ):
     """Contar clientes del tenant actual"""
-    empresa_id = get_empresa_id_from_user(user)
-    count = await cliente_service.count_clientes(empresa_id=empresa_id, status=status)
-    return {"count": count, "empresa_id": empresa_id}
+    try:
+        empresa_id = get_empresa_id_from_user(user)
+
+        # Null check
+        if not empresa_id or not empresa_id.strip():
+            raise HTTPException(status_code=403, detail="No empresa assigned to user")
+
+        count = await cliente_service.count_clientes(empresa_id=empresa_id, status=status)
+        return {"count": count if count else 0, "empresa_id": empresa_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error counting clientes for empresa {user.get('empresa_id')}: {e}")
+        raise HTTPException(status_code=503, detail="Unable to count clients. Service temporarily unavailable.")
 
 
 @router.get("/{cliente_id}")
@@ -94,13 +115,26 @@ async def get_cliente(
     user: dict = Depends(get_current_user)
 ):
     """Obtener un cliente específico (solo de la empresa del usuario)"""
-    empresa_id = get_empresa_id_from_user(user)
-    
-    cliente = await cliente_service.get_cliente(cliente_id, empresa_id=empresa_id)
-    if not cliente:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    
-    return cliente
+    try:
+        # Null check
+        if not cliente_id or not cliente_id.strip():
+            raise HTTPException(status_code=400, detail="Cliente ID is required")
+
+        empresa_id = get_empresa_id_from_user(user)
+
+        if not empresa_id or not empresa_id.strip():
+            raise HTTPException(status_code=403, detail="No empresa assigned to user")
+
+        cliente = await cliente_service.get_cliente(cliente_id, empresa_id=empresa_id)
+        if not cliente:
+            raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+        return cliente
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting cliente {cliente_id}: {e}")
+        raise HTTPException(status_code=503, detail="Unable to retrieve client. Service temporarily unavailable.")
 
 
 @router.post("")
@@ -111,20 +145,40 @@ async def create_cliente(
     """
     Crear un nuevo cliente para la empresa del usuario.
     """
-    empresa_id = get_empresa_id_from_user(user)
-    user_id = user.get("user_id") or user.get("sub")
-    
-    cliente = await cliente_service.create_cliente(
-        cliente_data=cliente_data.dict(exclude_none=True),
-        empresa_id=empresa_id,
-        creado_por=user_id
-    )
-    
-    return {
-        "success": True,
-        "cliente": cliente,
-        "message": "Cliente creado exitosamente"
-    }
+    try:
+        # Null checks
+        if not cliente_data:
+            raise HTTPException(status_code=400, detail="Cliente data is required")
+
+        empresa_id = get_empresa_id_from_user(user)
+
+        if not empresa_id or not empresa_id.strip():
+            raise HTTPException(status_code=403, detail="No empresa assigned to user")
+
+        user_id = user.get("user_id") or user.get("sub")
+
+        cliente = await cliente_service.create_cliente(
+            cliente_data=cliente_data.dict(exclude_none=True),
+            empresa_id=empresa_id,
+            creado_por=user_id
+        )
+
+        if not cliente:
+            raise HTTPException(status_code=500, detail="Failed to create cliente")
+
+        return {
+            "success": True,
+            "cliente": cliente,
+            "message": "Cliente creado exitosamente"
+        }
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"Validation error creating cliente: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating cliente: {e}")
+        raise HTTPException(status_code=503, detail="Unable to create client. Service temporarily unavailable.")
 
 
 @router.put("/{cliente_id}")
@@ -134,22 +188,41 @@ async def update_cliente(
     user: dict = Depends(get_current_user)
 ):
     """Actualizar un cliente de la empresa del usuario"""
-    empresa_id = get_empresa_id_from_user(user)
-    
-    cliente = await cliente_service.update_cliente(
-        cliente_id=cliente_id,
-        update_data=update_data.dict(exclude_none=True),
-        empresa_id=empresa_id
-    )
-    
-    if not cliente:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    
-    return {
-        "success": True,
-        "cliente": cliente,
-        "message": "Cliente actualizado"
-    }
+    try:
+        # Null checks
+        if not cliente_id or not cliente_id.strip():
+            raise HTTPException(status_code=400, detail="Cliente ID is required")
+
+        if not update_data:
+            raise HTTPException(status_code=400, detail="Update data is required")
+
+        empresa_id = get_empresa_id_from_user(user)
+
+        if not empresa_id or not empresa_id.strip():
+            raise HTTPException(status_code=403, detail="No empresa assigned to user")
+
+        cliente = await cliente_service.update_cliente(
+            cliente_id=cliente_id,
+            update_data=update_data.dict(exclude_none=True),
+            empresa_id=empresa_id
+        )
+
+        if not cliente:
+            raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+        return {
+            "success": True,
+            "cliente": cliente,
+            "message": "Cliente actualizado"
+        }
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"Validation error updating cliente {cliente_id}: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error updating cliente {cliente_id}: {e}")
+        raise HTTPException(status_code=503, detail="Unable to update client. Service temporarily unavailable.")
 
 
 @router.delete("/{cliente_id}")
@@ -158,10 +231,23 @@ async def delete_cliente(
     user: dict = Depends(get_current_user)
 ):
     """Eliminar (desactivar) un cliente"""
-    empresa_id = get_empresa_id_from_user(user)
-    
-    success = await cliente_service.delete_cliente(cliente_id, empresa_id=empresa_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    
-    return {"success": True, "message": "Cliente desactivado"}
+    try:
+        # Null check
+        if not cliente_id or not cliente_id.strip():
+            raise HTTPException(status_code=400, detail="Cliente ID is required")
+
+        empresa_id = get_empresa_id_from_user(user)
+
+        if not empresa_id or not empresa_id.strip():
+            raise HTTPException(status_code=403, detail="No empresa assigned to user")
+
+        success = await cliente_service.delete_cliente(cliente_id, empresa_id=empresa_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+        return {"success": True, "message": "Cliente desactivado"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting cliente {cliente_id}: {e}")
+        raise HTTPException(status_code=503, detail="Unable to delete client. Service temporarily unavailable.")

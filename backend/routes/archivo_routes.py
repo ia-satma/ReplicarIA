@@ -436,8 +436,15 @@ async def analyze_document(
         raise
     except Exception as e:
         logger.error(f"Document analysis error: {e}")
+        # Determine appropriate status code based on error type
+        if "file" in str(e).lower() or "not found" in str(e).lower():
+            status_code = 404
+        elif "timeout" in str(e).lower() or "memory" in str(e).lower():
+            status_code = 503
+        else:
+            status_code = 400
         raise HTTPException(
-            status_code=500,
+            status_code=status_code,
             detail=f"Error analizando documento: {str(e)}"
         )
 
@@ -716,8 +723,14 @@ async def ingest_client(
     user_email = user_context.get('email') if user_context else 'sistema'
     
     try:
+        if not data or not data.nombre:
+            raise HTTPException(
+                status_code=400,
+                detail="El nombre del cliente es requerido"
+            )
+
         conn = await get_db_connection()
-        
+
         try:
             if data.rfc:
                 rfc_upper = data.rfc.upper().strip()
@@ -815,13 +828,23 @@ async def ingest_client(
     except asyncpg.exceptions.UndefinedTableError as e:
         logger.error(f"Tabla clientes no existe: {e}")
         raise HTTPException(
-            status_code=500,
+            status_code=503,
             detail="La tabla clientes no existe en la base de datos. Contacte al administrador."
+        )
+    except asyncpg.exceptions.IntegrityConstraintViolationError as e:
+        logger.error(f"Constraint violation: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail="Datos duplicados o constraint violation. Verifique los datos ingresados."
         )
     except Exception as e:
         logger.error(f"Error ingesting client: {e}")
+        if "connection" in str(e).lower() or "timeout" in str(e).lower():
+            status_code = 503
+        else:
+            status_code = 400
         raise HTTPException(
-            status_code=500,
+            status_code=status_code,
             detail=f"Error al crear el cliente: {str(e)}"
         )
 
@@ -868,12 +891,16 @@ async def upload_client_document(
         conn = await get_db_connection()
 
         try:
+            if not cliente_id:
+                raise HTTPException(status_code=400, detail="cliente_id es requerido")
+
             cliente = await conn.fetchrow(
                 "SELECT id, nombre FROM clientes WHERE id = $1 AND activo = true",
                 cliente_id
             )
             if not cliente:
                 raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
             extracted_text = ""
             extraction_method = "none"
             
@@ -885,10 +912,10 @@ async def upload_client_document(
                 extracted_text, extraction_method = extract_text_from_docx(file_bytes)
             
             classification = archivo_service.classify_document_by_name(
-                file_name=file.filename,
-                file_type=file.content_type
+                file_name=file.filename if file.filename else "documento",
+                file_type=file.content_type if file.content_type else "application/octet-stream"
             )
-            detected_type = tipo_documento or classification.get("classification", "otro")
+            detected_type = tipo_documento or (classification.get("classification") if classification else "otro")
             
             hash_contenido = hashlib.sha256(file_bytes).hexdigest()
             
@@ -1000,8 +1027,14 @@ async def upload_client_document(
         raise
     except Exception as e:
         logger.error(f"Error uploading document: {e}")
+        if "not found" in str(e).lower():
+            status_code = 404
+        elif "connection" in str(e).lower() or "timeout" in str(e).lower():
+            status_code = 503
+        else:
+            status_code = 400
         raise HTTPException(
-            status_code=500,
+            status_code=status_code,
             detail=f"Error al subir documento: {str(e)}"
         )
 
@@ -1296,7 +1329,13 @@ async def analyze_and_ingest_document(
         raise
     except Exception as e:
         logger.error(f"Error in analyze and ingest: {e}")
+        if "file" in str(e).lower() or "not found" in str(e).lower():
+            status_code = 404
+        elif "timeout" in str(e).lower() or "connection" in str(e).lower():
+            status_code = 503
+        else:
+            status_code = 400
         raise HTTPException(
-            status_code=500,
+            status_code=status_code,
             detail=f"Error procesando documento: {str(e)}"
         )

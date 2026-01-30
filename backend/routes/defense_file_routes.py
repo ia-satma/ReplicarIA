@@ -83,26 +83,42 @@ async def generator_health_check():
 async def list_generated_files():
     """Lista todos los expedientes generados"""
     try:
+        if not defense_file_generator:
+            raise HTTPException(status_code=503, detail="File generator not initialized")
+
         files = await defense_file_generator.list_generated_files()
         return {
             "success": True,
-            "files": files,
-            "total": len(files)
+            "files": files or [],
+            "total": len(files) if files else 0
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error listing generated files: {e}")
+        if "permission" in str(e).lower():
+            status_code = 403
+        else:
+            status_code = 500
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 @router.post("/generate-pdf")
 async def generate_defense_file_pdf(request: GenerateDefenseFileRequest):
     """Genera expediente de defensa fiscal completo en PDF/ZIP"""
     try:
+        if not request or not request.project_data:
+            raise HTTPException(status_code=400, detail="project_data es requerido")
+
+        if not request.documents:
+            raise HTTPException(status_code=400, detail="Se requiere al menos un documento")
+
         documents = [doc.model_dump() for doc in request.documents]
-        
+
         config = None
         if request.config:
             config = DefenseFileConfig(**request.config)
-        
+
         result = await defense_file_generator.generate(
             project_data=request.project_data,
             documents=documents,
@@ -110,25 +126,34 @@ async def generate_defense_file_pdf(request: GenerateDefenseFileRequest):
             red_team_results=request.red_team_results,
             config=config
         )
-        
+
+        if not result:
+            raise HTTPException(status_code=503, detail="PDF generation returned no result")
+
         base_url = "/api/defense-file/download"
-        
+
         return {
-            "success": result.success,
-            "pdf_path": result.pdf_path,
-            "zip_path": result.zip_path,
-            "download_url_pdf": f"{base_url}/pdf/{os.path.basename(result.pdf_path)}" if result.pdf_path else None,
-            "download_url_zip": f"{base_url}/zip/{os.path.basename(result.zip_path)}" if result.zip_path else None,
-            "total_pages": result.total_pages,
-            "total_documents": result.total_documents,
-            "generation_time_ms": result.generation_time_ms,
-            "file_hashes": result.file_hashes,
-            "errors": result.errors
+            "success": result.success if hasattr(result, 'success') else False,
+            "pdf_path": result.pdf_path if hasattr(result, 'pdf_path') else None,
+            "zip_path": result.zip_path if hasattr(result, 'zip_path') else None,
+            "download_url_pdf": f"{base_url}/pdf/{os.path.basename(result.pdf_path)}" if (hasattr(result, 'pdf_path') and result.pdf_path) else None,
+            "download_url_zip": f"{base_url}/zip/{os.path.basename(result.zip_path)}" if (hasattr(result, 'zip_path') and result.zip_path) else None,
+            "total_pages": result.total_pages if hasattr(result, 'total_pages') else 0,
+            "total_documents": result.total_documents if hasattr(result, 'total_documents') else 0,
+            "generation_time_ms": result.generation_time_ms if hasattr(result, 'generation_time_ms') else 0,
+            "file_hashes": result.file_hashes if hasattr(result, 'file_hashes') else {},
+            "errors": result.errors if hasattr(result, 'errors') else []
         }
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error generating defense file: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if "timeout" in str(e).lower() or "memory" in str(e).lower():
+            status_code = 503
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 @router.get("/download/pdf/{filename}")
@@ -182,39 +207,64 @@ async def delete_generated_file(filename: str):
 async def create_defense_file(project_id: str, project: ProjectData):
     """
     Create a new Defense File for a project
-    
+
     A Defense File is the complete audit trail for SAT compliance.
     It includes all deliberations, emails, and documentation.
     """
     try:
+        if not project_id:
+            raise HTTPException(status_code=400, detail="project_id es requerido")
+
+        if not project:
+            raise HTTPException(status_code=400, detail="project data es requerido")
+
         project_dict = project.model_dump()
         df = defense_file_service.create_defense_file(project_id, project_dict)
+
+        if not df:
+            raise HTTPException(status_code=503, detail="No se pudo crear el Defense File")
+
         return {
             "success": True,
             "project_id": project_id,
-            "defense_file": df.to_dict()
+            "defense_file": df.to_dict() if hasattr(df, 'to_dict') else dict(df)
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating Defense File: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if "not found" in str(e).lower():
+            status_code = 404
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 @router.get("/{project_id}")
 async def get_defense_file(project_id: str):
     """
     Get a project's Defense File
-    
+
     Returns the complete audit trail including:
     - All deliberations
     - All emails
     - Compliance checklist
     - pCloud links
     """
-    df = defense_file_service.get_defense_file(project_id)
-    if not df:
-        raise HTTPException(status_code=404, detail=f"Defense File not found for project {project_id}")
-    
-    return df
+    try:
+        if not project_id:
+            raise HTTPException(status_code=400, detail="project_id es requerido")
+
+        df = defense_file_service.get_defense_file(project_id)
+        if not df:
+            raise HTTPException(status_code=404, detail=f"Defense File no encontrado para proyecto {project_id}")
+
+        return df
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting Defense File {project_id}: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
 
 
 @router.post("/{project_id}/deliberation")
@@ -223,66 +273,106 @@ async def add_deliberation(project_id: str, record: DeliberationRecord):
     Add a deliberation record to a project's Defense File
     """
     try:
+        if not project_id:
+            raise HTTPException(status_code=400, detail="project_id es requerido")
+
+        if not record:
+            raise HTTPException(status_code=400, detail="deliberation record es requerido")
+
         defense_file_service.add_deliberation(project_id, record.model_dump())
         return {
             "success": True,
             "project_id": project_id,
-            "message": "Deliberation added to Defense File"
+            "message": "Deliberation añadida al Defense File"
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error adding deliberation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if "not found" in str(e).lower():
+            status_code = 404
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 @router.post("/{project_id}/email")
 async def add_email(project_id: str, record: EmailRecord):
     """
     Add an email record to a project's Defense File
-    
+
     Emails are key evidence for Materialidad (Art. 69-B CFF)
     """
     try:
+        if not project_id:
+            raise HTTPException(status_code=400, detail="project_id es requerido")
+
+        if not record or not record.from_email or not record.to_email:
+            raise HTTPException(status_code=400, detail="email record completo es requerido")
+
         defense_file_service.add_email(project_id, record.model_dump())
         return {
             "success": True,
             "project_id": project_id,
-            "message": "Email added to Defense File (Materialidad evidence)"
+            "message": "Email añadido al Defense File (Materialidad evidence)"
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error adding email: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if "not found" in str(e).lower():
+            status_code = 404
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 @router.post("/{project_id}/finalize")
 async def finalize_defense_file(project_id: str, decision: FinalDecision):
     """
     Finalize a Defense File with the final decision
-    
+
     This marks the Defense File as complete and ready for SAT audit.
     """
     try:
+        if not project_id:
+            raise HTTPException(status_code=400, detail="project_id es requerido")
+
+        if not decision or not decision.decision or not decision.justification:
+            raise HTTPException(status_code=400, detail="decision y justification son requeridos")
+
         result = defense_file_service.finalize_defense_file(
             project_id,
             decision.decision,
             decision.justification
         )
+
+        if not result:
+            raise HTTPException(status_code=503, detail="No se pudo finalizar el Defense File")
+
         return {
             "success": True,
             "project_id": project_id,
             "final_decision": decision.decision,
-            "audit_ready": result.get("audit_ready", False),
-            "compliance_score": result.get("compliance_score", 0)
+            "audit_ready": result.get("audit_ready", False) if result else False,
+            "compliance_score": result.get("compliance_score", 0) if result else 0
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error finalizing Defense File: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if "not found" in str(e).lower():
+            status_code = 404
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 @router.get("/{project_id}/export")
 async def export_for_sat(project_id: str):
     """
     Export Defense File in SAT-ready format
-    
+
     This generates a complete compliance report including:
     - Cumplimiento Art. 5-A CFF (Razón de Negocios)
     - Cumplimiento Art. 27 LISR (Beneficio Económico)
@@ -290,11 +380,24 @@ async def export_for_sat(project_id: str):
     - Cumplimiento NOM-151 (Trazabilidad)
     """
     try:
+        if not project_id:
+            raise HTTPException(status_code=400, detail="project_id es requerido")
+
         export = defense_file_service.export_for_sat(project_id)
+
+        if not export:
+            raise HTTPException(status_code=404, detail=f"No se puede exportar el Defense File para {project_id}")
+
         return export
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error exporting Defense File: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if "not found" in str(e).lower():
+            status_code = 404
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 @router.get("/")
@@ -315,25 +418,34 @@ async def list_defense_files():
 async def get_compliance_status(project_id: str):
     """
     Get compliance status for a project
-    
+
     Returns the current status of the 4 compliance pillars:
     1. Razón de Negocios (Art. 5-A CFF)
     2. Beneficio Económico Esperado
     3. Materialidad (Art. 69-B CFF)
     4. Trazabilidad (NOM-151)
     """
-    df = defense_file_service.get_defense_file(project_id)
-    if not df:
-        raise HTTPException(status_code=404, detail=f"Defense File not found for project {project_id}")
-    
-    return {
-        "project_id": project_id,
-        "compliance_checklist": df.get("compliance_checklist", {}),
-        "compliance_score": df.get("compliance_score", 0),
-        "audit_ready": df.get("audit_ready", False),
-        "deliberation_count": df.get("deliberation_count", 0),
-        "email_count": df.get("email_count", 0)
-    }
+    try:
+        if not project_id:
+            raise HTTPException(status_code=400, detail="project_id es requerido")
+
+        df = defense_file_service.get_defense_file(project_id)
+        if not df:
+            raise HTTPException(status_code=404, detail=f"Defense File no encontrado para proyecto {project_id}")
+
+        return {
+            "project_id": project_id,
+            "compliance_checklist": df.get("compliance_checklist", {}) if df else {},
+            "compliance_score": df.get("compliance_score", 0) if df else 0,
+            "audit_ready": df.get("audit_ready", False) if df else False,
+            "deliberation_count": df.get("deliberation_count", 0) if df else 0,
+            "email_count": df.get("email_count", 0) if df else 0
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting compliance status: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
 
 
 # === Document Checklist Endpoints (A8_AUDITOR) ===
@@ -369,20 +481,26 @@ async def get_document_checklist(project_id: str):
 async def download_checklist_pdf(project_id: str):
     """
     Download checklist as PDF for provider
-    
+
     Generates a professional PDF document showing:
     - Summary of completion status
     - Detailed list of missing documents with requirements
     - List of documents already present
     """
     from services.auditor_service import auditor_service
-    
+
     try:
+        if not project_id:
+            raise HTTPException(status_code=400, detail="project_id es requerido")
+
         result = auditor_service.generate_provider_checklist_pdf(project_id)
-        
+
+        if not result:
+            raise HTTPException(status_code=503, detail="No se pudo generar el PDF del checklist")
+
         if not result.get("success"):
-            raise HTTPException(status_code=500, detail=result.get("error", "Error generating PDF"))
-        
+            raise HTTPException(status_code=400, detail=result.get("error", "Error generando PDF"))
+
         pdf_path = result.get("pdf_path")
         if pdf_path and os.path.exists(pdf_path):
             return FileResponse(
@@ -390,12 +508,20 @@ async def download_checklist_pdf(project_id: str):
                 filename=result.get("pdf_filename", f"checklist_{project_id}.pdf"),
                 media_type="application/pdf"
             )
-        
+
         return result
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error generating checklist PDF: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if "permission" in str(e).lower():
+            status_code = 403
+        elif "not found" in str(e).lower():
+            status_code = 404
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 @router.get("/{project_id}/download-complete")
@@ -627,4 +753,12 @@ del Código Fiscal de la Federación.
         raise
     except Exception as e:
         logger.error(f"Error creating complete defense file ZIP: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        if "permission" in str(e).lower():
+            status_code = 403
+        elif "not found" in str(e).lower():
+            status_code = 404
+        elif "timeout" in str(e).lower() or "memory" in str(e).lower():
+            status_code = 503
+        else:
+            status_code = 400
+        raise HTTPException(status_code=status_code, detail=str(e))

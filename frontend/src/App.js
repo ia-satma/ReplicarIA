@@ -591,11 +591,16 @@ const Dashboard = () => {
         api.get('/api/defense-files')
       ]);
 
-      setProjects(projectsRes.projects || []);
-      setStats(statsRes || { approved: 0, rejected: 0, in_review: 0, total_amount: 0 });
-      setDefenseFiles(defenseFilesRes.defense_files || []);
+      // Add null checks for API responses
+      setProjects((projectsRes?.projects) || []);
+      setStats((statsRes) || { approved: 0, rejected: 0, in_review: 0, total_amount: 0 });
+      setDefenseFiles((defenseFilesRes?.defense_files) || []);
     } catch (error) {
       console.error("Error loading dashboard:", error);
+      // Set safe defaults on error
+      setProjects([]);
+      setStats({ approved: 0, rejected: 0, in_review: 0, total_amount: 0 });
+      setDefenseFiles([]);
     } finally {
       setLoading(false);
     }
@@ -1513,20 +1518,23 @@ const ProjectDetails = () => {
   const loadProjectDetails = async () => {
     try {
       const response = await api.get(`/api/projects/${projectId}`);
-      const data = response;
+      // Add null checks for API response
+      const data = response || {};
 
       const normalizedData = {
-        project: data.project || {},
-        defense_file: data.defense_file || {},
-        deliberations: data.defense_file?.deliberations || data.interactions || [],
-        documents: data.defense_file?.pcloud_documents || [],
-        bitacora_link: data.defense_file?.bitacora_link || null,
-        compliance_score: data.project?.compliance_score || data.defense_file?.compliance_score || 0
+        project: (data?.project) || {},
+        defense_file: (data?.defense_file) || {},
+        deliberations: (data?.defense_file?.deliberations) || (data?.interactions) || [],
+        documents: (data?.defense_file?.pcloud_documents) || [],
+        bitacora_link: (data?.defense_file?.bitacora_link) || null,
+        compliance_score: (data?.project?.compliance_score) || (data?.defense_file?.compliance_score) || 0
       };
 
       setProjectData(normalizedData);
     } catch (error) {
       console.error("Error loading project:", error);
+      // Set safe default on error
+      setProjectData(null);
     } finally {
       setLoading(false);
     }
@@ -1831,11 +1839,13 @@ const AgentCommsPage = () => {
       // Fetch projects list if no projectId in URL
       api.get('/api/projects')
         .then(res => {
-          setProjects(res.data.projects || res.data || []);
+          // Add null checks for API response
+          setProjects((res?.data?.projects) || (res?.projects) || (res?.data) || []);
           setLoading(false);
         })
         .catch(err => {
           console.error('Error fetching projects:', err);
+          setProjects([]);
           setLoading(false);
         });
     }

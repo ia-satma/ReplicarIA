@@ -112,24 +112,37 @@ async def upload_file(file: UploadFile = File(...)):
     prefix = empresa_id if empresa_id else "temp"
     
     try:
-        filename = file.filename or "upload"
+        # Null check for filename
+        if not file or not file.filename:
+            raise HTTPException(status_code=400, detail="No filename provided")
+
+        filename = file.filename.strip()
+        if not filename:
+            raise HTTPException(status_code=400, detail="Filename cannot be empty")
+
         file_extension = Path(filename).suffix
         unique_filename = f"{prefix}_{uuid.uuid4().hex}{file_extension}"
         file_path = UPLOAD_DIR / unique_filename
-        
+
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        
+
         file_url = f"/api/files/uploads/{unique_filename}"
-        
+
         return {
             "success": True,
             "file_url": file_url,
             "filename": file.filename,
             "size": file_path.stat().st_size
         }
+    except HTTPException:
+        raise
+    except IOError as e:
+        logger.error(f"I/O error uploading file: {e}")
+        raise HTTPException(status_code=507, detail="Insufficient storage space")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
+        logger.error(f"Error uploading file: {e}")
+        raise HTTPException(status_code=500, detail="Error uploading file")
 
 
 @router.post("/submit")
@@ -292,6 +305,15 @@ async def submit_project(
             }
         }
         
+    except ValueError as e:
+        logger.error(f"Validation error submitting project: {str(e)}")
+        await processing_state.set_status(
+            project_id=project_id,
+            status=ProcessingStatus.FAILED,
+            message="Datos del proyecto inválidos",
+            error=str(e)[:200]
+        )
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error submitting project: {str(e)}")
         await processing_state.set_status(
@@ -300,7 +322,7 @@ async def submit_project(
             message="Error al crear el proyecto",
             error=str(e)[:200]
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=503, detail="Error processing project. Try again later.")
 
 
 @router.get("/processing-status/{project_id}")
@@ -432,7 +454,8 @@ async def list_project_folios(request: Request):
         raise
     except Exception as e:
         logger.error(f"Error listing project folios: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # 503 for database issues
+        raise HTTPException(status_code=503, detail="Unable to retrieve projects. Service temporarily unavailable.")
 
 
 @router.get("")
@@ -487,7 +510,8 @@ async def list_projects():
         raise
     except Exception as e:
         logger.error(f"Error listing projects: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # 503 for service/database issues
+        raise HTTPException(status_code=503, detail="Unable to retrieve projects. Service temporarily unavailable.")
 
 
 @router.get("/{project_id}")
@@ -501,8 +525,12 @@ async def get_project(project_id: str):
         raise HTTPException(status_code=400, detail="X-Empresa-ID requerido")
     
     try:
+        # Null check for project_id
+        if not project_id or not project_id.strip():
+            raise HTTPException(status_code=400, detail="Project ID is required")
+
         defense_file = defense_file_service.get_defense_file(project_id)
-        
+
         if not defense_file:
             raise HTTPException(status_code=404, detail=f"Proyecto {project_id} no encontrado")
         
@@ -563,7 +591,8 @@ async def get_project(project_id: str):
         raise
     except Exception as e:
         logger.error(f"Error getting project {project_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # 503 for service issues
+        raise HTTPException(status_code=503, detail="Unable to retrieve project details. Service temporarily unavailable.")
 
 
 @router.get("/{project_id}/status")
@@ -577,14 +606,24 @@ async def get_project_status(project_id: str):
         raise HTTPException(status_code=400, detail="X-Empresa-ID requerido")
     
     try:
+        # Null check
+        if not project_id or not project_id.strip():
+            raise HTTPException(status_code=400, detail="Project ID is required")
+
         defense_file = defense_file_service.get_defense_file(project_id)
         if defense_file:
             project_data = defense_file.get("project_data", {})
+            if not project_data:
+                raise HTTPException(status_code=404, detail="Project data is malformed")
+
             df_empresa = project_data.get("empresa_id") or defense_file.get("empresa_id")
             if df_empresa and df_empresa.lower().strip() != empresa_id.lower().strip():
                 raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
-        
+
         status = orchestrator.get_project_status(project_id)
+        if not status:
+            raise HTTPException(status_code=404, detail="Project status not found")
+
         return {
             "success": True,
             "data": status
@@ -593,7 +632,7 @@ async def get_project_status(project_id: str):
         raise
     except Exception as e:
         logger.error(f"Error getting status for {project_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=503, detail="Unable to retrieve project status. Service temporarily unavailable.")
 
 
 @router.post("/{project_id}/adjustment")
@@ -768,6 +807,19 @@ async def submit_adjustment(
         
     except HTTPException:
         raise
+    except ValueError as e:
+        logger.error(f"Validation error submitting adjustment for {project_id}: {str(e)}")
+        error_project_id = new_project_id if new_project_id else project_id
+        try:
+            await processing_state.set_status(
+                project_id=error_project_id,
+                status=ProcessingStatus.FAILED,
+                message="Datos del ajuste inválidos",
+                error=str(e)[:200]
+            )
+        except Exception:
+            pass
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error submitting adjustment for {project_id}: {str(e)}")
         error_project_id = new_project_id if new_project_id else project_id
@@ -780,7 +832,7 @@ async def submit_adjustment(
             )
         except Exception:
             pass
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=503, detail="Error processing adjustment. Try again later.")
 
 
 @router.get("/{project_id}/versions")
@@ -862,4 +914,5 @@ async def get_project_versions(project_id: str):
         raise
     except Exception as e:
         logger.error(f"Error getting versions for {project_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # 503 for service issues
+        raise HTTPException(status_code=503, detail="Unable to retrieve project versions. Service temporarily unavailable.")
