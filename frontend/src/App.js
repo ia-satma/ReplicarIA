@@ -739,7 +739,7 @@ const Dashboard = () => {
                     </td>
                   </tr>
                 ) : (
-                  projects.map((project) => {
+                  projects.map((project, index) => {
                     const score = project.compliance_score || 0;
                     const scoreColor = score >= 75 ? 'bg-green-100 text-green-700' : 
                                        score >= 50 ? 'bg-yellow-100 text-yellow-700' : 
@@ -986,14 +986,15 @@ const Dashboard = () => {
                                 {isMonthExpanded && (
                                   <div className="px-6 pb-4 bg-white">
                                     <div className="space-y-3 pt-2">
-                                      {month.projects?.map((project) => {
-                                        const projectKey = `${monthKey}_${project.project_id}`;
+                                      {month.projects?.map((project, projIndex) => {
+                                        const projectId = project.project_id || project._id || `proj_${projIndex}`;
+                                        const projectKey = `${monthKey}_${projectId}`;
                                         const isProjectExpanded = expandedProjects[projectKey];
                                         const deliberations = project.deliberations || [];
                                         const finalDecisionColors = getDecisionColor(project.final_decision);
-                                        
+
                                         return (
-                                          <div key={project.project_id} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                                          <div key={projectId} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
                                             <button
                                               onClick={() => toggleProjectExpanded(projectKey)}
                                               className="w-full px-4 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between text-left"
