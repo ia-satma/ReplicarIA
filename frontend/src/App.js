@@ -30,6 +30,7 @@ import KnowledgeRepository from "./components/KnowledgeRepository";
 import DefenseFileDownload from "./components/DefenseFileDownload";
 import UsageDashboard from "./components/UsageDashboard";
 import AgentsDashboard from "./components/agents/AgentsDashboard";
+import AgentCommsViewer from "./components/agents/AgentCommsViewer";
 
 const DurezzaDashboard = lazy(() => import("./components/DurezzaDashboard"));
 
@@ -431,6 +432,16 @@ function Navbar() {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
               </svg>
+            </Link>
+
+            <Link
+              to="/agent-comms"
+              className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg hover:from-blue-700 hover:to-cyan-600 transition-colors animate-pulse"
+              title="Comunicaciones Inter-Agentes"
+              aria-label="Ver conversaciones entre agentes"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </Link>
 
             <Link
@@ -1807,6 +1818,111 @@ const ProjectDetails = () => {
   );
 };
 
+// Agent Communications Page - Shows inter-agent email conversations
+const AgentCommsPage = () => {
+  const { projectId } = require('react-router-dom').useParams();
+  const [projects, setProjects] = useState([]);
+  const [selectedProject, setSelectedProject] = useState(projectId || '');
+  const [loading, setLoading] = useState(!projectId);
+
+  useEffect(() => {
+    if (!projectId) {
+      // Fetch projects list if no projectId in URL
+      api.get('/api/projects')
+        .then(res => {
+          setProjects(res.data.projects || res.data || []);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error('Error fetching projects:', err);
+          setLoading(false);
+        });
+    }
+  }, [projectId]);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-4 mb-2">
+            <span className="text-4xl">🤖</span>
+            <h1 className="text-3xl font-bold text-white">Comunicaciones Inter-Agentes</h1>
+          </div>
+          <p className="text-gray-400 ml-14">
+            Visualiza en tiempo real cómo los agentes se comunican entre sí para revisar y aprobar documentos
+          </p>
+        </div>
+
+        {/* Project Selector (if no projectId in URL) */}
+        {!projectId && (
+          <div className="bg-slate-800/50 rounded-xl p-6 mb-6">
+            <label className="block text-gray-300 mb-2 font-medium">Selecciona un proyecto:</label>
+            {loading ? (
+              <div className="animate-pulse bg-slate-700 h-12 rounded-lg" />
+            ) : (
+              <select
+                value={selectedProject}
+                onChange={(e) => setSelectedProject(e.target.value)}
+                className="w-full bg-slate-700 text-white rounded-lg p-3 border border-slate-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">-- Selecciona un proyecto --</option>
+                {projects.map((p) => (
+                  <option key={p.id || p._id} value={p.folio || p.id || p._id}>
+                    {p.folio || p.id} - {p.name || p.titulo || p.provider || 'Sin nombre'}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+
+        {/* Agent Communications Viewer */}
+        {(projectId || selectedProject) ? (
+          <AgentCommsViewer
+            projectId={projectId || selectedProject}
+            autoRefresh={true}
+            refreshInterval={5000}
+          />
+        ) : (
+          <div className="bg-slate-800/30 rounded-xl p-12 text-center">
+            <span className="text-6xl block mb-4">📭</span>
+            <p className="text-gray-400 text-lg">Selecciona un proyecto para ver las comunicaciones entre agentes</p>
+          </div>
+        )}
+
+        {/* Legend */}
+        <div className="mt-8 bg-slate-800/30 rounded-xl p-6">
+          <h3 className="text-white font-semibold mb-4">¿Cómo funciona?</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">📋</span>
+              <div>
+                <p className="text-white font-medium">PMO (Orquestador)</p>
+                <p className="text-gray-400">Coordina el flujo y solicita revisiones</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">⚖️</span>
+              <div>
+                <p className="text-white font-medium">Legal</p>
+                <p className="text-gray-400">Revisa cumplimiento y emite dictámenes</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">🏢</span>
+              <div>
+                <p className="text-white font-medium">Proveedor</p>
+                <p className="text-gray-400">Recibe y aplica los cambios solicitados</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function AppContent() {
   return (
     <div className="App min-h-screen flex flex-col">
@@ -1920,6 +2036,16 @@ function AppContent() {
         <Route path="/agentes" element={
           <ProtectedRoute>
             <AgentsDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/agent-comms" element={
+          <ProtectedRoute>
+            <AgentCommsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/agent-comms/:projectId" element={
+          <ProtectedRoute>
+            <AgentCommsPage />
           </ProtectedRoute>
         } />
       </Routes>
