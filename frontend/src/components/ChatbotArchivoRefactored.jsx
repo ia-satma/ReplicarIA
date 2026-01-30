@@ -221,7 +221,27 @@ He analizado ${results.length} documento(s) y extraído la siguiente informació
       }
       
       if (successCount > 0) {
-        chat.addBotMessage(`✅ ${successCount} archivo(s) analizados correctamente. Ahora puedo extraer la información relevante.`, { agent: 'ARCHIVO' });
+        // Mostrar detalles de lo que se analizó para dar confianza al usuario
+        const successResults = results.filter(r => r.success);
+        let detallesAnalisis = successResults.map(r => {
+          const nombre = r.fileName || r.file_name || 'Documento';
+          const clasificacion = r.classification || 'documento';
+          const tipoDoc = clasificacion === 'csf' ? 'Constancia de Situación Fiscal' :
+                         clasificacion === 'contrato' ? 'Contrato' :
+                         clasificacion === 'factura' ? 'Factura' :
+                         clasificacion === 'identificacion' ? 'Identificación' :
+                         clasificacion === 'acta_constitutiva' ? 'Acta Constitutiva' :
+                         clasificacion === 'poder_notarial' ? 'Poder Notarial' :
+                         'Documento General';
+          const palabras = r.word_count || (r.extracted_text ? r.extracted_text.split(' ').length : 0);
+          return `• **${nombre}** → ${tipoDoc} (${palabras} palabras extraídas)`;
+        }).join('\n');
+
+        chat.addBotMessage(`✅ **${successCount} archivo(s) analizados correctamente:**
+
+${detallesAnalisis}
+
+Ahora puedo extraer la información relevante de estos documentos.`, { agent: 'ARCHIVO' });
       } else if (errorCount > 0 && successCount === 0) {
         chat.addBotMessage(`❌ No se pudo analizar ningún archivo. Intenta con otro formato (PDF, DOCX) o ingresa los datos manualmente.`, { agent: 'ARCHIVO' });
       }
