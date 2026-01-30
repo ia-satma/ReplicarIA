@@ -237,11 +237,11 @@ He analizado ${results.length} documento(s) y extraído la siguiente informació
           return `• **${nombre}** → ${tipoDoc} (${palabras} palabras extraídas)`;
         }).join('\n');
 
-        chat.addBotMessage(`✅ **${successCount} archivo(s) analizados correctamente:**
+        chat.addBotMessage(`✅ **Análisis completado - ${successCount} archivo(s):**
 
 ${detallesAnalisis}
 
-Ahora puedo extraer la información relevante de estos documentos.`, { agent: 'ARCHIVO' });
+📋 Listo para extraer la información de tus documentos.`, { agent: 'ARCHIVO' });
       } else if (errorCount > 0 && successCount === 0) {
         chat.addBotMessage(`❌ No se pudo analizar ningún archivo. Intenta con otro formato (PDF, DOCX) o ingresa los datos manualmente.`, { agent: 'ARCHIVO' });
       }
