@@ -34,37 +34,33 @@ async def get_usage_dashboard(empresa_id: Optional[str] = None):
     Obtiene estadísticas de uso para el dashboard.
     Muestra requests/tokens usados hoy y límites del plan.
     """
+    default_response = {
+        "plan": "free",
+        "requests_hoy": 0,
+        "tokens_hoy": 0,
+        "limite_requests": 50,
+        "limite_tokens": 100000,
+        "pct_requests": 0,
+        "pct_tokens": 0
+    }
+
     if not empresa_id:
         empresa_id = await get_current_empresa_id()
-    
+
     pool = await get_db_pool()
     if not pool:
-        return {
-            "plan": "free",
-            "requests_hoy": 0,
-            "tokens_hoy": 0,
-            "limite_requests": 50,
-            "limite_tokens": 100000,
-            "pct_requests": 0,
-            "pct_tokens": 0,
-            "message": "Database not available"
-        }
-    
+        return {**default_response, "message": "Database not available"}
+
     try:
         from services.rate_limiter_service import RateLimiterService
         service = RateLimiterService(pool)
         stats = await service.get_usage_stats(empresa_id)
+        if "error" in stats:
+            return {**default_response, "message": stats.get("error", "Error fetching stats")}
         return stats
     except Exception as e:
         logger.error(f"Error getting usage stats: {e}")
-        return {
-            "plan": "free",
-            "requests_hoy": 0,
-            "tokens_hoy": 0,
-            "limite_requests": 50,
-            "limite_tokens": 100000,
-            "error": str(e)
-        }
+        return {**default_response, "message": f"Error: {str(e)}"}
 
 
 @router.get("/monthly")

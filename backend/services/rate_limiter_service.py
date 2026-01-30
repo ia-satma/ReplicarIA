@@ -214,26 +214,44 @@ class RateLimiterService:
     
     async def get_usage_stats(self, empresa_id: str) -> Dict[str, Any]:
         """Obtiene estadísticas de uso para el dashboard."""
+        default_stats = {
+            "plan": "free",
+            "requests_hoy": 0,
+            "tokens_hoy": 0,
+            "limite_requests": 50,
+            "limite_tokens": 100000,
+            "pct_requests": 0,
+            "pct_tokens": 0
+        }
+
         try:
+            # First try the view (if it exists)
             row = await self.db.fetchrow("""
                 SELECT * FROM v_usage_dashboard WHERE empresa_id = $1::uuid
             """, empresa_id)
-            
-            if not row:
-                return {
-                    "plan": "free",
-                    "requests_hoy": 0,
-                    "tokens_hoy": 0,
-                    "limite_requests": 50,
-                    "limite_tokens": 100000,
-                    "pct_requests": 0,
-                    "pct_tokens": 0
-                }
-            
-            return dict(row)
+
+            if row:
+                return dict(row)
+
+            # Fallback: query directly from usage_tracking table
+            row = await self.db.fetchrow("""
+                SELECT
+                    COALESCE(u.requests_count, 0) as requests_hoy,
+                    COALESCE(u.tokens_input + u.tokens_output, 0) as tokens_hoy
+                FROM usage_tracking u
+                WHERE u.empresa_id = $1::uuid AND u.fecha = CURRENT_DATE
+            """, empresa_id)
+
+            if row:
+                default_stats["requests_hoy"] = row["requests_hoy"]
+                default_stats["tokens_hoy"] = row["tokens_hoy"]
+                default_stats["pct_requests"] = min(100, int((row["requests_hoy"] / 50) * 100))
+                default_stats["pct_tokens"] = min(100, int((row["tokens_hoy"] / 100000) * 100))
+
+            return default_stats
         except Exception as e:
-            logger.error(f"Failed to get usage stats: {e}")
-            return {"error": str(e)}
+            logger.warning(f"Failed to get usage stats (returning defaults): {e}")
+            return default_stats
     
     async def get_monthly_usage(self, empresa_id: str) -> list:
         """Obtiene uso mensual para reportes."""

@@ -177,6 +177,9 @@ SKIP_TENANT_CHECK_PREFIXES = (
     "/api/loops",
     "/api/validacion",
     "/api/documentos",
+    "/api/projects",
+    "/api/usage",
+    "/api/stats",
     "/templates",
 )
 
