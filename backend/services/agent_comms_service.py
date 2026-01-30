@@ -9,11 +9,15 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 from enum import Enum
 from collections import defaultdict
-import asyncio
-
-from services.email_service import email_service
 
 logger = logging.getLogger(__name__)
+
+# Import email_service with fallback
+try:
+    from services.email_service import email_service
+except ImportError as e:
+    logger.warning(f"Email service not available: {e}")
+    email_service = None
 
 # In-memory storage for communication history (per project)
 # In production, this would be in MongoDB
@@ -87,7 +91,10 @@ class AgentCommsService:
         self.email_service = email_service
         self.history = _communication_history
         self.workflows = _active_workflows
-        logger.info("Agent Communications Service initialized")
+        if email_service:
+            logger.info("Agent Communications Service initialized with email support")
+        else:
+            logger.warning("Agent Communications Service initialized WITHOUT email support (demo mode)")
 
     def _store_communication(
         self,
@@ -211,18 +218,23 @@ class AgentCommsService:
             metadata={"previous_feedback": previous_feedback} if previous_feedback else None
         )
 
-        # Send email
-        result = await self.email_service.send_email(
-            to=to_email,
-            subject=subject,
-            body_html=body_html,
-            body_text=request_content
-        )
+        # Send email (if email service is available)
+        if self.email_service:
+            result = await self.email_service.send_email(
+                to=to_email,
+                subject=subject,
+                body_html=body_html,
+                body_text=request_content
+            )
 
-        if result.get("success"):
-            logger.info(f"Request sent: {from_agent.value} -> {to_agent.value} for project {project_id}")
+            if result.get("success"):
+                logger.info(f"Request sent: {from_agent.value} -> {to_agent.value} for project {project_id}")
+            else:
+                logger.error(f"Failed to send request: {result.get('error')}")
         else:
-            logger.error(f"Failed to send request: {result.get('error')}")
+            # Demo mode - no email sent
+            result = {"success": True, "demo_mode": True, "message": "Email not sent (demo mode)"}
+            logger.info(f"Request stored (demo mode): {from_agent.value} -> {to_agent.value} for project {project_id}")
 
         return {
             **result,
