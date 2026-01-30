@@ -360,6 +360,13 @@ except ImportError as e:
     logging.warning(f"Articulos legales routes not available: {e}")
     articulos_legales_routes = None
 
+try:
+    from routes import agent_comms
+    logging.info("✅ Agent Communications routes loaded successfully")
+except ImportError as e:
+    logging.warning(f"Agent Communications routes not available: {e}")
+    agent_comms = None
+
 # Import middleware exception handlers
 try:
     from middleware.candados_middleware import CandadoBlockedException
@@ -698,6 +705,9 @@ if knowledge_routes:
     app.include_router(knowledge_routes.router, prefix="/api", tags=["Knowledge Repository"])
 if usage_routes:
     app.include_router(usage_routes.router, tags=["Usage & Rate Limiting"])
+if agent_comms:
+    api_router.include_router(agent_comms.router)
+    logging.info("✅ Agent Communications routes registered at /api/agent-comms")
 
 # Include the router in the main app - api_router MUST be included first
 # to ensure /api/projects/folios is matched before dashboard's /projects/{project_id}
