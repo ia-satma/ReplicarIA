@@ -28,6 +28,14 @@
       "dest": "/logo$1"
     },
     {
+      "src": "/mascot.webp",
+      "dest": "/mascot.webp"
+    },
+    {
+      "src": "/(.*\\.(png|jpg|jpeg|gif|webp|svg|ico|css|js|json|woff|woff2|ttf|eot))",
+      "dest": "/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }

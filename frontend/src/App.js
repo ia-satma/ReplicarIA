@@ -747,7 +747,7 @@ const Dashboard = () => {
                     const daysElapsed = calculateDaysElapsed(project);
                     const semaforoInfo = getSemaforoInfo(project);
                     return (
-                      <tr key={project.project_id} className="hover:bg-gray-50">
+                      <tr key={project.project_id || project._id || index} className="hover:bg-gray-50">
                         <td className="px-4 py-4">
                           <div className="relative group">
                             <div className="flex items-center gap-2 cursor-help">
@@ -764,8 +764,14 @@ const Dashboard = () => {
                         </td>
                         <td className="px-4 py-4">
                           <div>
-                            <p className="font-medium text-gray-900 max-w-[200px] truncate">{project.project_name}</p>
-                            <p className="text-xs text-gray-500 font-mono">{project.project_id?.substring(0, 12)}...</p>
+                            <p className="font-medium text-gray-900 max-w-[200px] truncate">
+                              {project.project_name || project.name || 'Sin nombre'}
+                            </p>
+                            <p className="text-xs text-gray-500 font-mono">
+                              {project.project_id || project._id
+                                ? `${(project.project_id || project._id).substring(0, 12)}...`
+                                : 'ID pendiente'}
+                            </p>
                           </div>
                         </td>
                         <td className="px-4 py-4">
@@ -791,10 +797,10 @@ const Dashboard = () => {
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-2">
-                            {project.project_id ? (
+                            {(project.project_id || project._id) ? (
                               <>
                                 <Link
-                                  to={`/project/${project.project_id}`}
+                                  to={`/project/${project.project_id || project._id}`}
                                   className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium text-sm"
                                 >
                                   Ver
@@ -803,7 +809,7 @@ const Dashboard = () => {
                                   </svg>
                                 </Link>
                                 <a
-                                  href={`/api/defense/download/${project.project_id}`}
+                                  href={`/api/defense/download/${project.project_id || project._id}`}
                                   className="inline-flex items-center gap-1 text-green-600 hover:text-green-800 font-medium text-sm"
                                   title="Descargar Defense File"
                                 >
@@ -814,7 +820,7 @@ const Dashboard = () => {
                                 </a>
                               </>
                             ) : (
-                              <span className="text-gray-400 text-sm">ID no disponible</span>
+                              <span className="text-gray-400 text-sm">Procesando...</span>
                             )}
                           </div>
                         </td>
@@ -1889,6 +1895,7 @@ function AppContent() {
             <BibliotecaChat />
           </ProtectedRoute>
         } />
+        <Route path="/bibliotecaria" element={<Navigate to="/biblioteca" replace />} />
         <Route path="/estado-acervo" element={
           <ProtectedRoute>
             <EstadoAcervo />
