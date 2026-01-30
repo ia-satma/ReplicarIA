@@ -144,7 +144,8 @@ async def chat_archivo(
     )
 
 
-MAX_FILE_SIZE = 10 * 1024 * 1024
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB limit
+
 ALLOWED_MIME_TYPES = {
     'application/pdf': 'pdf',
     'image/png': 'image',
@@ -152,6 +153,22 @@ ALLOWED_MIME_TYPES = {
     'image/jpg': 'image',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
     'application/msword': 'doc',
+    'application/octet-stream': 'auto',  # Will detect by extension
+    'application/x-zip-compressed': 'docx',  # Some browsers send this for DOCX
+    'application/zip': 'docx',  # DOCX is a ZIP file
+}
+
+# Extension to file type mapping (fallback when MIME is generic)
+EXTENSION_TO_TYPE = {
+    '.pdf': 'pdf',
+    '.png': 'image',
+    '.jpg': 'image',
+    '.jpeg': 'image',
+    '.docx': 'docx',
+    '.doc': 'doc',
+    '.xlsx': 'excel',
+    '.xls': 'excel',
+    '.txt': 'text',
 }
 
 try:
@@ -312,28 +329,42 @@ async def analyze_document(
     4. Retorna texto extraído, clasificación y resumen
     """
     try:
-        if file.content_type not in ALLOWED_MIME_TYPES:
+        filename = file.filename or "unknown"
+        file_ext = '.' + filename.split('.')[-1].lower() if '.' in filename else ''
+
+        # Determine file type from MIME or extension
+        file_type = ALLOWED_MIME_TYPES.get(file.content_type)
+
+        # If MIME is generic (octet-stream) or unknown, detect by extension
+        if file_type == 'auto' or file_type is None:
+            file_type = EXTENSION_TO_TYPE.get(file_ext)
+            if file_type:
+                logger.info(f"Detected file type '{file_type}' from extension '{file_ext}' (MIME was {file.content_type})")
+
+        if not file_type:
             raise HTTPException(
                 status_code=400,
-                detail=f"Tipo de archivo no permitido: {file.content_type}. Solo se aceptan PDF, DOCX, DOC, PNG, JPG, JPEG."
+                detail=f"Tipo de archivo no permitido: {file.content_type} / {file_ext}. Solo se aceptan PDF, DOCX, DOC, PNG, JPG, JPEG, TXT."
             )
-        
+
         file_bytes = await file.read()
-        
+
         if len(file_bytes) > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=400,
-                detail=f"El archivo excede el límite de 10MB. Tamaño: {len(file_bytes) / (1024*1024):.2f}MB"
+                detail=f"El archivo excede el límite de 50MB. Tamaño: {len(file_bytes) / (1024*1024):.2f}MB"
             )
-        
-        file_type = ALLOWED_MIME_TYPES[file.content_type]
+
         extracted_text = ""
         extraction_method = "none"
-        
+
         if file_type == 'pdf':
             extracted_text, extraction_method = extract_text_from_pdf(file_bytes)
         elif file_type == 'image':
             extracted_text, extraction_method = extract_text_from_image(file_bytes)
+        elif file_type == 'text':
+            extracted_text = file_bytes.decode('utf-8', errors='ignore')[:30000]
+            extraction_method = "plain-text"
         elif file_type in ['docx', 'doc']:
             extracted_text, extraction_method = extract_text_from_docx(file_bytes)
         
