@@ -288,29 +288,47 @@ Este email se usará para:
     chat.addBotMessage('✅ **¡Listo! He recopilado la siguiente información.** Revisa los datos y confirma para crear el registro.', { agent: 'ARCHIVO' });
   }, [steps, chat]);
 
-  const handleConfirmData = useCallback(async () => {
+  const handleConfirmData = useCallback(async (editedData) => {
+    // Use edited data if provided, otherwise use original extracted data
+    const finalData = editedData || steps.extractedData;
+
+    // Validate minimum required data
+    const hasRFC = finalData?.rfc && finalData.rfc.trim();
+    const hasName = (finalData?.razon_social && finalData.razon_social.trim()) ||
+                    (finalData?.nombre && finalData.nombre.trim());
+
+    if (!hasRFC && !hasName) {
+      chat.addBotMessage('⚠️ Se requiere al menos el RFC o el nombre de la empresa. Por favor, completa los datos.', { agent: 'ARCHIVO' });
+      return;
+    }
+
+    // Update extracted data with edited values
+    if (editedData) {
+      steps.mergeExtractedData(editedData);
+    }
+
     steps.confirmExtractedData();
     steps.setOnboardingStatus('loading');
-    
+
     chat.addBotMessage(`📋 Creando ${steps.entityType || 'cliente'}...`, { agent: 'ARCHIVO' });
 
     try {
       const token = localStorage.getItem('auth_token');
-      
+
       if (!token) {
         throw new Error('No estás autenticado. Por favor, inicia sesión primero.');
       }
 
       const response = await fetch('/api/archivo/crear-entidad', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           tipo: steps.entityType || 'cliente',
-          datos: steps.extractedData,
-          email_contacto: steps.emailContacto || steps.extractedData?.email || '',
+          datos: finalData,
+          email_contacto: steps.emailContacto || finalData?.email || '',
           archivos_ids: []
         })
       });
@@ -334,12 +352,12 @@ Este email se usará para:
 
       chat.addBotMessage(`🎉 **¡${steps.entityType === 'proveedor' ? 'Proveedor' : 'Cliente'} creado exitosamente!**
 
-**${steps.extractedData?.nombre || steps.extractedData?.razon_social}**
-RFC: ${steps.extractedData?.rfc || 'N/A'}
+**${finalData?.nombre || finalData?.razon_social || 'Sin nombre'}**
+RFC: ${finalData?.rfc || 'N/A'}
 
 ✅ Registro creado en el sistema
 ✅ Documentos guardados en su expediente
-${steps.emailContacto ? `✅ Se enviará email de bienvenida a ${steps.emailContacto}` : ''}
+${finalData?.email ? `✅ Se enviará email de bienvenida a ${finalData.email}` : ''}
 
 Puedes editar este ${steps.entityType || 'cliente'} desde el **Panel de Administración**.`, {
         agent: 'ARCHIVO',
@@ -500,23 +518,21 @@ Puedes editar este ${steps.entityType || 'cliente'} desde el **Panel de Administ
         <ConfirmationCard
           data={{ ...steps.collectedData, ...steps.extractedData, email: steps.emailContacto || steps.extractedData?.email }}
           onConfirm={handleConfirmData}
-          onEdit={() => {
-            steps.setShowConfirmation(false);
-            chat.addBotMessage('¿Qué datos necesitas corregir?', { agent: 'ARCHIVO' });
-          }}
           onCancel={() => steps.setShowConfirmation(false)}
           isLoading={steps.onboardingStatus === 'loading'}
+          missingFields={steps.extractedData?.missing_critical_fields || []}
+          onDataChange={(newData) => steps.mergeExtractedData(newData)}
           fieldLabels={{
             rfc: 'RFC',
             razon_social: 'Razón Social',
-            nombre: 'Nombre',
-            nombreComercial: 'Nombre Comercial',
-            regimenFiscal: 'Régimen Fiscal',
-            domicilioFiscal: 'Domicilio Fiscal',
+            nombre: 'Nombre Comercial',
+            regimen_fiscal: 'Régimen Fiscal',
             direccion: 'Dirección',
+            codigo_postal: 'Código Postal',
+            ciudad: 'Ciudad',
+            estado: 'Estado',
             email: 'Email',
             telefono: 'Teléfono',
-            giro: 'Giro',
           }}
         />
       </Modal>

@@ -399,6 +399,9 @@ async def analyze_document(
         # Extract structured data using deep_research_service
         extracted_data = {}
         field_confidence = {}
+        investigation_performed = False
+        investigation_fields = []
+
         if extracted_text and len(extracted_text) > 50:
             try:
                 from services.deep_research_service import deep_research_service
@@ -413,6 +416,45 @@ async def analyze_document(
                     logger.info(f"Extracted structured data: {list(extracted_data.keys())}")
             except Exception as e:
                 logger.warning(f"Could not extract structured data: {e}")
+
+        # Auto-trigger Deep Research if critical fields are missing
+        campos_criticos_faltantes = []
+        if not extracted_data.get("rfc"):
+            campos_criticos_faltantes.append("rfc")
+        if not extracted_data.get("nombre") and not extracted_data.get("razon_social"):
+            campos_criticos_faltantes.append("nombre")
+
+        # Only do deep research if we have some starting data to work with
+        tiene_datos_base = extracted_data.get("nombre") or extracted_data.get("razon_social") or extracted_data.get("rfc") or extracted_data.get("email")
+
+        if campos_criticos_faltantes and tiene_datos_base:
+            try:
+                from services.deep_research_service import deep_research_service
+                logger.info(f"Auto-triggering Deep Research for missing fields: {campos_criticos_faltantes}")
+
+                investigacion = await deep_research_service.investigar_empresa(
+                    nombre=extracted_data.get("nombre") or extracted_data.get("razon_social"),
+                    rfc=extracted_data.get("rfc"),
+                    documento=extracted_text[:5000]  # First 5000 chars for context
+                )
+
+                if investigacion.get("data"):
+                    datos_investigacion = investigacion["data"]
+                    investigation_performed = True
+
+                    # Merge found data into extracted_data
+                    for campo, valor in datos_investigacion.items():
+                        if valor and not extracted_data.get(campo):
+                            extracted_data[campo] = valor
+                            investigation_fields.append(campo)
+                            # Add confidence from investigation
+                            conf = investigacion.get("field_confidence", {}).get(campo, {})
+                            if conf:
+                                field_confidence[campo] = conf.get("confidence", 70)
+                            logger.info(f"Deep Research found: {campo} = {valor}")
+
+            except Exception as e:
+                logger.warning(f"Deep Research failed (non-critical): {e}")
 
         return {
             "success": True,
@@ -429,7 +471,10 @@ async def analyze_document(
             "pymupdf_available": PYMUPDF_AVAILABLE,
             "docx_available": DOCX_AVAILABLE,
             "extracted_data": extracted_data,
-            "field_confidence": field_confidence
+            "field_confidence": field_confidence,
+            "deep_research_performed": investigation_performed,
+            "deep_research_fields": investigation_fields,
+            "missing_critical_fields": [f for f in campos_criticos_faltantes if f not in extracted_data]
         }
         
     except HTTPException:
