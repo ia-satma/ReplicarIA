@@ -76,8 +76,13 @@ export function useFileUpload(onAnalysisComplete) {
     try {
       setIsProcessingFile(true);
       console.log(`[useFileUpload] Analizando: ${file.name}`);
-      
-      const response = await fetch('/api/chat/archivo/analyze-document', {
+
+      // Use backend URL from env or fallback to relative path (for Vercel rewrites)
+      const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
+      const apiUrl = `${backendUrl}/api/chat/archivo/analyze-document`;
+      console.log(`[useFileUpload] API URL: ${apiUrl}`);
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         body: formData,
         signal: controller.signal
@@ -192,7 +197,11 @@ export function useFileUpload(onAnalysisComplete) {
 
     try {
       setIsUploadingDocuments(true);
-      const response = await fetch('/api/upload', {
+      // Use backend URL from env or fallback to relative path (for Vercel rewrites)
+      const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
+      const apiUrl = `${backendUrl}/api/upload`;
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         body: formData
       });
