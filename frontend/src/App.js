@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from "react";
-import { BrowserRouter, Routes, Route, Link, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, Navigate, useParams } from "react-router-dom";
 import api from "./services/api";
 import "@/App.css";
 import ProjectForm from "./ProjectForm";
@@ -1820,7 +1820,7 @@ const ProjectDetails = () => {
 
 // Agent Communications Page - Shows inter-agent email conversations
 const AgentCommsPage = () => {
-  const { projectId } = require('react-router-dom').useParams();
+  const { projectId } = useParams();
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(projectId || '');
   const [loading, setLoading] = useState(!projectId);
