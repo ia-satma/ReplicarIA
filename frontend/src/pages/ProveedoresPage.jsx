@@ -69,6 +69,14 @@ const ProveedoresPage = () => {
     if (token && empresaId) {
       fetchProveedores();
       fetchEstadisticas();
+    } else {
+      // Si no hay autenticación, no quedarse en loading infinito
+      setLoading(false);
+      if (!token) {
+        setError('Debes iniciar sesión para ver los proveedores');
+      } else if (!empresaId) {
+        setError('Debes seleccionar una empresa');
+      }
     }
   }, [token, empresaId, filtros]);
 

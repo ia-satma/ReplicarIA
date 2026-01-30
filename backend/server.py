@@ -215,8 +215,11 @@ except ImportError as e:
 
 try:
     from routes import templates
+    logging.info("✅ Templates routes loaded successfully")
 except ImportError as e:
-    logging.warning(f"Templates routes not available: {e}")
+    logging.error(f"❌ Templates routes FAILED to load: {e}")
+    import traceback
+    traceback.print_exc()
     templates = None
 
 try:

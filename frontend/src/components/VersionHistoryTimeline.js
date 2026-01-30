@@ -261,8 +261,8 @@ const VersionHistoryTimeline = ({ projectId, currentProjectId }) => {
                         </div>
                       )}
                       
-                      {!isCurrentVersion && (
-                        <Link 
+                      {!isCurrentVersion && version.project_id && (
+                        <Link
                           to={`/project/${version.project_id}`}
                           className="mt-3 inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
                         >

@@ -791,25 +791,31 @@ const Dashboard = () => {
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-2">
-                            <Link 
-                              to={`/project/${project.project_id}`}
-                              className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium text-sm"
-                            >
-                              Ver
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                              </svg>
-                            </Link>
-                            <a
-                              href={`/api/defense/download/${project.project_id}`}
-                              className="inline-flex items-center gap-1 text-green-600 hover:text-green-800 font-medium text-sm"
-                              title="Descargar Defense File"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                              ZIP
-                            </a>
+                            {project.project_id ? (
+                              <>
+                                <Link
+                                  to={`/project/${project.project_id}`}
+                                  className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium text-sm"
+                                >
+                                  Ver
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </Link>
+                                <a
+                                  href={`/api/defense/download/${project.project_id}`}
+                                  className="inline-flex items-center gap-1 text-green-600 hover:text-green-800 font-medium text-sm"
+                                  title="Descargar Defense File"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  ZIP
+                                </a>
+                              </>
+                            ) : (
+                              <span className="text-gray-400 text-sm">ID no disponible</span>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -863,9 +869,13 @@ const Dashboard = () => {
                         </div>
                       </div>
                       <div className="mb-2">
-                        <Link to={`/project/${inc.projectId}`} className="text-sm font-medium text-blue-600 hover:text-blue-800">
-                          {inc.projectName}
-                        </Link>
+                        {inc.projectId ? (
+                          <Link to={`/project/${inc.projectId}`} className="text-sm font-medium text-blue-600 hover:text-blue-800">
+                            {inc.projectName}
+                          </Link>
+                        ) : (
+                          <span className="text-sm font-medium text-gray-700">{inc.projectName}</span>
+                        )}
                         <span className="text-xs text-gray-500 ml-2">({getStageLabel(inc.stage)})</span>
                       </div>
                       <p className="text-sm text-gray-700 line-clamp-2">
@@ -1047,16 +1057,18 @@ const Dashboard = () => {
                                                 
                                                 <div className="mt-4 pt-4 border-t border-gray-200">
                                                   <div className="flex flex-wrap items-center gap-2">
-                                                    <Link
-                                                      to={`/project/${project.project_id}`}
-                                                      className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#54ddaf] text-[#021423] rounded-lg text-sm font-medium hover:bg-[#45c99f] transition-colors min-h-[44px]"
-                                                    >
-                                                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                      </svg>
-                                                      Ver Detalles
-                                                    </Link>
+                                                    {project.project_id && (
+                                                      <Link
+                                                        to={`/project/${project.project_id}`}
+                                                        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#54ddaf] text-[#021423] rounded-lg text-sm font-medium hover:bg-[#45c99f] transition-colors min-h-[44px]"
+                                                      >
+                                                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                        Ver Detalles
+                                                      </Link>
+                                                    )}
                                                     {project.project_folder_link && (
                                                       <a
                                                         href={project.project_folder_link}
