@@ -204,11 +204,12 @@ export default function KnowledgeRepository() {
       });
       
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
         setSearchResults(data.documents || []);
       }
     } catch (err) {
       console.error('Error searching:', err);
+      setSearchResults([]);
     } finally {
       setSearching(false);
     }
@@ -216,27 +217,28 @@ export default function KnowledgeRepository() {
 
   const handleSemanticSearch = useCallback(async () => {
     if (!searchQuery || searchQuery.length < 3) return;
-    
+
     setSearching(true);
     setSemanticResults(null);
     try {
       const token = localStorage.getItem('auth_token');
       const response = await fetch(`${API_BASE}/knowledge/hybrid_search`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ query: searchQuery, limit: 20 })
       });
-      
+
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
         setSemanticResults(data.results || []);
         setSearchResults(null);
       }
     } catch (err) {
       console.error('Error en búsqueda semántica:', err);
+      setSemanticResults([]);
     } finally {
       setSearching(false);
     }

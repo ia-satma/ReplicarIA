@@ -144,14 +144,16 @@ Puedo ayudarte a:
         session_id: sessionId
       });
 
-      if (response.data.session_id) {
-        setSessionId(response.data.session_id);
+      const data = response?.data || {};
+
+      if (data.session_id) {
+        setSessionId(data.session_id);
       }
 
       const assistantMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: response.data.response,
+        content: data.response || data.message || 'Sin respuesta del servidor',
         timestamp: new Date()
       };
 
