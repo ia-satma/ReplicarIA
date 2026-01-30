@@ -179,11 +179,30 @@ Sube los documentos y analizaré que todo sea congruente.`, { agent: 'ARCHIVO' }
 
     if (Object.keys(allExtractedData).length > 0) {
       steps.mergeExtractedData(allExtractedData);
+
+      // Show user what data was extracted
+      const datosExtraidos = [];
+      if (allExtractedData.rfc) datosExtraidos.push(`• **RFC:** ${allExtractedData.rfc}`);
+      if (allExtractedData.razon_social) datosExtraidos.push(`• **Razón Social:** ${allExtractedData.razon_social}`);
+      if (allExtractedData.nombre) datosExtraidos.push(`• **Nombre:** ${allExtractedData.nombre}`);
+      if (allExtractedData.regimen_fiscal) datosExtraidos.push(`• **Régimen Fiscal:** ${allExtractedData.regimen_fiscal}`);
+      if (allExtractedData.direccion) datosExtraidos.push(`• **Dirección:** ${allExtractedData.direccion}`);
+      if (allExtractedData.codigo_postal) datosExtraidos.push(`• **C.P.:** ${allExtractedData.codigo_postal}`);
+      if (allExtractedData.email) datosExtraidos.push(`• **Email:** ${allExtractedData.email}`);
+      if (allExtractedData.telefono) datosExtraidos.push(`• **Teléfono:** ${allExtractedData.telefono}`);
+
+      if (datosExtraidos.length > 0) {
+        chat.addBotMessage(`📊 **Datos extraídos automáticamente:**
+
+${datosExtraidos.join('\n')}
+
+🔍 *Revisa que la información sea correcta.*`, { agent: 'ARCHIVO' });
+      }
+    } else {
+      chat.addBotMessage(`📊 **Análisis completado**
+
+He analizado ${results.length} documento(s). No se detectaron datos estructurados automáticamente, pero puedes ingresarlos manualmente.`, { agent: 'ARCHIVO' });
     }
-
-    chat.addBotMessage(`📊 **Análisis completado**
-
-He analizado ${results.length} documento(s) y extraído la siguiente información.`, { agent: 'ARCHIVO' });
 
     if (!allExtractedData.email && !steps.emailContacto) {
       requestEmail();

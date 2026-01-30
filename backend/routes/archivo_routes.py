@@ -393,9 +393,27 @@ async def analyze_document(
         )
         
         text_preview = extracted_text[:500] + "..." if len(extracted_text) > 500 else extracted_text
-        
+
         word_count = len(extracted_text.split()) if extracted_text else 0
-        
+
+        # Extract structured data using deep_research_service
+        extracted_data = {}
+        field_confidence = {}
+        if extracted_text and len(extracted_text) > 50:
+            try:
+                from services.deep_research_service import deep_research_service
+                classification_type = classification_result.get("classification", "otro")
+                doc_analysis = await deep_research_service.analizar_documento(
+                    contenido=extracted_text,
+                    tipo=classification_type
+                )
+                if doc_analysis.get("success"):
+                    extracted_data = doc_analysis.get("datos", {})
+                    field_confidence = doc_analysis.get("confianza_campos", {})
+                    logger.info(f"Extracted structured data: {list(extracted_data.keys())}")
+            except Exception as e:
+                logger.warning(f"Could not extract structured data: {e}")
+
         return {
             "success": True,
             "classification": classification_result.get("classification", "otro"),
@@ -409,7 +427,9 @@ async def analyze_document(
             "word_count": word_count,
             "ocr_available": OCR_AVAILABLE,
             "pymupdf_available": PYMUPDF_AVAILABLE,
-            "docx_available": DOCX_AVAILABLE
+            "docx_available": DOCX_AVAILABLE,
+            "extracted_data": extracted_data,
+            "field_confidence": field_confidence
         }
         
     except HTTPException:
