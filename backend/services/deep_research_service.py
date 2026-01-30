@@ -619,19 +619,29 @@ REGLAS:
 
         try:
             if not self.chat_fn:
-                return {}
+                return await self._analizar_documento_regex(contenido)
             content = self.chat_fn(
                 messages=[{"role": "user", "content": prompt}],
                 model=self.model,
                 max_tokens=2500
             )
-            
+
+            # Check if API returned an error
+            if not content or content.startswith('{"error"'):
+                logger.warning(f"AI API returned error or empty response, using regex fallback")
+                return await self._analizar_documento_regex(contenido)
+
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0]
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0]
-            
+
             result = json.loads(content.strip())
+
+            # Check if parsed result contains an error field (API error wrapped in JSON)
+            if "error" in result and len(result) <= 2:
+                logger.warning(f"AI API error in response: {result.get('error', 'unknown')}")
+                return await self._analizar_documento_regex(contenido)
             
             confianza = result.pop("confianza_por_campo", {})
             
