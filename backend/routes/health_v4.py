@@ -1,9 +1,9 @@
+"""
+Health V4 Routes - Endpoints de salud y administración.
+Incluye migraciones de base de datos, reset de demo, y diagnósticos.
+"""
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from services.rag_repository import RagRepository
-from services.sql_engine_service import refresh_catalog, list_tables
-from services.knowledge_graph_service import get_stats as kg_stats
-from services.query_router import get_route_explanation
 import os
 import asyncpg
 import logging
@@ -18,6 +18,7 @@ RESET_SECRET = os.environ.get('RESET_SECRET_KEY', 'satma-reset-2024-confirmado')
 
 
 def get_clean_db_url() -> str:
+    """Limpia y normaliza la URL de PostgreSQL."""
     url = DATABASE_URL
     if not url:
         return ''
@@ -88,37 +89,57 @@ async def reset_demo_data(request: ResetRequest):
         logger.error(f"Reset error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get('/rag_count/{agent_id}')
 def rag_count(agent_id: str):
+    """Cuenta chunks RAG para un agente. Importación lazy de RagRepository."""
     try:
+        from services.rag_repository import RagRepository
         rag = RagRepository()
         count = rag.count(agent_id)
         return {"success": True, "agent": agent_id, "count": count}
+    except ImportError as e:
+        return {"success": False, "error": f"RagRepository not available: {e}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
 
 @router.get('/sql_refresh')
 def sql_refresh():
+    """Refresca catálogo SQL. Importación lazy de sql_engine_service."""
     try:
+        from services.sql_engine_service import refresh_catalog, list_tables
         result = refresh_catalog()
         tables = list_tables()
         return {"success": True, "refreshed": result, "tables": tables}
+    except ImportError as e:
+        return {"success": False, "error": f"SQL engine not available: {e}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
 
 @router.get('/kg_stats')
 def kg_statistics():
+    """Estadísticas de Knowledge Graph. Importación lazy."""
     try:
+        from services.knowledge_graph_service import get_stats as kg_stats
         stats = kg_stats()
         return {"success": True, "kg": stats}
+    except ImportError as e:
+        return {"success": False, "error": f"Knowledge Graph not available: {e}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
 @router.post('/router_test')
 def test_router(query: str):
+    """Test de router de queries. Importación lazy."""
     try:
+        from services.query_router import get_route_explanation
         explanation = get_route_explanation(query)
         return {"success": True, "routing": explanation}
+    except ImportError as e:
+        return {"success": False, "error": f"Query router not available: {e}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -142,7 +163,7 @@ async def run_migrations(request: ResetRequest):
         conn = await asyncpg.connect(db_url, ssl='require')
         logger.info("🔧 Running database migrations...")
 
-        # ===== Crear tabla clientes =====
+        # ===== 1. Crear tabla clientes =====
         try:
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS clientes (
@@ -174,7 +195,7 @@ async def run_migrations(request: ResetRequest):
         except Exception as e:
             results["errors"].append({"table": "clientes", "error": str(e)[:100]})
 
-        # ===== Crear índices para clientes =====
+        # ===== 2. Crear índices para clientes =====
         try:
             await conn.execute('CREATE INDEX IF NOT EXISTS idx_clientes_empresa_id ON clientes(empresa_id)')
             await conn.execute('CREATE INDEX IF NOT EXISTS idx_clientes_rfc ON clientes(rfc)')
@@ -183,7 +204,7 @@ async def run_migrations(request: ResetRequest):
         except Exception as e:
             results["errors"].append({"item": "clientes_indexes", "error": str(e)[:100]})
 
-        # ===== Crear tabla planes =====
+        # ===== 3. Crear tabla planes =====
         try:
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS planes (
@@ -205,11 +226,12 @@ async def run_migrations(request: ResetRequest):
         except Exception as e:
             results["errors"].append({"table": "planes", "error": str(e)[:100]})
 
-        # ===== Insertar planes por defecto =====
+        # ===== 4. Insertar planes por defecto =====
         try:
             await conn.execute('''
                 INSERT INTO planes (id, nombre, descripcion, precio_mensual_mxn, requests_per_day, tokens_per_day, documentos_max, usuarios_max, proyectos_max)
                 VALUES
+                    ('free', 'Plan Gratuito', 'Para pruebas y evaluación', 0, 20, 50000, 10, 1, 3),
                     ('basico', 'Plan Básico', 'Ideal para pequeñas empresas', 2990, 50, 100000, 50, 3, 10),
                     ('profesional', 'Plan Profesional', 'Para empresas medianas', 7990, 200, 500000, 500, 10, 50),
                     ('enterprise', 'Plan Enterprise', 'Solución completa', 19990, 1000, 2000000, 5000, 50, 500)
@@ -219,7 +241,25 @@ async def run_migrations(request: ResetRequest):
         except Exception as e:
             results["errors"].append({"item": "planes_data", "error": str(e)[:100]})
 
-        # ===== Crear tabla usage_tracking =====
+        # ===== 5. Agregar columna plan_id a empresas si no existe =====
+        try:
+            await conn.execute('''
+                ALTER TABLE empresas ADD COLUMN IF NOT EXISTS plan_id VARCHAR(50) DEFAULT 'basico'
+            ''')
+            results["created"].append("empresas_plan_id")
+        except Exception as e:
+            results["errors"].append({"item": "empresas_plan_id", "error": str(e)[:100]})
+
+        # ===== 6. Agregar columna uso_suspendido a empresas =====
+        try:
+            await conn.execute('''
+                ALTER TABLE empresas ADD COLUMN IF NOT EXISTS uso_suspendido BOOLEAN DEFAULT false
+            ''')
+            results["created"].append("empresas_uso_suspendido")
+        except Exception as e:
+            results["errors"].append({"item": "empresas_uso_suspendido", "error": str(e)[:100]})
+
+        # ===== 7. Crear tabla usage_tracking =====
         try:
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS usage_tracking (
@@ -241,13 +281,13 @@ async def run_migrations(request: ResetRequest):
         except Exception as e:
             results["errors"].append({"table": "usage_tracking", "error": str(e)[:100]})
 
-        # ===== Crear vista v_usage_dashboard =====
+        # ===== 8. Crear vista v_usage_dashboard =====
         try:
             await conn.execute('''
                 CREATE OR REPLACE VIEW v_usage_dashboard AS
                 SELECT
                     u.empresa_id,
-                    COALESCE(p.id, 'free') as plan,
+                    COALESCE(e.plan_id, 'free') as plan,
                     COALESCE(u.requests_count, 0) as requests_hoy,
                     COALESCE(u.tokens_input + u.tokens_output, 0) as tokens_hoy,
                     COALESCE(p.requests_per_day, 50) as limite_requests,
@@ -271,7 +311,7 @@ async def run_migrations(request: ResetRequest):
         except Exception as e:
             results["errors"].append({"view": "v_usage_dashboard", "error": str(e)[:100]})
 
-        # ===== Crear función increment_usage =====
+        # ===== 9. Crear función increment_usage =====
         try:
             await conn.execute('''
                 CREATE OR REPLACE FUNCTION increment_usage(
@@ -291,7 +331,18 @@ async def run_migrations(request: ResetRequest):
                     v_tokens_per_day INTEGER := 100000;
                     v_current_requests INTEGER;
                     v_current_tokens INTEGER;
+                    v_plan_id VARCHAR;
                 BEGIN
+                    -- Get plan limits
+                    SELECT e.plan_id INTO v_plan_id FROM empresas e WHERE e.id = p_empresa_id;
+
+                    IF v_plan_id IS NOT NULL THEN
+                        SELECT p.requests_per_day, p.tokens_per_day
+                        INTO v_requests_per_day, v_tokens_per_day
+                        FROM planes p WHERE p.id = v_plan_id;
+                    END IF;
+
+                    -- Upsert usage tracking
                     INSERT INTO usage_tracking (empresa_id, fecha, requests_count, tokens_input, tokens_output)
                     VALUES (p_empresa_id, CURRENT_DATE, p_requests, p_tokens_in, p_tokens_out)
                     ON CONFLICT (empresa_id, fecha) DO UPDATE SET
@@ -315,6 +366,49 @@ async def run_migrations(request: ResetRequest):
         except Exception as e:
             results["errors"].append({"function": "increment_usage", "error": str(e)[:100]})
 
+        # ===== 10. Crear tabla request_logs =====
+        try:
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS request_logs (
+                    id SERIAL PRIMARY KEY,
+                    empresa_id UUID,
+                    user_id UUID,
+                    endpoint VARCHAR(255),
+                    method VARCHAR(10),
+                    tokens_in INTEGER DEFAULT 0,
+                    tokens_out INTEGER DEFAULT 0,
+                    latency_ms INTEGER DEFAULT 0,
+                    status_code INTEGER,
+                    error_message TEXT,
+                    ip_address VARCHAR(45),
+                    user_agent TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            await conn.execute('CREATE INDEX IF NOT EXISTS idx_request_logs_empresa_id ON request_logs(empresa_id)')
+            await conn.execute('CREATE INDEX IF NOT EXISTS idx_request_logs_created_at ON request_logs(created_at)')
+            results["created"].append("request_logs")
+        except Exception as e:
+            results["errors"].append({"table": "request_logs", "error": str(e)[:100]})
+
+        # ===== 11. Crear vista v_usage_monthly =====
+        try:
+            await conn.execute('''
+                CREATE OR REPLACE VIEW v_usage_monthly AS
+                SELECT
+                    empresa_id,
+                    DATE_TRUNC('month', fecha) as mes,
+                    SUM(requests_count) as total_requests,
+                    SUM(tokens_input) as total_tokens_in,
+                    SUM(tokens_output) as total_tokens_out,
+                    SUM(costo_estimado_cents) as costo_total_cents
+                FROM usage_tracking
+                GROUP BY empresa_id, DATE_TRUNC('month', fecha)
+            ''')
+            results["created"].append("v_usage_monthly")
+        except Exception as e:
+            results["errors"].append({"view": "v_usage_monthly", "error": str(e)[:100]})
+
         await conn.close()
         logger.info(f"✅ Migrations completed: {len(results['created'])} created, {len(results['errors'])} errors")
 
@@ -328,3 +422,53 @@ async def run_migrations(request: ResetRequest):
     except Exception as e:
         logger.error(f"Migration error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get('/db-status')
+async def db_status():
+    """Verifica el estado de la base de datos y las tablas existentes."""
+    db_url = get_clean_db_url()
+    if not db_url:
+        return {"success": False, "error": "DATABASE_URL not configured"}
+
+    try:
+        conn = await asyncpg.connect(db_url, ssl='require')
+
+        # Get list of tables
+        tables = await conn.fetch('''
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+            ORDER BY table_name
+        ''')
+
+        # Get list of views
+        views = await conn.fetch('''
+            SELECT table_name as view_name
+            FROM information_schema.views
+            WHERE table_schema = 'public'
+            ORDER BY table_name
+        ''')
+
+        # Get list of functions
+        functions = await conn.fetch('''
+            SELECT routine_name
+            FROM information_schema.routines
+            WHERE routine_schema = 'public'
+            AND routine_type = 'FUNCTION'
+            ORDER BY routine_name
+        ''')
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "tables": [r['table_name'] for r in tables],
+            "views": [r['view_name'] for r in views],
+            "functions": [r['routine_name'] for r in functions],
+            "tables_count": len(tables),
+            "views_count": len(views),
+            "functions_count": len(functions)
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
