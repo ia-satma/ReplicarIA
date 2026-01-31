@@ -766,26 +766,58 @@ async def reset_demo_data_direct(secret_key: str = ""):
 
         await conn.close()
 
-        # Also clean MongoDB projects
+        # Also clean MongoDB - ALL collections including durezza_*
         mongo_results = {"cleaned": [], "errors": []}
         try:
             if db is not None:
-                # Clean projects collection
-                projects_count = await db.projects.count_documents({})
-                await db.projects.delete_many({})
-                mongo_results["cleaned"].append({"collection": "projects", "deleted": projects_count})
+                # Clean standard collections
+                for coll_name in ['projects', 'agents', 'deliberations', 'agent_interactions']:
+                    try:
+                        count = await db[coll_name].count_documents({})
+                        await db[coll_name].delete_many({})
+                        mongo_results["cleaned"].append({"collection": coll_name, "deleted": count})
+                    except:
+                        pass
 
-                # Clean agents collection
-                agents_count = await db.agents.count_documents({})
-                await db.agents.delete_many({})
-                mongo_results["cleaned"].append({"collection": "agents", "deleted": agents_count})
-
-                # Clean deliberations
-                delib_count = await db.deliberations.count_documents({})
-                await db.deliberations.delete_many({})
-                mongo_results["cleaned"].append({"collection": "deliberations", "deleted": delib_count})
+                # Clean durezza_* collections (Revisar.ia dashboard data)
+                durezza_collections = [
+                    'durezza_projects', 'durezza_suppliers', 'durezza_project_phases',
+                    'durezza_deliberations', 'durezza_defense_files', 'durezza_checklist_templates',
+                    'durezza_agent_configs', 'durezza_documents', 'durezza_audit_logs'
+                ]
+                for coll_name in durezza_collections:
+                    try:
+                        count = await db[coll_name].count_documents({})
+                        await db[coll_name].delete_many({})
+                        mongo_results["cleaned"].append({"collection": coll_name, "deleted": count})
+                    except:
+                        pass
         except Exception as e:
             mongo_results["errors"].append({"error": str(e)[:100]})
+
+        # Clean in-memory demo data
+        demo_results = {"cleaned": []}
+        try:
+            from services.durezza_database import (
+                DEMO_PROJECTS, DEMO_SUPPLIERS, DEMO_PROJECT_PHASES,
+                DEMO_DELIBERATIONS, DEMO_DEFENSE_FILES, DEMO_DOCUMENTS
+            )
+            demo_lists = [
+                ('DEMO_PROJECTS', DEMO_PROJECTS),
+                ('DEMO_SUPPLIERS', DEMO_SUPPLIERS),
+                ('DEMO_PROJECT_PHASES', DEMO_PROJECT_PHASES),
+                ('DEMO_DELIBERATIONS', DEMO_DELIBERATIONS),
+                ('DEMO_DEFENSE_FILES', DEMO_DEFENSE_FILES),
+                ('DEMO_DOCUMENTS', DEMO_DOCUMENTS)
+            ]
+            for name, lst in demo_lists:
+                count = len(lst)
+                lst.clear()
+                demo_results["cleaned"].append({"list": name, "cleared": count})
+        except Exception as e:
+            demo_results["error"] = str(e)[:100]
+
+        results["demo_memory"] = demo_results
 
         results["mongodb"] = mongo_results
         return {"success": True, "results": results}
