@@ -709,6 +709,67 @@ if agent_comms:
     api_router.include_router(agent_comms.router)
     logging.info("✅ Agent Communications routes registered at /api/agent-comms")
 
+# ============================================================
+# RESET DEMO DATA ENDPOINT - Direct on app for reliability
+# ============================================================
+RESET_SECRET = os.environ.get('RESET_SECRET_KEY', 'satma-reset-2024-confirmado')
+
+@app.post("/reset-demo")
+async def reset_demo_data_direct(secret_key: str = ""):
+    """Reset all demo data. Requires secret_key as query param."""
+    if secret_key != RESET_SECRET:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Invalid secret key")
+
+    import asyncpg
+    import re
+    db_url = os.environ.get('DATABASE_URL', '')
+    if db_url.startswith('postgres://'):
+        db_url = db_url.replace('postgres://', 'postgresql://', 1)
+    db_url = re.sub(r'[?&]sslmode=[^&]*', '', db_url)
+
+    if not db_url:
+        return {"error": "DATABASE_URL not configured"}
+
+    try:
+        conn = await asyncpg.connect(db_url, ssl='require')
+        results = {"cleaned": [], "errors": []}
+
+        tables = [
+            'clientes_historial', 'clientes_interacciones', 'clientes_contexto',
+            'clientes_documentos', 'proveedores_scoring', 'df_proveedores',
+            'df_documents', 'df_metadata', 'kb_chunk_agente', 'kb_chunks',
+            'kb_documentos', 'kb_metricas', 'projects', 'clientes', 'proveedores'
+        ]
+
+        for table in tables:
+            try:
+                exists = await conn.fetchval(
+                    "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = $1)", table
+                )
+                if exists:
+                    count = await conn.fetchval(f'SELECT COUNT(*) FROM {table}')
+                    await conn.execute(f'DELETE FROM {table}')
+                    results["cleaned"].append({"table": table, "deleted": count})
+            except Exception as e:
+                results["errors"].append({"table": table, "error": str(e)[:50]})
+
+        # Clean non-admin users
+        try:
+            await conn.execute('''
+                DELETE FROM auth_users
+                WHERE email NOT IN ('ia@satma.mx', 'admin@revisar-ia.com')
+                AND role NOT IN ('super_admin', 'admin')
+            ''')
+        except:
+            pass
+
+        await conn.close()
+        return {"success": True, "results": results}
+
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 # Include the router in the main app - api_router MUST be included first
 # to ensure /api/projects/folios is matched before dashboard's /projects/{project_id}
 app.include_router(api_router)
