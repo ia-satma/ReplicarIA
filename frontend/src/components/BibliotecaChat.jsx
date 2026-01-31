@@ -66,7 +66,7 @@ Puedo ayudarte a:
     setLoadingDocumentos(true);
     try {
       const params = categoria ? `?categoria=${categoria}&limit=20` : '?limit=20';
-      const response = await api.get(`/kb/documentos-lista${params}`);
+      const response = await api.get(`/api/kb/documentos-lista${params}`);
       setDocumentos(response.data.documentos || []);
       setDocumentosTotal(response.data.total || 0);
       setDocumentosPendientes(response.data.pendientes || 0);
@@ -87,7 +87,7 @@ Puedo ayudarte a:
     if (reingestando) return;
     setReingestando(documentoId);
     try {
-      const response = await api.post(`/kb/reingest/${documentoId}`);
+      const response = await api.post(`/api/kb/reingest/${documentoId}`);
       if (response.data.success) {
         const assistantMessage = {
           id: Date.now().toString(),

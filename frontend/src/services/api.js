@@ -202,11 +202,11 @@ api.withRetry = async (requestFn, maxRetries = 3, delay = 1000) => {
 // ============================================================
 
 api.auth = {
-  login: (email, password) => api.post('/auth/login', { email, password }),
-  register: (data) => api.post('/auth/register', data),
-  logout: () => api.post('/auth/logout'),
-  me: () => api.get('/auth/me'),
-  refreshToken: () => api.post('/auth/refresh'),
+  login: (email, password) => api.post('/api/auth/login', { email, password }),
+  register: (data) => api.post('/api/auth/register', data),
+  logout: () => api.post('/api/auth/logout'),
+  me: () => api.get('/api/auth/me'),
+  refreshToken: () => api.post('/api/auth/refresh'),
 };
 
 api.projects = {
