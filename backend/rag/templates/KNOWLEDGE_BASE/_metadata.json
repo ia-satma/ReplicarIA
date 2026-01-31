@@ -42,6 +42,22 @@
       "uso": "Procedimientos para prevención y detección de operaciones simuladas",
       "personalizable": false,
       "campos_clave": ["definicion_efos", "indicadores", "procedimiento_verificacion"]
+    },
+    {
+      "id": "006_guia_3_capas_validacion",
+      "titulo": "Guía 3 Capas de Validación Fiscal",
+      "tipo": "metodologia",
+      "uso": "Marco de validación: Formal-fiscal, Materialidad, Razón de negocios",
+      "personalizable": false,
+      "campos_clave": ["capa_formal", "capa_materialidad", "capa_razon_negocios", "semaforo", "score_defendibilidad"]
+    },
+    {
+      "id": "007_guia_evidencias_minimas_tipo",
+      "titulo": "Evidencias Mínimas por Tipo de Servicio",
+      "tipo": "referencia",
+      "uso": "Documentación requerida según tipología bajo LISR 27 + CFF 69-B + CFF 5-A",
+      "personalizable": false,
+      "campos_clave": ["consultoria", "ti_software", "marketing", "legal", "intragrupo", "outsourcing", "esg", "red_flags", "scoring"]
     }
   ],
   "contexto_requerido": {
