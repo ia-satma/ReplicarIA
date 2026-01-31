@@ -757,3 +757,117 @@ async def reset_demo_data(request: ResetDemoRequest):
     except Exception as e:
         logger.error(f"❌ Error en reset: {e}")
         raise HTTPException(status_code=500, detail=f"Error en reset: {str(e)}")
+
+
+# ============================================================
+# Endpoints de Planes de Suscripción
+# ============================================================
+
+@router.get("/planes")
+async def get_planes():
+    """
+    Obtiene todos los planes disponibles con sus características.
+    Endpoint público (no requiere autenticación).
+    """
+    try:
+        from config.planes_config import get_all_planes, COMPARACION_PLANES
+
+        return {
+            "success": True,
+            "planes": get_all_planes(),
+            "comparacion": COMPARACION_PLANES
+        }
+    except Exception as e:
+        return handle_route_error(e, "obtener planes")
+
+
+@router.get("/planes/{plan_id}")
+async def get_plan_details(plan_id: str):
+    """
+    Obtiene los detalles de un plan específico.
+    """
+    try:
+        from config.planes_config import get_plan, PLANES
+
+        if plan_id.lower() not in PLANES:
+            raise HTTPException(status_code=404, detail=f"Plan '{plan_id}' no encontrado")
+
+        plan = get_plan(plan_id)
+        return {
+            "success": True,
+            "plan": plan.to_dict()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        return handle_route_error(e, f"obtener plan {plan_id}")
+
+
+@router.get("/empresas/{empresa_id}/plan")
+async def get_empresa_plan(empresa_id: str, admin_user = Depends(get_admin_user)):
+    """
+    Obtiene el plan actual de una empresa y sus límites de uso.
+    """
+    try:
+        from config.planes_config import get_plan, get_plan_limits
+
+        # Obtener empresa de MongoDB
+        empresa = await empresa_service.get_empresa(empresa_id)
+        if not empresa:
+            raise HTTPException(status_code=404, detail="Empresa no encontrada")
+
+        plan_id = empresa.plan if empresa.plan else "basico"
+        plan = get_plan(plan_id)
+        limits = get_plan_limits(plan_id)
+
+        return {
+            "success": True,
+            "empresa_id": empresa_id,
+            "plan_actual": plan.to_dict(),
+            "limites": limits
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        return handle_route_error(e, f"obtener plan de empresa {empresa_id}")
+
+
+@router.put("/empresas/{empresa_id}/plan")
+async def update_empresa_plan(
+    empresa_id: str,
+    plan_id: str,
+    admin_user = Depends(get_admin_user)
+):
+    """
+    Actualiza el plan de una empresa.
+    Solo administradores pueden cambiar planes.
+    """
+    try:
+        from config.planes_config import PLANES
+        from repositories.empresa_repository import empresa_repository
+
+        if plan_id.lower() not in PLANES:
+            raise HTTPException(status_code=400, detail=f"Plan '{plan_id}' no válido. Opciones: basico, profesional, enterprise")
+
+        # Verificar que existe la empresa
+        empresa = await empresa_service.get_empresa(empresa_id)
+        if not empresa:
+            raise HTTPException(status_code=404, detail="Empresa no encontrada")
+
+        # Actualizar el plan
+        updated = await empresa_repository.update(empresa_id, {"plan": plan_id.lower()})
+
+        if updated:
+            logger.info(f"Plan de empresa {empresa_id} actualizado a '{plan_id}' por admin {admin_user.email}")
+            return {
+                "success": True,
+                "message": f"Plan actualizado a '{plan_id}'",
+                "empresa_id": empresa_id,
+                "nuevo_plan": plan_id.lower()
+            }
+        else:
+            raise HTTPException(status_code=500, detail="No se pudo actualizar el plan")
+    except HTTPException:
+        raise
+    except Exception as e:
+        return handle_route_error(e, f"actualizar plan de empresa {empresa_id}")
