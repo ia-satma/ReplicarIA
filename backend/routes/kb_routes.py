@@ -102,21 +102,34 @@ async def get_dashboard(
 async def chat(
     request: ChatRequest,
     x_empresa_id: Optional[str] = Header(None, alias="X-Empresa-ID")
-) -> ChatResponse:
-    """Send message to Bibliotecar.IA chatbot"""
+) -> Dict[str, Any]:
+    """Send message to Bibliotecar.IA chatbot
+
+    Returns response wrapped in 'data' object for frontend compatibility.
+    The frontend axios interceptor extracts response.data, so we wrap the
+    actual response in a 'data' key to maintain backward compatibility.
+    """
     session_id = request.session_id or str(datetime.now().timestamp())
-    
+
     response = biblioteca_service.process_message(
         session_id=session_id,
         user_message=request.message,
         empresa_id=x_empresa_id
     )
-    
-    return ChatResponse(
-        response=response,
-        session_id=session_id,
-        timestamp=datetime.utcnow()
-    )
+
+    # Wrap response in 'data' for frontend compatibility
+    # Frontend code does: response?.data?.response
+    return {
+        "data": {
+            "response": response,
+            "session_id": session_id,
+            "timestamp": datetime.utcnow().isoformat()
+        },
+        # Also include at top level for new frontend
+        "response": response,
+        "session_id": session_id,
+        "timestamp": datetime.utcnow().isoformat()
+    }
 
 
 @router.get("/chat/greeting")
