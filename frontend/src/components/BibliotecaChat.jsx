@@ -30,11 +30,11 @@ const BibliotecaChat = () => {
 
   const loadGreeting = async () => {
     try {
-      const response = await api.get('/api/kb/chat/greeting');
+      const data = await api.get('/api/kb/chat/greeting');
       setMessages([{
         id: '1',
         role: 'assistant',
-        content: response.data.greeting,
+        content: data.greeting,
         timestamp: new Date()
       }]);
     } catch (error) {
@@ -55,8 +55,8 @@ Puedo ayudarte a:
 
   const loadStats = async () => {
     try {
-      const response = await api.get('/api/kb/dashboard');
-      setStats(response.data);
+      const data = await api.get('/api/kb/dashboard');
+      setStats(data);
     } catch (error) {
       console.error('Error loading stats:', error);
     }
@@ -66,10 +66,10 @@ Puedo ayudarte a:
     setLoadingDocumentos(true);
     try {
       const params = categoria ? `?categoria=${categoria}&limit=20` : '?limit=20';
-      const response = await api.get(`/api/kb/documentos-lista${params}`);
-      setDocumentos(response.data.documentos || []);
-      setDocumentosTotal(response.data.total || 0);
-      setDocumentosPendientes(response.data.pendientes || 0);
+      const data = await api.get(`/api/kb/documentos-lista${params}`);
+      setDocumentos(data.documentos || []);
+      setDocumentosTotal(data.total || 0);
+      setDocumentosPendientes(data.pendientes || 0);
     } catch (error) {
       console.error('Error loading documentos:', error);
       setDocumentos([]);
@@ -87,12 +87,12 @@ Puedo ayudarte a:
     if (reingestando) return;
     setReingestando(documentoId);
     try {
-      const response = await api.post(`/api/kb/reingest/${documentoId}`);
-      if (response.data.success) {
+      const data = await api.post(`/api/kb/reingest/${documentoId}`);
+      if (data.success) {
         const assistantMessage = {
           id: Date.now().toString(),
           role: 'assistant',
-          content: `🔄 Documento reingestado exitosamente.\n${response.data.message}`,
+          content: `🔄 Documento reingestado exitosamente.\n${data.message}`,
           timestamp: new Date()
         };
         setMessages(prev => [...prev, assistantMessage]);
@@ -104,7 +104,7 @@ Puedo ayudarte a:
       const errorMessage = {
         id: Date.now().toString(),
         role: 'assistant',
-        content: `❌ Error al reingestar documento: ${error.response?.data?.detail || error.message}`,
+        content: `❌ Error al reingestar documento: ${error.detail || error.message}`,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -139,21 +139,20 @@ Puedo ayudarte a:
     setIsLoading(true);
 
     try {
-      const response = await api.post('/api/kb/chat', {
+      const data = await api.post('/api/kb/chat', {
         message: inputValue,
         session_id: sessionId
       });
 
-      const data = response?.data || {};
-
-      if (data.session_id) {
+      // api.js interceptor already extracts response.data
+      if (data?.session_id) {
         setSessionId(data.session_id);
       }
 
       const assistantMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.response || data.message || 'Sin respuesta del servidor',
+        content: data?.response || data?.message || 'Sin respuesta del servidor',
         timestamp: new Date()
       };
 
