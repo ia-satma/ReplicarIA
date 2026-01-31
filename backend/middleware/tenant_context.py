@@ -157,6 +157,7 @@ SKIP_TENANT_CHECK_PREFIXES = (
     "/api/support",
     "/api/auth/admin",
     "/api/files/uploads",
+    "/api/pcloud",  # pCloud endpoints for storage management
     "/api/archivo",
     "/api/agents",
     "/api/admin",
