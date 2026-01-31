@@ -77,3 +77,109 @@ async def get_file_download_link(file_id: int):
     if not result.get("success"):
         raise HTTPException(status_code=404, detail=result.get("error"))
     return result
+
+
+@router.get("/list-root")
+async def list_root_folder():
+    """List contents of the pCloud root folder"""
+    if not pcloud_service.auth_token:
+        pcloud_service.login()
+    result = pcloud_service.list_folder(folder_id=0)
+    return result
+
+
+@router.post("/create-root-folder")
+async def create_root_folder():
+    """Create the REVISAR.IA folder in the root directory if it doesn't exist"""
+    if not pcloud_service.auth_token:
+        login_result = pcloud_service.login()
+        if not login_result.get("success"):
+            return login_result
+
+    # First check if folder already exists
+    root_contents = pcloud_service.list_folder(folder_id=0)
+    if root_contents.get("success"):
+        for item in root_contents.get("items", []):
+            if item.get("is_folder") and item.get("name", "").upper() == "REVISAR.IA":
+                return {
+                    "success": True,
+                    "already_exists": True,
+                    "folder_id": item.get("id"),
+                    "name": item.get("name"),
+                    "message": "Folder REVISAR.IA already exists"
+                }
+
+    # Create the folder
+    result = pcloud_service.create_folder(parent_folder_id=0, folder_name="REVISAR.IA")
+    return result
+
+
+@router.post("/setup-complete")
+async def setup_complete_structure():
+    """
+    Complete setup: creates REVISAR.IA folder if needed, then initializes all subfolders.
+    This is the recommended endpoint for initial setup.
+    """
+    if not pcloud_service.auth_token:
+        login_result = pcloud_service.login()
+        if not login_result.get("success"):
+            return login_result
+
+    # Step 1: Check if REVISAR.IA exists
+    root_contents = pcloud_service.list_folder(folder_id=0)
+    revisar_ia_folder_id = None
+
+    if root_contents.get("success"):
+        for item in root_contents.get("items", []):
+            if item.get("is_folder") and item.get("name", "").upper() == "REVISAR.IA":
+                revisar_ia_folder_id = item.get("id")
+                logger.info(f"Found existing REVISAR.IA folder: {revisar_ia_folder_id}")
+                break
+
+    # Step 2: Create REVISAR.IA if it doesn't exist
+    if not revisar_ia_folder_id:
+        create_result = pcloud_service.create_folder(parent_folder_id=0, folder_name="REVISAR.IA")
+        if create_result.get("success"):
+            revisar_ia_folder_id = create_result.get("folder_id")
+            logger.info(f"Created REVISAR.IA folder: {revisar_ia_folder_id}")
+        else:
+            return {
+                "success": False,
+                "error": f"Could not create REVISAR.IA folder: {create_result.get('error')}"
+            }
+
+    # Step 3: Set the folder ID and initialize subfolders
+    pcloud_service.revisar_ia_folder_id = revisar_ia_folder_id
+
+    # Create all required subfolders
+    from services.pcloud_service import REQUIRED_SUBFOLDERS
+    created_folders = []
+    existing_folders = []
+
+    # Get current contents
+    revisar_contents = pcloud_service.list_folder(folder_id=revisar_ia_folder_id)
+    existing_names = []
+    if revisar_contents.get("success"):
+        existing_names = [item.get("name", "").upper() for item in revisar_contents.get("items", []) if item.get("is_folder")]
+
+    for subfolder in REQUIRED_SUBFOLDERS:
+        if subfolder.upper() in [n.upper() for n in existing_names]:
+            existing_folders.append(subfolder)
+        else:
+            result = pcloud_service.create_folder(revisar_ia_folder_id, subfolder)
+            if result.get("success") or result.get("already_exists"):
+                created_folders.append(subfolder)
+                if result.get("folder_id"):
+                    pcloud_service.agent_folders[subfolder] = result.get("folder_id")
+
+    pcloud_service.initialized = True
+
+    return {
+        "success": True,
+        "revisar_ia_folder_id": revisar_ia_folder_id,
+        "created_folders": created_folders,
+        "existing_folders": existing_folders,
+        "total_created": len(created_folders),
+        "total_existing": len(existing_folders),
+        "message": f"Setup complete! Created {len(created_folders)} folders, {len(existing_folders)} already existed"
+    }
