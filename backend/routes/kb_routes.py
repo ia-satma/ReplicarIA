@@ -188,20 +188,35 @@ async def search_kb(
     request: SearchRequest,
     x_empresa_id: Optional[str] = Header(None, alias="X-Empresa-ID")
 ) -> List[SearchResult]:
-    """Search the knowledge base using semantic search"""
+    """Search the knowledge base using semantic search with multi-tenant isolation"""
     try:
-        results = await kb_processor.search_semantic(
-            query=request.query,
-            limit=request.max_results,
-            categoria=request.categoria if hasattr(request, 'categoria') else None,
-            agente_id=request.agente_id if hasattr(request, 'agente_id') else None
-        )
-        
+        # CRITICAL: Convertir empresa_id y aplicar filtro multi-tenant
+        empresa_id = int(x_empresa_id) if x_empresa_id and x_empresa_id.isdigit() else None
+
+        # Usar search_for_empresa para combinar docs de empresa + sistema
+        # O search_semantic para búsqueda estricta
+        if empresa_id:
+            results = await kb_processor.search_for_empresa(
+                query=request.query,
+                empresa_id=empresa_id,
+                limit=request.max_results,
+                agente_id=request.agente_id if hasattr(request, 'agente_id') else None
+            )
+        else:
+            # Sin empresa_id, solo documentos públicos del sistema
+            results = await kb_processor.search_semantic(
+                query=request.query,
+                limit=request.max_results,
+                categoria=request.categoria if hasattr(request, 'categoria') else None,
+                agente_id=request.agente_id if hasattr(request, 'agente_id') else None,
+                empresa_id=None  # Solo docs públicos
+            )
+
         return [
             SearchResult(
                 content=r.get("contenido", "")[:500],
-                source=r.get("source", ""),
-                score=float(r.get("score", 0)),
+                source=r.get("documento", ""),
+                score=float(r.get("similarity", 0)),
                 chunk_type=r.get("categoria", "general")
             )
             for r in results
@@ -423,17 +438,28 @@ async def get_documentos_lista(
             where_clauses = []
             params = []
             param_idx = 1
-            
+
             if categoria:
                 where_clauses.append(f"categoria = ${param_idx}")
                 params.append(categoria)
                 param_idx += 1
-            
+
+            # CRITICAL: Filtro multi-tenant estricto
+            # Solo mostrar documentos de la empresa del usuario
+            # NO usar OR empresa_id IS NULL para evitar fuga de información
             if x_empresa_id:
-                where_clauses.append(f"(empresa_id = ${param_idx} OR empresa_id IS NULL)")
-                params.append(x_empresa_id)
-                param_idx += 1
-            
+                empresa_id_int = int(x_empresa_id) if x_empresa_id.isdigit() else None
+                if empresa_id_int:
+                    where_clauses.append(f"empresa_id = ${param_idx}")
+                    params.append(empresa_id_int)
+                    param_idx += 1
+                else:
+                    # Si no hay empresa_id válida, solo mostrar documentos públicos
+                    where_clauses.append("empresa_id IS NULL")
+            else:
+                # Sin empresa_id, solo documentos públicos del sistema
+                where_clauses.append("empresa_id IS NULL")
+
             where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
             
             params.extend([limit, offset])
@@ -505,17 +531,26 @@ async def reingest_documento(
     documento_id: str,
     x_empresa_id: Optional[str] = Header(None, alias="X-Empresa-ID")
 ):
-    """Re-ingest a document to regenerate its chunks."""
+    """Re-ingest a document to regenerate its chunks with multi-tenant validation."""
     try:
+        # CRITICAL: Convertir empresa_id para validación multi-tenant
+        empresa_id = int(x_empresa_id) if x_empresa_id and x_empresa_id.isdigit() else None
+
         pool = await kb_processor.get_pool()
         async with pool.acquire() as conn:
             doc = await conn.fetchrow("""
                 SELECT id, nombre, contenido_completo, categoria, empresa_id
                 FROM kb_documentos WHERE id = $1
             """, documento_id)
-            
+
             if not doc:
                 raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+            # CRITICAL: Validar que el documento pertenece al tenant
+            doc_empresa_id = doc["empresa_id"]
+            if doc_empresa_id is not None and doc_empresa_id != empresa_id:
+                logger.warning(f"Intento de reingest no autorizado: doc empresa_id={doc_empresa_id}, request empresa_id={empresa_id}")
+                raise HTTPException(status_code=403, detail="No tiene permisos para reingestar este documento")
             
             await conn.execute("""
                 DELETE FROM kb_chunks WHERE documento_id = $1
@@ -661,7 +696,7 @@ AGENT_REQUIREMENTS = {
 async def get_agent_requirements(
     x_empresa_id: Optional[str] = Header(None, alias="X-Empresa-ID")
 ):
-    """Get document requirements for each agent and their completion status."""
+    """Get document requirements for each agent and their completion status with multi-tenant isolation."""
     try:
         if not kb_processor:
             raise HTTPException(status_code=503, detail="KB processor not initialized")
@@ -670,12 +705,28 @@ async def get_agent_requirements(
 
         if not pool:
             raise HTTPException(status_code=503, detail="Database pool not available")
+
+        # CRITICAL: Convertir empresa_id para filtro multi-tenant
+        empresa_id = int(x_empresa_id) if x_empresa_id and x_empresa_id.isdigit() else None
+
         async with pool.acquire() as conn:
-            docs = await conn.fetch("""
-                SELECT id, nombre, categoria, subcategoria
-                FROM kb_documentos
-                WHERE procesado = TRUE OR procesado IS NULL
-            """)
+            # Filtrar documentos por empresa_id
+            # Incluir documentos de la empresa Y documentos públicos del sistema (para requisitos base)
+            if empresa_id:
+                docs = await conn.fetch("""
+                    SELECT id, nombre, categoria, subcategoria
+                    FROM kb_documentos
+                    WHERE (procesado = TRUE OR procesado IS NULL)
+                    AND (empresa_id = $1 OR empresa_id IS NULL)
+                """, empresa_id)
+            else:
+                # Sin empresa, solo documentos públicos del sistema
+                docs = await conn.fetch("""
+                    SELECT id, nombre, categoria, subcategoria
+                    FROM kb_documentos
+                    WHERE (procesado = TRUE OR procesado IS NULL)
+                    AND empresa_id IS NULL
+                """)
             
             doc_list = [
                 {

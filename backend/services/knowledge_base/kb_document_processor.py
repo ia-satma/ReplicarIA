@@ -463,30 +463,46 @@ Responde SOLO con JSON válido:
         
         return alertas
     
-    async def search_semantic(self, query: str, limit: int = 10, categoria: str = None, agente_id: str = None) -> List[Dict]:
+    async def search_semantic(self, query: str, limit: int = 10, categoria: str = None, agente_id: str = None, empresa_id: int = None) -> List[Dict]:
+        """
+        Búsqueda semántica en el Knowledge Base.
+        IMPORTANTE: empresa_id es OBLIGATORIO para garantizar aislamiento multi-tenant.
+        Si no se proporciona, solo se retornan documentos públicos (sistema).
+        """
         pool = await self.get_pool()
-        
+
         query_embedding = await self.generar_embedding(query)
-        
+
         async with pool.acquire() as conn:
             where_clauses = []
             params = [str(query_embedding), limit]
             param_idx = 3
-            
+
+            # CRITICAL: Filtro multi-tenant obligatorio
+            # Si empresa_id es None, solo mostrar documentos del sistema (empresa_id IS NULL)
+            # Si empresa_id tiene valor, mostrar documentos de esa empresa
+            if empresa_id is not None:
+                where_clauses.append(f"d.empresa_id = ${param_idx}")
+                params.append(empresa_id)
+                param_idx += 1
+            else:
+                # Sin empresa_id, solo documentos públicos del sistema
+                where_clauses.append("d.empresa_id IS NULL")
+
             if categoria:
                 where_clauses.append(f"d.categoria = ${param_idx}")
                 params.append(categoria)
                 param_idx += 1
-            
+
             if agente_id:
                 where_clauses.append(f"${param_idx} = ANY(c.agentes_asignados)")
                 params.append(agente_id)
                 param_idx += 1
-            
+
             where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
-            
+
             results = await conn.fetch(f"""
-                SELECT 
+                SELECT
                     c.id,
                     c.contenido,
                     c.metadata,
@@ -494,6 +510,7 @@ Responde SOLO con JSON válido:
                     c.agentes_asignados,
                     d.nombre as documento_nombre,
                     d.categoria as documento_categoria,
+                    d.empresa_id,
                     1 - (c.contenido_embedding <=> $1::vector) as similarity
                 FROM kb_chunks c
                 JOIN kb_documentos d ON d.id = c.documento_id
@@ -511,6 +528,66 @@ Responde SOLO con JSON válido:
                     "agentes": r["agentes_asignados"],
                     "documento": r["documento_nombre"],
                     "documento_categoria": r["documento_categoria"],
+                    "empresa_id": r["empresa_id"],
+                    "similarity": float(r["similarity"])
+                }
+                for r in results
+            ]
+
+    async def search_for_empresa(self, query: str, empresa_id: int, limit: int = 10, agente_id: str = None) -> List[Dict]:
+        """
+        Búsqueda específica para una empresa, garantizando aislamiento multi-tenant.
+        Combina documentos de la empresa con documentos públicos del sistema.
+        """
+        pool = await self.get_pool()
+        query_embedding = await self.generar_embedding(query)
+
+        async with pool.acquire() as conn:
+            where_clauses = []
+            params = [str(query_embedding), limit]
+            param_idx = 3
+
+            # Mostrar documentos de la empresa O documentos públicos del sistema
+            where_clauses.append(f"(d.empresa_id = ${param_idx} OR d.empresa_id IS NULL)")
+            params.append(empresa_id)
+            param_idx += 1
+
+            if agente_id:
+                where_clauses.append(f"${param_idx} = ANY(c.agentes_asignados)")
+                params.append(agente_id)
+                param_idx += 1
+
+            where_sql = f"WHERE {' AND '.join(where_clauses)}"
+
+            results = await conn.fetch(f"""
+                SELECT
+                    c.id,
+                    c.contenido,
+                    c.metadata,
+                    c.categoria_chunk,
+                    c.agentes_asignados,
+                    d.nombre as documento_nombre,
+                    d.categoria as documento_categoria,
+                    d.empresa_id,
+                    1 - (c.contenido_embedding <=> $1::vector) as similarity
+                FROM kb_chunks c
+                JOIN kb_documentos d ON d.id = c.documento_id
+                {where_sql}
+                ORDER BY c.contenido_embedding <=> $1::vector
+                LIMIT $2
+            """, *params)
+
+            return [
+                {
+                    "id": str(r["id"]),
+                    "contenido": r["contenido"],
+                    "metadata": json.loads(r["metadata"]) if r["metadata"] else {},
+                    "categoria": r["categoria_chunk"],
+                    "agentes": r["agentes_asignados"],
+                    "documento": r["documento_nombre"],
+                    "documento_categoria": r["documento_categoria"],
+                    "empresa_id": r["empresa_id"],
+                    "es_sistema": r["empresa_id"] is None,
                     "similarity": float(r["similarity"])
                 }
                 for r in results
