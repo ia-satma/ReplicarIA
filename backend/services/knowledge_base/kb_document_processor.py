@@ -254,7 +254,7 @@ Responde SOLO con JSON válido:
         file_content: bytes,
         filename: str,
         categoria: str,
-        empresa_id: int = None,
+        empresa_id: str = None,  # UUID string
         metadata: Dict = None
     ) -> ProcessResult:
         errors = []
@@ -279,15 +279,15 @@ Responde SOLO con JSON válido:
         extension = filename.lower().split('.')[-1]
         
         async with pool.acquire() as conn:
-            # Insert with only columns that exist in the table
+            # Insert with UUID empresa_id
             doc_result = await conn.fetchrow("""
                 INSERT INTO kb_documentos (
                     empresa_id, nombre, tipo_archivo, categoria, subcategoria, version,
                     hash_contenido, estado, metadata
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'procesando', $8)
+                ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, 'procesando', $8)
                 RETURNING id
             """,
-                empresa_id,
+                empresa_id,  # UUID string, cast in SQL
                 filename,
                 extension,
                 clasificacion.get("categoria", categoria),
@@ -347,11 +347,12 @@ Responde SOLO con JSON válido:
             errores=errors
         )
     
-    async def get_kb_stats(self, empresa_id: int = None) -> Dict:
+    async def get_kb_stats(self, empresa_id: str = None) -> Dict:
+        """Get KB statistics. empresa_id is UUID string."""
         pool = await self.get_pool()
-        
+
         async with pool.acquire() as conn:
-            where_clause = "WHERE d.empresa_id = $1" if empresa_id else ""
+            where_clause = "WHERE d.empresa_id = $1::uuid" if empresa_id else ""
             params = [empresa_id] if empresa_id else []
             
             stats = await conn.fetchrow(f"""
@@ -458,10 +459,10 @@ Responde SOLO con JSON válido:
         
         return alertas
     
-    async def search_semantic(self, query: str, limit: int = 10, categoria: str = None, agente_id: str = None, empresa_id: int = None) -> List[Dict]:
+    async def search_semantic(self, query: str, limit: int = 10, categoria: str = None, agente_id: str = None, empresa_id: str = None) -> List[Dict]:
         """
         Búsqueda semántica en el Knowledge Base.
-        IMPORTANTE: empresa_id es OBLIGATORIO para garantizar aislamiento multi-tenant.
+        IMPORTANTE: empresa_id (UUID string) es OBLIGATORIO para garantizar aislamiento multi-tenant.
         Si no se proporciona, solo se retornan documentos públicos (sistema).
         """
         pool = await self.get_pool()
@@ -475,9 +476,9 @@ Responde SOLO con JSON válido:
 
             # CRITICAL: Filtro multi-tenant obligatorio
             # Si empresa_id es None, solo mostrar documentos del sistema (empresa_id IS NULL)
-            # Si empresa_id tiene valor, mostrar documentos de esa empresa
+            # Si empresa_id tiene valor, mostrar documentos de esa empresa (UUID)
             if empresa_id is not None:
-                where_clauses.append(f"d.empresa_id = ${param_idx}")
+                where_clauses.append(f"d.empresa_id = ${param_idx}::uuid")
                 params.append(empresa_id)
                 param_idx += 1
             else:
@@ -529,9 +530,9 @@ Responde SOLO con JSON válido:
                 for r in results
             ]
 
-    async def search_for_empresa(self, query: str, empresa_id: int, limit: int = 10, agente_id: str = None) -> List[Dict]:
+    async def search_for_empresa(self, query: str, empresa_id: str, limit: int = 10, agente_id: str = None) -> List[Dict]:
         """
-        Búsqueda específica para una empresa, garantizando aislamiento multi-tenant.
+        Búsqueda específica para una empresa (UUID), garantizando aislamiento multi-tenant.
         Combina documentos de la empresa con documentos públicos del sistema.
         """
         pool = await self.get_pool()
@@ -543,7 +544,7 @@ Responde SOLO con JSON válido:
             param_idx = 3
 
             # Mostrar documentos de la empresa O documentos públicos del sistema
-            where_clauses.append(f"(d.empresa_id = ${param_idx} OR d.empresa_id IS NULL)")
+            where_clauses.append(f"(d.empresa_id = ${param_idx}::uuid OR d.empresa_id IS NULL)")
             params.append(empresa_id)
             param_idx += 1
 

@@ -112,6 +112,7 @@ export default function KnowledgeRepository() {
   const [initializing, setInitializing] = useState(false);
   const [semanticMode, setSemanticMode] = useState(false);
   const [semanticResults, setSemanticResults] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem('auth_token');
@@ -188,6 +189,19 @@ export default function KnowledgeRepository() {
     browse('/');
     fetchStats();
   }, [browse, fetchStats]);
+
+  // Función de sincronización/actualización
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        browse(currentPath),
+        fetchStats()
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [browse, fetchStats, currentPath]);
 
   const handleSearch = useCallback(async (query) => {
     if (!query || query.length < 2) {
@@ -551,6 +565,22 @@ export default function KnowledgeRepository() {
                   )}
                 </div>
 
+                {/* Botón de Sincronización/Actualización */}
+                <button
+                  onClick={handleRefresh}
+                  disabled={refreshing || loading}
+                  className="p-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-500 hover:to-blue-500 transition-all disabled:opacity-50"
+                  title="Sincronizar / Actualizar datos"
+                >
+                  {refreshing ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  )}
+                </button>
+
                 <button
                   onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
                   className="p-2 rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-600/50 transition-colors"
@@ -566,7 +596,7 @@ export default function KnowledgeRepository() {
                     </svg>
                   )}
                 </button>
-                
+
                 <button
                   onClick={() => setShowNewFolderModal(true)}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-600/50 transition-colors"

@@ -23,6 +23,17 @@ file_analysis_service = FileAnalysisService()
 
 router = APIRouter(prefix="/api/kb", tags=["Knowledge Base"])
 
+
+def parse_empresa_id(x_empresa_id: Optional[str]) -> Optional[str]:
+    """Parse empresa_id from header. Returns UUID string or None."""
+    if not x_empresa_id:
+        return None
+    # Validate it looks like a UUID (contains hyphens) or is a non-empty string
+    x_empresa_id = x_empresa_id.strip()
+    if x_empresa_id and len(x_empresa_id) > 0:
+        return x_empresa_id
+    return None
+
 biblioteca_service = BibliotecaService()
 
 document_processor = kb_processor
@@ -64,7 +75,7 @@ async def get_dashboard(
 ):
     """Get knowledge base dashboard summary with real PostgreSQL data"""
     try:
-        empresa_id = int(x_empresa_id) if x_empresa_id and x_empresa_id.isdigit() else None
+        empresa_id = parse_empresa_id(x_empresa_id)
         stats = await kb_processor.get_kb_stats(empresa_id)
         completitud = stats.get("completitud", {})
         return {
@@ -163,7 +174,7 @@ async def ingest_document(
 ) -> Dict[str, Any]:
     """Ingest a new document into the knowledge base using PostgreSQL RAG"""
     try:
-        empresa_id = int(x_empresa_id) if x_empresa_id and x_empresa_id.isdigit() else None
+        empresa_id = parse_empresa_id(x_empresa_id)
         # Use contenido from request model, encode to bytes for process_document
         content_text = request.contenido or ""
         result = await kb_processor.process_document(
@@ -193,7 +204,7 @@ async def search_kb(
     """Search the knowledge base using semantic search with multi-tenant isolation"""
     try:
         # CRITICAL: Convertir empresa_id y aplicar filtro multi-tenant
-        empresa_id = int(x_empresa_id) if x_empresa_id and x_empresa_id.isdigit() else None
+        empresa_id = parse_empresa_id(x_empresa_id)
 
         # Usar search_for_empresa para combinar docs de empresa + sistema
         # O search_semantic para búsqueda estricta
@@ -449,17 +460,13 @@ async def get_documentos_lista(
             # CRITICAL: Filtro multi-tenant estricto
             # Solo mostrar documentos de la empresa del usuario
             # NO usar OR empresa_id IS NULL para evitar fuga de información
-            if x_empresa_id:
-                empresa_id_int = int(x_empresa_id) if x_empresa_id.isdigit() else None
-                if empresa_id_int:
-                    where_clauses.append(f"empresa_id = ${param_idx}")
-                    params.append(empresa_id_int)
-                    param_idx += 1
-                else:
-                    # Si no hay empresa_id válida, solo mostrar documentos públicos
-                    where_clauses.append("empresa_id IS NULL")
+            empresa_id = parse_empresa_id(x_empresa_id)
+            if empresa_id:
+                where_clauses.append(f"empresa_id = ${param_idx}::uuid")
+                params.append(empresa_id)
+                param_idx += 1
             else:
-                # Sin empresa_id, solo documentos públicos del sistema
+                # Sin empresa_id válida, solo documentos públicos del sistema
                 where_clauses.append("empresa_id IS NULL")
 
             where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
@@ -536,7 +543,7 @@ async def reingest_documento(
     """Re-ingest a document to regenerate its chunks with multi-tenant validation."""
     try:
         # CRITICAL: Convertir empresa_id para validación multi-tenant
-        empresa_id = int(x_empresa_id) if x_empresa_id and x_empresa_id.isdigit() else None
+        empresa_id = parse_empresa_id(x_empresa_id)
 
         pool = await kb_processor.get_pool()
         async with pool.acquire() as conn:
@@ -709,7 +716,7 @@ async def get_agent_requirements(
             raise HTTPException(status_code=503, detail="Database pool not available")
 
         # CRITICAL: Convertir empresa_id para filtro multi-tenant
-        empresa_id = int(x_empresa_id) if x_empresa_id and x_empresa_id.isdigit() else None
+        empresa_id = parse_empresa_id(x_empresa_id)
 
         async with pool.acquire() as conn:
             # Filtrar documentos por empresa_id
