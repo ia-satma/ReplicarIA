@@ -163,6 +163,44 @@ async def run_migrations(request: ResetRequest):
         conn = await asyncpg.connect(db_url, ssl='require')
         logger.info("🔧 Running database migrations...")
 
+        # ===== 0. Crear tabla empresas (requerida por otras tablas) =====
+        try:
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS empresas (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    nombre_comercial VARCHAR(255) NOT NULL,
+                    razon_social VARCHAR(255),
+                    rfc VARCHAR(20),
+                    industria VARCHAR(100),
+                    sub_industria VARCHAR(100),
+                    direccion TEXT,
+                    telefono VARCHAR(50),
+                    email VARCHAR(255),
+                    sitio_web VARCHAR(255),
+                    regimen_fiscal VARCHAR(100),
+                    vision TEXT,
+                    mision TEXT,
+                    valores JSONB DEFAULT '[]',
+                    pilares_estrategicos JSONB DEFAULT '[]',
+                    mercados_objetivo JSONB DEFAULT '[]',
+                    competidores_principales JSONB DEFAULT '[]',
+                    ventajas_competitivas JSONB DEFAULT '[]',
+                    modelo_negocio TEXT,
+                    okrs JSONB DEFAULT '[]',
+                    tipologias_configuradas JSONB DEFAULT '[]',
+                    rag_collection_id VARCHAR(100),
+                    plan_id VARCHAR(50) DEFAULT 'basico',
+                    uso_suspendido BOOLEAN DEFAULT false,
+                    activa BOOLEAN DEFAULT true,
+                    fecha_alta TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    fecha_actualizacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            results["created"].append("empresas")
+            logger.info("✅ Tabla 'empresas' creada/verificada")
+        except Exception as e:
+            results["errors"].append({"table": "empresas", "error": str(e)[:100]})
+
         # ===== 1. Crear tabla clientes =====
         try:
             await conn.execute('''
@@ -241,23 +279,31 @@ async def run_migrations(request: ResetRequest):
         except Exception as e:
             results["errors"].append({"item": "planes_data", "error": str(e)[:100]})
 
-        # ===== 5. Agregar columna plan_id a empresas si no existe =====
+        # ===== 5. Agregar columnas a empresas si no existen (para DBs existentes) =====
         try:
-            await conn.execute('''
-                ALTER TABLE empresas ADD COLUMN IF NOT EXISTS plan_id VARCHAR(50) DEFAULT 'basico'
+            # Check if plan_id column exists
+            col_exists = await conn.fetchval('''
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'empresas' AND column_name = 'plan_id'
+                )
             ''')
-            results["created"].append("empresas_plan_id")
-        except Exception as e:
-            results["errors"].append({"item": "empresas_plan_id", "error": str(e)[:100]})
+            if not col_exists:
+                await conn.execute('ALTER TABLE empresas ADD COLUMN plan_id VARCHAR(50) DEFAULT \'basico\'')
 
-        # ===== 6. Agregar columna uso_suspendido a empresas =====
-        try:
-            await conn.execute('''
-                ALTER TABLE empresas ADD COLUMN IF NOT EXISTS uso_suspendido BOOLEAN DEFAULT false
+            # Check if uso_suspendido column exists
+            col_exists = await conn.fetchval('''
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'empresas' AND column_name = 'uso_suspendido'
+                )
             ''')
-            results["created"].append("empresas_uso_suspendido")
+            if not col_exists:
+                await conn.execute('ALTER TABLE empresas ADD COLUMN uso_suspendido BOOLEAN DEFAULT false')
+
+            results["created"].append("empresas_columns_verified")
         except Exception as e:
-            results["errors"].append({"item": "empresas_uso_suspendido", "error": str(e)[:100]})
+            results["errors"].append({"item": "empresas_columns", "error": str(e)[:100]})
 
         # ===== 7. Crear tabla usage_tracking =====
         try:
