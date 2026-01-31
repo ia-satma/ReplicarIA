@@ -22,6 +22,9 @@ import DisenarIA from "./components/DisenarIA";
 import AgentChecklist from "./components/AgentChecklist";
 import TemplatesPage from "./pages/TemplatesPage";
 import ProveedoresPage from "./pages/ProveedoresPage";
+import BaseLegalPage from "./pages/BaseLegalPage";
+import FAQPage from "./pages/FAQPage";
+import HowItWorksPage from "./pages/HowItWorksPage";
 import AdminClientes from "./components/AdminClientes";
 import Footer from "./components/Footer";
 import SupportChatWidget from "./components/SupportChatWidget";
@@ -2057,6 +2060,21 @@ function AppContent() {
         <Route path="/agent-comms/:projectId" element={
           <ProtectedRoute>
             <AgentCommsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/base-legal" element={
+          <ProtectedRoute>
+            <BaseLegalPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/faq" element={
+          <ProtectedRoute>
+            <FAQPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/como-funciona" element={
+          <ProtectedRoute>
+            <HowItWorksPage />
           </ProtectedRoute>
         } />
       </Routes>
