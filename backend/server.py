@@ -393,6 +393,35 @@ except ImportError as e:
     logging.warning(f"Subagent Execution routes not available: {e}")
     subagent_routes = None
 
+# Import REVISAR.IA Enhanced routes (Legal Base, FAQ, Defense File V2, 3-Way Match)
+try:
+    from routes import legal_base_routes
+    logging.info("✅ Legal Base routes loaded successfully")
+except ImportError as e:
+    logging.warning(f"Legal Base routes not available: {e}")
+    legal_base_routes = None
+
+try:
+    from routes import faq_routes
+    logging.info("✅ FAQ routes loaded successfully")
+except ImportError as e:
+    logging.warning(f"FAQ routes not available: {e}")
+    faq_routes = None
+
+try:
+    from routes import defense_file_v2_routes
+    logging.info("✅ Defense File V2 routes loaded successfully")
+except ImportError as e:
+    logging.warning(f"Defense File V2 routes not available: {e}")
+    defense_file_v2_routes = None
+
+try:
+    from routes import three_way_match_routes
+    logging.info("✅ 3-Way Match routes loaded successfully")
+except ImportError as e:
+    logging.warning(f"3-Way Match routes not available: {e}")
+    three_way_match_routes = None
+
 # Import middleware exception handlers
 try:
     from middleware.candados_middleware import CandadoBlockedException
@@ -767,6 +796,26 @@ if dynamic_agents_routes:
 if subagent_routes:
     app.include_router(subagent_routes.router, tags=["Subagent Execution"])
     logging.info("✅ Subagent routes registered at /api/subagents")
+
+# ============================================================
+# REVISAR.IA ENHANCED SYSTEM (2026-01-31)
+# Base Jurídica, FAQ, Defense File V2, 3-Way Match
+# ============================================================
+if legal_base_routes:
+    app.include_router(legal_base_routes.router, tags=["Base Jurídica"])
+    logging.info("✅ Legal Base routes registered at /api/legal-base")
+
+if faq_routes:
+    app.include_router(faq_routes.router, tags=["FAQ Fiscal/Legal"])
+    logging.info("✅ FAQ routes registered at /api/faqs")
+
+if defense_file_v2_routes:
+    app.include_router(defense_file_v2_routes.router, tags=["Defense File V2"])
+    logging.info("✅ Defense File V2 routes registered at /api/defense-v2")
+
+if three_way_match_routes:
+    app.include_router(three_way_match_routes.router, tags=["3-Way Match"])
+    logging.info("✅ 3-Way Match routes registered at /api/3way-match")
 
 # ============================================================
 # RESET DEMO DATA ENDPOINT - Direct on app for reliability
