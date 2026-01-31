@@ -765,6 +765,29 @@ async def reset_demo_data_direct(secret_key: str = ""):
             pass
 
         await conn.close()
+
+        # Also clean MongoDB projects
+        mongo_results = {"cleaned": [], "errors": []}
+        try:
+            if db is not None:
+                # Clean projects collection
+                projects_count = await db.projects.count_documents({})
+                await db.projects.delete_many({})
+                mongo_results["cleaned"].append({"collection": "projects", "deleted": projects_count})
+
+                # Clean agents collection
+                agents_count = await db.agents.count_documents({})
+                await db.agents.delete_many({})
+                mongo_results["cleaned"].append({"collection": "agents", "deleted": agents_count})
+
+                # Clean deliberations
+                delib_count = await db.deliberations.count_documents({})
+                await db.deliberations.delete_many({})
+                mongo_results["cleaned"].append({"collection": "deliberations", "deleted": delib_count})
+        except Exception as e:
+            mongo_results["errors"].append({"error": str(e)[:100]})
+
+        results["mongodb"] = mongo_results
         return {"success": True, "results": results}
 
     except Exception as e:
