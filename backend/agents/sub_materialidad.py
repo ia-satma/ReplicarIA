@@ -35,36 +35,118 @@ SUB_MATERIALIDAD_CONFIG = {
     "puede_bloquear_avance": True,
     
     "hechos_relevantes_por_fase": {
-        "F0": ["SIB con BEE documentado", "Evaluación inicial de riesgo"],
-        "F1": ["SOW con entregables listados", "Cronograma de hitos"],
-        "F2": ["Contrato firmado", "Presupuesto confirmado"],
-        "F3": ["Minuta kick-off", "Entregable V1"],
-        "F4": ["Versiones iterativas", "Minutas de revisión"],
-        "F5": ["Entregable final", "Acta de aceptación técnica"],
-        "F6": ["Matriz completa", "VBC Fiscal", "VBC Legal"],
-        "F8": ["CFDI específico", "Comprobante pago", "3-way match"]
+        "F0": ["SIB con BEE documentado", "Evaluación inicial de riesgo", "Vinculación plan estratégico"],
+        "F1": ["Registro proyecto sistema", "Tipología asignada"],
+        "F2": ["SOW con entregables listados", "Cronograma de hitos", "Dictamen A1 Estrategia"],  # CANDADO
+        "F3": ["Due diligence proveedor", "Consulta 69-B", "Opinión 32-D", "Score proveedor A6"],
+        "F4": ["Contrato firmado", "Presupuesto confirmado", "Dictamen A4 Legal"],
+        "F5": ["VBC Fiscal preliminar", "Análisis deducibilidad"],
+        "F6": ["Minuta kick-off", "Entregable V1", "Versiones iterativas", "Minutas de revisión"],  # CANDADO
+        "F7": ["Entregable final", "Acta de aceptación técnica", "Evidencia de uso"],
+        "F8": ["CFDI específico", "Comprobante pago", "3-way match"],  # CANDADO
+        "F9": ["Matriz completa", "VBC Fiscal", "VBC Legal", "Defense File integrado", "Índice defendibilidad"]
+    },
+
+    # Candados de control - fases que requieren aprobación antes de continuar
+    "candados_control": {
+        "F2": {
+            "descripcion": "Evaluación Estratégica completada",
+            "condiciones": ["Dictamen A1 APROBAR o APROBAR_CONDICIONES", "BEE documentado > beneficio fiscal"],
+            "agente_responsable": "A1_SPONSOR"
+        },
+        "F6": {
+            "descripcion": "Ejecución verificada",
+            "condiciones": ["Evidencia de ejecución suficiente", "Minutas de trabajo"],
+            "agente_responsable": "A2_PMO"
+        },
+        "F8": {
+            "descripcion": "Three-Way Match validado",
+            "condiciones": ["Contrato = CFDI = Pago", "Sin discrepancias"],
+            "agente_responsable": "A5_FINANZAS"
+        }
+    },
+
+    # Criterios de los 4 pilares fiscales
+    "pilares_fiscales": {
+        "razon_negocios": {
+            "articulo": "Art. 5-A CFF",
+            "documentos_requeridos": ["SIB", "Vinculación plan estratégico", "Dictamen A1"],
+            "criterio_aprobacion": "BEE > Beneficio fiscal",
+            "peso": 25
+        },
+        "beneficio_economico": {
+            "articulo": "Art. 5-A CFF",
+            "documentos_requeridos": ["Matriz BEE", "KPIs definidos", "ROI documentado"],
+            "criterio_aprobacion": "BEE cuantificable y razonable",
+            "peso": 25
+        },
+        "materialidad": {
+            "articulo": "Art. 69-B CFF",
+            "documentos_requeridos": ["Evidencia ejecución", "Entregables", "Acta aceptación"],
+            "criterio_aprobacion": "Servicio efectivamente prestado con evidencia",
+            "peso": 25
+        },
+        "trazabilidad": {
+            "articulo": "NOM-151",
+            "documentos_requeridos": ["Documentos con fecha cierta", "Cadena custodia", "Hash integridad"],
+            "criterio_aprobacion": "Documentación conservada según norma",
+            "peso": 25
+        }
     }
 }
 
 EVIDENCIA_ESPERADA = {
-    "SIB con BEE documentado": "Solicitud de Inicio de Beneficio con objetivo económico documentado",
-    "Evaluación inicial de riesgo": "Evaluación de A3-Fiscal con risk_score",
-    "SOW con entregables listados": "Statement of Work con entregables específicos",
-    "Cronograma de hitos": "Cronograma con fechas y hitos definidos",
-    "Contrato firmado": "Contrato firmado por ambas partes",
+    # F0 - Identificación de necesidad
+    "SIB con BEE documentado": "Service Initiation Brief con BEE cuantificado (mayor a beneficio fiscal)",
+    "Evaluación inicial de riesgo": "Evaluación de A3-Fiscal con risk_score inicial",
+    "Vinculación plan estratégico": "Referencia a OKR o iniciativa del plan estratégico vigente",
+
+    # F1 - Registro inicial
+    "Registro proyecto sistema": "Proyecto registrado en Revisar-IA con datos básicos",
+    "Tipología asignada": "Tipología de servicio clasificada correctamente",
+
+    # F2 - Evaluación estratégica (CANDADO)
+    "SOW con entregables listados": "Statement of Work con entregables específicos y medibles",
+    "Cronograma de hitos": "Cronograma con fechas, hitos y responsables definidos",
+    "Dictamen A1 Estrategia": "Dictamen del agente A1 con análisis de razón de negocios",
+
+    # F3 - Due diligence proveedor
+    "Due diligence proveedor": "Verificación completa del proveedor",
+    "Consulta 69-B": "Captura de consulta al listado de EFOS del SAT",
+    "Opinión 32-D": "Opinión de cumplimiento de obligaciones fiscales",
+    "Score proveedor A6": "Evaluación de riesgo del proveedor por agente A6",
+
+    # F4 - Contrato
+    "Contrato firmado": "Contrato firmado por ambas partes con cláusulas de materialidad",
     "Presupuesto confirmado": "Confirmación de presupuesto por A5-Finanzas",
-    "Minuta kick-off": "Minuta de reunión de inicio",
-    "Entregable V1": "Primera versión del entregable",
-    "Versiones iterativas": "Versiones de trabajo con control de cambios",
-    "Minutas de revisión": "Minutas de sesiones de revisión",
-    "Entregable final": "Versión final del entregable",
-    "Acta de aceptación técnica": "Acta firmada de aceptación",
-    "Matriz completa": "Matriz de materialidad >= 80%",
-    "VBC Fiscal": "Visto Bueno de Cumplimiento Fiscal",
-    "VBC Legal": "Visto Bueno de Cumplimiento Legal",
-    "CFDI específico": "CFDI con descripción específica (no genérica)",
-    "Comprobante pago": "Comprobante de pago bancario",
-    "3-way match": "Validación de coincidencia Contrato=CFDI=Pago"
+    "Dictamen A4 Legal": "Dictamen del agente A4 con validación legal del contrato",
+
+    # F5 - Validación fiscal
+    "VBC Fiscal preliminar": "Visto Bueno de Cumplimiento Fiscal preliminar",
+    "Análisis deducibilidad": "Análisis de cumplimiento de requisitos de deducibilidad",
+
+    # F6 - Ejecución (CANDADO)
+    "Minuta kick-off": "Minuta de reunión de inicio con asistentes identificados",
+    "Entregable V1": "Primera versión del entregable con control de cambios",
+    "Versiones iterativas": "Versiones de trabajo que demuestran proceso real",
+    "Minutas de revisión": "Minutas de sesiones de revisión con observaciones",
+
+    # F7 - Recepción
+    "Entregable final": "Versión final del entregable que cumple criterios de aceptación",
+    "Acta de aceptación técnica": "Acta firmada de aceptación con validador identificado",
+    "Evidencia de uso": "Evidencia de que el entregable fue implementado/usado",
+
+    # F8 - Three-Way Match (CANDADO)
+    "CFDI específico": "CFDI con descripción específica que coincide con SOW (no genérica)",
+    "Comprobante pago": "Comprobante de pago bancario trazable",
+    "3-way match": "Validación de coincidencia Contrato=CFDI=Pago sin discrepancias",
+
+    # F9 - Cierre y Defense File
+    "Matriz completa": "Matriz de materialidad >= 80% de completitud",
+    "VBC Fiscal": "Visto Bueno de Cumplimiento Fiscal definitivo",
+    "VBC Legal": "Visto Bueno de Cumplimiento Legal definitivo",
+    "Defense File integrado": "Expediente de defensa con 5 secciones completas",
+    "Índice defendibilidad": "Índice de defendibilidad calculado (0-100)"
 }
 
 UMBRAL_VBC = 80
