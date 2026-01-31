@@ -430,6 +430,29 @@ if TenantContextMiddleware:
     app.add_middleware(TenantContextMiddleware)
     logging.info("TenantContextMiddleware registered for multi-tenant isolation")
 
+# ============================================================
+# KB ROUTE REDIRECT MIDDLEWARE
+# Redirects /kb/* to /api/kb/* for frontend compatibility
+# ============================================================
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import RedirectResponse
+
+class KBRouteRedirectMiddleware(BaseHTTPMiddleware):
+    """Redirect /kb/* requests to /api/kb/* for backward compatibility"""
+    async def dispatch(self, request, call_next):
+        path = request.url.path
+        # Redirect /kb/* to /api/kb/* (but not /api/kb/*)
+        if path.startswith('/kb/') and not path.startswith('/api/'):
+            new_path = '/api' + path
+            # Preserve query string
+            query = request.url.query
+            new_url = new_path + ('?' + query if query else '')
+            return RedirectResponse(url=new_url, status_code=307)
+        return await call_next(request)
+
+app.add_middleware(KBRouteRedirectMiddleware)
+logging.info("KBRouteRedirectMiddleware registered for /kb/* -> /api/kb/* redirects")
+
 # Create uploads and reports directories (accessed via protected API endpoints)
 uploads_path = ROOT_DIR / "uploads"
 uploads_path.mkdir(exist_ok=True)
