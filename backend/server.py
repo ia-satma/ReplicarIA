@@ -377,6 +377,22 @@ except ImportError as e:
     logging.warning(f"Agent Communications routes not available: {e}")
     agent_comms = None
 
+# Import Dynamic Agents routes (CRUD, Learning, Subagents)
+try:
+    from routes import dynamic_agents_routes
+    logging.info("✅ Dynamic Agents routes loaded successfully")
+except ImportError as e:
+    logging.warning(f"Dynamic Agents routes not available: {e}")
+    dynamic_agents_routes = None
+
+# Import Subagent Execution routes
+try:
+    from routes import subagent_routes
+    logging.info("✅ Subagent Execution routes loaded successfully")
+except ImportError as e:
+    logging.warning(f"Subagent Execution routes not available: {e}")
+    subagent_routes = None
+
 # Import middleware exception handlers
 try:
     from middleware.candados_middleware import CandadoBlockedException
@@ -741,6 +757,16 @@ if usage_routes:
 if agent_comms:
     api_router.include_router(agent_comms.router)
     logging.info("✅ Agent Communications routes registered at /api/agent-comms")
+
+# Dynamic Agents System (CRUD, Learning, Subagents)
+if dynamic_agents_routes:
+    app.include_router(dynamic_agents_routes.router, tags=["Dynamic Agents System"])
+    logging.info("✅ Dynamic Agents routes registered at /api/agents/dynamic")
+
+# Subagent Execution System (S1, S2, S3)
+if subagent_routes:
+    app.include_router(subagent_routes.router, tags=["Subagent Execution"])
+    logging.info("✅ Subagent routes registered at /api/subagents")
 
 # ============================================================
 # RESET DEMO DATA ENDPOINT - Direct on app for reliability
@@ -1176,6 +1202,62 @@ async def run_kb_migrations():
         return False
 
 
+async def run_dynamic_agent_migrations():
+    """Ejecutar migraciones del sistema de agentes dinámicos"""
+    import asyncpg
+    import re
+
+    db_url = os.environ.get('DATABASE_URL', '')
+    if not db_url:
+        logger.warning("DATABASE_URL not set, skipping Dynamic Agent migrations")
+        return False
+
+    # Clean URL for asyncpg
+    if db_url.startswith('postgres://'):
+        db_url = db_url.replace('postgres://', 'postgresql://', 1)
+    db_url = re.sub(r'[?&]sslmode=[^&]*', '', db_url)
+
+    try:
+        conn = await asyncpg.connect(db_url, ssl='require')
+
+        # Verificar si ya existe la tabla principal
+        exists = await conn.fetchval("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_name = 'agent_configs'
+            )
+        """)
+
+        if not exists:
+            logger.info("🔄 Ejecutando migración de Sistema de Agentes Dinámicos...")
+
+            # Leer y ejecutar el archivo de migración
+            migration_path = os.path.join(
+                os.path.dirname(__file__),
+                'migrations/002_agent_dynamic_system.sql'
+            )
+
+            if os.path.exists(migration_path):
+                with open(migration_path, 'r') as f:
+                    migration_sql = f.read()
+
+                # Ejecutar migración
+                await conn.execute(migration_sql)
+                logger.info("✅ Migración de Agentes Dinámicos completada exitosamente")
+            else:
+                logger.warning(f"Archivo de migración no encontrado: {migration_path}")
+                return False
+        else:
+            logger.info("✅ Tablas de Agentes Dinámicos ya existen")
+
+        await conn.close()
+        return True
+
+    except Exception as e:
+        logger.error(f"Dynamic Agent migration error: {e}")
+        return False
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
@@ -1187,6 +1269,18 @@ async def startup_event():
     # MIGRACIONES DE BASE DE DATOS
     # ============================================================
     await run_kb_migrations()
+    await run_dynamic_agent_migrations()
+
+    # ============================================================
+    # INICIALIZACIÓN DE SERVICIOS DE AGENTES DINÁMICOS
+    # ============================================================
+    try:
+        from services.dynamic_agent_loader import get_agent_loader
+        loader = await get_agent_loader()
+        agents = await loader.load_all_agents()
+        logger.info(f"✅ Sistema de Agentes Dinámicos inicializado: {len(agents)} agentes cargados")
+    except Exception as e:
+        logger.error(f"Error inicializando agentes dinámicos: {e}")
 
     # ============================================================
     # INICIALIZACIÓN DE BASE DE DATOS
