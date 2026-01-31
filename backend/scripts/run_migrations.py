@@ -322,6 +322,118 @@ async def run_migrations():
             results["errors"].append({"view": "v_usage_monthly", "error": str(e)[:100]})
             print(f"   ❌ Error: {str(e)[:100]}")
 
+        # ===== 12. Crear tabla knowledge_document_text =====
+        print("\n📋 Creating 'knowledge_document_text' table...")
+        try:
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS knowledge_document_text (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    document_id UUID NOT NULL,
+                    empresa_id UUID NOT NULL,
+                    extracted_text TEXT,
+                    language VARCHAR(10) DEFAULT 'es',
+                    page_count INTEGER,
+                    word_count INTEGER,
+                    extraction_method VARCHAR(100),
+                    extraction_meta JSONB DEFAULT '{}',
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    CONSTRAINT unique_doc_empresa UNIQUE (document_id, empresa_id)
+                )
+            ''')
+            await conn.execute('CREATE INDEX IF NOT EXISTS idx_knowledge_doc_text_doc ON knowledge_document_text(document_id)')
+            await conn.execute('CREATE INDEX IF NOT EXISTS idx_knowledge_doc_text_empresa ON knowledge_document_text(empresa_id)')
+            results["created"].append("knowledge_document_text")
+            print("   ✅ Table 'knowledge_document_text' created/verified")
+        except Exception as e:
+            results["errors"].append({"table": "knowledge_document_text", "error": str(e)[:100]})
+            print(f"   ❌ Error: {str(e)[:100]}")
+
+        # ===== 13. Crear tabla knowledge_audit =====
+        print("\n📋 Creating 'knowledge_audit' table...")
+        try:
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS knowledge_audit (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    document_id UUID,
+                    action VARCHAR(100) NOT NULL,
+                    actor_id UUID,
+                    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    detail JSONB DEFAULT '{}'
+                )
+            ''')
+            await conn.execute('CREATE INDEX IF NOT EXISTS idx_knowledge_audit_doc ON knowledge_audit(document_id)')
+            await conn.execute('CREATE INDEX IF NOT EXISTS idx_knowledge_audit_actor ON knowledge_audit(actor_id)')
+            results["created"].append("knowledge_audit")
+            print("   ✅ Table 'knowledge_audit' created/verified")
+        except Exception as e:
+            results["errors"].append({"table": "knowledge_audit", "error": str(e)[:100]})
+            print(f"   ❌ Error: {str(e)[:100]}")
+
+        # ===== 14. Crear tablas de knowledge repository completas =====
+        print("\n📋 Creating knowledge repository tables...")
+        try:
+            # knowledge_folders
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS knowledge_folders (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    empresa_id UUID NOT NULL,
+                    path VARCHAR(1024) NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    parent_path VARCHAR(1024) NOT NULL DEFAULT '/',
+                    created_by UUID,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    CONSTRAINT unique_folder_path UNIQUE (empresa_id, path)
+                )
+            ''')
+
+            # knowledge_documents
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS knowledge_documents (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    empresa_id UUID NOT NULL,
+                    path VARCHAR(1024) NOT NULL DEFAULT '/',
+                    filename VARCHAR(512) NOT NULL,
+                    mime_type VARCHAR(255),
+                    size_bytes BIGINT,
+                    checksum_sha256 VARCHAR(64),
+                    status VARCHAR(50) DEFAULT 'uploaded',
+                    extracted_text TEXT,
+                    metadata JSONB DEFAULT '{}',
+                    created_by UUID,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                )
+            ''')
+
+            # knowledge_chunks
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS knowledge_chunks (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    document_id UUID NOT NULL,
+                    empresa_id UUID NOT NULL,
+                    chunk_index INTEGER NOT NULL,
+                    content TEXT NOT NULL,
+                    tokens INTEGER,
+                    embedding JSONB,
+                    metadata JSONB DEFAULT '{}',
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                )
+            ''')
+
+            # Indexes
+            await conn.execute('CREATE INDEX IF NOT EXISTS idx_knowledge_folders_empresa ON knowledge_folders(empresa_id)')
+            await conn.execute('CREATE INDEX IF NOT EXISTS idx_knowledge_documents_empresa ON knowledge_documents(empresa_id)')
+            await conn.execute('CREATE INDEX IF NOT EXISTS idx_knowledge_documents_status ON knowledge_documents(status)')
+            await conn.execute('CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_doc ON knowledge_chunks(document_id)')
+
+            results["created"].append("knowledge_repository_tables")
+            print("   ✅ Knowledge repository tables created/verified")
+        except Exception as e:
+            results["errors"].append({"tables": "knowledge_repository", "error": str(e)[:100]})
+            print(f"   ❌ Error: {str(e)[:100]}")
+
         await conn.close()
 
         # Print summary
