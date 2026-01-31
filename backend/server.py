@@ -84,9 +84,19 @@ except ImportError:
     google_services = None
 
 try:
-    from routes import rag, sql_tools, sql_query, kg_routes, analyze, health_v4
-except ImportError:
-    rag = sql_tools = sql_query = kg_routes = analyze = health_v4 = None
+    from routes import rag, sql_tools, sql_query, kg_routes, analyze
+except ImportError as e:
+    logging.warning(f"RAG/SQL routes not available: {e}")
+    rag = sql_tools = sql_query = kg_routes = analyze = None
+
+try:
+    from routes import health_v4
+    logging.info("✅ Health V4 routes loaded successfully")
+except ImportError as e:
+    logging.error(f"❌ Health V4 routes FAILED to load: {e}")
+    import traceback
+    traceback.print_exc()
+    health_v4 = None
 
 try:
     from routes import email_routes, webhooks, pcloud_routes
