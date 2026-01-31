@@ -86,6 +86,28 @@ Sube los documentos y analizaré que todo sea congruente.`, { agent: 'ARCHIVO' }
   const handleSendMessage = useCallback(async (content) => {
     chat.addUserMessage(content);
 
+    // Handle post-completion actions
+    if (steps.currentStep === 'completed' || steps.onboardingStatus === 'completed') {
+      const contentLower = content.toLowerCase();
+      if (contentLower.includes('dashboard') || contentLower.includes('panel')) {
+        navigate('/dashboard');
+        return;
+      }
+      if (contentLower.includes('nuevo') || contentLower.includes('otro') || contentLower.includes('alta')) {
+        handleResetOnboarding();
+        return;
+      }
+      // If they type something else after completion, offer options again
+      chat.addBotMessage(`El registro ya fue completado. ¿Qué deseas hacer ahora?`, {
+        agent: 'ARCHIVO',
+        suggestions: [
+          { text: 'Dar de alta otro', value: 'nuevo' },
+          { text: 'Ir al Dashboard', value: 'dashboard' },
+        ],
+      });
+      return;
+    }
+
     if (steps.currentStep === 'select_type') {
       if (content.toLowerCase().includes('cliente')) {
         handleSelectEntityType('cliente');
@@ -159,13 +181,17 @@ Sube los documentos y analizaré que todo sea congruente.`, { agent: 'ARCHIVO' }
 
   const handleSuggestionClick = useCallback((suggestion) => {
     const value = typeof suggestion === 'string' ? suggestion : suggestion.value || suggestion.text;
-    
+
     if (value === 'cliente' || value === 'proveedor') {
       handleSelectEntityType(value);
+    } else if (value === 'dashboard') {
+      navigate('/dashboard');
+    } else if (value === 'nuevo') {
+      handleResetOnboarding();
     } else {
       handleSendMessage(value);
     }
-  }, [handleSelectEntityType, handleSendMessage]);
+  }, [handleSelectEntityType, handleSendMessage, handleResetOnboarding, navigate]);
 
   async function handleFileAnalysisComplete(results) {
     if (results.length === 0) return;
@@ -349,15 +375,20 @@ Este email se usará para:
 
       steps.setOnboardingStatus('completed');
       steps.setShowConfirmation(false);
+      // Reset current step to prevent confusion with future messages
+      steps.setCurrentStep('completed');
+
+      // Get display name - prioritize razon_social, then nombre, with fallback
+      const displayName = finalData?.razon_social || finalData?.nombre || 'Cliente registrado';
 
       chat.addBotMessage(`🎉 **¡${steps.entityType === 'proveedor' ? 'Proveedor' : 'Cliente'} creado exitosamente!**
 
-**${finalData?.nombre || finalData?.razon_social || 'Sin nombre'}**
+**${displayName}**
 RFC: ${finalData?.rfc || 'N/A'}
 
 ✅ Registro creado en el sistema
 ✅ Documentos guardados en su expediente
-${finalData?.email ? `✅ Se enviará email de bienvenida a ${finalData.email}` : ''}
+${finalData?.email || steps.emailContacto ? `✅ Se enviará email de bienvenida a ${finalData?.email || steps.emailContacto}` : ''}
 
 Puedes editar este ${steps.entityType || 'cliente'} desde el **Panel de Administración**.`, {
         agent: 'ARCHIVO',
