@@ -6,8 +6,10 @@ Este servicio:
 2. Sincroniza documentos de training desde pCloud
 3. Inyecta aprendizajes previos en los prompts
 4. Gestiona el ciclo de vida de agentes dinámicamente
+5. Integra conocimiento especializado tributario en los prompts
 
 Fecha: 2026-01-31
+Actualización: Integración de prompts especializados con conocimiento tributario
 """
 
 import asyncio
@@ -20,6 +22,18 @@ from datetime import datetime, timedelta
 from uuid import UUID
 import asyncpg
 import httpx
+
+# Importar prompts especializados con conocimiento tributario integrado
+try:
+    from services.specialized_agent_prompts import (
+        get_specialized_prompt,
+        get_agent_knowledge,
+        SPECIALIZED_PROMPTS
+    )
+    HAS_SPECIALIZED_PROMPTS = True
+except ImportError:
+    HAS_SPECIALIZED_PROMPTS = False
+    SPECIALIZED_PROMPTS = {}
 
 logger = logging.getLogger(__name__)
 
@@ -290,19 +304,31 @@ class DynamicAgentLoader:
     ) -> str:
         """
         Generar prompt dinámico para un agente, incluyendo:
-        - System prompt base
+        - System prompt ESPECIALIZADO con conocimiento tributario (si disponible)
+        - System prompt base de DB (fallback)
         - Contexto del proyecto/empresa
         - Aprendizajes previos
         - Documentos RAG relevantes
         """
         agent = await self.load_agent(agent_id, include_learnings)
         if not agent:
+            # Intentar usar prompt especializado aunque no haya config en DB
+            if HAS_SPECIALIZED_PROMPTS and agent_id in SPECIALIZED_PROMPTS:
+                logger.info(f"Using specialized prompt for {agent_id} (no DB config)")
+                return get_specialized_prompt(agent_id)
             return f"Eres un agente de REVISAR.IA con ID {agent_id}."
 
         prompt_parts = []
 
-        # 1. System prompt base
-        prompt_parts.append(agent.system_prompt)
+        # 1. System prompt - PRIORIZAR PROMPT ESPECIALIZADO CON CONOCIMIENTO TRIBUTARIO
+        if HAS_SPECIALIZED_PROMPTS and agent_id in SPECIALIZED_PROMPTS:
+            # Usar prompt especializado que tiene el conocimiento tributario integrado
+            logger.info(f"✅ Using SPECIALIZED prompt with tax knowledge for {agent_id}")
+            prompt_parts.append(get_specialized_prompt(agent_id))
+        else:
+            # Fallback al prompt de la base de datos
+            logger.info(f"Using DB system prompt for {agent_id}")
+            prompt_parts.append(agent.system_prompt)
 
         # 2. Personalidad
         if agent.personalidad:
