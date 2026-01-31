@@ -41,10 +41,13 @@ DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
 # Demo/Fallback mode settings (when PostgreSQL is not available)
 DEMO_MODE = os.environ.get('OTP_DEMO_MODE', 'false').lower() == 'true'
-ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@revisar-ia.com')
-ADMIN_NAME = os.environ.get('ADMIN_NAME', 'Administrador')
-ADMIN_COMPANY = os.environ.get('ADMIN_COMPANY', 'Revisar.IA')
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'ia@satma.mx')
+ADMIN_NAME = os.environ.get('ADMIN_NAME', 'Administrador SATMA')
+ADMIN_COMPANY = os.environ.get('ADMIN_COMPANY', 'SATMA')
 DEMO_OTP_CODE = '123456'  # Fixed OTP for demo mode
+
+# Email configuration check
+EMAIL_CONFIGURED = bool(os.environ.get('DREAMHOST_EMAIL_PASSWORD', ''))
 
 OTP_EXPIRATION_MINUTES = 5
 SESSION_EXPIRATION_HOURS = 24
@@ -431,10 +434,34 @@ class OTPAuthService:
             await conn.close()
     
     async def send_otp_email(self, email: str, codigo: str, nombre: str = "") -> Dict[str, Any]:
+        """
+        Envía el código OTP por email.
+
+        En modo demo o sin email configurado:
+        - Loguea el código de manera visible
+        - Devuelve el código en la respuesta para desarrollo
+        """
         subject = f"Codigo de acceso {codigo} - Revisar.IA"
-        
+
         greeting_name = nombre if nombre else "Usuario"
-        
+
+        # Si el email no está configurado, solo loguea
+        if not EMAIL_CONFIGURED:
+            logger.warning("=" * 60)
+            logger.warning(f"⚠️  EMAIL NO CONFIGURADO - MODO DESARROLLO")
+            logger.warning(f"📧 Email destino: {email}")
+            logger.warning(f"🔐 CÓDIGO OTP: {codigo}")
+            logger.warning(f"⏰ Expira en: {OTP_EXPIRATION_MINUTES} minutos")
+            logger.warning("=" * 60)
+            return {
+                "success": True,
+                "demo_mode": True,
+                "message": "Email service not configured - code logged",
+                "codigo_debug": codigo,  # Solo en desarrollo!
+                "email": email,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+
         logo_base64 = get_logo_base64()
         
         if logo_base64:

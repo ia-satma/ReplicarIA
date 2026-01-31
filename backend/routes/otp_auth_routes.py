@@ -30,9 +30,64 @@ class OTPResponse(BaseModel):
     data: Optional[dict] = None
 
 
+@router.get("/status")
+async def get_otp_status():
+    """
+    Endpoint de diagnóstico para verificar el estado del sistema OTP.
+    Útil para debugging y verificar configuración.
+    """
+    from services.otp_auth_service import DATABASE_URL, EMAIL_CONFIGURED, DEMO_MODE, ADMIN_EMAIL, get_db_connection
+
+    db_configured = bool(DATABASE_URL)
+
+    # Test database connection
+    db_connected = False
+    tables_exist = False
+    if db_configured:
+        try:
+            conn = await get_db_connection()
+            if conn:
+                db_connected = True
+                # Check if tables exist
+                result = await conn.fetchval(
+                    "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'usuarios_autorizados')"
+                )
+                tables_exist = result
+                await conn.close()
+        except Exception as e:
+            logger.error(f"DB connection test failed: {e}")
+
+    warnings = []
+    if not db_configured:
+        warnings.append("DATABASE_URL not configured - using demo mode (only admin email works)")
+    elif not db_connected:
+        warnings.append("DATABASE_URL configured but connection failed")
+    elif not tables_exist:
+        warnings.append("Database connected but 'usuarios_autorizados' table missing - run 001_otp_legacy_tables.sql")
+    if not EMAIL_CONFIGURED:
+        warnings.append("DREAMHOST_EMAIL_PASSWORD not configured - OTP codes will only be logged/shown in response")
+
+    return {
+        "status": "operational",
+        "config": {
+            "database_configured": db_configured,
+            "database_connected": db_connected,
+            "tables_exist": tables_exist,
+            "email_configured": EMAIL_CONFIGURED,
+            "demo_mode": DEMO_MODE,
+            "admin_email": ADMIN_EMAIL
+        },
+        "warnings": warnings,
+        "help": {
+            "no_email": "Sin email configurado, el código OTP aparecerá en '_dev_code' de la respuesta",
+            "tables_missing": "Ejecuta: psql $DATABASE_URL -f database/001_otp_legacy_tables.sql"
+        }
+    }
+
+
 @router.post("/request-code", response_model=OTPResponse)
 async def request_otp_code(input: OTPRequestInput):
-    from services.otp_auth_service import check_lockout, check_rate_limit
+    from services.otp_auth_service import check_lockout, check_rate_limit, EMAIL_CONFIGURED
 
     email = input.email.lower()
 
@@ -47,7 +102,7 @@ async def request_otp_code(input: OTPRequestInput):
     if not user:
         raise HTTPException(
             status_code=403,
-            detail="Este correo no está autorizado para acceder al sistema"
+            detail="Este correo no está autorizado para acceder al sistema. Contacta al administrador."
         )
 
     codigo = await otp_auth_service.create_otp_code(email, user['id'])
@@ -57,25 +112,40 @@ async def request_otp_code(input: OTPRequestInput):
             status_code=429,
             detail="Demasiadas solicitudes. Por favor espera 1 minuto antes de solicitar otro código."
         )
-    
+
     email_result = await otp_auth_service.send_otp_email(
         email=email,
         codigo=codigo,
         nombre=user.get('nombre', '')
     )
-    
-    logger.info(f"OTP requested for {email}, email sent: {email_result.get('success')}")
-    
+
+    logger.info(f"OTP requested for {email}, email sent: {email_result.get('success')}, demo_mode: {email_result.get('demo_mode', False)}")
+
+    response_data = {
+        "email": email,
+        "nombre": user.get('nombre'),
+        "rol": user.get('rol', 'user'),
+        "empresa": user.get('empresa'),
+        "expires_in_minutes": 5,
+        "is_admin": user.get('rol') in ['admin', 'super_admin']
+    }
+
+    # En modo desarrollo (sin email), incluir el código en la respuesta
+    if not EMAIL_CONFIGURED or email_result.get('demo_mode'):
+        response_data["_dev_code"] = codigo
+        response_data["_dev_warning"] = "⚠️ Email no configurado. Usa este código para autenticarte."
+        logger.warning("=" * 60)
+        logger.warning(f"🔐 DEV MODE - OTP Code for {email}: {codigo}")
+        logger.warning("=" * 60)
+
+    message = "Código enviado a tu correo electrónico"
+    if not EMAIL_CONFIGURED:
+        message = f"Código generado: revisa '_dev_code' en la respuesta (email no configurado)"
+
     return OTPResponse(
         success=True,
-        message="Código enviado a tu correo electrónico",
-        data={
-            "email": email,
-            "nombre": user.get('nombre'),
-            "rol": user.get('rol', 'user'),
-            "empresa": user.get('empresa'),
-            "expires_in_minutes": 5
-        }
+        message=message,
+        data=response_data
     )
 
 
@@ -190,12 +260,136 @@ async def get_current_session(authorization: Optional[str] = Header(None)):
 async def logout(authorization: Optional[str] = Header(None)):
     if not authorization:
         return OTPResponse(success=True, message="Sesión cerrada")
-    
+
     token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
-    
+
     await otp_auth_service.end_session(token)
-    
+
     return OTPResponse(
         success=True,
         message="Sesión cerrada exitosamente"
     )
+
+
+@router.get("/test-email")
+async def test_email_connection():
+    """
+    Endpoint para probar la conexión SMTP de DreamHost.
+    Solo para diagnóstico - muestra el error real si la conexión falla.
+    """
+    import os
+    from services.dreamhost_email_service import email_service, AGENT_EMAILS, SMTP_HOST, SMTP_PORT
+
+    password_configured = bool(os.environ.get('DREAMHOST_EMAIL_PASSWORD', ''))
+    password_length = len(os.environ.get('DREAMHOST_EMAIL_PASSWORD', ''))
+
+    result = {
+        "smtp_host": SMTP_HOST,
+        "smtp_port": SMTP_PORT,
+        "password_configured": password_configured,
+        "password_length": password_length,
+        "service_initialized": email_service.initialized,
+        "agent_email_for_otp": AGENT_EMAILS.get("A2_PMO", "NOT FOUND"),
+        "test_result": None,
+        "error": None
+    }
+
+    if not password_configured:
+        result["error"] = "DREAMHOST_EMAIL_PASSWORD no está configurado en las variables de entorno"
+        result["fix"] = "Configura DREAMHOST_EMAIL_PASSWORD en Railway con la contraseña de los emails de DreamHost"
+        return result
+
+    # Intentar conexión de prueba
+    try:
+        test = email_service.test_connection("A2_PMO")
+        result["test_result"] = test
+
+        if test.get("success"):
+            result["status"] = "✅ SMTP CONNECTION OK"
+        else:
+            result["status"] = "❌ SMTP CONNECTION FAILED"
+            result["error"] = test.get("error", "Unknown error")
+
+    except Exception as e:
+        result["status"] = "❌ EXCEPTION"
+        result["error"] = str(e)
+        result["error_type"] = type(e).__name__
+
+    return result
+
+
+@router.post("/send-test-email")
+async def send_test_email(input: OTPRequestInput):
+    """
+    Envía un email de prueba al correo especificado.
+    Solo para diagnóstico - requiere que el email esté autorizado.
+    """
+    from services.dreamhost_email_service import email_service
+    from services.otp_auth_service import EMAIL_CONFIGURED
+
+    email = input.email.lower()
+
+    if not EMAIL_CONFIGURED:
+        return {
+            "success": False,
+            "error": "Email no configurado",
+            "message": "DREAMHOST_EMAIL_PASSWORD no está en las variables de entorno"
+        }
+
+    # Verificar que el email esté autorizado
+    user = await otp_auth_service.check_authorized_email(email)
+    if not user:
+        return {
+            "success": False,
+            "error": "Email no autorizado",
+            "message": "Este email no está en usuarios_autorizados"
+        }
+
+    # Enviar email de prueba
+    result = email_service.send_email(
+        from_agent_id="A2_PMO",
+        to_email=email,
+        subject="🔧 Prueba de conexión - Revisar.IA",
+        body=f"""
+Hola {user.get('nombre', 'Usuario')},
+
+Este es un email de prueba del sistema Revisar.IA.
+
+Si recibes este mensaje, la configuración de email está funcionando correctamente.
+
+Detalles:
+- Email destino: {email}
+- Sistema: Revisar.IA
+- Agente remitente: A2_PMO (pmo@revisar-ia.com)
+
+Saludos,
+Sistema Revisar.IA
+        """,
+        html_body=f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2 style="color: #1a365d;">🔧 Prueba de Conexión</h2>
+            <p>Hola <strong>{user.get('nombre', 'Usuario')}</strong>,</p>
+            <p>Este es un email de prueba del sistema <strong>Revisar.IA</strong>.</p>
+            <p style="background: #e8f5e9; padding: 15px; border-radius: 8px; color: #2e7d32;">
+                ✅ Si recibes este mensaje, la configuración de email está funcionando correctamente.
+            </p>
+            <hr>
+            <small style="color: #666;">
+                Email destino: {email}<br>
+                Agente remitente: A2_PMO (pmo@revisar-ia.com)
+            </small>
+        </body>
+        </html>
+        """
+    )
+
+    return {
+        "success": result.get("success", False),
+        "demo_mode": result.get("demo_mode", False),
+        "message_id": result.get("message_id"),
+        "error": result.get("error"),
+        "from": result.get("from"),
+        "to": result.get("to"),
+        "note": "Si demo_mode=true, el email solo se logueó pero NO se envió realmente"
+    }
