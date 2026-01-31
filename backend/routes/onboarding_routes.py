@@ -431,6 +431,11 @@ async def guardar_cliente_pcloud(
     Crea estructura: DEFENSE_FILES/{RFC}/{cliente_info.json}
     """
     try:
+        # Check if pCloud is available
+        if not pcloud_service.is_available():
+            logger.info("pCloud not configured, skipping upload")
+            return {"pcloud_path": "demo_mode", "pcloud_file_id": None}
+
         rfc = datos.get("rfc", "SIN_RFC").upper().replace(" ", "_")
         fecha = datetime.now().strftime("%Y-%m-%d")
 
@@ -464,20 +469,39 @@ async def guardar_cliente_pcloud(
             ]
         }
 
-        # Save to pCloud
-        content = json.dumps(cliente_doc, indent=2, ensure_ascii=False, default=str)
-        folder_path = f"DEFENSE_FILES/{rfc}"
+        # Login to pCloud first
+        login_result = pcloud_service.login()
+        if not login_result.get("success"):
+            logger.warning(f"pCloud login failed: {login_result.get('error')}")
+            return None
 
-        result = await pcloud_service.upload_file(
-            content=content.encode('utf-8'),
-            filename=f"cliente_info_{cliente_id}.json",
-            folder_path=folder_path
+        # Get DEFENSE_FILES folder ID
+        from services.pcloud_service import AGENT_FOLDER_IDS
+        defense_files_folder_id = AGENT_FOLDER_IDS.get("DEFENSE_FILES", 0)
+
+        if not defense_files_folder_id:
+            logger.warning("DEFENSE_FILES folder ID not found")
+            return None
+
+        # Create RFC subfolder if needed
+        rfc_folder_result = pcloud_service.create_folder(defense_files_folder_id, rfc)
+        rfc_folder_id = rfc_folder_result.get("folder_id", defense_files_folder_id)
+
+        # Save to pCloud using the correct method signature: (folder_id, filename, content)
+        content = json.dumps(cliente_doc, indent=2, ensure_ascii=False, default=str)
+        filename = f"cliente_info_{cliente_id}.json"
+
+        result = pcloud_service.upload_file(
+            folder_id=rfc_folder_id,
+            filename=filename,
+            content=content.encode('utf-8')
         )
 
         if result and result.get("success"):
-            logger.info(f"Client data saved to pCloud: {folder_path}/cliente_info_{cliente_id}.json")
+            folder_path = f"DEFENSE_FILES/{rfc}"
+            logger.info(f"Client data saved to pCloud: {folder_path}/{filename}")
             return {
-                "pcloud_path": f"{folder_path}/cliente_info_{cliente_id}.json",
+                "pcloud_path": f"{folder_path}/{filename}",
                 "pcloud_file_id": result.get("file_id")
             }
         else:
