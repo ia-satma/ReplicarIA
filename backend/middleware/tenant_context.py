@@ -145,6 +145,7 @@ SKIP_TENANT_CHECK_PREFIXES = (
     "/api/subagentes",
     "/api/fases",
     "/api/docs",
+    "/api/health",
     "/api/empresas",
     "/api/kb",
     "/api/biblioteca",
