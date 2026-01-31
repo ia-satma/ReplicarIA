@@ -579,3 +579,122 @@ async def reindex_kb(empresa_id: str, admin_user = Depends(get_admin_user)):
         raise
     except Exception as e:
         return handle_route_error(e, f"reindexar KB de empresa {empresa_id}")
+
+
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
+
+
+def get_clean_database_url() -> str:
+    """Limpia la URL de la base de datos para asyncpg."""
+    url = DATABASE_URL
+    if not url:
+        return ''
+    if url.startswith('postgres://'):
+        url = url.replace('postgres://', 'postgresql://', 1)
+    import re
+    url = re.sub(r'[?&]sslmode=[^&]*', '', url)
+    return url
+
+
+@router.post("/reset-demo-data")
+async def reset_demo_data(admin_user = Depends(get_admin_user)):
+    """
+    PELIGROSO: Borra todos los datos demo de la base de datos.
+    Solo accesible por super_admin.
+    Preserva: usuarios admin, configuración del sistema.
+    """
+    # Solo super_admin puede ejecutar esto
+    if admin_user.role not in ['super_admin', 'admin']:
+        raise HTTPException(status_code=403, detail="Solo super_admin puede ejecutar reset")
+
+    db_url = get_clean_database_url()
+    if not db_url:
+        raise HTTPException(status_code=500, detail="DATABASE_URL no configurada")
+
+    try:
+        conn = await asyncpg.connect(db_url, ssl='require')
+        logger.warning(f"⚠️ RESET DEMO DATA iniciado por {admin_user.email}")
+
+        results = {
+            "tables_cleaned": [],
+            "errors": [],
+            "admin_user": admin_user.email,
+            "timestamp": datetime.now().isoformat()
+        }
+
+        # Tablas a limpiar (orden importante por foreign keys)
+        tables_to_clean = [
+            'clientes_historial',
+            'clientes_interacciones',
+            'clientes_contexto',
+            'clientes_documentos',
+            'proveedores_scoring',
+            'df_proveedores',
+            'df_documents',
+            'df_metadata',
+            'kb_chunk_agente',
+            'kb_chunks',
+            'kb_documentos',
+            'kb_metricas',
+            'projects',
+            'project_documents',
+            'project_notes',
+            'clientes',
+            'proveedores',
+            'auth_otp_codes',
+            'auth_rate_limits',
+        ]
+
+        for table in tables_to_clean:
+            try:
+                exists = await conn.fetchval('''
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables
+                        WHERE table_schema = 'public' AND table_name = $1
+                    )
+                ''', table)
+
+                if exists:
+                    count_before = await conn.fetchval(f'SELECT COUNT(*) FROM {table}')
+                    await conn.execute(f'DELETE FROM {table}')
+                    results["tables_cleaned"].append({
+                        "table": table,
+                        "deleted": count_before
+                    })
+                    logger.info(f"   ✓ {table}: {count_before} registros eliminados")
+
+            except Exception as e:
+                results["errors"].append({"table": table, "error": str(e)[:100]})
+                logger.warning(f"   ⚠ {table}: {e}")
+
+        # Limpiar usuarios no-admin
+        try:
+            admin_emails = ['ia@satma.mx', 'admin@revisar-ia.com']
+            await conn.execute('''
+                DELETE FROM auth_users
+                WHERE email NOT IN (SELECT unnest($1::text[]))
+                AND role NOT IN ('super_admin', 'admin')
+            ''', admin_emails)
+            results["tables_cleaned"].append({"table": "auth_users (non-admin)", "deleted": "varios"})
+        except Exception as e:
+            results["errors"].append({"table": "auth_users", "error": str(e)[:100]})
+
+        # Limpiar sesiones expiradas
+        try:
+            await conn.execute('DELETE FROM auth_sessions WHERE expires_at < NOW()')
+        except:
+            pass
+
+        await conn.close()
+
+        logger.warning(f"✅ RESET DEMO DATA completado por {admin_user.email}")
+
+        return {
+            "success": True,
+            "message": "Datos demo eliminados correctamente",
+            "details": results
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error en reset: {e}")
+        raise HTTPException(status_code=500, detail=f"Error en reset: {str(e)}")
