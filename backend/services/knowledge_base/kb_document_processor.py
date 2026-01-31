@@ -279,12 +279,12 @@ Responde SOLO con JSON válido:
         extension = filename.lower().split('.')[-1]
         
         async with pool.acquire() as conn:
+            # Insert with only columns that exist in the table
             doc_result = await conn.fetchrow("""
                 INSERT INTO kb_documentos (
                     empresa_id, nombre, tipo_archivo, categoria, subcategoria, version,
-                    es_version_vigente, fecha_vigencia, fecha_publicacion, fuente,
-                    hash_contenido, tamaño_bytes, estado, metadata
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'procesando', $13)
+                    hash_contenido, estado, metadata
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'procesando', $8)
                 RETURNING id
             """,
                 empresa_id,
@@ -293,12 +293,7 @@ Responde SOLO con JSON válido:
                 clasificacion.get("categoria", categoria),
                 clasificacion.get("subcategoria", "general"),
                 clasificacion.get("version"),
-                clasificacion.get("esVigente", True),
-                None,
-                None,
-                clasificacion.get("fuente", "otro"),
                 hash_contenido,
-                len(file_content),
                 json.dumps({**(metadata or {}), **clasificacion.get("metadata", {})})
             )
             documento_id = str(doc_result["id"])
