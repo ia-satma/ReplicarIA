@@ -164,12 +164,14 @@ async def ingest_document(
     """Ingest a new document into the knowledge base using PostgreSQL RAG"""
     try:
         empresa_id = int(x_empresa_id) if x_empresa_id and x_empresa_id.isdigit() else None
-        result = await kb_processor.procesar_documento(
-            content=request.content.encode('utf-8') if isinstance(request.content, str) else request.content,
-            filename=request.title or "documento.txt",
-            categoria=request.tipo.value if hasattr(request.tipo, 'value') else str(request.tipo),
+        # Use contenido from request model, encode to bytes for process_document
+        content_text = request.contenido or ""
+        result = await kb_processor.process_document(
+            file_content=content_text.encode('utf-8'),
+            filename=request.nombre or "documento.txt",
+            categoria=request.documento_tipo.value if hasattr(request.documento_tipo, 'value') else str(request.documento_tipo),
             empresa_id=empresa_id,
-            metadata={"usuario": x_user_id, "descripcion": request.content[:500]}
+            metadata={"usuario": x_user_id, "descripcion": content_text[:500], **request.metadata}
         )
         return {
             "id": result.documento_id,
@@ -562,8 +564,8 @@ async def reingest_documento(
             """, documento_id)
             
             if doc["contenido_completo"]:
-                result = await kb_processor.procesar_documento(
-                    content=doc["contenido_completo"].encode('utf-8') if isinstance(doc["contenido_completo"], str) else doc["contenido_completo"],
+                result = await kb_processor.process_document(
+                    file_content=doc["contenido_completo"].encode('utf-8') if isinstance(doc["contenido_completo"], str) else doc["contenido_completo"],
                     filename=doc["nombre"],
                     categoria=doc["categoria"],
                     empresa_id=doc["empresa_id"]
