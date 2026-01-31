@@ -39,11 +39,11 @@ def is_configured() -> bool:
 
 
 def get_email_provider() -> str:
-    """Determine which email provider to use"""
-    if os.environ.get('DREAMHOST_EMAIL_PASSWORD'):
-        return 'dreamhost'
-    elif os.environ.get('SENDGRID_API_KEY'):
+    """Determine which email provider to use - SendGrid prioritized for reliability"""
+    if os.environ.get('SENDGRID_API_KEY'):
         return 'sendgrid'
+    elif os.environ.get('DREAMHOST_EMAIL_PASSWORD'):
+        return 'dreamhost'
     return 'demo'
 
 
