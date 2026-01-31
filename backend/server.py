@@ -819,6 +819,23 @@ async def reset_demo_data_direct(secret_key: str = ""):
 
         results["demo_memory"] = demo_results
 
+        # Clean defense_files directory (JSON files that store project data)
+        defense_files_results = {"cleaned": 0, "errors": []}
+        try:
+            from pathlib import Path
+            defense_dir = Path("./defense_files")
+            if defense_dir.exists():
+                for json_file in defense_dir.glob("**/*.json"):
+                    try:
+                        json_file.unlink()
+                        defense_files_results["cleaned"] += 1
+                    except Exception as e:
+                        defense_files_results["errors"].append(str(e)[:50])
+        except Exception as e:
+            defense_files_results["errors"].append(str(e)[:100])
+
+        results["defense_files"] = defense_files_results
+
         results["mongodb"] = mongo_results
         return {"success": True, "results": results}
 

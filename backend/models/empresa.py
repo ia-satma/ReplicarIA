@@ -51,6 +51,13 @@ class Empresa(BaseModel):
     rfc: str
     industria: IndustriaEnum
     sub_industria: Optional[str] = None
+    # Datos de contacto
+    direccion: Optional[str] = None
+    telefono: Optional[str] = None
+    email: Optional[str] = None
+    sitio_web: Optional[str] = None
+    regimen_fiscal: Optional[str] = None
+    # Estrategia
     vision: Optional[str] = None
     mision: Optional[str] = None
     valores: List[str] = []

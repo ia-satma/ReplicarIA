@@ -52,6 +52,9 @@ class UpdateEmpresaAdminRequest(BaseModel):
     giro: Optional[str] = None
     regimen_fiscal: Optional[str] = None
     industria: Optional[str] = None
+    plan: Optional[str] = None  # Plan de suscripción: basico, profesional, enterprise
+    vision: Optional[str] = None
+    mision: Optional[str] = None
 
 
 class CreateEmpresaRequest(BaseModel):
@@ -329,12 +332,40 @@ async def list_empresas(admin_user = Depends(get_admin_user)):
 
 @router.get("/empresas/{empresa_id}")
 async def get_empresa(empresa_id: str, admin_user = Depends(get_admin_user)):
-    """Get a specific company's details from PostgreSQL"""
+    """Get a specific company's details from MongoDB (empresa_service)"""
     try:
+        # Primero intentar MongoDB (fuente principal)
+        empresa = await empresa_service.get_empresa(empresa_id)
+        if empresa:
+            return {
+                "success": True,
+                "empresa": {
+                    "id": empresa.id,
+                    "nombre": empresa.nombre_comercial,
+                    "nombre_comercial": empresa.nombre_comercial,
+                    "rfc": empresa.rfc,
+                    "razon_social": empresa.razon_social,
+                    "direccion": getattr(empresa, 'direccion', None),
+                    "telefono": getattr(empresa, 'telefono', None),
+                    "email": getattr(empresa, 'email', None),
+                    "sitio_web": getattr(empresa, 'sitio_web', None),
+                    "giro": empresa.sub_industria,
+                    "regimen_fiscal": getattr(empresa, 'regimen_fiscal', None),
+                    "industria": empresa.industria.value if hasattr(empresa.industria, 'value') else str(empresa.industria),
+                    "is_active": empresa.activa,
+                    "activa": empresa.activa,
+                    "plan": empresa.plan,
+                    "vision": empresa.vision,
+                    "mision": empresa.mision,
+                    "created_at": empresa.fecha_alta.isoformat() if hasattr(empresa.fecha_alta, 'isoformat') else str(empresa.fecha_alta)
+                }
+            }
+
+        # Fallback a PostgreSQL si no existe en MongoDB
         company = await company_service.get_company_by_id(empresa_id)
         if not company:
             raise HTTPException(status_code=404, detail="Empresa no encontrada")
-        
+
         return {
             "success": True,
             "empresa": {
@@ -352,6 +383,9 @@ async def get_empresa(empresa_id: str, admin_user = Depends(get_admin_user)):
                 "industria": company.get('industry'),
                 "is_active": company.get('is_active', True),
                 "activa": company.get('is_active', True),
+                "plan": company.get('plan', 'basico'),
+                "vision": company.get('vision'),
+                "mision": company.get('mision'),
                 "created_at": str(company.get('created_at')) if company.get('created_at') else None
             }
         }
@@ -378,6 +412,24 @@ async def update_empresa(empresa_id: str, request: UpdateEmpresaAdminRequest, ad
             update_dict['rfc'] = request.rfc.upper()
         if request.giro is not None:
             update_dict['sub_industria'] = request.giro
+        if request.direccion is not None:
+            update_dict['direccion'] = request.direccion
+        if request.telefono is not None:
+            update_dict['telefono'] = request.telefono
+        if request.email is not None:
+            update_dict['email'] = request.email
+        if request.sitio_web is not None:
+            update_dict['sitio_web'] = request.sitio_web
+        if request.regimen_fiscal is not None:
+            update_dict['regimen_fiscal'] = request.regimen_fiscal
+        if request.industria is not None:
+            update_dict['industria'] = request.industria
+        if request.plan is not None:
+            update_dict['plan'] = request.plan
+        if request.vision is not None:
+            update_dict['vision'] = request.vision
+        if request.mision is not None:
+            update_dict['mision'] = request.mision
         
         if update_dict:
             from repositories.empresa_repository import empresa_repository
