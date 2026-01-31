@@ -55,7 +55,7 @@ if missing_keys:
 # Database connection - Demo mode or MongoDB
 DEMO_MODE = False
 mongo_url = os.environ.get('MONGO_URL', '')
-db_name = os.environ.get('DB_NAME', 'agent_network')
+db_name = os.environ.get('DB_NAME', 'revisar_agent_network')
 
 if mongo_url and mongo_url.strip():
     try:
