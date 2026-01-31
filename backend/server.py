@@ -1094,12 +1094,99 @@ async def start_trafico_ia():
     return False
 
 
+async def run_kb_migrations():
+    """Ejecutar migraciones de Knowledge Base (pgvector + UUID)"""
+    import asyncpg
+    import re
+
+    db_url = os.environ.get('DATABASE_URL', '')
+    if not db_url:
+        logger.warning("DATABASE_URL not set, skipping KB migrations")
+        return False
+
+    # Clean URL for asyncpg
+    if db_url.startswith('postgres://'):
+        db_url = db_url.replace('postgres://', 'postgresql://', 1)
+    db_url = re.sub(r'[?&]sslmode=[^&]*', '', db_url)
+
+    try:
+        conn = await asyncpg.connect(db_url, ssl='require')
+
+        # 1. Enable pgvector extension
+        try:
+            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            logger.info("✅ pgvector extension enabled")
+        except Exception as e:
+            logger.warning(f"pgvector extension: {e}")
+
+        # 2. Check if kb_documentos exists and fix empresa_id
+        try:
+            exists = await conn.fetchval(
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'kb_documentos')"
+            )
+            if exists:
+                # Check current type
+                col_type = await conn.fetchval("""
+                    SELECT data_type FROM information_schema.columns
+                    WHERE table_name = 'kb_documentos' AND column_name = 'empresa_id'
+                """)
+                if col_type == 'integer':
+                    await conn.execute("ALTER TABLE kb_documentos DROP CONSTRAINT IF EXISTS kb_documentos_empresa_id_fkey")
+                    await conn.execute("ALTER TABLE kb_documentos ALTER COLUMN empresa_id TYPE UUID USING NULL")
+                    logger.info("✅ kb_documentos.empresa_id changed to UUID")
+                elif col_type is None:
+                    await conn.execute("ALTER TABLE kb_documentos ADD COLUMN empresa_id UUID")
+                    logger.info("✅ kb_documentos.empresa_id added as UUID")
+                else:
+                    logger.info(f"kb_documentos.empresa_id already correct type: {col_type}")
+        except Exception as e:
+            logger.warning(f"kb_documentos migration: {e}")
+
+        # 3. Check kb_chunks for contenido_embedding
+        try:
+            exists = await conn.fetchval(
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'kb_chunks')"
+            )
+            if exists:
+                col_exists = await conn.fetchval("""
+                    SELECT EXISTS (SELECT FROM information_schema.columns
+                    WHERE table_name = 'kb_chunks' AND column_name = 'contenido_embedding')
+                """)
+                if not col_exists:
+                    await conn.execute("ALTER TABLE kb_chunks ADD COLUMN contenido_embedding vector(1536)")
+                    logger.info("✅ kb_chunks.contenido_embedding added")
+        except Exception as e:
+            logger.warning(f"kb_chunks migration: {e}")
+
+        # 4. Create indexes
+        try:
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS kb_documentos_empresa_id_idx ON kb_documentos (empresa_id)
+            """)
+            logger.info("✅ KB indexes created/verified")
+        except Exception as e:
+            logger.warning(f"KB index creation: {e}")
+
+        await conn.close()
+        logger.info("✅ KB migrations completed successfully")
+        return True
+
+    except Exception as e:
+        logger.error(f"KB migration error: {e}")
+        return False
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
     import asyncio
     from services.event_stream import event_emitter
     from services.database import create_multi_tenant_indexes
+
+    # ============================================================
+    # MIGRACIONES DE BASE DE DATOS
+    # ============================================================
+    await run_kb_migrations()
 
     # ============================================================
     # INICIALIZACIÓN DE BASE DE DATOS

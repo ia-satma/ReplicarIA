@@ -72,6 +72,8 @@ async def request_otp_code(input: OTPRequestInput):
         data={
             "email": email,
             "nombre": user.get('nombre'),
+            "rol": user.get('rol', 'user'),
+            "empresa": user.get('empresa'),
             "expires_in_minutes": 5
         }
     )
