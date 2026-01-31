@@ -596,16 +596,23 @@ def get_clean_database_url() -> str:
     return url
 
 
+class ResetDemoRequest(BaseModel):
+    secret_key: str
+
+
+RESET_SECRET = os.environ.get('RESET_SECRET_KEY', 'satma-reset-2024-confirmado')
+
+
 @router.post("/reset-demo-data")
-async def reset_demo_data(admin_user = Depends(get_admin_user)):
+async def reset_demo_data(request: ResetDemoRequest):
     """
     PELIGROSO: Borra todos los datos demo de la base de datos.
-    Solo accesible por super_admin.
+    Requiere secret_key para ejecutar.
     Preserva: usuarios admin, configuración del sistema.
     """
-    # Solo super_admin puede ejecutar esto
-    if admin_user.role not in ['super_admin', 'admin']:
-        raise HTTPException(status_code=403, detail="Solo super_admin puede ejecutar reset")
+    # Verificar clave secreta
+    if request.secret_key != RESET_SECRET:
+        raise HTTPException(status_code=403, detail="Clave secreta inválida")
 
     db_url = get_clean_database_url()
     if not db_url:
@@ -613,12 +620,12 @@ async def reset_demo_data(admin_user = Depends(get_admin_user)):
 
     try:
         conn = await asyncpg.connect(db_url, ssl='require')
-        logger.warning(f"⚠️ RESET DEMO DATA iniciado por {admin_user.email}")
+        logger.warning(f"⚠️ RESET DEMO DATA iniciado con secret_key")
 
         results = {
             "tables_cleaned": [],
             "errors": [],
-            "admin_user": admin_user.email,
+            "auth_method": "secret_key",
             "timestamp": datetime.now().isoformat()
         }
 
