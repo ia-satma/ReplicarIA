@@ -113,6 +113,7 @@ SKIP_TENANT_CHECK_PATHS = {
     "/auth/register",
     "/auth/token",
     "/api/auth/login",
+    "/api/auth/password-login",
     "/api/auth/register",
     "/api/auth/token",
     "/api/auth/verify",
