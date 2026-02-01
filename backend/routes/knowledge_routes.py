@@ -102,11 +102,26 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     raise HTTPException(status_code=401, detail="Token inválido")
 
 
-def get_user_empresa_id(user: dict) -> str:
-    """Extract empresa_id from user token, ensuring multi-tenant isolation."""
+def get_user_empresa_id(user: dict, allow_superadmin: bool = True) -> Optional[str]:
+    """Extract empresa_id from user token, ensuring multi-tenant isolation.
+
+    For superadmins without empresa_id, returns None if allow_superadmin=True.
+    Superadmins with None empresa_id can see all data (god mode).
+    """
     empresa_id = user.get("empresa_id") or user.get("company_id")
+
+    # Check if user is superadmin
+    is_superadmin = (
+        user.get("is_superadmin") or
+        user.get("role") in ["super_admin", "superadmin", "platform_admin"]
+    )
+
     if not empresa_id:
+        if is_superadmin and allow_superadmin:
+            # Superadmin sin empresa = puede ver todo (god mode)
+            return None
         raise HTTPException(status_code=403, detail="No tiene empresa asignada")
+
     return empresa_id
 
 

@@ -66,36 +66,63 @@ class KnowledgeService:
         os.makedirs(empresa_dir, exist_ok=True)
         return empresa_dir
     
-    async def browse(self, empresa_id: str, path: str = "/") -> Dict[str, Any]:
-        """List folders and documents at a given path."""
+    async def browse(self, empresa_id: Optional[str], path: str = "/") -> Dict[str, Any]:
+        """List folders and documents at a given path.
+
+        Args:
+            empresa_id: The empresa to filter by. None = superadmin sees all.
+            path: The path to browse.
+        """
         conn = await get_db_connection()
         if not conn:
             raise DatabaseConnectionError("Database connection unavailable")
-        
+
         try:
             normalized_path = path.rstrip('/') or '/'
-            
-            folders = await conn.fetch(
-                """
-                SELECT id, path, name, parent_path, created_at
-                FROM knowledge_folders
-                WHERE empresa_id = $1 AND parent_path = $2
-                ORDER BY name
-                """,
-                safe_uuid(empresa_id),
-                normalized_path
-            )
-            
-            documents = await conn.fetch(
-                """
-                SELECT id, path, filename, mime_type, size_bytes, status, created_at, updated_at, metadata
-                FROM knowledge_documents
-                WHERE empresa_id = $1 AND path = $2 AND status != 'archived'
-                ORDER BY filename
-                """,
-                safe_uuid(empresa_id),
-                normalized_path
-            )
+
+            # For superadmins (empresa_id=None), show all data
+            if empresa_id is None:
+                folders = await conn.fetch(
+                    """
+                    SELECT id, path, name, parent_path, created_at, empresa_id
+                    FROM knowledge_folders
+                    WHERE parent_path = $1
+                    ORDER BY name
+                    """,
+                    normalized_path
+                )
+
+                documents = await conn.fetch(
+                    """
+                    SELECT id, path, filename, mime_type, size_bytes, status, created_at, updated_at, metadata, empresa_id
+                    FROM knowledge_documents
+                    WHERE path = $1 AND status != 'archived'
+                    ORDER BY filename
+                    """,
+                    normalized_path
+                )
+            else:
+                folders = await conn.fetch(
+                    """
+                    SELECT id, path, name, parent_path, created_at
+                    FROM knowledge_folders
+                    WHERE empresa_id = $1 AND parent_path = $2
+                    ORDER BY name
+                    """,
+                    safe_uuid(empresa_id),
+                    normalized_path
+                )
+
+                documents = await conn.fetch(
+                    """
+                    SELECT id, path, filename, mime_type, size_bytes, status, created_at, updated_at, metadata
+                    FROM knowledge_documents
+                    WHERE empresa_id = $1 AND path = $2 AND status != 'archived'
+                    ORDER BY filename
+                    """,
+                    safe_uuid(empresa_id),
+                    normalized_path
+                )
             
             return {
                 "path": normalized_path,
@@ -531,54 +558,94 @@ class KnowledgeService:
         finally:
             await conn.close()
     
-    async def get_stats(self, empresa_id: str) -> Dict[str, Any]:
-        """Get repository statistics for an empresa."""
+    async def get_stats(self, empresa_id: Optional[str]) -> Dict[str, Any]:
+        """Get repository statistics for an empresa.
+
+        Args:
+            empresa_id: The empresa to filter by. None = superadmin sees all.
+        """
         conn = await get_db_connection()
         if not conn:
             raise DatabaseConnectionError("Database connection unavailable")
-        
+
         try:
-            total_docs = await conn.fetchrow(
-                """
-                SELECT COUNT(*) as count, COALESCE(SUM(size_bytes), 0) as total_size
-                FROM knowledge_documents
-                WHERE empresa_id = $1 AND status != 'archived'
-                """,
-                safe_uuid(empresa_id)
-            )
-            
-            status_counts = await conn.fetch(
-                """
-                SELECT status, COUNT(*) as count
-                FROM knowledge_documents
-                WHERE empresa_id = $1 AND status != 'archived'
-                GROUP BY status
-                """,
-                safe_uuid(empresa_id)
-            )
-            
-            last_upload = await conn.fetchrow(
-                """
-                SELECT created_at
-                FROM knowledge_documents
-                WHERE empresa_id = $1 AND status != 'archived'
-                ORDER BY created_at DESC
-                LIMIT 1
-                """,
-                safe_uuid(empresa_id)
-            )
-            
-            folder_count = await conn.fetchrow(
-                """
-                SELECT COUNT(*) as count
-                FROM knowledge_folders
-                WHERE empresa_id = $1
-                """,
-                safe_uuid(empresa_id)
-            )
-            
+            # For superadmins (empresa_id=None), show stats for all empresas
+            if empresa_id is None:
+                total_docs = await conn.fetchrow(
+                    """
+                    SELECT COUNT(*) as count, COALESCE(SUM(size_bytes), 0) as total_size
+                    FROM knowledge_documents
+                    WHERE status != 'archived'
+                    """
+                )
+
+                status_counts = await conn.fetch(
+                    """
+                    SELECT status, COUNT(*) as count
+                    FROM knowledge_documents
+                    WHERE status != 'archived'
+                    GROUP BY status
+                    """
+                )
+
+                last_upload = await conn.fetchrow(
+                    """
+                    SELECT created_at
+                    FROM knowledge_documents
+                    WHERE status != 'archived'
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """
+                )
+
+                folder_count = await conn.fetchrow(
+                    """
+                    SELECT COUNT(*) as count
+                    FROM knowledge_folders
+                    """
+                )
+            else:
+                total_docs = await conn.fetchrow(
+                    """
+                    SELECT COUNT(*) as count, COALESCE(SUM(size_bytes), 0) as total_size
+                    FROM knowledge_documents
+                    WHERE empresa_id = $1 AND status != 'archived'
+                    """,
+                    safe_uuid(empresa_id)
+                )
+
+                status_counts = await conn.fetch(
+                    """
+                    SELECT status, COUNT(*) as count
+                    FROM knowledge_documents
+                    WHERE empresa_id = $1 AND status != 'archived'
+                    GROUP BY status
+                    """,
+                    safe_uuid(empresa_id)
+                )
+
+                last_upload = await conn.fetchrow(
+                    """
+                    SELECT created_at
+                    FROM knowledge_documents
+                    WHERE empresa_id = $1 AND status != 'archived'
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    safe_uuid(empresa_id)
+                )
+
+                folder_count = await conn.fetchrow(
+                    """
+                    SELECT COUNT(*) as count
+                    FROM knowledge_folders
+                    WHERE empresa_id = $1
+                    """,
+                    safe_uuid(empresa_id)
+                )
+
             status_dict = {row['status']: row['count'] for row in status_counts}
-            
+
             return {
                 "total_documents": total_docs['count'] if total_docs else 0,
                 "total_size_bytes": total_docs['total_size'] if total_docs else 0,
