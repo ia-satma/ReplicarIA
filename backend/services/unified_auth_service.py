@@ -37,6 +37,11 @@ from jose import jwt, JWTError
 
 logger = logging.getLogger(__name__)
 
+
+class EmailSendError(Exception):
+    """Raised when email sending fails"""
+    pass
+
 # ============================================================
 # CONFIGURACIÓN
 # ============================================================
@@ -1086,7 +1091,7 @@ class UnifiedAuthService:
                 expires_minutes=AuthConfig.OTP_EXPIRY_MINUTES
             )
             if not result.get('success'):
-                raise Exception(result.get('error', 'Error desconocido'))
+                raise EmailSendError(result.get('error', 'Error desconocido al enviar email'))
         except ImportError:
             logger.warning(f"Email service no disponible. OTP para {user.email}: {code}")
             if AuthConfig.IS_DEVELOPMENT:

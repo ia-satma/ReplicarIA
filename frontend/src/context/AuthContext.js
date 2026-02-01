@@ -113,9 +113,8 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       await api.post('/api/auth/otp/logout');
-    } catch (err) {
+    } catch {
       // El logout puede fallar si el token ya expiró, lo cual está bien
-      console.log('Logout request completed (may have already expired)');
     }
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');

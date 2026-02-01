@@ -13,6 +13,11 @@ import asyncpg
 
 logger = logging.getLogger(__name__)
 
+
+class DatabaseConnectionError(Exception):
+    """Raised when database connection is unavailable"""
+    pass
+
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
 
@@ -327,7 +332,7 @@ class IngestionService:
         """Save extracted text to the database."""
         conn = await get_db_connection()
         if not conn:
-            raise Exception("Database connection unavailable")
+            raise DatabaseConnectionError("Database connection unavailable")
         
         try:
             existing = await conn.fetchrow(
@@ -425,7 +430,7 @@ class IngestionService:
         """Retrieve extracted text for a document."""
         conn = await get_db_connection()
         if not conn:
-            raise Exception("Database connection unavailable")
+            raise DatabaseConnectionError("Database connection unavailable")
         
         try:
             row = await conn.fetchrow(

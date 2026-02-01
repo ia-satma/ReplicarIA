@@ -887,8 +887,8 @@ const DetalleProveedor = ({ proveedor, onBack, token, empresaId, onUpdate }) => 
                         obligatorio={true}
                         empresaId={empresaId}
                         authToken={token}
-                        onOCRComplete={(datos) => console.log('Datos CSF:', datos)}
-                        onFileUploaded={(file, url) => console.log('Archivo subido:', file.name)}
+                        onOCRComplete={() => {}}
+                        onFileUploaded={() => {}}
                       />
 
                       <DocumentUploadOCR
@@ -898,8 +898,8 @@ const DetalleProveedor = ({ proveedor, onBack, token, empresaId, onUpdate }) => 
                         obligatorio={true}
                         empresaId={empresaId}
                         authToken={token}
-                        onOCRComplete={(datos) => console.log('Datos 32-D:', datos)}
-                        onFileUploaded={(file, url) => console.log('Archivo subido:', file.name)}
+                        onOCRComplete={() => {}}
+                        onFileUploaded={() => {}}
                       />
 
                       <DocumentUploadOCR
@@ -908,8 +908,8 @@ const DetalleProveedor = ({ proveedor, onBack, token, empresaId, onUpdate }) => 
                         descripcion="Documento notarial de constitución de la empresa"
                         empresaId={empresaId}
                         authToken={token}
-                        onOCRComplete={(datos) => console.log('Datos Acta:', datos)}
-                        onFileUploaded={(file, url) => console.log('Archivo subido:', file.name)}
+                        onOCRComplete={() => {}}
+                        onFileUploaded={() => {}}
                       />
 
                       {proveedor.requiere_repse && (
@@ -920,8 +920,8 @@ const DetalleProveedor = ({ proveedor, onBack, token, empresaId, onUpdate }) => 
                           obligatorio={true}
                           empresaId={empresaId}
                           authToken={token}
-                          onOCRComplete={(datos) => console.log('Datos REPSE:', datos)}
-                          onFileUploaded={(file, url) => console.log('Archivo subido:', file.name)}
+                          onOCRComplete={() => {}}
+                          onFileUploaded={() => {}}
                         />
                       )}
                     </div>

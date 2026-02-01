@@ -50,8 +50,8 @@ export default function EditarUsuario({ usuarioId, onClose, onSave }) {
 
           const resDocs = await api.get(`/api/admin/empresas/${userData.empresa_id}/documentos`);
           setDocumentos(resDocs.documentos || []);
-        } catch (empError) {
-          console.log('No empresa data found');
+        } catch {
+          // Empresa data not found for this user
         }
       }
     } catch (err) {

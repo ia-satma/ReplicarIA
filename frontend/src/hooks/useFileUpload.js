@@ -75,12 +75,10 @@ export function useFileUpload(onAnalysisComplete) {
 
     try {
       setIsProcessingFile(true);
-      console.log(`[useFileUpload] Analizando: ${file.name}`);
 
       // Use backend URL from env or fallback to relative path (for Vercel rewrites)
       const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
       const apiUrl = `${backendUrl}/api/chat/archivo/analyze-document`;
-      console.log(`[useFileUpload] API URL: ${apiUrl}`);
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -91,8 +89,7 @@ export function useFileUpload(onAnalysisComplete) {
       clearTimeout(timeoutId);
       
       const responseText = await response.text();
-      console.log(`[useFileUpload] Respuesta para ${file.name}:`, responseText.substring(0, 200));
-      
+
       let result;
       try {
         result = responseText ? JSON.parse(responseText) : {};
@@ -116,7 +113,6 @@ export function useFileUpload(onAnalysisComplete) {
         }]);
       }
 
-      console.log(`[useFileUpload] Análisis exitoso para ${file.name}:`, result.classification);
       return { ...result, success: true };
     } catch (error) {
       clearTimeout(timeoutId);

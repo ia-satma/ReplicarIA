@@ -209,7 +209,7 @@ Puedo ayudarte a dar de alta nuevos **clientes** o **proveedores** de forma inte
 
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log('Request aborted');
+        // Request was aborted by user
       } else {
         console.error('Chat error:', error);
         updateStreamingMessage('⚠️ Error de conexión. Usando respuesta local.');

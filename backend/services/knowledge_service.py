@@ -14,6 +14,11 @@ import asyncpg
 
 logger = logging.getLogger(__name__)
 
+
+class DatabaseConnectionError(Exception):
+    """Raised when database connection is unavailable"""
+    pass
+
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 KNOWLEDGE_UPLOADS_DIR = "backend/uploads/knowledge"
 
@@ -65,7 +70,7 @@ class KnowledgeService:
         """List folders and documents at a given path."""
         conn = await get_db_connection()
         if not conn:
-            raise Exception("Database connection unavailable")
+            raise DatabaseConnectionError("Database connection unavailable")
         
         try:
             normalized_path = path.rstrip('/') or '/'
@@ -124,7 +129,7 @@ class KnowledgeService:
         """Create a new folder at the given path."""
         conn = await get_db_connection()
         if not conn:
-            raise Exception("Database connection unavailable")
+            raise DatabaseConnectionError("Database connection unavailable")
         
         try:
             parent_path = path.rstrip('/') or '/'
@@ -183,7 +188,7 @@ class KnowledgeService:
         """Upload a file to the knowledge repository."""
         conn = await get_db_connection()
         if not conn:
-            raise Exception("Database connection unavailable")
+            raise DatabaseConnectionError("Database connection unavailable")
         
         try:
             normalized_path = path.rstrip('/') or '/'
@@ -281,7 +286,7 @@ class KnowledgeService:
         """Get document metadata by ID."""
         conn = await get_db_connection()
         if not conn:
-            raise Exception("Database connection unavailable")
+            raise DatabaseConnectionError("Database connection unavailable")
         
         try:
             if empresa_id:
@@ -343,7 +348,7 @@ class KnowledgeService:
         """Delete or archive a document."""
         conn = await get_db_connection()
         if not conn:
-            raise Exception("Database connection unavailable")
+            raise DatabaseConnectionError("Database connection unavailable")
         
         try:
             doc = await conn.fetchrow(
@@ -417,7 +422,7 @@ class KnowledgeService:
         
         conn = await get_db_connection()
         if not conn:
-            raise Exception("Database connection unavailable")
+            raise DatabaseConnectionError("Database connection unavailable")
         
         try:
             result = await conn.execute(
@@ -467,7 +472,7 @@ class KnowledgeService:
         
         conn = await get_db_connection()
         if not conn:
-            raise Exception("Database connection unavailable")
+            raise DatabaseConnectionError("Database connection unavailable")
         
         created_folders = []
         skipped_folders = []
@@ -530,7 +535,7 @@ class KnowledgeService:
         """Get repository statistics for an empresa."""
         conn = await get_db_connection()
         if not conn:
-            raise Exception("Database connection unavailable")
+            raise DatabaseConnectionError("Database connection unavailable")
         
         try:
             total_docs = await conn.fetchrow(
@@ -591,7 +596,7 @@ class KnowledgeService:
         
         conn = await get_db_connection()
         if not conn:
-            raise Exception("Database connection unavailable")
+            raise DatabaseConnectionError("Database connection unavailable")
         
         try:
             search_pattern = f"%{query.strip()}%"
@@ -764,7 +769,7 @@ class KnowledgeService:
         """Create a processing job."""
         conn = await get_db_connection()
         if not conn:
-            raise Exception("Database connection unavailable")
+            raise DatabaseConnectionError("Database connection unavailable")
         
         try:
             job_id = uuid.uuid4()
