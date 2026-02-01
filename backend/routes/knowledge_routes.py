@@ -9,7 +9,7 @@ from typing import Optional, List
 from pydantic import BaseModel
 import os
 import logging
-from jose import jwt, exceptions as jose_exceptions
+from jose import jwt
 
 from services.knowledge_service import knowledge_service
 from services.classification_service import classification_service, chunking_service, rag_query_service
@@ -35,23 +35,71 @@ class BrowseResponse(BaseModel):
     documents: List[dict]
 
 
-def verify_token(token: str) -> dict:
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Obtener usuario actual del token JWT, auth_sessions o sesión OTP"""
+    import hashlib
+
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Token requerido")
+
+    token = credentials.credentials
+
+    # Try JWT first
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except jose_exceptions.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expirado")
-    except jose_exceptions.JWTError:
-        raise HTTPException(status_code=401, detail="Token inválido")
+    except (jwt.JWTError, jwt.ExpiredSignatureError, jwt.JWTClaimsError, Exception):
+        pass  # JWT validation failed, try other methods
 
+    # Try auth_sessions (password-based login) - uses hashed token
+    try:
+        from services.otp_auth_service import get_db_connection
+        conn = await get_db_connection()
+        if conn:
+            token_hash = hashlib.sha256(token.encode()).hexdigest()
+            row = await conn.fetchrow('''
+                SELECT s.id, s.user_id, s.auth_method, s.expires_at,
+                       u.email, u.full_name, u.role, u.status, u.empresa_id, u.company_name
+                FROM auth_sessions s
+                JOIN auth_users u ON u.id = s.user_id
+                WHERE s.token_hash = $1 AND s.is_active = true
+                  AND s.expires_at > NOW() AND u.deleted_at IS NULL
+            ''', token_hash)
+            await conn.close()
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Dependency to get current user from JWT token"""
-    if not credentials:
-        raise HTTPException(status_code=401, detail="No autorizado - Token requerido")
-    token = credentials.credentials
-    payload = verify_token(token)
-    return payload
+            if row and row['status'] == 'active':
+                return {
+                    "user_id": str(row['user_id']),
+                    "sub": str(row['user_id']),
+                    "email": row['email'],
+                    "full_name": row['full_name'],
+                    "empresa_id": str(row['empresa_id']) if row['empresa_id'] else None,
+                    "company_id": str(row['empresa_id']) if row['empresa_id'] else None,
+                    "role": row['role'],
+                    "is_superadmin": row['role'] == 'super_admin'
+                }
+    except Exception as e:
+        logger.debug(f"auth_sessions validation failed: {e}")
+
+    # Fallback to OTP session token (sesiones_otp table)
+    try:
+        from services.otp_auth_service import otp_auth_service
+        session = await otp_auth_service.validate_session(token)
+        if session and session.get("user"):
+            user = session["user"]
+            return {
+                "user_id": user.get("id"),
+                "email": user.get("email"),
+                "full_name": user.get("nombre"),
+                "empresa_id": user.get("empresa") or None,
+                "company_id": user.get("empresa") or None,
+                "role": user.get("rol", "user"),
+                "is_superadmin": user.get("rol") == "super_admin"
+            }
+    except Exception as e:
+        logger.warning(f"OTP session validation failed: {e}")
+
+    raise HTTPException(status_code=401, detail="Token inválido")
 
 
 def get_user_empresa_id(user: dict) -> str:
