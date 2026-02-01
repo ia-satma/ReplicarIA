@@ -171,15 +171,31 @@ async def check_auth_method(body: CheckAuthMethodRequest):
     from services.otp_auth_service import get_db_connection
 
     try:
+        logger.info(f"[check-auth-method] Checking auth method for: {body.email}")
         conn = await get_db_connection()
-        if conn:
-            try:
-                row = await conn.fetchrow('''
-                    SELECT auth_method, role FROM auth_users
-                    WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL AND status = 'active'
-                ''', body.email)
 
-                if row and row['auth_method'] == 'password':
+        if not conn:
+            logger.warning("[check-auth-method] No database connection available")
+            return APIResponse(
+                success=True,
+                message="No DB connection - default OTP",
+                data={'auth_method': 'otp'}
+            )
+
+        try:
+            # Check auth_users table for password users
+            row = await conn.fetchrow('''
+                SELECT email, auth_method, role, status FROM auth_users
+                WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL
+            ''', body.email)
+
+            logger.info(f"[check-auth-method] Query result: {dict(row) if row else 'No row found'}")
+
+            if row:
+                if row['status'] != 'active':
+                    logger.warning(f"[check-auth-method] User found but status is: {row['status']}")
+                elif row['auth_method'] == 'password':
+                    logger.info(f"[check-auth-method] Password auth for role: {row['role']}")
                     return APIResponse(
                         success=True,
                         message="Método de autenticación encontrado",
@@ -188,8 +204,11 @@ async def check_auth_method(body: CheckAuthMethodRequest):
                             'is_superadmin': row['role'] == 'super_admin'
                         }
                     )
-            finally:
-                await conn.close()
+            else:
+                logger.info(f"[check-auth-method] No user found in auth_users for {body.email}")
+
+        finally:
+            await conn.close()
 
         return APIResponse(
             success=True,
@@ -197,11 +216,86 @@ async def check_auth_method(body: CheckAuthMethodRequest):
             data={'auth_method': 'otp'}
         )
     except Exception as e:
-        logger.error(f"Error checking auth method: {e}")
+        logger.error(f"[check-auth-method] Error: {e}", exc_info=True)
         return APIResponse(
             success=True,
             message="Default to OTP",
             data={'auth_method': 'otp'}
+        )
+
+
+@router.get("/debug-auth-users", response_model=APIResponse)
+async def debug_auth_users():
+    """
+    Debug endpoint para verificar contenido de auth_users.
+    Solo para diagnóstico.
+    """
+    from services.otp_auth_service import get_db_connection
+
+    try:
+        conn = await get_db_connection()
+        if not conn:
+            return APIResponse(
+                success=False,
+                message="No database connection",
+                data={'error': 'No DATABASE_URL or connection failed'}
+            )
+
+        try:
+            # Check if table exists
+            table_exists = await conn.fetchval('''
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = 'auth_users'
+                )
+            ''')
+
+            if not table_exists:
+                return APIResponse(
+                    success=False,
+                    message="Table auth_users does not exist",
+                    data={'table_exists': False}
+                )
+
+            # Get all users (masked for security)
+            rows = await conn.fetch('''
+                SELECT id, email, auth_method, role, status, created_at
+                FROM auth_users
+                WHERE deleted_at IS NULL
+                ORDER BY created_at DESC
+                LIMIT 10
+            ''')
+
+            users = []
+            for row in rows:
+                users.append({
+                    'id': str(row['id']),
+                    'email': row['email'][:3] + '***' + row['email'][row['email'].find('@'):],
+                    'auth_method': row['auth_method'],
+                    'role': row['role'],
+                    'status': row['status'],
+                    'created_at': row['created_at'].isoformat() if row['created_at'] else None
+                })
+
+            return APIResponse(
+                success=True,
+                message=f"Found {len(users)} users in auth_users",
+                data={
+                    'table_exists': True,
+                    'user_count': len(users),
+                    'users': users
+                }
+            )
+
+        finally:
+            await conn.close()
+
+    except Exception as e:
+        logger.error(f"Debug auth_users error: {e}", exc_info=True)
+        return APIResponse(
+            success=False,
+            message=f"Error: {str(e)}",
+            data={'error': str(e)}
         )
 
 
@@ -750,6 +844,65 @@ async def auth_health_check():
         message=f"Auth service: {health['status']}",
         data=health
     )
+
+
+@router.get("/database-status", response_model=APIResponse)
+async def database_status():
+    """
+    Database status for auth service.
+    """
+    from services.otp_auth_service import get_db_connection
+    import os
+
+    result = {
+        'database_url_set': bool(os.environ.get('DATABASE_URL')),
+        'database_url_preview': '',
+        'connection_ok': False,
+        'tables': {}
+    }
+
+    # Show preview of DATABASE_URL (masked)
+    db_url = os.environ.get('DATABASE_URL', '')
+    if db_url:
+        # Mask the password part
+        if '@' in db_url:
+            parts = db_url.split('@')
+            result['database_url_preview'] = '***@' + parts[-1][:30] + '...'
+        else:
+            result['database_url_preview'] = db_url[:20] + '...'
+
+    try:
+        conn = await get_db_connection()
+        if conn:
+            result['connection_ok'] = True
+            try:
+                # Check auth tables
+                for table in ['auth_users', 'auth_sessions', 'usuarios_autorizados', 'codigos_otp', 'sesiones_otp']:
+                    exists = await conn.fetchval('''
+                        SELECT EXISTS (
+                            SELECT FROM information_schema.tables
+                            WHERE table_schema = 'public' AND table_name = $1
+                        )
+                    ''', table)
+                    count = 0
+                    if exists:
+                        count = await conn.fetchval(f'SELECT COUNT(*) FROM {table}')
+                    result['tables'][table] = {'exists': exists, 'count': count}
+            finally:
+                await conn.close()
+
+        return APIResponse(
+            success=result['connection_ok'],
+            message="Database status",
+            data=result
+        )
+    except Exception as e:
+        result['error'] = str(e)
+        return APIResponse(
+            success=False,
+            message=f"Database error: {str(e)}",
+            data=result
+        )
 
 
 # ============================================================
