@@ -269,6 +269,12 @@ except ImportError as e:
     otp_auth_routes = None
 
 try:
+    from routes import unified_auth_routes
+except ImportError as e:
+    logging.warning(f"Unified Auth routes not available: {e}")
+    unified_auth_routes = None
+
+try:
     from routes import support_routes
 except ImportError as e:
     logging.warning(f"Support routes not available: {e}")
@@ -717,6 +723,8 @@ if documentation:
     api_router.include_router(documentation.router)
 if otp_auth_routes:
     api_router.include_router(otp_auth_routes.router)
+if unified_auth_routes:
+    api_router.include_router(unified_auth_routes.router)
 if vision_routes:
     api_router.include_router(vision_routes.router)
 if defense_routes:
