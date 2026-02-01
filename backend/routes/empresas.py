@@ -321,6 +321,14 @@ Responde UNICAMENTE en formato JSON:
                     except Exception as ai_err:
                         logger.warning(f"Error generando vision/mision con IA: {ai_err}")
 
+                # If vision/mision are still empty, use templates
+                if not research_data.get("vision") or not research_data.get("mision"):
+                    template = TEMPLATES_POR_INDUSTRIA.get(industria_key, TEMPLATES_POR_INDUSTRIA["default"])
+                    if not research_data.get("vision"):
+                        research_data["vision"] = template["vision"].replace("Ser la empresa", f"Ser {data.nombre_comercial} como la empresa")
+                    if not research_data.get("mision"):
+                        research_data["mision"] = template["mision"]
+
                 return {
                     "success": True,
                     "data": {
