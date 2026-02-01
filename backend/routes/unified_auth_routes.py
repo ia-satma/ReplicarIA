@@ -342,18 +342,21 @@ async def login(request: Request, body: LoginRequest):
                 raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
             # Crear sesión
+            import hashlib
             token = secrets.token_urlsafe(32)
-            token_hash = secrets.token_hex(32)  # Simple hash for now
+            # Hash the token for secure storage (same method as unified_auth_service)
+            token_hash = hashlib.sha256(token.encode()).hexdigest()
             expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
 
             try:
                 await conn.execute('''
-                    INSERT INTO auth_sessions (user_id, token_hash, token_prefix, auth_method, expires_at, ip_address, user_agent)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                ''', row['id'], token_hash, token[:8], 'password', expires_at,
+                    INSERT INTO auth_sessions (user_id, token_hash, token_prefix, auth_method, is_active, expires_at, ip_address, user_agent)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                ''', row['id'], token_hash, token[:8], 'password', True, expires_at,
                     get_client_ip(request), get_user_agent(request)[:500] if get_user_agent(request) else None)
+                logger.info(f"Session created for {row['email']} with prefix {token[:8]}")
             except Exception as session_err:
-                logger.warning(f"Session insert failed, continuing without session: {session_err}")
+                logger.error(f"Session insert failed: {session_err}")
 
             # Actualizar último login
             try:
