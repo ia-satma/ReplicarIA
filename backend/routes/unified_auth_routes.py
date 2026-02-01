@@ -154,6 +154,52 @@ async def get_optional_user(
 # ENDPOINTS DE AUTENTICACIÓN
 # ============================================================
 
+class CheckAuthMethodRequest(BaseModel):
+    """Request para verificar método de autenticación."""
+    email: EmailStr
+
+
+@router.post("/check-auth-method", response_model=APIResponse)
+async def check_auth_method(body: CheckAuthMethodRequest):
+    """
+    Verificar qué método de autenticación usa un email.
+    
+    - Retorna 'password' para superadmin
+    - Retorna 'otp' para usuarios normales
+    """
+    from services.unified_auth_service import DatabasePool
+    
+    try:
+        async with await DatabasePool.get_connection() as conn:
+            row = await conn.fetchrow('''
+                SELECT auth_method, role FROM auth_users
+                WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL AND status = 'active'
+            ''', body.email)
+            
+            if row and row['auth_method'] == 'password':
+                return APIResponse(
+                    success=True,
+                    message="Método de autenticación encontrado",
+                    data={
+                        'auth_method': 'password',
+                        'is_superadmin': row['role'] == 'super_admin'
+                    }
+                )
+            else:
+                return APIResponse(
+                    success=True,
+                    message="Método de autenticación: OTP",
+                    data={'auth_method': 'otp'}
+                )
+    except Exception as e:
+        logger.error(f"Error checking auth method: {e}")
+        return APIResponse(
+            success=True,
+            message="Default to OTP",
+            data={'auth_method': 'otp'}
+        )
+
+
 @router.post("/login", response_model=APIResponse)
 async def login(request: Request, body: LoginRequest):
     """

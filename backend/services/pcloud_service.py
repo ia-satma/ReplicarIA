@@ -1180,7 +1180,8 @@ class PCloudService:
             "soporte": "07_Documentos_Soporte",
             "reporte": "08_Reportes_Generados",
             "proveedor_69b": "02_Proveedores/69b",
-            "proveedor_efos": "02_Proveedores/efos"
+            "proveedor_efos": "02_Proveedores/efos",
+            "abogado_diablo": "09_Abogado_Diablo"
         }
         
         carpeta_destino = tipo_a_carpeta.get(tipo_documento, "07_Documentos_Soporte")

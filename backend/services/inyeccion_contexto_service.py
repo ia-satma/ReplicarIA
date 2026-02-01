@@ -350,7 +350,8 @@ def _extraer_contenido_normativo(ctx_global: Dict, categoria: str, ley: str, art
                 if isinstance(articulo_data, dict):
                     return articulo_data.get("texto", articulo_data.get("contenido", ""))
         return ""
-    except:
+    except Exception as e:
+        logger.warning(f"Error extrayendo contenido normativo {categoria}.{ley}.{articulo}: {e}")
         return ""
 
 

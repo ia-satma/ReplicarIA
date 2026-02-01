@@ -250,12 +250,14 @@ Responde SOLO en JSON válido:
             if clasificacion.get('fechaVigencia'):
                 try:
                     fecha_vigencia = datetime.fromisoformat(clasificacion['fechaVigencia'])
-                except:
+                except (ValueError, TypeError) as e:
+                    logger.debug(f"Could not parse fechaVigencia: {e}")
                     pass
             if clasificacion.get('fechaPublicacion'):
                 try:
                     fecha_publicacion = datetime.fromisoformat(clasificacion['fechaPublicacion'])
-                except:
+                except (ValueError, TypeError) as e:
+                    logger.debug(f"Could not parse fechaPublicacion: {e}")
                     pass
             
             doc_result = await session.execute(

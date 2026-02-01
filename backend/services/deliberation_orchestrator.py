@@ -210,7 +210,8 @@ class DeliberationOrchestrator:
         try:
             df = defense_file_service.get_defense_file(project_id)
             return df.documents if df else []
-        except:
+        except Exception as e:
+            logger.warning(f"Error accessing defense file for project {project_id}: {e}")
             return []
     
     def _validar_y_registrar_output(self, agent_id: str, output_dict: dict, deliberation_record: dict) -> dict:

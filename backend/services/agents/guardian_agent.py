@@ -637,7 +637,8 @@ class GuardianAgent:
         if ultimo:
             try:
                 num = int(ultimo.split('-')[-1]) + 1
-            except:
+            except (ValueError, IndexError) as e:
+                logger.warning(f"Error parsing bug code '{ultimo}': {e}")
                 num = 1
         else:
             num = 1

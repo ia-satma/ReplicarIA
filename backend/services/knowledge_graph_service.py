@@ -45,7 +45,8 @@ def kg_query(question: str):
             if nx.has_path(G, s, t):
                 path = nx.shortest_path(G, s, t)
                 ans["paths"].append(path)
-        except:
+        except Exception as e:
+            logger.warning(f"Error finding KG path: {e}")
             pass
     ans["explanation"] = f"KG: {len(G.nodes())} entidades, {len(G.edges())} relaciones"
     return ans

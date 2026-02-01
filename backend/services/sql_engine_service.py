@@ -46,5 +46,6 @@ def list_tables() -> list:
     try:
         tables = con.execute("SHOW TABLES").df()
         return tables['name'].tolist() if 'name' in tables.columns else []
-    except:
+    except Exception as e:
+        logger.error(f"Error listing tables: {e}")
         return []

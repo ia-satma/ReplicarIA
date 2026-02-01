@@ -193,7 +193,8 @@ class MultiAgentDriveService:
                     for page in pdf_reader.pages:
                         text += page.extract_text() + "\n"
                     return text.strip()
-                except:
+                except Exception as e:
+                    logger.error(f"Error extrayendo PDF: {e}")
                     return None
             
             elif 'wordprocessingml' in mime_type or mime_type.endswith(('.docx', '.doc')):
@@ -210,8 +211,8 @@ class MultiAgentDriveService:
                 # Intentar como texto plano
                 try:
                     return file_buffer.getvalue().decode('utf-8')
-                except:
-                    logger.warning(f"Archivo binario no soportado: {mime_type}")
+                except Exception as e:
+                    logger.warning(f"Archivo binario no soportado: {mime_type} - {e}")
                     return None
                 
         except Exception as e:

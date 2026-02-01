@@ -43,9 +43,9 @@ class WorkflowOrchestrator:
         try:
             gmail = GmailService()
             self.gmail_service = gmail if gmail.service else None
-        except:
+        except Exception as e:
             self.gmail_service = None
-            logger.warning("Gmail not available - emails will be logged only")
+            logger.warning(f"Gmail not available - emails will be logged only: {e}")
     
     def _get_provider_email(self, sib: StrategicInitiativeBrief) -> str:
         """
@@ -854,9 +854,98 @@ Revisar.ia
             fiscal_val=fiscal_val,
             financial_val=financial_val
         )
-        
+
         logger.info(f"[STATE MACHINE] FASE 0 finalizada: {final_state}")
-    
+
+        # Si el proyecto fue aprobado, generar reporte del Abogado del Diablo
+        if is_approved:
+            await self._trigger_devils_advocate_report(
+                project_id=project_id,
+                sib=sib,
+                agent_outputs={
+                    "A1_SPONSOR": strategic_val,
+                    "A3_FISCAL": fiscal_val,
+                    "A5_FINANZAS": financial_val
+                }
+            )
+
+    async def _trigger_devils_advocate_report(
+        self,
+        project_id: str,
+        sib: StrategicInitiativeBrief,
+        agent_outputs: Dict[str, Dict]
+    ):
+        """
+        Genera y envía el reporte del Abogado del Diablo cuando un proyecto es aprobado.
+
+        El PMO (Carlos Mendoza) actúa como orquestador, consolidando los outputs
+        de todos los agentes para responder las 25 preguntas del cuestionario.
+
+        El reporte se:
+        1. Auto-llena con los datos de agentes A1, A3, A5 (y otros si disponibles)
+        2. Genera como PDF
+        3. Sube a pCloud en la carpeta 09_Abogado_Diablo
+        4. Envía por email a santiago@satma.mx
+        """
+        try:
+            from services.devils_advocate_export_service import get_devils_advocate_export_service
+            from services.devils_advocate_autofill_service import get_devils_advocate_autofill_service
+
+            logger.info(f"[ABOGADO DIABLO] Generando reporte para proyecto {project_id}...")
+
+            export_service = get_devils_advocate_export_service()
+            autofill_service = get_devils_advocate_autofill_service()
+
+            # Preparar datos del proyecto desde SIB
+            form_data = sib.form_data or {}
+            proyecto_data = {
+                "id": project_id,
+                "empresa": form_data.get('company_name', sib.sponsor_name),
+                "rfc": form_data.get('rfc', 'NO_ESPECIFICADO'),
+                "tipo_servicio": form_data.get('service_type', 'consultoria'),
+                "industria": form_data.get('industry', 'general'),
+                "monto": form_data.get('estimated_amount', 0),
+                "nombre_proyecto": sib.project_name,
+                "sponsor": sib.sponsor_name
+            }
+
+            # Auto-llenar las 25 preguntas desde los outputs de agentes
+            auto_filled = autofill_service.auto_fill_from_agent_outputs(
+                agent_outputs,
+                proyecto_data
+            )
+            respuestas = autofill_service.generate_responses_dict(auto_filled)
+
+            # Generar summary del auto-fill
+            autofill_summary = autofill_service.generate_autofill_summary(auto_filled)
+            logger.info(f"[ABOGADO DIABLO] Auto-fill: {autofill_summary['auto_llenadas']}/{autofill_summary['total_preguntas']} preguntas")
+
+            # Generar y enviar reporte (PDF + pCloud + Email)
+            result = await export_service.generate_and_send_report(
+                proyecto_data=proyecto_data,
+                respuestas=respuestas,
+                admin_email="santiago@satma.mx"
+            )
+
+            if result.get("success"):
+                logger.info(f"[ABOGADO DIABLO] Reporte generado exitosamente")
+                if result.get("pcloud_link"):
+                    logger.info(f"[ABOGADO DIABLO] pCloud: {result['pcloud_link']}")
+                if result.get("email_sent"):
+                    logger.info(f"[ABOGADO DIABLO] Email enviado a santiago@satma.mx")
+
+                # Log evaluación
+                evaluacion = result.get("evaluacion", {})
+                logger.info(f"[ABOGADO DIABLO] Score: {evaluacion.get('score_total', 0):.0f}/100, Semaforo: {evaluacion.get('semaforo', 'N/A')}")
+            else:
+                logger.error(f"[ABOGADO DIABLO] Error: {result.get('error', 'Unknown error')}")
+
+        except ImportError as e:
+            logger.warning(f"[ABOGADO DIABLO] Servicios no disponibles: {e}")
+        except Exception as e:
+            logger.error(f"[ABOGADO DIABLO] Error generando reporte: {e}")
+            # No lanzar excepción para no interrumpir el flujo principal
+
     async def _send_revision_request_email(
         self,
         project_id: str,

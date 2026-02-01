@@ -5,11 +5,13 @@ import { useAuth } from '../context/AuthContext';
 const LoginPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { loginWithOTP, isAuthenticated } = useAuth();
+  const { loginWithOTP, loginWithPassword, isAuthenticated } = useAuth();
 
   const [step, setStep] = useState('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [authMethod, setAuthMethod] = useState('otp'); // 'otp' or 'password'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [userInfo, setUserInfo] = useState(null);
@@ -69,6 +71,24 @@ const LoginPage = () => {
     const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
     try {
+      // First check auth method for this email
+      const authCheckResponse = await fetch(`${API_URL}/api/auth/check-auth-method`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() })
+      });
+
+      const authCheckData = await authCheckResponse.json();
+
+      if (authCheckData.success && authCheckData.data?.auth_method === 'password') {
+        // Superadmin - switch to password mode
+        setAuthMethod('password');
+        setStep('password');
+        setLoading(false);
+        return;
+      }
+
+      // Regular user - request OTP
       const response = await fetch(`${API_URL}/api/auth/otp/request-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -95,6 +115,43 @@ const LoginPage = () => {
       setLoading(false);
     }
   };
+
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!password.trim()) return;
+
+    setLoading(true);
+    setError('');
+
+    const API_URL = process.env.REACT_APP_BACKEND_URL || '';
+
+    try {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password: password })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Store token and redirect
+        localStorage.setItem('auth_token', data.data.access_token);
+        localStorage.setItem('auth_user', JSON.stringify(data.data.user));
+        window.location.href = '/dashboard';
+      } else {
+        setError(data.detail || data.message || 'Contraseña incorrecta');
+        setPassword('');
+      }
+    } catch (err) {
+      console.error('Password login error:', err);
+      setError('Error de autenticación');
+      setPassword('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const handleCodeChange = (index, value) => {
     if (!/^\d*$/.test(value)) return;
@@ -157,6 +214,8 @@ const LoginPage = () => {
   const handleBack = () => {
     setStep('email');
     setCode('');
+    setPassword('');
+    setAuthMethod('otp');
     setError('');
   };
 
@@ -253,6 +312,97 @@ const LoginPage = () => {
           </svg>
           Acceso seguro
         </span>
+      </div>
+    </form>
+  );
+
+  const renderPasswordForm = () => (
+    <form onSubmit={handlePasswordSubmit} className="space-y-5">
+      <div className="text-center mb-4">
+        <div
+          className="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center"
+          style={{
+            background: 'rgba(127, 237, 216, 0.15)',
+            border: '1px solid rgba(127, 237, 216, 0.3)'
+          }}
+        >
+          <svg className="w-6 h-6 text-[#7FEDD8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-bold text-white" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
+          Acceso Super Admin
+        </h2>
+        <p className="text-[#7FEDD8] text-sm mt-1 font-medium">{email}</p>
+      </div>
+
+      <div>
+        <label className="block text-xs text-gray-200 mb-2 font-semibold tracking-wide">
+          Contraseña
+        </label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Ingresa tu contraseña"
+          className="w-full px-4 py-3.5 rounded-xl text-white text-sm placeholder-gray-400 focus:outline-none transition-all"
+          style={inputStyle}
+          onFocus={handleInputFocus}
+          onBlur={handleInputBlur}
+          disabled={loading}
+          autoFocus
+          autoComplete="current-password"
+        />
+      </div>
+
+      {error && (
+        <div
+          className="text-sm text-center rounded-xl p-3"
+          style={{
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            color: '#fca5a5'
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={loading || !password.trim()}
+        className="w-full py-3.5 text-sm font-bold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02]"
+        style={{
+          background: 'linear-gradient(135deg, #7FEDD8 0%, #5BC4AB 50%, #7FEDD8 100%)',
+          color: '#0a0f14',
+          boxShadow: '0 4px 20px rgba(127, 237, 216, 0.5), 0 0 40px rgba(127, 237, 216, 0.25), inset 0 1px 0 rgba(255,255,255,0.3)'
+        }}
+      >
+        {loading ? (
+          <span className="flex items-center justify-center gap-2">
+            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Verificando...
+          </span>
+        ) : (
+          'Ingresar'
+        )}
+      </button>
+
+      <div className="flex justify-center pt-1">
+        <button
+          type="button"
+          onClick={handleBack}
+          className="text-gray-400 hover:text-[#7FEDD8] text-xs transition-colors flex items-center gap-1"
+          disabled={loading}
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Usar otro correo
+        </button>
       </div>
     </form>
   );
@@ -415,7 +565,9 @@ const LoginPage = () => {
             boxShadow: '0 8px 32px rgba(0,0,0,0.3), 0 0 40px rgba(127, 237, 216, 0.1), inset 0 1px 0 rgba(255,255,255,0.1)'
           }}
         >
-          {step === 'email' ? renderEmailForm() : renderCodeForm()}
+          {step === 'email' && renderEmailForm()}
+          {step === 'password' && renderPasswordForm()}
+          {step === 'code' && renderCodeForm()}
         </div>
 
         <div className="mt-6 text-center">

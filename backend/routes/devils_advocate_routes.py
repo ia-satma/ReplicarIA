@@ -915,3 +915,276 @@ async def listar_severidades(admin_id: str = Depends(verificar_admin)):
         {"id": s.value, "nombre": s.value.title(), "descripcion": descripciones.get(s.value, "")}
         for s in NivelSeveridad
     ]
+
+
+# ============================================================
+# ENDPOINTS - GENERACIÓN DE REPORTE PDF Y ENVÍO POR EMAIL
+# ============================================================
+
+class ProyectoDataInput(BaseModel):
+    """Datos del proyecto para el reporte"""
+    id: str = Field(..., description="ID del proyecto")
+    empresa: str = Field(..., description="Nombre de la empresa")
+    rfc: Optional[str] = Field(None, description="RFC de la empresa")
+    tipo_servicio: Optional[str] = Field(None, description="Tipo de servicio")
+    industria: Optional[str] = Field(None, description="Industria")
+    monto: Optional[float] = Field(0, description="Monto del proyecto")
+
+
+class GenerarReporteInput(BaseModel):
+    """Input para generar el reporte del Abogado del Diablo"""
+    proyecto: ProyectoDataInput
+    agent_outputs: Optional[Dict[str, Dict[str, Any]]] = Field(
+        None,
+        description="Outputs de los agentes A1-A8 para auto-llenar las preguntas"
+    )
+    respuestas_manuales: Optional[Dict[str, Dict[str, Any]]] = Field(
+        None,
+        description="Respuestas manuales si no hay agent_outputs"
+    )
+    enviar_email: bool = Field(True, description="Enviar reporte por email")
+    email_destinatario: Optional[str] = Field(
+        None,
+        description="Email destinatario (default: santiago@satma.mx)"
+    )
+    subir_pcloud: bool = Field(True, description="Subir a pCloud")
+
+
+class GenerarReporteFromAgentsInput(BaseModel):
+    """Input simplificado cuando los agentes ya procesaron el proyecto"""
+    proyecto_id: str
+    fase_actual: str = Field("F9", description="Fase actual del proyecto")
+    trigger: str = Field("aprobacion_proyecto", description="Evento que dispara el reporte")
+
+
+@router.post("/reporte/generar", response_model=Dict[str, Any])
+async def generar_reporte_abogado_diablo(
+    data: GenerarReporteInput,
+    admin_id: str = Depends(verificar_admin)
+):
+    """
+    Genera el reporte PDF del Abogado del Diablo.
+
+    Este endpoint:
+    1. Auto-llena las 25 preguntas desde los outputs de agentes (si se proporcionan)
+    2. Genera la evaluación con score y semáforo
+    3. Crea el PDF
+    4. Sube a pCloud en la carpeta 09_Abogado_Diablo
+    5. Envía email a santiago@satma.mx (o destinatario especificado)
+
+    Uso típico: Llamado por el PMO cuando un proyecto llega a F9 (aprobación).
+    """
+    from services.devils_advocate_export_service import get_devils_advocate_export_service
+    from services.devils_advocate_autofill_service import get_devils_advocate_autofill_service
+
+    try:
+        export_service = get_devils_advocate_export_service()
+        autofill_service = get_devils_advocate_autofill_service()
+
+        proyecto_data = data.proyecto.model_dump()
+
+        # Determinar respuestas: auto-fill desde agentes o manuales
+        if data.agent_outputs:
+            # Auto-llenar desde outputs de agentes
+            auto_filled = autofill_service.auto_fill_from_agent_outputs(
+                data.agent_outputs,
+                proyecto_data
+            )
+            respuestas = autofill_service.generate_responses_dict(auto_filled)
+            autofill_summary = autofill_service.generate_autofill_summary(auto_filled)
+        elif data.respuestas_manuales:
+            respuestas = data.respuestas_manuales
+            autofill_summary = {"modo": "manual", "total_respuestas": len(respuestas)}
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Se requiere agent_outputs o respuestas_manuales"
+            )
+
+        # Generar reporte y enviar
+        result = await export_service.generate_and_send_report(
+            proyecto_data=proyecto_data,
+            respuestas=respuestas,
+            admin_email=data.email_destinatario if data.enviar_email else None
+        )
+
+        # Si no se quiere enviar email pero se pidió generar
+        if not data.enviar_email:
+            result["email_sent"] = False
+            result["email_skipped"] = True
+
+        # Agregar resumen de auto-fill
+        result["autofill_summary"] = autofill_summary
+
+        return {
+            "success": result.get("success", False),
+            "mensaje": "Reporte generado exitosamente" if result.get("success") else "Error al generar reporte",
+            "evaluacion": result.get("evaluacion", {}),
+            "pcloud_link": result.get("pcloud_link"),
+            "email_enviado": result.get("email_sent", False),
+            "autofill_summary": autofill_summary,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generando reporte: {str(e)}"
+        )
+
+
+@router.post("/reporte/trigger-f9", response_model=Dict[str, Any])
+async def trigger_reporte_aprobacion(
+    data: GenerarReporteFromAgentsInput,
+    admin_id: str = Depends(verificar_admin)
+):
+    """
+    Trigger automático para cuando el PMO aprueba un proyecto en F9.
+
+    Este endpoint busca los datos del proyecto y los outputs de agentes
+    en la base de datos y genera el reporte automáticamente.
+
+    Es llamado por el workflow_orchestrator cuando un proyecto pasa a F9.
+    """
+    import os
+    import asyncpg
+
+    DATABASE_URL = os.environ.get('DATABASE_URL', '')
+
+    try:
+        # Buscar datos del proyecto en la base de datos
+        conn = None
+        proyecto_data = None
+        agent_outputs = {}
+
+        if DATABASE_URL:
+            try:
+                conn = await asyncpg.connect(DATABASE_URL)
+
+                # Buscar proyecto
+                proyecto_row = await conn.fetchrow(
+                    """
+                    SELECT id, empresa, rfc, tipo_servicio, industria, monto
+                    FROM proyectos
+                    WHERE id = $1
+                    """,
+                    data.proyecto_id
+                )
+
+                if proyecto_row:
+                    proyecto_data = dict(proyecto_row)
+
+                # Buscar decisiones de agentes
+                agent_rows = await conn.fetch(
+                    """
+                    SELECT agente_id, decision, analisis, findings,
+                           confidence_level, created_at
+                    FROM decisiones_agentes
+                    WHERE proyecto_id = $1
+                    ORDER BY created_at DESC
+                    """,
+                    data.proyecto_id
+                )
+
+                for row in agent_rows:
+                    agent_id = row['agente_id']
+                    if agent_id not in agent_outputs:
+                        agent_outputs[agent_id] = {
+                            "decision": row['decision'],
+                            "analysis": row['analisis'],
+                            "findings": row['findings'] or [],
+                            "confidence_level": row['confidence_level'] or 0.7
+                        }
+
+            except Exception as db_error:
+                # Log pero no fallar
+                import logging
+                logging.warning(f"Error buscando en DB: {db_error}")
+            finally:
+                if conn:
+                    await conn.close()
+
+        # Si no hay datos del proyecto, crear uno básico
+        if not proyecto_data:
+            proyecto_data = {
+                "id": data.proyecto_id,
+                "empresa": "Empresa no identificada",
+                "rfc": None,
+                "tipo_servicio": None,
+                "industria": None,
+                "monto": 0
+            }
+
+        # Generar reporte usando el endpoint principal
+        from services.devils_advocate_export_service import get_devils_advocate_export_service
+        from services.devils_advocate_autofill_service import get_devils_advocate_autofill_service
+
+        export_service = get_devils_advocate_export_service()
+        autofill_service = get_devils_advocate_autofill_service()
+
+        # Auto-llenar desde agentes o usar valores por defecto
+        if agent_outputs:
+            auto_filled = autofill_service.auto_fill_from_agent_outputs(
+                agent_outputs,
+                proyecto_data
+            )
+            respuestas = autofill_service.generate_responses_dict(auto_filled)
+        else:
+            # Sin datos de agentes, crear respuestas vacías
+            respuestas = {}
+
+        # Generar y enviar reporte
+        result = await export_service.generate_and_send_report(
+            proyecto_data=proyecto_data,
+            respuestas=respuestas,
+            admin_email="santiago@satma.mx"  # Email fijo del admin
+        )
+
+        return {
+            "success": result.get("success", False),
+            "proyecto_id": data.proyecto_id,
+            "fase": data.fase_actual,
+            "trigger": data.trigger,
+            "evaluacion": result.get("evaluacion", {}),
+            "pcloud_link": result.get("pcloud_link"),
+            "email_enviado": result.get("email_sent", False),
+            "datos_proyecto_encontrados": proyecto_data is not None,
+            "agentes_encontrados": list(agent_outputs.keys()),
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error en trigger F9: {str(e)}"
+        )
+
+
+@router.get("/reporte/preview/{proyecto_id}", response_model=Dict[str, Any])
+async def preview_reporte(
+    proyecto_id: str,
+    admin_id: str = Depends(verificar_admin)
+):
+    """
+    Genera un preview del reporte sin enviarlo.
+    Útil para revisar antes de la generación final.
+    """
+    from services.devils_advocate_service import get_devils_advocate_service
+
+    service = get_devils_advocate_service()
+
+    # Obtener todas las preguntas para mostrar qué se evaluará
+    preguntas = service.obtener_preguntas_estructuradas()
+    bloques = service.obtener_bloques_preguntas()
+
+    return {
+        "proyecto_id": proyecto_id,
+        "preview_mode": True,
+        "bloques": bloques,
+        "total_preguntas": len(preguntas),
+        "preguntas_criticas": len([p for p in preguntas if p['severidad'] == 'critico']),
+        "preguntas_importantes": len([p for p in preguntas if p['severidad'] == 'importante']),
+        "preguntas_informativas": len([p for p in preguntas if p['severidad'] == 'informativo']),
+        "nota": "Use POST /reporte/generar para generar el reporte completo",
+        "timestamp": datetime.now().isoformat()
+    }
