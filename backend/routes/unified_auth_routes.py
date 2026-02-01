@@ -965,7 +965,37 @@ async def init_auth_tables():
             return APIResponse(success=False, message="No database connection")
 
         try:
-            # Check if tables already exist
+            created_tables = []
+
+            # Always ensure auth_sessions exists
+            auth_sessions_exists = await conn.fetchval('''
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = 'auth_sessions'
+                )
+            ''')
+
+            if not auth_sessions_exists:
+                await conn.execute('''
+                    CREATE TABLE IF NOT EXISTS auth_sessions (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        user_id UUID NOT NULL,
+                        token_hash VARCHAR(255) NOT NULL,
+                        token_prefix VARCHAR(8),
+                        auth_method VARCHAR(20) NOT NULL,
+                        is_active BOOLEAN DEFAULT true,
+                        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                        ip_address VARCHAR(50),
+                        user_agent TEXT,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                    )
+                ''')
+                await conn.execute('CREATE INDEX IF NOT EXISTS idx_auth_sessions_token ON auth_sessions(token_hash)')
+                await conn.execute('CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id)')
+                created_tables.append('auth_sessions')
+                logger.info("Created auth_sessions table")
+
+            # Check if auth_users exists
             auth_users_exists = await conn.fetchval('''
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables
@@ -973,11 +1003,18 @@ async def init_auth_tables():
                 )
             ''')
 
-            if auth_users_exists:
+            if auth_users_exists and not created_tables:
                 return APIResponse(
                     success=True,
-                    message="Tables already exist",
-                    data={'auth_users_exists': True}
+                    message="All tables already exist",
+                    data={'auth_users_exists': True, 'auth_sessions_exists': auth_sessions_exists}
+                )
+
+            if auth_users_exists and created_tables:
+                return APIResponse(
+                    success=True,
+                    message=f"Created: {', '.join(created_tables)}",
+                    data={'tables_created': created_tables}
                 )
 
             # Create auth_users table
