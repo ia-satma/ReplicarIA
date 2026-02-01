@@ -22,7 +22,7 @@ import hashlib
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/defense-v2", tags=["Defense File V2"])
+router = APIRouter(prefix="/defense-files", tags=["Defense File V2"])
 
 
 # =============================================================================
@@ -556,16 +556,36 @@ async def generar_hash_integridad(id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{id}/exportar", response_model=dict)
+from fastapi.responses import StreamingResponse
+from services.defense_file_export_service import defense_file_export_service
+
+@router.get("/{id}/exportar", response_model=None)
 async def exportar_defense_file(id: str, formato: str = Query("json", description="json, pdf")):
     """
     Exporta el Defense File en el formato especificado.
     """
-    # TODO: Implementar exportación a PDF
-    if formato == "pdf":
-        raise HTTPException(status_code=501, detail="Exportación a PDF en desarrollo")
+    # Primero obtenemos los datos completos (reutilizando la lógica existente)
+    data = await obtener_defense_file(id)
 
-    return await obtener_defense_file(id)
+    if formato == "pdf":
+        try:
+            pdf_buffer = await defense_file_export_service.generate_defense_file_pdf(data)
+            
+            filename = f"Defense_File_{data.get('folio_defensa', 'Draft')}.pdf"
+            
+            return StreamingResponse(
+                pdf_buffer,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f"attachment; filename={filename}"
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error generando PDF: {e}")
+            raise HTTPException(status_code=500, detail=f"Error generando PDF: {str(e)}")
+
+    # Si es JSON, retornamos el dict directo (FastAPI lo serializa)
+    return data
 
 
 # =============================================================================

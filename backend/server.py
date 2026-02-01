@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+import contextlib
+from services.database_pg import get_pool, close_pool
 
 # ============================================================
 # RAILWAY AUTO-CONFIGURATION
@@ -31,14 +33,11 @@ if RAILWAY_DOMAIN:
 # PRODUCTION STARTUP WARNINGS - Missing Environment Variables
 # ============================================================
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
-MONGO_URL_ENV = os.environ.get('MONGO_URL', '')
 DREAMHOST_PASSWORD = os.environ.get('DREAMHOST_EMAIL_PASSWORD', '')
 
 missing_keys = []
 if not OPENAI_API_KEY:
     missing_keys.append("OPENAI_API_KEY")
-if not MONGO_URL_ENV:
-    missing_keys.append("MONGO_URL")
 if not DREAMHOST_PASSWORD:
     missing_keys.append("DREAMHOST_EMAIL_PASSWORD")
 
@@ -52,30 +51,31 @@ if missing_keys:
     logging.warning("System will run in DEGRADED mode with fallback behavior.")
     logging.warning("=" * 60)
 
-# Database connection - Demo mode or MongoDB
-DEMO_MODE = False
-mongo_url = os.environ.get('MONGO_URL', '')
-db_name = os.environ.get('DB_NAME', 'revisar_agent_network')
-
-if mongo_url and mongo_url.strip():
+# ============================================================
+# DATABASE LIFESPAN
+# ============================================================
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize PostgreSQL Pool
     try:
-        from motor.motor_asyncio import AsyncIOMotorClient
-        client = AsyncIOMotorClient(mongo_url)
-        db = client[db_name]
-        logging.info("Connected to MongoDB")
+        logger.info("🔌 Connecting to PostgreSQL...")
+        await get_pool()
+        logger.info("✅ PostgreSQL Connection Pool Established")
     except Exception as e:
-        logging.warning(f"Could not connect to MongoDB: {e}. Using demo mode.")
-        from services.demo_db import get_demo_database
-        client, db = get_demo_database()
-        DEMO_MODE = True
-else:
-    logging.info("MONGO_URL not set. Running in DEMO MODE with sample data.")
-    from services.demo_db import get_demo_database
-    client, db = get_demo_database()
-    DEMO_MODE = True
+        logger.error(f"❌ PostgreSQL Connection Failed: {e}")
+        # We generally want to fail hard if DB is missing in this new architecture
+        # but for now we log error. Application might crash on requests.
+    
+    yield
+    
+    # Shutdown: Close Pool
+    logger.info("🔌 Closing PostgreSQL Connection...")
+    await close_pool()
+    logger.info("✅ Pool Closed")
 
 # Import core routes (minimal dependencies)
-from routes import projects, projects_pg, agents, dashboard, deliberation_routes, defense_file_routes, stream_routes, metrics
+from routes import projects_pg, agents, dashboard, deliberation_routes, defense_file_v2_routes, stream_routes, metrics
+# from routes import projects # DEPRECATED: Legacy MongoDB
 
 # Import optional routes - fail gracefully if dependencies are missing
 try:
@@ -422,6 +422,27 @@ except ImportError as e:
     logging.warning(f"3-Way Match routes not available: {e}")
     three_way_match_routes = None
 
+try:
+    from routes import legal_validation_routes
+    logging.info("✅ Legal Validation routes loaded successfully")
+except ImportError as e:
+    logging.warning(f"Legal Validation routes not available: {e}")
+    legal_validation_routes = None
+
+try:
+    from routes import defense_mode_routes
+    logging.info("✅ Defense Mode routes loaded successfully")
+except ImportError as e:
+    logging.warning(f"Defense Mode routes not available: {e}")
+    defense_mode_routes = None
+
+try:
+    from routes import devils_advocate_routes
+    logging.info("✅ Devils Advocate routes loaded successfully (Admin Only)")
+except ImportError as e:
+    logging.warning(f"Devils Advocate routes not available: {e}")
+    devils_advocate_routes = None
+
 # Import middleware exception handlers
 try:
     from middleware.candados_middleware import CandadoBlockedException
@@ -455,9 +476,10 @@ class TrailingSlashMiddleware(BaseHTTPMiddleware):
 
 # Create the main app without a prefix
 app = FastAPI(
-    title="Agent Network System - Trazabilidad de Servicios",
-    description="Sistema de red de agentes IA para trazabilidad de servicios intangibles y consultorías especializadas",
-    version="1.0.0",
+    title="ReplicarIA Backend V2",
+    description="Sistema de red de agentes IA (PostgreSQL Unified)",
+    version="2.0.0",
+    lifespan=lifespan,
     redirect_slashes=False  # Prevent redirect loops with TrailingSlashMiddleware
 )
 
@@ -554,47 +576,19 @@ async def root():
 @api_router.get("/health")
 async def health_check():
     """
-    Production Health Check Endpoint
-    Returns actual connectivity status for all critical services.
-    Note: Error details are hidden in production for security.
+    Production Health Check Endpoint (PostgreSQL)
     """
-    services = {}
-    overall_healthy = True
-    is_production = os.environ.get('ENVIRONMENT', '').lower() == 'production'
-
-    # 1. Check MongoDB connectivity
-    if DEMO_MODE:
-        from services.demo_db import is_local_persistence, STORAGE_FILE
-        if is_local_persistence():
-            services["database"] = "local_persistence"
-            if not is_production:
-                services["storage_file"] = str(STORAGE_FILE)
-        else:
-            services["database"] = "local_persistence_new"
-    else:
-        try:
-            await db.command("ping")
-            services["database"] = "connected"
-        except Exception as e:
-            # Don't expose error details in production
-            services["database"] = "disconnected" if is_production else f"disconnected: {str(e)[:50]}"
-            logging.error(f"MongoDB health check failed: {e}")
-            overall_healthy = False
-
-    # 2. Check PostgreSQL connectivity
-    db_url = os.environ.get('DATABASE_URL', '')
-    if db_url:
-        try:
-            import asyncpg
-            conn = await asyncpg.connect(db_url)
-            await conn.close()
-            services["postgres"] = "connected"
-        except Exception as e:
-            services["postgres"] = "disconnected" if is_production else f"disconnected: {str(e)[:30]}"
-            logging.error(f"PostgreSQL health check failed: {e}")
-            overall_healthy = False
-    else:
-        services["postgres"] = "not_configured"
+    from services.database_pg import check_connection
+    
+    is_connected = await check_connection()
+    status = "healthy" if is_connected else "degraded"
+    
+    return {
+        "status": status,
+        "database": "connected" if is_connected else "disconnected",
+        "backend": "postgresql-unified",
+        "timestamp": datetime.now().isoformat()
+    }
 
     # 3. Check OpenAI API Key
     openai_key = os.environ.get('OPENAI_API_KEY', '')
@@ -662,11 +656,11 @@ async def get_status_checks():
     return status_checks
 
 # Include core routers (always available)
-api_router.include_router(projects.router)
+# api_router.include_router(projects.router) # DEPRECATED: Legacy MongoDB
 api_router.include_router(projects_pg.router)
 api_router.include_router(agents.router)
 api_router.include_router(deliberation_routes.router)
-api_router.include_router(defense_file_routes.router)
+api_router.include_router(defense_file_v2_routes.router)
 api_router.include_router(stream_routes.router)
 api_router.include_router(metrics.router)
 
@@ -816,6 +810,18 @@ if defense_file_v2_routes:
 if three_way_match_routes:
     app.include_router(three_way_match_routes.router, tags=["3-Way Match"])
     logging.info("✅ 3-Way Match routes registered at /api/3way-match")
+
+if legal_validation_routes:
+    app.include_router(legal_validation_routes.router, tags=["Validación Legal"])
+    logging.info("✅ Legal Validation routes registered at /api/legal-validation")
+
+if defense_mode_routes:
+    app.include_router(defense_mode_routes.router, tags=["Modo Defensa"])
+    logging.info("✅ Defense Mode routes registered at /api/defense-mode")
+
+if devils_advocate_routes:
+    app.include_router(devils_advocate_routes.router, tags=["Abogado del Diablo (Admin)"])
+    logging.info("✅ Devils Advocate routes registered at /api/admin/abogado-diablo (Admin Only)")
 
 # ============================================================
 # RESET DEMO DATA ENDPOINT - Direct on app for reliability
@@ -1415,4 +1421,4 @@ async def shutdown_db_client():
     except Exception as e:
         logger.warning(f"Error stopping Tráfico.IA: {e}")
     
-    client.close()
+    # client.close() # Legacy Mongo

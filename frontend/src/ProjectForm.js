@@ -22,6 +22,7 @@ const ProjectForm = () => {
     sponsor_email: "",
     company_name: "",
     selected_company: "",
+    tipo_servicio: "",
     budget_estimate: "",
     description: "",
     urgency_level: "Normal",
@@ -34,6 +35,22 @@ const ProjectForm = () => {
     parent_folio: "",
     modification_notes: ""
   });
+
+  // Tipos de servicio para validación legal (LISR 27, CFF 69-B, 5-A)
+  const tiposServicio = [
+    { id: "consultoria", nombre: "Consultoría", descripcion: "Servicios de asesoría especializada" },
+    { id: "tecnologia", nombre: "Tecnología", descripcion: "Desarrollo de software, TI, sistemas" },
+    { id: "marketing", nombre: "Marketing", descripcion: "Publicidad, branding, campañas" },
+    { id: "legal", nombre: "Legal", descripcion: "Servicios jurídicos y legales" },
+    { id: "contable", nombre: "Contable", descripcion: "Contabilidad, auditoría, fiscal" },
+    { id: "outsourcing", nombre: "Outsourcing", descripcion: "Tercerización de servicios" },
+    { id: "capacitacion", nombre: "Capacitación", descripcion: "Cursos, talleres, formación" },
+    { id: "transporte", nombre: "Transporte", descripcion: "Logística, fletes, mensajería" },
+    { id: "mantenimiento", nombre: "Mantenimiento", descripcion: "Servicios de mantenimiento" },
+    { id: "honorarios", nombre: "Honorarios", descripcion: "Servicios profesionales independientes" },
+    { id: "arrendamiento", nombre: "Arrendamiento", descripcion: "Renta de bienes o equipos" },
+    { id: "servicios_generales", nombre: "Servicios Generales", descripcion: "Otros servicios operativos" }
+  ];
 
   const [fileUrls, setFileUrls] = useState({
     fiscal_document: "",
@@ -249,6 +266,7 @@ const ProjectForm = () => {
         sponsor_name: formData.sponsor_name,
         sponsor_email: formData.sponsor_email,
         company_name: companyName,
+        tipo_servicio: formData.tipo_servicio,
         department: (formData.departments || []).join(", "),
         description: formData.description,
         strategic_alignment: formData.project_name,
@@ -279,6 +297,7 @@ const ProjectForm = () => {
           sponsor_email: "",
           company_name: "",
           selected_company: "",
+          tipo_servicio: "",
           budget_estimate: "",
           description: "",
           urgency_level: "Normal",
@@ -627,6 +646,32 @@ const ProjectForm = () => {
                   placeholder="email@empresa.com"
                 />
               </div>
+            </div>
+
+            {/* Tipo de Servicio - Selector */}
+            <div>
+              <label className="label-premium">
+                Tipo de Servicio *
+              </label>
+              <select
+                name="tipo_servicio"
+                required
+                value={formData.tipo_servicio}
+                onChange={handleChange}
+                className="input-premium"
+              >
+                <option value="">Selecciona el tipo de servicio...</option>
+                {tiposServicio.map(tipo => (
+                  <option key={tipo.id} value={tipo.id}>
+                    {tipo.nombre} - {tipo.descripcion}
+                  </option>
+                ))}
+              </select>
+              {formData.tipo_servicio && (
+                <p className="text-xs text-blue-600 mt-1">
+                  📋 Se aplicarán las reglas de validación LISR 27, CFF 69-B y 5-A para {tiposServicio.find(t => t.id === formData.tipo_servicio)?.nombre}
+                </p>
+              )}
             </div>
 
             {/* Razón Social - Selector */}

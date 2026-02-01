@@ -210,13 +210,15 @@ api.auth = {
 };
 
 api.projects = {
-  list: (params) => api.get('/api/projects/', { params }),
+  list: (params) => api.get('/api/projects', { params }), // V2: /api/projects
   get: (id) => api.get(`/api/projects/${id}`),
-  create: (data) => api.post('/api/projects/submit', data),
+  create: (data) => api.post('/api/projects', data), // V2: POST /api/projects (was /submit)
   update: (id, data) => api.patch(`/api/projects/${id}`, data),
   delete: (id) => api.delete(`/api/projects/${id}`),
-  getStatus: (id) => api.get(`/api/projects/${id}/status`),
-  executeStage: (id, stage) => api.post(`/api/projects/${id}/stage${stage}`),
+  // V2 equivalent for status is likely checking phases or project state
+  getStatus: (id) => api.get(`/api/projects/${id}/phases`),
+  // V2 executeStage maps to updating a phase status
+  executeStage: (id, stage) => api.patch(`/api/projects/${id}/phases/${stage}`, { estado: 'completed' }),
 };
 
 api.agents = {

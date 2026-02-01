@@ -14,7 +14,7 @@ from middleware.tenant_context import get_current_empresa_id
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/projects/pg", tags=["projects-postgresql"])
+router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 class ProjectCreate(BaseModel):

@@ -3,6 +3,7 @@ agent_orchestrator.py - Orquestador de Agentes Optimizado para REVISAR.IA
 """
 
 import asyncio
+import logging
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -281,7 +282,7 @@ class AgentOrchestrator:
         context: AgentContext,
         trace_id: str,
     ) -> List[dict]:
-        """Ejecuta múltiples agentes en paralelo."""
+        """Ejecuta múltiples agentes en paralelo con manejo de errores."""
         tasks = [
             self._invoke_agent(agent_id, user_message, context, trace_id)
             for agent_id in agents
@@ -289,7 +290,22 @@ class AgentOrchestrator:
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        return [r for r in results if not isinstance(r, Exception)]
+        valid_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                agent_id = agents[i]
+                logging.error(f"Error executing agent {agent_id}: {result}", exc_info=True)
+                valid_results.append({
+                    "agent_id": agent_id,
+                    "agent_name": self.agents.get(agent_id, {}).get("name", "Unknown"),
+                    "response": f"Error ejecutando agente: {str(result)}",
+                    "error": True, 
+                    "trace_id": trace_id
+                })
+            else:
+                valid_results.append(result)
+                
+        return valid_results
     
     async def _invoke_agent(
         self,
@@ -298,10 +314,15 @@ class AgentOrchestrator:
         context: AgentContext,
         trace_id: str,
     ) -> dict:
-        """Invoca un agente individual."""
+        """Invoca un agente individual con soporte para tools."""
+        from services.tools.registry import registry
+        
         agent_config = self.agents.get(agent_id)
         if not agent_config:
             raise ValueError(f"Agente no encontrado: {agent_id}")
+            
+        # Get all tools (in a real app, filter by agent permissions)
+        available_tools = registry.get_openai_tools() if agent_id in ["A3_FISCAL", "A5_OPERATIVO", "A6_FINANCIERO"] else None
         
         system_prompt = f"""{agent_config['system_prompt']}
 
@@ -311,32 +332,67 @@ CONTEXTO DEL TENANT:
 
 Responde SOLO con información relevante para este tenant."""
         
-        user_prompt = f"CONSULTA: {user_message}"
-        if context.rag_context:
-            user_prompt += f"\n\nDOCUMENTOS RELEVANTES:\n{context.rag_context}"
-        
         start_time = datetime.utcnow()
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"CONSULTA: {user_message}" + (f"\n\nDOCUMENTOS RELEVANTES:\n{context.rag_context}" if context.rag_context else "")}
+        ]
         
+        # 1. First LLM Call
         response = await asyncio.to_thread(
             self.llm_client.chat.completions.create,
             model="gpt-4o",
             max_tokens=4096,
             temperature=0.3,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
+            messages=messages,
+            tools=available_tools,
+            tool_choice="auto" if available_tools else None
         )
+        
+        response_msg = response.choices[0].message
+        tool_calls = response_msg.tool_calls
+        
+        # 2. Handle Tool Calls
+        if tool_calls:
+            # Add assistant's message with tool calls
+            messages.append(response_msg)
+            
+            for tool_call in tool_calls:
+                function_name = tool_call.function.name
+                function_args = json.loads(tool_call.function.arguments)
+                
+                # Execute tool
+                tool_result = await registry.invoke(function_name, function_args)
+                
+                # Add tool result
+                messages.append({
+                    "tool_call_id": tool_call.id,
+                    "role": "tool",
+                    "name": function_name,
+                    "content": json.dumps(tool_result, default=str)
+                })
+            
+            # 3. Second LLM Call (with tool results)
+            response = await asyncio.to_thread(
+                self.llm_client.chat.completions.create,
+                model="gpt-4o",
+                max_tokens=4096,
+                temperature=0.3,
+                messages=messages
+            )
+            final_content = response.choices[0].message.content
+        else:
+            final_content = response_msg.content
 
         elapsed_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
 
         return {
             "agent_id": agent_id,
             "agent_name": agent_config["name"],
-            "response": response.choices[0].message.content,
+            "response": final_content,
             "usage": {
-                "input_tokens": response.usage.prompt_tokens if response.usage else 0,
-                "output_tokens": response.usage.completion_tokens if response.usage else 0,
+                "input_tokens": response.usage.prompt_tokens,
+                "output_tokens": response.usage.completion_tokens,
             },
             "elapsed_ms": elapsed_ms,
             "trace_id": trace_id,
