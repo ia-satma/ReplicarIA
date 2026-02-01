@@ -744,6 +744,8 @@ if archivo_routes:
     app.include_router(archivo_routes.router)
     if hasattr(archivo_routes, 'onboarding_router'):
         app.include_router(archivo_routes.onboarding_router)
+    if hasattr(archivo_routes, 'archivo_entity_router'):
+        app.include_router(archivo_routes.archivo_entity_router)
 if protected_files:
     app.include_router(protected_files.router)
 if upload_routes:

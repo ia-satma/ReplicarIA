@@ -5,10 +5,12 @@ import { useChatMessages, useFileUpload, useOnboardingSteps, useChatAPI } from '
 import { MessageList, ChatInput, FileUploadArea, ProgressIndicator, ConfirmationCard } from './chatbot';
 import { Modal, ErrorMessage } from './shared';
 import { SYSTEM_MESSAGES, AGENTS, ONBOARDING_STEPS } from '../constants/onboarding';
+import { useAuth } from '../context/AuthContext';
 
 const ChatbotArchivo = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+  const { empresaId, isSuperAdmin } = useAuth();
   
   const chat = useChatMessages();
   const files = useFileUpload(handleFileAnalysisComplete);
@@ -328,6 +330,15 @@ Este email se usará para:
       return;
     }
 
+    // Validar empresa_id para proveedores
+    const isProveedor = steps.entityType === 'proveedor';
+    const currentEmpresaId = empresaId || localStorage.getItem('selected_empresa_id');
+
+    if (isProveedor && !currentEmpresaId) {
+      chat.addBotMessage('⚠️ Para crear proveedores, primero debes seleccionar una empresa. Ve a **Proveedores** en el menú y selecciona una empresa.', { agent: 'ARCHIVO' });
+      return;
+    }
+
     // Update extracted data with edited values
     if (editedData) {
       steps.mergeExtractedData(editedData);
@@ -355,7 +366,8 @@ Este email se usará para:
           tipo: steps.entityType || 'cliente',
           datos: finalData,
           email_contacto: steps.emailContacto || finalData?.email || '',
-          archivos_ids: []
+          archivos_ids: [],
+          empresa_id: currentEmpresaId  // Requerido para proveedores
         })
       });
 
@@ -402,7 +414,7 @@ Puedes editar este ${steps.entityType || 'cliente'} desde el **Panel de Administ
       steps.setOnboardingStatus('error');
       chat.addBotMessage(`⚠️ Error creando ${steps.entityType || 'cliente'}: ${error.message}`, { agent: 'ARCHIVO' });
     }
-  }, [steps, chat]);
+  }, [steps, chat, empresaId]);
 
   const handleResetOnboarding = useCallback(() => {
     steps.resetOnboarding();
