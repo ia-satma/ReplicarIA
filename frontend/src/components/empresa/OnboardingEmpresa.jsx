@@ -12,18 +12,17 @@ const TIPOLOGIAS_DISPONIBLES = [
 ];
 
 const INDUSTRIAS = [
-  'Tecnología',
-  'Finanzas',
-  'Manufactura',
-  'Retail',
-  'Servicios Profesionales',
-  'Construcción',
-  'Salud',
-  'Educación',
-  'Transporte y Logística',
-  'Energía',
-  'Agroindustria',
-  'Otro'
+  { value: 'tecnologia', label: 'Tecnología' },
+  { value: 'servicios_profesionales', label: 'Servicios Profesionales' },
+  { value: 'manufactura', label: 'Manufactura' },
+  { value: 'comercio', label: 'Comercio / Retail' },
+  { value: 'construccion', label: 'Construcción' },
+  { value: 'salud', label: 'Salud' },
+  { value: 'educacion', label: 'Educación' },
+  { value: 'hoteleria_restaurantes', label: 'Hotelería y Restaurantes' },
+  { value: 'transporte_logistica', label: 'Transporte y Logística' },
+  { value: 'inmobiliario', label: 'Inmobiliario' },
+  { value: 'otro', label: 'Otro' }
 ];
 
 const StepIndicator = ({ currentStep, totalSteps }) => {
@@ -31,14 +30,13 @@ const StepIndicator = ({ currentStep, totalSteps }) => {
     <div className="flex items-center justify-center mb-8">
       {[...Array(totalSteps)].map((_, index) => (
         <React.Fragment key={index}>
-          <div 
-            className={`w-10 h-10 rounded-full flex items-center justify-center font-medium transition-all ${
-              index + 1 < currentStep 
-                ? 'bg-green-500 text-white' 
-                : index + 1 === currentStep 
-                  ? 'bg-blue-600 text-white' 
+          <div
+            className={`w-10 h-10 rounded-full flex items-center justify-center font-medium transition-all ${index + 1 < currentStep
+                ? 'bg-green-500 text-white'
+                : index + 1 === currentStep
+                  ? 'bg-blue-600 text-white'
                   : 'bg-gray-200 text-gray-500'
-            }`}
+              }`}
           >
             {index + 1 < currentStep ? (
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -61,13 +59,24 @@ const StepInfoBasica = ({ data, onChange }) => (
   <div className="space-y-6">
     <h2 className="text-xl font-semibold text-gray-800 mb-4">Información Básica</h2>
     <p className="text-gray-600 text-sm mb-6">Complete la información básica de su empresa para comenzar.</p>
-    
+
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la Empresa *</label>
+      <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Comercial *</label>
       <input
         type="text"
-        value={data.nombre || ''}
-        onChange={(e) => onChange({ ...data, nombre: e.target.value })}
+        value={data.nombre_comercial || ''}
+        onChange={(e) => onChange({ ...data, nombre_comercial: e.target.value })}
+        placeholder="Ej: Grupo Fortezza"
+        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+      />
+    </div>
+
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">Razón Social *</label>
+      <input
+        type="text"
+        value={data.razon_social || ''}
+        onChange={(e) => onChange({ ...data, razon_social: e.target.value })}
         placeholder="Ej: Grupo Fortezza S.A. de C.V."
         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
       />
@@ -94,7 +103,7 @@ const StepInfoBasica = ({ data, onChange }) => (
       >
         <option value="">Seleccione una industria</option>
         {INDUSTRIAS.map((industria) => (
-          <option key={industria} value={industria}>{industria}</option>
+          <option key={industria.value} value={industria.value}>{industria.label}</option>
         ))}
       </select>
     </div>
@@ -132,7 +141,7 @@ const StepEstrategia = ({ data, onChange }) => {
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-gray-800 mb-4">Estrategia Empresarial</h2>
       <p className="text-gray-600 text-sm mb-6">Define la visión, misión y pilares estratégicos de tu empresa.</p>
-      
+
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Visión</label>
         <textarea
@@ -166,7 +175,7 @@ const StepEstrategia = ({ data, onChange }) => {
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddPilar())}
           />
-          <button 
+          <button
             type="button"
             onClick={handleAddPilar}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -178,7 +187,7 @@ const StepEstrategia = ({ data, onChange }) => {
           {(data.pilares_estrategicos || []).map((pilar, index) => (
             <div key={index} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
               <span className="text-gray-700">{pilar}</span>
-              <button 
+              <button
                 type="button"
                 onClick={() => handleRemovePilar(index)}
                 className="text-red-500 hover:text-red-700"
@@ -210,24 +219,22 @@ const StepTipologias = ({ data, onChange }) => {
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-gray-800 mb-4">Tipologías de Servicio</h2>
       <p className="text-gray-600 text-sm mb-6">Seleccione los tipos de servicio que maneja su empresa. Esto habilitará los checklists de cumplimiento correspondientes.</p>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {TIPOLOGIAS_DISPONIBLES.map((tipologia) => (
-          <div 
+          <div
             key={tipologia.id}
             onClick={() => handleToggle(tipologia.id)}
-            className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-              tipologiasActivas.includes(tipologia.id)
+            className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${tipologiasActivas.includes(tipologia.id)
                 ? 'border-blue-500 bg-blue-50'
                 : 'border-gray-200 hover:border-blue-300'
-            }`}
+              }`}
           >
             <div className="flex items-start gap-3">
-              <div className={`w-5 h-5 rounded flex-shrink-0 border-2 flex items-center justify-center mt-0.5 ${
-                tipologiasActivas.includes(tipologia.id)
+              <div className={`w-5 h-5 rounded flex-shrink-0 border-2 flex items-center justify-center mt-0.5 ${tipologiasActivas.includes(tipologia.id)
                   ? 'bg-blue-500 border-blue-500'
                   : 'border-gray-300'
-              }`}>
+                }`}>
                 {tipologiasActivas.includes(tipologia.id) && (
                   <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -250,12 +257,16 @@ const StepConfirmacion = ({ data }) => (
   <div className="space-y-6">
     <h2 className="text-xl font-semibold text-gray-800 mb-4">Confirmación</h2>
     <p className="text-gray-600 text-sm mb-6">Revise la información antes de crear la empresa.</p>
-    
+
     <div className="bg-gray-50 rounded-lg p-6 space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <p className="text-sm text-gray-500">Nombre</p>
-          <p className="font-medium text-gray-800">{data.nombre || '-'}</p>
+          <p className="text-sm text-gray-500">Nombre Comercial</p>
+          <p className="font-medium text-gray-800">{data.nombre_comercial || '-'}</p>
+        </div>
+        <div>
+          <p className="text-sm text-gray-500">Razón Social</p>
+          <p className="font-medium text-gray-800">{data.razon_social || '-'}</p>
         </div>
         <div>
           <p className="text-sm text-gray-500">RFC</p>
@@ -263,7 +274,7 @@ const StepConfirmacion = ({ data }) => (
         </div>
         <div>
           <p className="text-sm text-gray-500">Industria</p>
-          <p className="font-medium text-gray-800">{data.industria || '-'}</p>
+          <p className="font-medium text-gray-800">{INDUSTRIAS.find(i => i.value === data.industria)?.label || data.industria || '-'}</p>
         </div>
         <div>
           <p className="text-sm text-gray-500">Email</p>
@@ -323,7 +334,8 @@ export default function OnboardingEmpresa() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState({
-    nombre: '',
+    nombre_comercial: '',
+    razon_social: '',
     rfc: '',
     industria: '',
     email: '',
@@ -338,8 +350,12 @@ export default function OnboardingEmpresa() {
   const validateStep = () => {
     switch (step) {
       case 1:
-        if (!data.nombre?.trim()) {
-          setError('El nombre de la empresa es requerido');
+        if (!data.nombre_comercial?.trim()) {
+          setError('El nombre comercial de la empresa es requerido');
+          return false;
+        }
+        if (!data.razon_social?.trim()) {
+          setError('La razón social es requerida');
           return false;
         }
         if (!data.rfc?.trim()) {
