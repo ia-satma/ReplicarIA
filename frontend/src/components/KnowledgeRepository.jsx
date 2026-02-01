@@ -92,7 +92,7 @@ const formatDate = (dateStr) => {
 };
 
 export default function KnowledgeRepository() {
-  const { user, empresaId } = useAuth();
+  const { user, empresaId, isSuperAdmin, selectEmpresa } = useAuth();
   const [currentPath, setCurrentPath] = useState('/');
   const [folders, setFolders] = useState([]);
   const [documents, setDocuments] = useState([]);
@@ -113,6 +113,7 @@ export default function KnowledgeRepository() {
   const [semanticMode, setSemanticMode] = useState(false);
   const [semanticResults, setSemanticResults] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [empresas, setEmpresas] = useState([]);
 
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem('auth_token');
@@ -122,6 +123,27 @@ export default function KnowledgeRepository() {
     };
   }, []);
 
+  // Cargar lista de empresas si es admin
+  useEffect(() => {
+    if (isSuperAdmin) {
+      const fetchEmpresas = async () => {
+        try {
+          const token = localStorage.getItem('auth_token');
+          const response = await fetch(`${API_BASE}/admin/clientes?limit=100`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setEmpresas(data.clientes || []);
+          }
+        } catch (err) {
+          console.error("Error loading empresas:", err);
+        }
+      };
+      fetchEmpresas();
+    }
+  }, [isSuperAdmin]);
+
   const getUrl = useCallback((endpoint) => {
     const baseUrl = `${API_BASE}/knowledge${endpoint}`;
     if (empresaId) {
@@ -130,6 +152,8 @@ export default function KnowledgeRepository() {
     }
     return baseUrl;
   }, [empresaId]);
+
+
 
   const fetchStats = useCallback(async () => {
     try {
@@ -540,6 +564,23 @@ export default function KnowledgeRepository() {
                   <h1 className="text-2xl font-bold text-white">Repositorio de Conocimiento</h1>
                   <p className="text-slate-400 text-sm">Gestión documental corporativa</p>
                 </div>
+
+                {isSuperAdmin && (
+                  <div className="ml-6">
+                    <select
+                      value={empresaId || ''}
+                      onChange={(e) => selectEmpresa(e.target.value)}
+                      className="bg-slate-700/50 border border-slate-600 text-emerald-400 text-sm font-medium rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block w-64 p-2"
+                    >
+                      <option value="" className="text-slate-400">-- Seleccionar Empresa --</option>
+                      {empresas.map((emp) => (
+                        <option key={emp.id} value={emp.id} className="text-white">
+                          {emp.nombre || emp.razon_social}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
@@ -563,8 +604,8 @@ export default function KnowledgeRepository() {
                   <button
                     onClick={() => setSemanticMode(!semanticMode)}
                     className={`p-2 rounded-lg transition-colors ${semanticMode
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600/50'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600/50'
                       }`}
                     title={semanticMode ? 'Modo semántico activo' : 'Activar búsqueda semántica'}
                   >
@@ -664,8 +705,8 @@ export default function KnowledgeRepository() {
                     <button
                       onClick={() => handleBreadcrumbClick(crumb.path)}
                       className={`px-2 py-1 rounded hover:bg-slate-700/50 transition-colors ${index === getBreadcrumbs().length - 1
-                          ? 'text-emerald-400 font-medium'
-                          : 'text-slate-400 hover:text-white'
+                        ? 'text-emerald-400 font-medium'
+                        : 'text-slate-400 hover:text-white'
                         }`}
                     >
                       {crumb.name}
