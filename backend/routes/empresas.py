@@ -280,10 +280,14 @@ TEMPLATES_POR_INDUSTRIA = {
 
 
 @router.post("/autofill-ia")
-async def autofill_empresa_con_ia(data: AutofillRequest):
+async def autofill_empresa_con_ia(
+    data: AutofillRequest,
+    user: dict = Depends(get_current_user)  # REQUIRE AUTH to prevent bot abuse
+):
     """
     Auto-rellena los campos de perfil de empresa usando Deep Research + IA.
     Investiga la empresa en internet y genera vision, mision, y datos adicionales.
+    REQUIERE AUTENTICACIÓN para prevenir abuso de bots.
     """
     industria_key = data.industria or "default"
     industria_texto = data.industria.replace("_", " ") if data.industria else "general"
