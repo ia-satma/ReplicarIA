@@ -511,7 +511,8 @@ const MetricsDashboard = () => {
       </main>
 
       {/* CSS for animations */}
-      <style jsx>{`
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @keyframes fade-in {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
@@ -523,7 +524,7 @@ const MetricsDashboard = () => {
         .animate-pulse-slow {
           animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
-      `}</style>
+      ` }} />
     </div>
   );
 };
