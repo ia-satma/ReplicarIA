@@ -199,11 +199,9 @@ except ImportError as e:
     logging.warning(f"Vision routes not available: {e}")
     vision_routes = None
 
-try:
-    from routes import defense_routes
-except ImportError as e:
-    logging.warning(f"Defense routes not available: {e}")
-    defense_routes = None
+# Removed defense_files_routes
+# Removed defense_routes
+# Removed defense_file_api_routes
 
 try:
     from routes import loops
@@ -334,11 +332,7 @@ except ImportError as e:
     logging.warning(f"Disenar routes not available: {e}")
     disenar_routes = None
 
-try:
-    from routes import defense_files_routes
-except ImportError as e:
-    logging.warning(f"Defense files routes not available: {e}")
-    defense_files_routes = None
+# Removed defense_files_routes
 
 try:
     from routes import trafico_routes
@@ -346,11 +340,7 @@ except ImportError as e:
     logging.warning(f"Trafico routes not available: {e}")
     trafico_routes = None
 
-try:
-    from routes import defense_file_api_routes
-except ImportError as e:
-    logging.warning(f"Defense file API routes not available: {e}")
-    defense_file_api_routes = None
+# Removed defense_file_api_routes
 
 try:
     from routes import guardian_routes
@@ -772,14 +762,12 @@ if agents_stats_routes:
     app.include_router(agents_stats_routes.router)
 if disenar_routes:
     app.include_router(disenar_routes.router, prefix="/api/disenar", tags=["Diseñar.IA"])
-if defense_files_routes:
-    app.include_router(defense_files_routes.router)
+# Removed include defense_files_routes
 if lista_69b:
     app.include_router(lista_69b.router)
 if trafico_routes:
     app.include_router(trafico_routes.router, prefix="/api/trafico", tags=["Tráfico.IA"])
-if defense_file_api_routes:
-    app.include_router(defense_file_api_routes.router, tags=["Defense Files"])
+# Removed include defense_file_api_routes
 if guardian_routes:
     app.include_router(guardian_routes.router, tags=["Guardian.IA"])
 if knowledge_routes:

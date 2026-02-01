@@ -222,33 +222,56 @@ class DeepResearchService:
     async def investigar_sitio_web(self, url: str) -> Dict[str, Any]:
         """
         Realiza scraping web y análisis con IA para extraer datos empresariales.
-        
-        Args:
-            url: URL del sitio web a investigar
-        
-        Returns:
-            Dict con datos extraídos y niveles de confianza
+        Usa Firecrawl si está configurado, o fallback a requests+bs4.
         """
         if not url:
             return {"success": False, "error": "URL no proporcionada"}
         
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
-        
+            
         logger.info(f"Investigando sitio web: {url}")
         
+        # 1. Intentar con Firecrawl primero
+        firecrawl_key = os.getenv("FIRECRAWL_API_KEY")
+        firecrawl_data = None
+        
+        if firecrawl_key and firecrawl_key.strip():
+            try:
+                from firecrawl import FirecrawlApp
+                app = FirecrawlApp(api_key=firecrawl_key)
+                
+                logger.info("Usando Firecrawl para scraping...")
+                scrape_result = app.scrape_url(url, params={'formats': ['markdown']})
+                
+                if scrape_result and 'markdown' in scrape_result:
+                    firecrawl_data = scrape_result['markdown']
+                    logger.info("Scraping con Firecrawl exitoso")
+            except Exception as e:
+                logger.warning(f"Error usando Firecrawl: {e}. Usando fallback.")
+        
+        # 2. Procesar datos de Firecrawl si existen
+        if firecrawl_data:
+            # Análisis con IA sobre el markdown limpio
+            if self.available:
+                ai_datos = await self._analizar_markdown_con_claude(firecrawl_data, url)
+                if ai_datos.get("success"):
+                    # Extraer también con regex sobre el markdown para doble verificación
+                    regex_datos = self._extraer_datos_con_regex([{"text": firecrawl_data}])
+                    merged_datos = self._merge_datos(ai_datos.get("datos", {}), regex_datos.get("datos", {}))
+                    
+                    return {
+                        "success": True,
+                        "datos": merged_datos,
+                        "confianza_campos": ai_datos.get("confianza_campos", {})
+                    }
+        
+        # 3. Fallback a método tradicional (Requests + BS4)
+        logger.info("Usando método tradicional (Requests + BS4)")
         pages_to_check = [
-            "",
-            "/contacto",
-            "/contact",
-            "/nosotros",
-            "/about",
-            "/about-us",
-            "/quienes-somos",
-            "/aviso-de-privacidad",
-            "/privacy",
-            "/legal",
-            "/terminos",
+            "", "/contacto", "/contact", "/nosotros", "/about", 
+            "/about-us", "/quienes-somos", "/aviso-de-privacidad", 
+            "/privacy", "/legal", "/terminos"
         ]
         
         all_content = []
@@ -262,144 +285,74 @@ class DeepResearchService:
                 
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.text, 'lxml')
-                    
                     for script in soup(["script", "style", "nav", "header", "footer", "aside"]):
                         script.decompose()
                     
                     text = soup.get_text(separator=' ', strip=True)
                     text = re.sub(r'\s+', ' ', text)
-                    
                     if len(text) > 100:
                         all_content.append({
                             "url": page_url,
                             "text": text[:8000],
                             "title": soup.title.string if soup.title else ""
                         })
-                        logger.debug(f"Contenido extraído de: {page_url}")
-                        
-            except requests.RequestException as e:
-                logger.debug(f"No se pudo acceder a {page}: {e}")
-                continue
-            except Exception as e:
-                logger.warning(f"Error procesando {page}: {e}")
+            except Exception:
                 continue
         
         if not all_content:
             return {"success": False, "error": "No se pudo acceder al sitio web"}
-        
+            
         datos = self._extraer_datos_con_regex(all_content)
         
         if self.available:
             ai_datos = await self._analizar_contenido_con_claude(all_content, url)
             if ai_datos.get("success"):
-                for campo, valor in ai_datos.get("datos", {}).items():
-                    if valor and not datos.get("datos", {}).get(campo):
-                        if "datos" not in datos:
-                            datos["datos"] = {}
-                        datos["datos"][campo] = valor
-                        if "confianza_campos" not in datos:
-                            datos["confianza_campos"] = {}
-                        datos["confianza_campos"][campo] = ai_datos.get("confianza_campos", {}).get(campo, 75)
+                datos["datos"] = self._merge_datos(datos.get("datos", {}), ai_datos.get("datos", {}))
+                datos["confianza_campos"] = ai_datos.get("confianza_campos", {})
         
         datos["success"] = True
         return datos
-    
-    def _extraer_datos_con_regex(self, content_list: List[Dict]) -> Dict[str, Any]:
-        """Extrae datos usando patrones regex del contenido web."""
-        datos = {}
-        confianza = {}
-        
-        all_text = " ".join([c["text"] for c in content_list])
-        
-        rfc_pattern = r'\b([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})\b'
-        rfc_matches = re.findall(rfc_pattern, all_text.upper())
-        if rfc_matches:
-            for match in rfc_matches:
-                validation = self.validar_rfc(match)
-                if validation["valido"]:
-                    datos["rfc"] = match
-                    confianza["rfc"] = 90 if validation["digito_verificador_valido"] else 75
-                    break
-        
-        email_pattern = r'\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b'
-        email_matches = re.findall(email_pattern, all_text.lower())
-        if email_matches:
-            for email in email_matches:
-                if not any(x in email for x in ['example', 'test', 'demo', '@sentry', '@google', '@facebook']):
-                    datos["email"] = email
-                    confianza["email"] = 85
-                    break
-        
-        phone_patterns = [
-            r'\b(?:\+?52)?[\s.-]?(?:\(?\d{2,3}\)?[\s.-]?)?\d{4}[\s.-]?\d{4}\b',
-            r'\b(?:\+?52)?[\s.-]?\d{10}\b',
-            r'\b\d{3}[\s.-]\d{3}[\s.-]\d{4}\b',
-        ]
-        for pattern in phone_patterns:
-            phone_matches = re.findall(pattern, all_text)
-            if phone_matches:
-                phone = re.sub(r'[^\d+]', '', phone_matches[0])
-                if len(phone) >= 10:
-                    datos["telefono"] = phone[-10:]
-                    confianza["telefono"] = 80
-                    break
-        
-        cp_pattern = r'\b(?:C\.?P\.?|Código Postal)[\s:]*(\d{5})\b'
-        cp_match = re.search(cp_pattern, all_text, re.IGNORECASE)
-        if cp_match:
-            datos["codigo_postal"] = cp_match.group(1)
-            confianza["codigo_postal"] = 85
-        
-        return {"datos": datos, "confianza_campos": confianza}
-    
-    async def _analizar_contenido_con_claude(self, content_list: List[Dict], url: str) -> Dict[str, Any]:
-        """Usa Claude para analizar el contenido web y extraer datos estructurados."""
+
+    def _merge_datos(self, d1: Dict, d2: Dict) -> Dict:
+        """Helper para combinar diccionarios de datos priorizando d2 sobre d1 si no es nulo"""
+        merged = d1.copy()
+        for k, v in d2.items():
+            if v:
+                merged[k] = v
+        return merged
+
+    async def _analizar_markdown_con_claude(self, markdown: str, url: str) -> Dict[str, Any]:
+        """Usa Claude para analizar markdown de Firecrawl."""
         if not self.available or not self.chat_fn:
             return {"success": False, "error": "Cliente AI no disponible"}
-        
-        combined_content = "\n\n---\n\n".join([
-            f"Página: {c['url']}\nTítulo: {c['title']}\nContenido:\n{c['text'][:4000]}"
-            for c in content_list[:5]
-        ])
-        
-        prompt = f"""Analiza el siguiente contenido extraído del sitio web {url} de una empresa mexicana.
-Extrae TODOS los datos empresariales que puedas encontrar.
+            
+        prompt = f"""Analiza el siguiente contenido extraído del sitio web {url}.
+Extrae TODOS los datos empresariales disponibles.
 
-CONTENIDO DEL SITIO WEB:
-{combined_content}
+CONTENIDO (Markdown):
+{markdown[:15000]}
 
 Responde en JSON con esta estructura exacta:
 {{
-    "nombre": "Nombre comercial de la empresa",
-    "razon_social": "Razón social completa (si es diferente del nombre)",
-    "rfc": "RFC si está visible (formato: 3-4 letras + 6 dígitos + 3 homoclave)",
-    "giro": "Giro o industria del negocio",
+    "nombre": "Nombre comercial",
+    "razon_social": "Razón social completa",
+    "rfc": "RFC (formato MX)",
+    "giro": "Industria/Giro",
     "direccion": "Dirección completa",
-    "ciudad": "Ciudad",
-    "estado": "Estado de México",
-    "codigo_postal": "CP de 5 dígitos",
-    "telefono": "Teléfono principal (solo dígitos)",
-    "email": "Email de contacto principal",
-    "descripcion": "Breve descripción de qué hace la empresa",
-    "servicios": ["Lista de servicios principales"],
-    "confianza": {{
-        "nombre": 0-100,
-        "razon_social": 0-100,
-        "rfc": 0-100,
-        ... (para cada campo)
-    }}
+    "codigo_postal": "CP",
+    "telefono": "Solo dígitos",
+    "email": "Email contacto",
+    "descripcion": "Descripción breve",
+    "vision": "Visión de la empresa",
+    "mision": "Misión de la empresa",
+    "confianza": {{ "campo": 0-100 }}
 }}
+"""
+        return await self._ejecutar_prompt_json(prompt)
 
-REGLAS:
-- Si un campo no está disponible, usa null
-- El RFC debe tener formato válido mexicano
-- Los teléfonos deben ser solo dígitos (10 dígitos)
-- Incluye nivel de confianza (0-100) para cada campo basado en qué tan claro está en el contenido
-- Responde SOLO con el JSON, sin explicaciones"""
-
+    async def _ejecutar_prompt_json(self, prompt: str) -> Dict[str, Any]:
+        """Helper genérico para ejecutar prompts que retornan JSON"""
         try:
-            if not self.chat_fn:
-                return {}
             content = self.chat_fn(
                 messages=[{"role": "user", "content": prompt}],
                 model=self.model,
@@ -412,26 +365,34 @@ REGLAS:
                 content = content.split("```")[1].split("```")[0]
             
             result = json.loads(content.strip())
-            
-            datos = {}
             confianza = result.pop("confianza", {})
-            
-            for key, value in result.items():
-                if value and value != "null" and key != "confianza":
-                    datos[key] = value
             
             return {
                 "success": True,
-                "datos": datos,
-                "confianza_campos": {k: v for k, v in confianza.items() if v and v > 0}
+                "datos": {k: v for k, v in result.items() if v and v != "null"},
+                "confianza_campos": confianza
             }
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"Error parseando respuesta de Claude: {e}")
-            return {"success": False, "error": "Error parseando respuesta de IA"}
         except Exception as e:
-            logger.error(f"Error en análisis con Claude: {e}")
+            logger.error(f"Error en análisis AI: {e}")
             return {"success": False, "error": str(e)}
+
+    # Manteniendo el método original para compatibilidad con el fallback
+    async def _analizar_contenido_con_claude(self, content_list: List[Dict], url: str) -> Dict[str, Any]:
+        """Usa Claude para analizar contenido raw de BS4."""
+        combined_content = "\n\n---\n\n".join([
+            f"Página: {c['url']}\nTítulo: {c['title']}\nContenido:\n{c['text'][:4000]}"
+            for c in content_list[:5]
+        ])
+        
+        prompt = f"""Analiza el siguiente contenido del sitio {url}.
+Extrae datos empresariales (Nombre, RFC, Dirección, Misión, Visión, etc).
+
+CONTENIDO:
+{combined_content}
+
+Responde en JSON con estructura: {{ "campo": "valor", "confianza": {{...}} }}
+"""
+        return await self._ejecutar_prompt_json(prompt)
     
     def validar_rfc(self, rfc: str) -> Dict[str, Any]:
         """

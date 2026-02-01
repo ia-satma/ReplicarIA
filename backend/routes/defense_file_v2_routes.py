@@ -10,7 +10,7 @@ Sistema de expedientes de defensa estructurados con:
 Fecha: 2026-01-31
 """
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Request
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
@@ -19,6 +19,8 @@ import logging
 import os
 import json
 import hashlib
+
+from services.database_pg import get_pool
 
 logger = logging.getLogger(__name__)
 
@@ -126,17 +128,8 @@ async def listar_defense_files(
     Lista los expedientes de defensa con filtros opcionales.
     """
     try:
-        import asyncpg
-        db_url = os.environ.get("DATABASE_URL")
-        if not db_url:
-            return {
-                "items": get_demo_defense_files(),
-                "total": 2,
-                "stats": get_defense_stats([])
-            }
-
-        conn = await asyncpg.connect(db_url)
-
+        pool = await get_pool()
+        
         query = """
             SELECT id, folio_defensa, proyecto_id, empresa_id, titulo, descripcion,
                    estado, indice_defendibilidad, score_razon_negocios, score_bee,
@@ -174,14 +167,13 @@ async def listar_defense_files(
             "SELECT id, folio_defensa, proyecto_id, empresa_id, titulo, descripcion, estado, indice_defendibilidad, score_razon_negocios, score_bee, score_materialidad, score_trazabilidad, score_coherencia_documental, aprobacion_fiscal, aprobacion_legal, aprobacion_finanzas, created_at, updated_at",
             "SELECT COUNT(*)"
         )
-        total = await conn.fetchval(count_query, *params)
+        total = await pool.fetchval(count_query, *params)
 
         # Pagination
         query += f" ORDER BY created_at DESC LIMIT ${param_idx} OFFSET ${param_idx + 1}"
         params.extend([limit, offset])
 
-        rows = await conn.fetch(query, *params)
-        await conn.close()
+        rows = await pool.fetch(query, *params)
 
         items = []
         for row in rows:
@@ -243,18 +235,9 @@ async def obtener_defense_file(id: str):
     Obtiene el detalle completo de un Defense File con todas sus secciones.
     """
     try:
-        import asyncpg
-        db_url = os.environ.get("DATABASE_URL")
-        if not db_url:
-            demo = get_demo_defense_files()
-            for item in demo:
-                if item["id"] == id:
-                    return item
-            raise HTTPException(status_code=404, detail="Defense File no encontrado")
-
-        conn = await asyncpg.connect(db_url)
-        row = await conn.fetchrow("SELECT * FROM defense_files_v2 WHERE id = $1", id)
-        await conn.close()
+        pool = await get_pool()
+        
+        row = await pool.fetchrow("SELECT * FROM defense_files_v2 WHERE id = $1", id)
 
         if not row:
             raise HTTPException(status_code=404, detail="Defense File no encontrado")
@@ -316,21 +299,15 @@ async def crear_defense_file(data: DefenseFileCreate):
     Crea un nuevo Defense File para un proyecto.
     """
     try:
-        import asyncpg
-        db_url = os.environ.get("DATABASE_URL")
-        if not db_url:
-            raise HTTPException(status_code=503, detail="Base de datos no disponible")
-
-        conn = await asyncpg.connect(db_url)
+        pool = await get_pool()
 
         # El folio se genera automáticamente por el trigger
-        row = await conn.fetchrow("""
+        row = await pool.fetchrow("""
             INSERT INTO defense_files_v2 (
                 proyecto_id, empresa_id, titulo, descripcion, estado
             ) VALUES ($1, $2, $3, $4, 'borrador')
             RETURNING id, folio_defensa, created_at
         """, data.proyecto_id, data.empresa_id, data.titulo, data.descripcion)
-        await conn.close()
 
         return {
             "success": True,
@@ -350,16 +327,13 @@ async def actualizar_defense_file(id: str, data: DefenseFileUpdate):
     Actualiza un Defense File y recalcula el índice de defendibilidad.
     """
     try:
-        import asyncpg
-        db_url = os.environ.get("DATABASE_URL")
-        if not db_url:
-            raise HTTPException(status_code=503, detail="Base de datos no disponible")
-
-        conn = await asyncpg.connect(db_url)
-
-        updates = []
-        params = []
-        param_idx = 1
+        pool = await get_pool()
+        
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                updates = []
+                params = []
+                param_idx = 1
 
         if data.titulo is not None:
             updates.append(f"titulo = ${param_idx}")
@@ -411,8 +385,6 @@ async def actualizar_defense_file(id: str, data: DefenseFileUpdate):
         # Recalcular índice de defendibilidad
         await recalcular_indice_defendibilidad(conn, id)
 
-        await conn.close()
-
         return {"success": True, "message": "Defense File actualizado"}
 
     except Exception as e:
@@ -430,40 +402,34 @@ async def registrar_aprobacion(id: str, data: AprobacionRequest, user_id: Option
         raise HTTPException(status_code=400, detail=f"Tipo inválido. Válidos: {tipos_validos}")
 
     try:
-        import asyncpg
-        db_url = os.environ.get("DATABASE_URL")
-        if not db_url:
-            raise HTTPException(status_code=503, detail="Base de datos no disponible")
+        pool = await get_pool()
+        
+        async with pool.acquire() as conn:
+            campo_aprobacion = f"aprobacion_{data.tipo}"
+            campo_fecha = f"aprobacion_{data.tipo}_fecha"
+            campo_por = f"aprobacion_{data.tipo}_por"
 
-        conn = await asyncpg.connect(db_url)
-
-        campo_aprobacion = f"aprobacion_{data.tipo}"
-        campo_fecha = f"aprobacion_{data.tipo}_fecha"
-        campo_por = f"aprobacion_{data.tipo}_por"
-
-        await conn.execute(f"""
-            UPDATE defense_files_v2
-            SET {campo_aprobacion} = $1,
-                {campo_fecha} = NOW(),
-                {campo_por} = $2,
-                updated_at = NOW()
-            WHERE id = $3
-        """, data.aprobado, user_id, id)
-
-        # Verificar si todas las aprobaciones están completas
-        row = await conn.fetchrow("""
-            SELECT aprobacion_fiscal, aprobacion_legal, aprobacion_finanzas
-            FROM defense_files_v2 WHERE id = $1
-        """, id)
-
-        if row and all([row["aprobacion_fiscal"], row["aprobacion_legal"], row["aprobacion_finanzas"]]):
-            await conn.execute("""
+            await conn.execute(f"""
                 UPDATE defense_files_v2
-                SET estado = 'aprobado', updated_at = NOW()
-                WHERE id = $1
+                SET {campo_aprobacion} = $1,
+                    {campo_fecha} = NOW(),
+                    {campo_por} = $2,
+                    updated_at = NOW()
+                WHERE id = $3
+            """, data.aprobado, user_id, id)
+
+            # Verificar si todas las aprobaciones están completas
+            row = await conn.fetchrow("""
+                SELECT aprobacion_fiscal, aprobacion_legal, aprobacion_finanzas
+                FROM defense_files_v2 WHERE id = $1
             """, id)
 
-        await conn.close()
+            if row and all([row["aprobacion_fiscal"], row["aprobacion_legal"], row["aprobacion_finanzas"]]):
+                await conn.execute("""
+                    UPDATE defense_files_v2
+                    SET estado = 'aprobado', updated_at = NOW()
+                    WHERE id = $1
+                """, id)
 
         return {
             "success": True,
@@ -481,14 +447,10 @@ async def calcular_indice(id: str):
     Recalcula manualmente el índice de defendibilidad.
     """
     try:
-        import asyncpg
-        db_url = os.environ.get("DATABASE_URL")
-        if not db_url:
-            return {"indice_defendibilidad": 75.5, "message": "Demo mode"}
-
-        conn = await asyncpg.connect(db_url)
-        indice = await recalcular_indice_defendibilidad(conn, id)
-        await conn.close()
+        pool = await get_pool()
+        
+        async with pool.acquire() as conn:
+            indice = await recalcular_indice_defendibilidad(conn, id)
 
         return {
             "success": True,
@@ -507,41 +469,35 @@ async def generar_hash_integridad(id: str):
     Genera y registra el hash de integridad del Defense File.
     """
     try:
-        import asyncpg
-        db_url = os.environ.get("DATABASE_URL")
-        if not db_url:
-            return {"hash": "demo_hash_abc123", "message": "Demo mode"}
+        pool = await get_pool()
+        
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("""
+                SELECT seccion_1_contexto, seccion_2_contractual, seccion_3_ejecucion,
+                       seccion_4_financiero, seccion_5_cierre, documentos_ids
+                FROM defense_files_v2 WHERE id = $1
+            """, id)
 
-        conn = await asyncpg.connect(db_url)
+            if not row:
+                raise HTTPException(status_code=404, detail="Defense File no encontrado")
 
-        row = await conn.fetchrow("""
-            SELECT seccion_1_contexto, seccion_2_contractual, seccion_3_ejecucion,
-                   seccion_4_financiero, seccion_5_cierre, documentos_ids
-            FROM defense_files_v2 WHERE id = $1
-        """, id)
+            # Construir contenido para hash
+            contenido = json.dumps({
+                "s1": row["seccion_1_contexto"],
+                "s2": row["seccion_2_contractual"],
+                "s3": row["seccion_3_ejecucion"],
+                "s4": row["seccion_4_financiero"],
+                "s5": row["seccion_5_cierre"],
+                "docs": row["documentos_ids"]
+            }, sort_keys=True)
 
-        if not row:
-            raise HTTPException(status_code=404, detail="Defense File no encontrado")
+            hash_contenido = hashlib.sha256(contenido.encode()).hexdigest()
 
-        # Construir contenido para hash
-        contenido = json.dumps({
-            "s1": row["seccion_1_contexto"],
-            "s2": row["seccion_2_contractual"],
-            "s3": row["seccion_3_ejecucion"],
-            "s4": row["seccion_4_financiero"],
-            "s5": row["seccion_5_cierre"],
-            "docs": row["documentos_ids"]
-        }, sort_keys=True)
-
-        hash_contenido = hashlib.sha256(contenido.encode()).hexdigest()
-
-        await conn.execute("""
-            UPDATE defense_files_v2
-            SET hash_contenido = $1, fecha_hash = NOW(), updated_at = NOW()
-            WHERE id = $2
-        """, hash_contenido, id)
-
-        await conn.close()
+            await conn.execute("""
+                UPDATE defense_files_v2
+                SET hash_contenido = $1, fecha_hash = NOW(), updated_at = NOW()
+                WHERE id = $2
+            """, hash_contenido, id)
 
         return {
             "success": True,
