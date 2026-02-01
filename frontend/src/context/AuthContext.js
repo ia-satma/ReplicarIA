@@ -54,8 +54,9 @@ export function AuthProvider({ children }) {
       }
       return { success: false, error: 'Error de autenticación' };
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Error al iniciar sesión';
-      const statusCode = err.response?.status;
+      // api.js ya transforma el error - usar .message directamente
+      const errorMsg = err.message || err.detail || 'Error al iniciar sesión';
+      const statusCode = err.status || err.response?.status;
       setError(errorMsg);
       return { success: false, error: errorMsg, statusCode };
     }
@@ -81,7 +82,8 @@ export function AuthProvider({ children }) {
       }
       return { success: false, error: response.message || 'Error en el registro' };
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Error al registrar';
+      // api.js ya transforma el error - usar .message directamente
+      const errorMsg = err.message || err.detail || 'Error al registrar';
       setError(errorMsg);
       return { success: false, error: errorMsg };
     }

@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "name": "revisar-ia",
   "builds": [
     {
       "src": "package.json",
@@ -14,36 +13,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://backend-production-ceb1.up.railway.app/api/:path*"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/static/(.*)",
-      "dest": "/static/$1"
     },
     {
-      "src": "/favicon.ico",
-      "dest": "/favicon.ico"
-    },
-    {
-      "src": "/manifest.json",
-      "dest": "/manifest.json"
-    },
-    {
-      "src": "/logo(.*)",
-      "dest": "/logo$1"
-    },
-    {
-      "src": "/mascot.webp",
-      "dest": "/mascot.webp"
-    },
-    {
-      "src": "/(.*\\.(png|jpg|jpeg|gif|webp|svg|ico|css|js|json|woff|woff2|ttf|eot|mp4|webm|ogg))",
-      "dest": "/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/((?!static|.*\\..*).*)",
+      "destination": "/index.html"
     }
   ],
   "env": {
