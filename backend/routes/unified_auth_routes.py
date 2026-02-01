@@ -485,27 +485,100 @@ async def get_session(
     - Valida el token de sesión
     - Retorna información del usuario
     """
+    import hashlib
+    from services.otp_auth_service import get_db_connection
+
     if not credentials:
         raise HTTPException(status_code=401, detail="Token requerido")
 
-    session, user = await auth_service.validate_session(credentials.credentials)
+    token = credentials.credentials
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
 
-    if not session or not user:
-        raise HTTPException(status_code=401, detail="Sesión inválida o expirada")
+    try:
+        conn = await get_db_connection()
+        if not conn:
+            raise HTTPException(status_code=503, detail="Database not available")
 
-    return APIResponse(
-        success=True,
-        message="Sesión válida",
-        data={
-            'user': user.to_dict(),
-            'session': {
-                'id': session.id,
-                'auth_method': session.auth_method,
-                'expires_at': session.expires_at.isoformat(),
-                'created_at': session.created_at.isoformat() if session.created_at else None
-            }
-        }
-    )
+        try:
+            # Check auth_sessions for password sessions
+            row = await conn.fetchrow('''
+                SELECT s.id, s.user_id, s.auth_method, s.expires_at, s.is_active, s.created_at,
+                       u.email, u.full_name, u.role, u.status, u.empresa_id, u.company_name, u.metadata
+                FROM auth_sessions s
+                JOIN auth_users u ON u.id = s.user_id
+                WHERE s.token_hash = $1 AND s.is_active = true
+                  AND s.expires_at > NOW() AND u.deleted_at IS NULL
+            ''', token_hash)
+
+            if row:
+                if row['status'] != 'active':
+                    raise HTTPException(status_code=403, detail="Cuenta no activa")
+
+                return APIResponse(
+                    success=True,
+                    message="Sesión válida",
+                    data={
+                        'user': {
+                            'id': str(row['user_id']),
+                            'email': row['email'],
+                            'full_name': row['full_name'],
+                            'role': row['role'],
+                            'empresa_id': str(row['empresa_id']) if row['empresa_id'] else None,
+                            'company_name': row['company_name'],
+                            'is_superadmin': row['role'] == 'super_admin',
+                            'metadata': row['metadata'] or {}
+                        },
+                        'session': {
+                            'id': str(row['id']),
+                            'auth_method': row['auth_method'],
+                            'expires_at': row['expires_at'].isoformat(),
+                            'created_at': row['created_at'].isoformat() if row['created_at'] else None
+                        }
+                    }
+                )
+
+            # Fallback to OTP sessions (sesiones_otp table)
+            otp_row = await conn.fetchrow('''
+                SELECT s.id, s.usuario_id, s.fecha_expiracion, s.fecha_creacion,
+                       u.email, u.nombre, u.rol, u.empresa
+                FROM sesiones_otp s
+                JOIN usuarios_autorizados u ON s.usuario_id::text = u.id::text
+                WHERE s.token = $1 AND s.activa = true AND s.fecha_expiracion > NOW()
+            ''', token)
+
+            if otp_row:
+                return APIResponse(
+                    success=True,
+                    message="Sesión válida",
+                    data={
+                        'user': {
+                            'id': str(otp_row['usuario_id']),
+                            'email': otp_row['email'],
+                            'full_name': otp_row['nombre'],
+                            'role': otp_row['rol'] or 'user',
+                            'empresa_id': None,
+                            'company_name': otp_row['empresa'],
+                            'is_superadmin': otp_row['rol'] == 'super_admin'
+                        },
+                        'session': {
+                            'id': str(otp_row['id']),
+                            'auth_method': 'otp',
+                            'expires_at': otp_row['fecha_expiracion'].isoformat(),
+                            'created_at': otp_row['fecha_creacion'].isoformat() if otp_row['fecha_creacion'] else None
+                        }
+                    }
+                )
+
+            raise HTTPException(status_code=401, detail="Sesión inválida o expirada")
+
+        finally:
+            await conn.close()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Session validation error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error validando sesión")
 
 
 @router.post("/otp/logout", response_model=APIResponse)
