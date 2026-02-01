@@ -324,7 +324,7 @@ function Navbar() {
               </svg>
             </Link>
 
-            {user?.role === 'admin' && (
+            {(user?.role === 'admin' || user?.role === 'super_admin' || user?.is_superadmin) && (
               <>
                 <Link
                   to="/admin"
