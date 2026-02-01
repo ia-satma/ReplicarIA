@@ -54,8 +54,7 @@ export default function AdminPage() {
     rfc: '',
     industria: '',
     vision: '',
-    mision: '',
-    plan: 'basico'
+    mision: ''
   });
   const [showNewEmpresaModal, setShowNewEmpresaModal] = useState(false);
   const [autofillLoading, setAutofillLoading] = useState(false);
@@ -101,7 +100,12 @@ export default function AdminPage() {
       }
     } catch (error) {
       console.error('Error autofill:', error);
-      setMessage({ type: 'error', text: error.response?.data?.detail || 'Error al generar perfil con IA' });
+      const errorDetail = error.response?.data?.detail || error.message || 'Error al generar perfil con IA';
+      if (errorDetail.includes('503') || errorDetail.includes('IA no disponible') || errorDetail.includes('OPENAI')) {
+        setMessage({ type: 'error', text: 'Servicio de IA no disponible. Configure OPENAI_API_KEY en el servidor.' });
+      } else {
+        setMessage({ type: 'error', text: errorDetail });
+      }
     } finally {
       setAutofillLoading(false);
     }
@@ -256,8 +260,7 @@ export default function AdminPage() {
       rfc: empresa.rfc || '',
       industria: empresa.industria || '',
       vision: empresa.vision || '',
-      mision: empresa.mision || '',
-      plan: empresa.plan || 'basico'
+      mision: empresa.mision || ''
     });
   };
 
@@ -269,8 +272,7 @@ export default function AdminPage() {
       rfc: '',
       industria: '',
       vision: '',
-      mision: '',
-      plan: 'basico'
+      mision: ''
     });
   };
 
@@ -309,8 +311,7 @@ export default function AdminPage() {
           rfc: '',
           industria: '',
           vision: '',
-          mision: '',
-          plan: 'basico'
+          mision: ''
         });
       }
     } catch (error) {
@@ -1134,7 +1135,6 @@ export default function AdminPage() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RFC</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Industria</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Plan</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                     </tr>
@@ -1142,7 +1142,7 @@ export default function AdminPage() {
                   <tbody className="divide-y divide-gray-100">
                     {!Array.isArray(empresas) || empresas.length === 0 ? (
                       <tr>
-                        <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                        <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
                           <div className="text-4xl mb-2">&#127970;</div>
                           <p className="font-medium">No hay empresas registradas</p>
                           <p className="text-sm mt-1">Crea una nueva empresa para comenzar</p>
@@ -1164,15 +1164,6 @@ export default function AdminPage() {
                           </td>
                           <td className="px-6 py-4">
                             <span className="text-gray-600 capitalize">{empresa.industria?.replace(/_/g, ' ') || '-'}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              empresa.plan === 'enterprise' ? 'bg-purple-100 text-purple-700' :
-                              empresa.plan === 'profesional' ? 'bg-blue-100 text-blue-700' :
-                              'bg-gray-100 text-gray-700'
-                            }`}>
-                              {empresa.plan?.charAt(0).toUpperCase() + empresa.plan?.slice(1) || 'Basico'}
-                            </span>
                           </td>
                           <td className="px-6 py-4">
                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${
@@ -1278,39 +1269,25 @@ export default function AdminPage() {
                     placeholder="Ej: Fortezza Consultores S.A. de C.V."
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Industria</label>
-                    <select
-                      value={empresaForm.industria}
-                      onChange={(e) => setEmpresaForm({ ...empresaForm, industria: e.target.value })}
-                      className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all outline-none bg-white"
-                    >
-                      <option value="">Seleccionar...</option>
-                      <option value="tecnologia">Tecnologia</option>
-                      <option value="servicios_profesionales">Servicios Profesionales</option>
-                      <option value="manufactura">Manufactura</option>
-                      <option value="comercio">Comercio</option>
-                      <option value="construccion">Construccion</option>
-                      <option value="salud">Salud</option>
-                      <option value="educacion">Educacion</option>
-                      <option value="finanzas">Finanzas</option>
-                      <option value="inmobiliario">Inmobiliario</option>
-                      <option value="otro">Otro</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Plan</label>
-                    <select
-                      value={empresaForm.plan}
-                      onChange={(e) => setEmpresaForm({ ...empresaForm, plan: e.target.value })}
-                      className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all outline-none bg-white"
-                    >
-                      <option value="basico">Basico</option>
-                      <option value="profesional">Profesional</option>
-                      <option value="enterprise">Enterprise</option>
-                    </select>
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Industria</label>
+                  <select
+                    value={empresaForm.industria}
+                    onChange={(e) => setEmpresaForm({ ...empresaForm, industria: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all outline-none bg-white"
+                  >
+                    <option value="">Seleccionar...</option>
+                    <option value="tecnologia">Tecnologia</option>
+                    <option value="servicios_profesionales">Servicios Profesionales</option>
+                    <option value="manufactura">Manufactura</option>
+                    <option value="comercio">Comercio</option>
+                    <option value="construccion">Construccion</option>
+                    <option value="salud">Salud</option>
+                    <option value="educacion">Educacion</option>
+                    <option value="finanzas">Finanzas</option>
+                    <option value="inmobiliario">Inmobiliario</option>
+                    <option value="otro">Otro</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Vision</label>
