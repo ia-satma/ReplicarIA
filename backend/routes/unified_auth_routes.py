@@ -346,16 +346,22 @@ async def login(request: Request, body: LoginRequest):
             token_hash = secrets.token_hex(32)  # Simple hash for now
             expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
 
-            await conn.execute('''
-                INSERT INTO auth_sessions (user_id, token_hash, token_prefix, auth_method, expires_at, ip_address, user_agent)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-            ''', row['id'], token_hash, token[:8], 'password', expires_at,
-                get_client_ip(request), get_user_agent(request))
+            try:
+                await conn.execute('''
+                    INSERT INTO auth_sessions (user_id, token_hash, token_prefix, auth_method, expires_at, ip_address, user_agent)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ''', row['id'], token_hash, token[:8], 'password', expires_at,
+                    get_client_ip(request), get_user_agent(request)[:500] if get_user_agent(request) else None)
+            except Exception as session_err:
+                logger.warning(f"Session insert failed, continuing without session: {session_err}")
 
             # Actualizar último login
-            await conn.execute('''
-                UPDATE auth_users SET last_login_at = NOW() WHERE id = $1
-            ''', row['id'])
+            try:
+                await conn.execute('''
+                    UPDATE auth_users SET last_login_at = NOW() WHERE id = $1
+                ''', row['id'])
+            except Exception as update_err:
+                logger.warning(f"Update last_login failed: {update_err}")
 
             return APIResponse(
                 success=True,
