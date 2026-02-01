@@ -48,12 +48,16 @@ export function AuthProvider({ children }) {
     setError(null);
     try {
       const response = await api.post('/api/auth/login', { email, password });
-      if (response.access_token) {
-        localStorage.setItem('auth_token', response.access_token);
-        setUser(response.user);
+      // El backend retorna { success, data: { access_token, user } }
+      const token = response?.data?.access_token || response?.access_token;
+      const userData = response?.data?.user || response?.user;
+
+      if (token) {
+        localStorage.setItem('auth_token', token);
+        if (userData) setUser(userData);
         return { success: true };
       }
-      return { success: false, error: 'Error de autenticación' };
+      return { success: false, error: response?.message || 'Error de autenticación' };
     } catch (err) {
       // api.js ya transforma el error - usar .message directamente
       const errorMsg = err.message || err.detail || 'Error al iniciar sesión';
