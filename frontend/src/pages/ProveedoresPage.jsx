@@ -5,8 +5,9 @@ import RiesgoIndicador from '../components/proveedores/RiesgoIndicador';
 import DocumentUploadOCR from '../components/proveedores/DocumentUploadOCR';
 
 const ProveedoresPage = () => {
-  const { token, empresaId } = useAuth();
+  const { token, empresaId, isSuperAdmin, user, selectEmpresa } = useAuth();
   const [proveedores, setProveedores] = useState([]);
+  const [empresas, setEmpresas] = useState([]);
   const [estadisticas, setEstadisticas] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -65,17 +66,45 @@ const ProveedoresPage = () => {
     }
   };
 
+  const fetchEmpresas = async () => {
+    try {
+      const response = await fetch('/api/empresas', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setEmpresas(data || []);
+        // Si solo hay una empresa, seleccionarla automáticamente
+        if (data && data.length === 1 && !empresaId) {
+          selectEmpresa(data[0].id);
+        }
+      }
+    } catch (err) {
+      console.error('Error cargando empresas:', err);
+    }
+  };
+
+  useEffect(() => {
+    // Si es superadmin, cargar lista de empresas para el selector
+    if (token && isSuperAdmin) {
+      fetchEmpresas();
+    }
+  }, [token, isSuperAdmin]);
+
   useEffect(() => {
     if (token && empresaId) {
       fetchProveedores();
       fetchEstadisticas();
+    } else if (token && !empresaId) {
+      // Usuario autenticado pero sin empresa seleccionada
+      setLoading(false);
     } else {
-      // Si no hay autenticación, no quedarse en loading infinito
+      // Sin autenticación
       setLoading(false);
       if (!token) {
         setError('Debes iniciar sesión para ver los proveedores');
-      } else if (!empresaId) {
-        setError('Debes seleccionar una empresa');
       }
     }
   }, [token, empresaId, filtros]);
@@ -154,10 +183,27 @@ const ProveedoresPage = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Proveedores</h1>
             <p className="text-gray-600 mt-1">Gestiona y evalúa el riesgo de tus proveedores de servicios</p>
+            {isSuperAdmin && empresaId && empresas.length > 0 && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-sm text-gray-500">Empresa:</span>
+                <select
+                  value={empresaId}
+                  onChange={(e) => selectEmpresa(e.target.value)}
+                  className="text-sm px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                >
+                  {empresas.map(empresa => (
+                    <option key={empresa.id} value={empresa.id}>
+                      {empresa.nombre_comercial || empresa.razon_social}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
           <button
             onClick={() => setShowForm(true)}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+            disabled={!empresaId}
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -247,6 +293,39 @@ const ProveedoresPage = () => {
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-12 h-12 border-4 border-blue-200 rounded-full animate-spin border-t-blue-600"></div>
+          </div>
+        ) : !empresaId && isSuperAdmin ? (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+            <div className="text-center mb-6">
+              <svg className="mx-auto h-12 w-12 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <h3 className="mt-4 text-lg font-medium text-gray-900">Selecciona una Empresa</h3>
+              <p className="mt-2 text-gray-500">Como superadmin, debes seleccionar una empresa para gestionar sus proveedores.</p>
+            </div>
+            {empresas.length > 0 ? (
+              <div className="max-w-md mx-auto">
+                <select
+                  onChange={(e) => selectEmpresa(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg"
+                  defaultValue=""
+                >
+                  <option value="" disabled>Selecciona una empresa...</option>
+                  {empresas.map(empresa => (
+                    <option key={empresa.id} value={empresa.id}>
+                      {empresa.nombre_comercial || empresa.razon_social}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="text-center">
+                <p className="text-gray-500">No hay empresas registradas.</p>
+                <a href="/admin" className="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  Ir a Panel Admin para crear empresa
+                </a>
+              </div>
+            )}
           </div>
         ) : error ? (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">

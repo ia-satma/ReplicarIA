@@ -7,6 +7,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [empresaId, setEmpresaId] = useState(() => localStorage.getItem('selected_empresa_id'));
 
   const clearError = () => setError(null);
 
@@ -120,19 +121,39 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('user');
     localStorage.removeItem('selected_empresa_id');
     setUser(null);
+    setEmpresaId(null);
   };
+
+  const selectEmpresa = (id) => {
+    if (id) {
+      localStorage.setItem('selected_empresa_id', id);
+    } else {
+      localStorage.removeItem('selected_empresa_id');
+    }
+    setEmpresaId(id);
+  };
+
+  // Get token from localStorage
+  const token = localStorage.getItem('auth_token');
+
+  // Check if user is superadmin
+  const isSuperAdmin = user?.role === 'super_admin' || user?.is_superadmin;
 
   const value = {
     user,
     loading,
     error,
+    token,
+    empresaId,
+    isSuperAdmin,
     isAuthenticated: !!user,
     login,
     loginWithOTP,
     register,
     logout,
     clearError,
-    verifyAuth
+    verifyAuth,
+    selectEmpresa
   };
 
   return (
