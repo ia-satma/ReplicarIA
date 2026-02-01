@@ -17,13 +17,39 @@ from services.empresa_service import empresa_service
 
 logger = logging.getLogger(__name__)
 
-# OpenAI provider
+# AI Provider - Try Anthropic first, then OpenAI
+AI_PROVIDER = None
+chat_completion_sync = None
+AI_AVAILABLE = False
+
+# Try Anthropic first
 try:
-    from services.openai_provider import openai_client, chat_completion_sync, is_configured
-    OPENAI_AVAILABLE = is_configured()
+    from services.anthropic_provider import chat_completion_sync as anthropic_chat, is_configured as anthropic_configured
+    if anthropic_configured():
+        AI_PROVIDER = "anthropic"
+        chat_completion_sync = anthropic_chat
+        AI_AVAILABLE = True
+        logger.info("Empresas: Using Anthropic Claude")
 except ImportError:
-    OPENAI_AVAILABLE = False
-    openai_client = None
+    pass
+
+# Fallback to OpenAI
+if not AI_AVAILABLE:
+    try:
+        from services.openai_provider import chat_completion_sync as openai_chat, is_configured as openai_configured
+        if openai_configured():
+            AI_PROVIDER = "openai"
+            chat_completion_sync = openai_chat
+            AI_AVAILABLE = True
+            logger.info("Empresas: Using OpenAI GPT")
+    except ImportError:
+        pass
+
+# Legacy compatibility
+OPENAI_AVAILABLE = AI_AVAILABLE
+
+# Model to use based on provider
+AI_MODEL = "claude-sonnet-4-20250514" if AI_PROVIDER == "anthropic" else "gpt-4o"
 
 # Deep Research Service for intelligent autofill
 try:
@@ -303,7 +329,7 @@ Responde UNICAMENTE en formato JSON:
 
                         response_text = chat_completion_sync(
                             messages=[{"role": "user", "content": prompt}],
-                            model="gpt-4o",
+                            model=AI_MODEL,
                             max_tokens=512
                         ).strip()
 
@@ -376,7 +402,7 @@ Responde UNICAMENTE en este formato JSON exacto:
 
             response_text = chat_completion_sync(
                 messages=[{"role": "user", "content": prompt}],
-                model="gpt-4o",
+                model=AI_MODEL,
                 max_tokens=512
             ).strip()
 
