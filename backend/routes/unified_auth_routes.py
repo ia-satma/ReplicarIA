@@ -320,10 +320,10 @@ async def login(request: Request, body: LoginRequest):
             raise HTTPException(status_code=503, detail="Base de datos no disponible")
 
         try:
-            # Buscar usuario
+            # Buscar usuario (only select columns that exist in our simplified table)
             row = await conn.fetchrow('''
                 SELECT id, email, full_name, password_hash, role, status, auth_method,
-                       empresa_id, company_name, email_verified, metadata
+                       empresa_id, company_name
                 FROM auth_users
                 WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL
             ''', body.email)
@@ -374,9 +374,9 @@ async def login(request: Request, body: LoginRequest):
                         'email': row['email'],
                         'full_name': row['full_name'],
                         'role': row['role'],
-                        'empresa_id': str(row['empresa_id']) if row['empresa_id'] else None,
-                        'company_name': row['company_name'],
-                        'metadata': row['metadata'] or {}
+                        'empresa_id': str(row['empresa_id']) if row.get('empresa_id') else None,
+                        'company_name': row.get('company_name'),
+                        'is_superadmin': row['role'] == 'super_admin'
                     },
                     'expires_at': expires_at.isoformat()
                 }
