@@ -198,16 +198,30 @@ class EmailService:
                     }
                 else:
                     error_msg = response.text
-                    logger.error(f"❌ SendGrid error {response.status_code}: {error_msg}")
+                    logger.warning(f"⚠️ SendGrid error {response.status_code}: {error_msg} - Intentando fallback a DreamHost")
+                    # Fallback a DreamHost si SendGrid falla
+                    if DREAMHOST_EMAIL_PASSWORD:
+                        dreamhost_result = await send_via_dreamhost(to, subject, body_html, body_text)
+                        if dreamhost_result.get("success"):
+                            return dreamhost_result
+                    # Si ambos fallan, retornar error de SendGrid
                     return {
                         "success": False,
                         "error": f"SendGrid error: {error_msg}",
                         "to": to,
                         "subject": subject
                     }
-            
+
         except Exception as e:
-            logger.error(f"❌ Error enviando email: {e}")
+            logger.warning(f"⚠️ SendGrid exception: {e} - Intentando fallback a DreamHost")
+            # Fallback a DreamHost si SendGrid tiene excepción
+            if DREAMHOST_EMAIL_PASSWORD:
+                try:
+                    dreamhost_result = await send_via_dreamhost(to, subject, body_html, body_text)
+                    if dreamhost_result.get("success"):
+                        return dreamhost_result
+                except Exception as dh_error:
+                    logger.error(f"❌ DreamHost fallback también falló: {dh_error}")
             return {
                 "success": False,
                 "error": str(e),

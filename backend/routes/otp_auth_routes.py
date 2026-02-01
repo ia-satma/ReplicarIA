@@ -329,6 +329,9 @@ async def trigger_otp_test(email: str):
         codigo = await otp_auth_service.create_otp_code(email, user.get("id", 1))
         result["steps"].append({"step": "create_otp", "success": bool(codigo), "codigo_created": bool(codigo)})
 
+        # Guardar el código para mostrarlo si falla el envío
+        result["otp_code"] = codigo
+
         if not codigo:
             result["success"] = False
             result["error"] = "No se pudo crear el código OTP (rate limit o error DB)"
