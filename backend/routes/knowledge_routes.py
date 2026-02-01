@@ -87,12 +87,14 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         session = await otp_auth_service.validate_session(token)
         if session and session.get("user"):
             user = session["user"]
+            # Use empresa_id (UUID) if available, fallback to empresa (string) for legacy
+            empresa_id = user.get("empresa_id") or user.get("empresa") or None
             return {
                 "user_id": user.get("id"),
                 "email": user.get("email"),
                 "full_name": user.get("nombre"),
-                "empresa_id": user.get("empresa") or None,
-                "company_id": user.get("empresa") or None,
+                "empresa_id": empresa_id,
+                "company_id": empresa_id,
                 "role": user.get("rol", "user"),
                 "is_superadmin": user.get("rol") == "super_admin"
             }

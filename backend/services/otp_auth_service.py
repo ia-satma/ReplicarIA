@@ -165,14 +165,18 @@ class OTPAuthService:
             try:
                 row = await conn.fetchrow(
                     """
-                    SELECT id, email, nombre, empresa, rol, activo
+                    SELECT id, email, nombre, empresa, rol, activo, empresa_id
                     FROM usuarios_autorizados
                     WHERE LOWER(email) = LOWER($1) AND activo = true
                     """,
                     email
                 )
                 if row:
-                    return dict(row)
+                    result = dict(row)
+                    # Ensure empresa_id is a string if present
+                    if result.get('empresa_id'):
+                        result['empresa_id'] = str(result['empresa_id'])
+                    return result
                 return None
             except Exception as e:
                 logger.error(f"Error checking authorized email: {e}")
@@ -258,7 +262,7 @@ class OTPAuthService:
             try:
                 row = await conn.fetchrow(
                     """
-                    SELECT c.id, c.usuario_id, c.email, u.nombre, u.empresa, u.rol
+                    SELECT c.id, c.usuario_id, c.email, u.nombre, u.empresa, u.rol, u.empresa_id
                     FROM codigos_otp c
                     JOIN usuarios_autorizados u ON c.usuario_id::text = u.id::text
                     WHERE LOWER(c.email) = LOWER($1)
@@ -306,6 +310,7 @@ class OTPAuthService:
                         "email": row['email'],
                         "nombre": row['nombre'],
                         "empresa": row['empresa'],
+                        "empresa_id": str(row['empresa_id']) if row.get('empresa_id') else None,
                         "rol": row['rol'],
                         "role": row['rol']
                     },

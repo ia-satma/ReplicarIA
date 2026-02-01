@@ -64,6 +64,7 @@ CREATE INDEX IF NOT EXISTS idx_sesiones_otp_usuario ON sesiones_otp(usuario_id);
 INSERT INTO usuarios_autorizados (email, nombre, empresa, rol, activo)
 VALUES
     ('ia@satma.mx', 'Administrador SATMA', 'SATMA', 'super_admin', true),
+    ('santiago@satma.mx', 'Santiago De Santiago', 'SATMA', 'super_admin', true),
     ('admin@revisar-ia.com', 'Administrador Sistema', 'Revisar.IA', 'admin', true)
 ON CONFLICT (email) DO UPDATE SET
     activo = true,
