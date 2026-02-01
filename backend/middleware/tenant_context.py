@@ -119,6 +119,7 @@ SKIP_TENANT_CHECK_PATHS = {
     "/api/auth/otp/request-code",
     "/api/auth/otp/verify-code",
     "/api/auth/otp/session",
+    "/api/auth/check-auth-method",
     "/api/auth/otp/logout",
     "/api/auth/otp/status",
     "/api/auth/otp/test-email",
