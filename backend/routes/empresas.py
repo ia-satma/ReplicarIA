@@ -25,6 +25,14 @@ except ImportError:
     OPENAI_AVAILABLE = False
     openai_client = None
 
+# Deep Research Service for intelligent autofill
+try:
+    from services.deep_research_service import deep_research_service
+    DEEP_RESEARCH_AVAILABLE = True
+except ImportError:
+    deep_research_service = None
+    DEEP_RESEARCH_AVAILABLE = False
+
 router = APIRouter(prefix="/empresas", tags=["empresas"])
 
 security = HTTPBearer(auto_error=False)
@@ -197,6 +205,7 @@ class AutofillRequest(BaseModel):
     razon_social: Optional[str] = None
     rfc: Optional[str] = None
     industria: Optional[str] = None
+    sitio_web: Optional[str] = None  # URL para deep research
 
 
 # Templates por industria para fallback sin IA
@@ -247,13 +256,90 @@ TEMPLATES_POR_INDUSTRIA = {
 @router.post("/autofill-ia")
 async def autofill_empresa_con_ia(data: AutofillRequest):
     """
-    Auto-rellena los campos de perfil de empresa usando IA o templates.
-    Genera vision, mision basadas en el nombre e industria.
+    Auto-rellena los campos de perfil de empresa usando Deep Research + IA.
+    Investiga la empresa en internet y genera vision, mision, y datos adicionales.
     """
     industria_key = data.industria or "default"
     industria_texto = data.industria.replace("_", " ") if data.industria else "general"
 
-    # Intentar con IA si esta disponible
+    # 1. Intentar Deep Research primero (más completo)
+    if DEEP_RESEARCH_AVAILABLE and deep_research_service:
+        try:
+            logger.info(f"Iniciando Deep Research para: {data.nombre_comercial}")
+            resultado = await deep_research_service.investigar_empresa(
+                nombre=data.nombre_comercial,
+                rfc=data.rfc,
+                sitio_web=data.sitio_web
+            )
+
+            if resultado and resultado.get("data"):
+                research_data = resultado["data"]
+                field_confidence = resultado.get("field_confidence", {})
+
+                # Generar vision/mision con IA basada en datos investigados
+                if OPENAI_AVAILABLE:
+                    try:
+                        context_info = f"""
+Nombre: {research_data.get('nombre') or data.nombre_comercial}
+Razon Social: {research_data.get('razon_social') or data.razon_social or 'No disponible'}
+RFC: {research_data.get('rfc') or data.rfc or 'No disponible'}
+Giro/Actividad: {research_data.get('giro') or research_data.get('actividad_economica') or industria_texto}
+Direccion: {research_data.get('direccion') or 'No disponible'}
+Sitio Web: {data.sitio_web or 'No disponible'}
+"""
+                        prompt = f"""Eres un experto en desarrollo empresarial en Mexico.
+Con base en los siguientes datos investigados de una empresa real, genera su vision y mision:
+
+{context_info}
+
+Genera contenido profesional, especifico y realista para ESTA empresa en particular.
+No uses frases genericas. Personaliza basandote en su giro y actividad.
+
+Responde UNICAMENTE en formato JSON:
+{{
+    "vision": "Vision especifica para esta empresa (1-2 oraciones)...",
+    "mision": "Mision especifica para esta empresa (1-2 oraciones)..."
+}}"""
+
+                        response_text = chat_completion_sync(
+                            messages=[{"role": "user", "content": prompt}],
+                            model="gpt-4o",
+                            max_tokens=512
+                        ).strip()
+
+                        if response_text.startswith("```"):
+                            lines = response_text.split("\n")
+                            response_text = "\n".join(lines[1:-1])
+
+                        ai_result = json.loads(response_text)
+                        research_data["vision"] = ai_result.get("vision")
+                        research_data["mision"] = ai_result.get("mision")
+                    except Exception as ai_err:
+                        logger.warning(f"Error generando vision/mision con IA: {ai_err}")
+
+                return {
+                    "success": True,
+                    "data": {
+                        "vision": research_data.get("vision"),
+                        "mision": research_data.get("mision"),
+                        "razon_social": research_data.get("razon_social"),
+                        "rfc": research_data.get("rfc"),
+                        "direccion": research_data.get("direccion"),
+                        "giro": research_data.get("giro") or research_data.get("actividad_economica"),
+                        "regimen_fiscal": research_data.get("regimen_fiscal"),
+                        "sitio_web": research_data.get("sitio_web") or data.sitio_web,
+                        "telefono": research_data.get("telefono"),
+                        "email": research_data.get("email")
+                    },
+                    "field_confidence": field_confidence,
+                    "message": "Datos investigados con Deep Research + IA",
+                    "source": "deep_research"
+                }
+
+        except Exception as e:
+            logger.warning(f"Error en Deep Research, intentando con IA basica: {e}")
+
+    # 2. Fallback: IA basica sin investigacion
     if OPENAI_AVAILABLE:
         try:
             prompt = f"""Eres un experto en desarrollo empresarial y estrategia corporativa en Mexico.
@@ -264,12 +350,13 @@ DATOS DE LA EMPRESA:
 - Razon Social: {data.razon_social or 'No especificada'}
 - RFC: {data.rfc or 'No especificado'}
 - Industria: {industria_texto}
+- Sitio Web: {data.sitio_web or 'No especificado'}
 
 INSTRUCCIONES:
 Genera contenido profesional, realista y especifico para esta empresa mexicana.
 La vision y mision deben ser concisas (1-2 oraciones cada una).
 
-Responde UNICAMENTE en este formato JSON exacto, sin explicaciones adicionales:
+Responde UNICAMENTE en este formato JSON exacto:
 {{
     "vision": "La vision de la empresa en 1-2 oraciones...",
     "mision": "La mision de la empresa en 1-2 oraciones..."
@@ -281,7 +368,6 @@ Responde UNICAMENTE en este formato JSON exacto, sin explicaciones adicionales:
                 max_tokens=512
             ).strip()
 
-            # Clean up response if wrapped in markdown code blocks
             if response_text.startswith("```"):
                 lines = response_text.split("\n")
                 response_text = "\n".join(lines[1:-1])
@@ -291,18 +377,15 @@ Responde UNICAMENTE en este formato JSON exacto, sin explicaciones adicionales:
             return {
                 "success": True,
                 "data": result,
-                "message": "Perfil generado exitosamente con IA",
+                "message": "Perfil generado con IA",
                 "source": "ai"
             }
 
         except Exception as e:
-            logger.warning(f"Error with AI autofill, using template: {e}")
-            # Continuar con fallback de templates
+            logger.warning(f"Error con IA, usando template: {e}")
 
-    # Fallback: usar templates predefinidos
+    # 3. Fallback final: templates predefinidos
     template = TEMPLATES_POR_INDUSTRIA.get(industria_key, TEMPLATES_POR_INDUSTRIA["default"])
-
-    # Personalizar con el nombre de la empresa
     vision = template["vision"].replace("Ser la empresa", f"Ser {data.nombre_comercial} como la empresa")
     mision = template["mision"]
 

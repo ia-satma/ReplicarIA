@@ -1,53 +1,53 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-const API_BASE = process.env.REACT_APP_BACKEND_URL 
+const API_BASE = process.env.REACT_APP_BACKEND_URL
   ? `${process.env.REACT_APP_BACKEND_URL}/api`
   : '/api';
 
 const FileIcon = ({ mimeType, isFolder, size = "small" }) => {
   const sizeClass = size === "small" ? "w-6 h-6" : "w-10 h-10";
-  
+
   if (isFolder) {
     return (
       <svg className={`${sizeClass} text-yellow-400`} fill="currentColor" viewBox="0 0 24 24">
-        <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+        <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
       </svg>
     );
   }
-  
+
   const type = mimeType || '';
   if (type.includes('pdf')) {
     return (
       <svg className={`${sizeClass} text-red-400`} fill="currentColor" viewBox="0 0 24 24">
-        <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h6v6h6v10H6z"/>
+        <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h6v6h6v10H6z" />
       </svg>
     );
   }
   if (type.includes('word') || type.includes('document')) {
     return (
       <svg className={`${sizeClass} text-blue-400`} fill="currentColor" viewBox="0 0 24 24">
-        <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h6v6h6v10H6z"/>
+        <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h6v6h6v10H6z" />
       </svg>
     );
   }
   if (type.includes('sheet') || type.includes('excel')) {
     return (
       <svg className={`${sizeClass} text-green-400`} fill="currentColor" viewBox="0 0 24 24">
-        <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h6v6h6v10H6z"/>
+        <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h6v6h6v10H6z" />
       </svg>
     );
   }
   if (type.includes('image')) {
     return (
       <svg className={`${sizeClass} text-purple-400`} fill="currentColor" viewBox="0 0 24 24">
-        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
       </svg>
     );
   }
   return (
     <svg className={`${sizeClass} text-gray-400`} fill="currentColor" viewBox="0 0 24 24">
-      <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h6v6h6v10H6z"/>
+      <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h6v6h6v10H6z" />
     </svg>
   );
 };
@@ -61,9 +61,9 @@ const StatusBadge = ({ status }) => {
     error: { label: 'Error', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
     archived: { label: 'Archivado', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30' }
   };
-  
+
   const config = statusConfig[status] || statusConfig.uploaded;
-  
+
   return (
     <span className={`px-2 py-0.5 text-xs rounded-full border ${config.color}`}>
       {config.label}
@@ -82,9 +82,9 @@ const formatFileSize = (bytes) => {
 const formatDate = (dateStr) => {
   if (!dateStr) return '-';
   const date = new Date(dateStr);
-  return date.toLocaleDateString('es-MX', { 
-    year: 'numeric', 
-    month: 'short', 
+  return date.toLocaleDateString('es-MX', {
+    year: 'numeric',
+    month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit'
@@ -92,7 +92,7 @@ const formatDate = (dateStr) => {
 };
 
 export default function KnowledgeRepository() {
-  const { user } = useAuth();
+  const { user, empresaId } = useAuth();
   const [currentPath, setCurrentPath] = useState('/');
   const [folders, setFolders] = useState([]);
   const [documents, setDocuments] = useState([]);
@@ -122,15 +122,24 @@ export default function KnowledgeRepository() {
     };
   }, []);
 
+  const getUrl = useCallback((endpoint) => {
+    const baseUrl = `${API_BASE}/knowledge${endpoint}`;
+    if (empresaId) {
+      const separator = baseUrl.includes('?') ? '&' : '?';
+      return `${baseUrl}${separator}empresa_id=${empresaId}`;
+    }
+    return baseUrl;
+  }, [empresaId]);
+
   const fetchStats = useCallback(async () => {
     try {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
-      
-      const response = await fetch(`${API_BASE}/knowledge/stats`, {
+
+      const response = await fetch(getUrl('/stats'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
+
       if (response.ok) {
         const text = await response.text();
         try {
@@ -143,7 +152,7 @@ export default function KnowledgeRepository() {
     } catch (err) {
       console.error('Error fetching stats:', err);
     }
-  }, []);
+  }, [getUrl]);
 
   const browse = useCallback(async (path = '/') => {
     setLoading(true);
@@ -155,11 +164,12 @@ export default function KnowledgeRepository() {
       if (!token) {
         throw new Error('Sesión no iniciada. Por favor inicia sesión.');
       }
-      
-      const response = await fetch(`${API_BASE}/knowledge/browse?path=${encodeURIComponent(path)}`, {
+
+      const url = getUrl(`/browse?path=${encodeURIComponent(path)}`);
+      const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
+
       const text = await response.text();
       let data;
       try {
@@ -167,11 +177,11 @@ export default function KnowledgeRepository() {
       } catch {
         data = { detail: text || 'Error de servidor' };
       }
-      
+
       if (!response.ok) {
         throw new Error(data.detail || data.message || 'Error al cargar contenido');
       }
-      
+
       setFolders(data.folders || []);
       setDocuments(data.documents || []);
       setCurrentPath(path);
@@ -183,7 +193,7 @@ export default function KnowledgeRepository() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getUrl]);
 
   useEffect(() => {
     browse('/');
@@ -209,14 +219,14 @@ export default function KnowledgeRepository() {
       setSemanticResults(null);
       return;
     }
-    
+
     setSearching(true);
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE}/knowledge/search?q=${encodeURIComponent(query)}`, {
+      const response = await fetch(getUrl(`/search?q=${encodeURIComponent(query)}`), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
+
       if (response.ok) {
         const data = await response.json().catch(() => ({}));
         setSearchResults(data.documents || []);
@@ -227,7 +237,7 @@ export default function KnowledgeRepository() {
     } finally {
       setSearching(false);
     }
-  }, []);
+  }, [getUrl]);
 
   const handleSemanticSearch = useCallback(async () => {
     if (!searchQuery || searchQuery.length < 3) return;
@@ -236,6 +246,11 @@ export default function KnowledgeRepository() {
     setSemanticResults(null);
     try {
       const token = localStorage.getItem('auth_token');
+      // Hybrid search es POST, el query param empresa_id no se soporta en backend por defecto en POST body, 
+      // pero podríamos agregarlo a la URL si el backend lo leyera. 
+      // NOTA: El endpoint hybrid_search en backend aún no acepta query param empresa_id explícito,
+      // pero usa get_user_empresa_id. Si falla el init, fallará esto.
+      // Asumiremos que init/upload es lo crítico ahora.
       const response = await fetch(`${API_BASE}/knowledge/hybrid_search`, {
         method: 'POST',
         headers: {
@@ -267,20 +282,24 @@ export default function KnowledgeRepository() {
 
   const handleInitializeStructure = async () => {
     if (!window.confirm('¿Inicializar la estructura de carpetas predeterminada? Esto creará las carpetas estándar del repositorio.')) return;
-    
+
+    if (!empresaId && user?.role === 'super_admin') {
+      if (!window.confirm('No hay empresa seleccionada. ¿Estás seguro de continuar? Puede fallar si no tienes contexto.')) return;
+    }
+
     setInitializing(true);
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE}/knowledge/init`, {
+      const response = await fetch(getUrl('/init'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
+
       const data = await response.json().catch(() => ({}));
-      
+
       if (!response.ok) {
         throw new Error(data.detail || 'Error al inicializar estructura');
       }
-      
+
       alert(`Estructura inicializada: ${data.total_created || 0} carpetas creadas, ${data.total_skipped || 0} ya existían.`);
       browse('/');
       fetchStats();
@@ -303,21 +322,21 @@ export default function KnowledgeRepository() {
     const parts = currentPath.split('/').filter(Boolean);
     const crumbs = [{ name: 'Inicio', path: '/' }];
     let currentBreadcrumbPath = '';
-    
+
     parts.forEach(part => {
       currentBreadcrumbPath += `/${part}`;
       crumbs.push({ name: part, path: currentBreadcrumbPath });
     });
-    
+
     return crumbs;
   };
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
-    
+
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE}/knowledge/folders`, {
+      const response = await fetch(getUrl('/folders'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -328,12 +347,12 @@ export default function KnowledgeRepository() {
           name: newFolderName.trim()
         })
       });
-      
+
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.detail || 'Error al crear carpeta');
       }
-      
+
       setShowNewFolderModal(false);
       setNewFolderName('');
       browse(currentPath);
@@ -345,35 +364,35 @@ export default function KnowledgeRepository() {
 
   const handleFileUpload = async (files) => {
     if (!files || files.length === 0) return;
-    
+
     setUploading(true);
     setUploadProgress(0);
-    
+
     try {
       const token = localStorage.getItem('auth_token');
       const totalFiles = files.length;
       let uploaded = 0;
-      
+
       for (const file of files) {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('path', currentPath);
-        
-        const response = await fetch(`${API_BASE}/knowledge/upload`, {
+
+        const response = await fetch(getUrl('/upload'), {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` },
           body: formData
         });
-        
+
         if (!response.ok) {
           const data = await response.json();
           throw new Error(data.detail || `Error al subir ${file.name}`);
         }
-        
+
         uploaded++;
         setUploadProgress(Math.round((uploaded / totalFiles) * 100));
       }
-      
+
       browse(currentPath);
       fetchStats();
     } catch (err) {
@@ -403,12 +422,12 @@ export default function KnowledgeRepository() {
   const handleDownload = async (doc) => {
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE}/knowledge/download/${doc.id}`, {
+      const response = await fetch(getUrl(`/download/${doc.id}`), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
+
       if (!response.ok) throw new Error('Error al descargar');
-      
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -425,16 +444,16 @@ export default function KnowledgeRepository() {
 
   const handleDelete = async (doc) => {
     if (!window.confirm(`¿Eliminar "${doc.filename}"?`)) return;
-    
+
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE}/knowledge/documents/${doc.id}`, {
+      const response = await fetch(getUrl(`/documents/${doc.id}`), {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      
+
       if (!response.ok) throw new Error('Error al eliminar');
-      
+
       browse(currentPath);
       fetchStats();
     } catch (err) {
@@ -522,7 +541,7 @@ export default function KnowledgeRepository() {
                   <p className="text-slate-400 text-sm">Gestión documental corporativa</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-2">
                 <div className="relative flex items-center gap-2">
                   <input
@@ -543,11 +562,10 @@ export default function KnowledgeRepository() {
                   )}
                   <button
                     onClick={() => setSemanticMode(!semanticMode)}
-                    className={`p-2 rounded-lg transition-colors ${
-                      semanticMode 
-                        ? 'bg-purple-600 text-white' 
+                    className={`p-2 rounded-lg transition-colors ${semanticMode
+                        ? 'bg-purple-600 text-white'
                         : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600/50'
-                    }`}
+                      }`}
                     title={semanticMode ? 'Modo semántico activo' : 'Activar búsqueda semántica'}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -622,7 +640,7 @@ export default function KnowledgeRepository() {
                   )}
                   Inicializar Estructura
                 </button>
-                
+
                 <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-500 hover:to-teal-500 transition-all cursor-pointer">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -645,11 +663,10 @@ export default function KnowledgeRepository() {
                     {index > 0 && <span className="text-slate-500">/</span>}
                     <button
                       onClick={() => handleBreadcrumbClick(crumb.path)}
-                      className={`px-2 py-1 rounded hover:bg-slate-700/50 transition-colors ${
-                        index === getBreadcrumbs().length - 1 
-                          ? 'text-emerald-400 font-medium' 
+                      className={`px-2 py-1 rounded hover:bg-slate-700/50 transition-colors ${index === getBreadcrumbs().length - 1
+                          ? 'text-emerald-400 font-medium'
                           : 'text-slate-400 hover:text-white'
-                      }`}
+                        }`}
                     >
                       {crumb.name}
                     </button>
@@ -734,7 +751,7 @@ export default function KnowledgeRepository() {
                   <span className="text-emerald-400 text-sm font-medium">{uploadProgress}%</span>
                 </div>
                 <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
                   />
@@ -760,7 +777,7 @@ export default function KnowledgeRepository() {
               <div className="text-center py-20">
                 <div className="w-20 h-20 mx-auto mb-4 text-slate-600">
                   <svg fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                    <path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
                   </svg>
                 </div>
                 <p className="text-slate-400 text-lg mb-2">Carpeta vacía</p>
@@ -790,7 +807,7 @@ export default function KnowledgeRepository() {
                     </div>
                   </div>
                 ))}
-                
+
                 {displayDocuments.map(doc => (
                   <div
                     key={doc.id}

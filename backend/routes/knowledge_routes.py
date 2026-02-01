@@ -255,12 +255,33 @@ async def public_health_check():
 @router.get("/browse")
 async def browse_folder(
     path: str = Query("/", description="Path to browse"),
+    empresa_id: Optional[str] = Query(None, description="ID de la empresa (solo admins)"),
     current_user: dict = Depends(get_current_user)
 ):
     """List folders and documents at a given path."""
     try:
-        empresa_id = get_user_empresa_id(current_user)
-        result = await knowledge_service.browse(empresa_id, path)
+        # Obtener empresa del token
+        token_empresa_id = None
+        try:
+            token_empresa_id = get_user_empresa_id(current_user, allow_superadmin=True)
+        except:
+            pass
+
+        final_empresa_id = token_empresa_id
+        
+        # Verificar permisos de superadmin
+        is_superadmin = (
+            current_user.get("is_superadmin") or 
+            current_user.get("role") in ["super_admin", "superadmin", "platform_admin"]
+        )
+
+        if is_superadmin and empresa_id:
+            final_empresa_id = empresa_id
+            
+        if not final_empresa_id:
+            raise HTTPException(status_code=400, detail="Se requiere ID de empresa")
+
+        result = await knowledge_service.browse(final_empresa_id, path)
         return {
             "success": True,
             **result
@@ -275,15 +296,30 @@ async def browse_folder(
 @router.post("/folders")
 async def create_folder(
     request: CreateFolderRequest,
+    empresa_id: Optional[str] = Query(None),
     current_user: dict = Depends(get_current_user)
 ):
     """Create a new folder at the given path."""
     try:
-        empresa_id = get_user_empresa_id(current_user)
+        token_empresa_id = None
+        try:
+            token_empresa_id = get_user_empresa_id(current_user, allow_superadmin=True)
+        except:
+            pass
+
+        final_empresa_id = token_empresa_id
+        is_superadmin = current_user.get("is_superadmin") or current_user.get("role") in ["super_admin", "superadmin"]
+
+        if is_superadmin and empresa_id:
+            final_empresa_id = empresa_id
+            
+        if not final_empresa_id:
+            raise HTTPException(status_code=400, detail="Se requiere ID de empresa")
+
         user_id = current_user.get("user_id")
         
         result = await knowledge_service.create_folder(
-            empresa_id=empresa_id,
+            empresa_id=final_empresa_id,
             path=request.path,
             name=request.name,
             user_id=user_id
@@ -305,17 +341,32 @@ async def create_folder(
 async def upload_file(
     file: UploadFile = File(...),
     path: str = Form("/"),
+    empresa_id: Optional[str] = Query(None),
     current_user: dict = Depends(get_current_user)
 ):
     """Upload a file to the knowledge repository."""
     try:
-        empresa_id = get_user_empresa_id(current_user)
+        token_empresa_id = None
+        try:
+            token_empresa_id = get_user_empresa_id(current_user, allow_superadmin=True)
+        except:
+            pass
+
+        final_empresa_id = token_empresa_id
+        is_superadmin = current_user.get("is_superadmin") or current_user.get("role") in ["super_admin", "superadmin"]
+
+        if is_superadmin and empresa_id:
+            final_empresa_id = empresa_id
+
+        if not final_empresa_id:
+            raise HTTPException(status_code=400, detail="Se requiere ID de empresa")
+
         user_id = current_user.get("user_id")
         
         content = await file.read()
         
         result = await knowledge_service.upload_file(
-            empresa_id=empresa_id,
+            empresa_id=final_empresa_id,
             path=path,
             filename=file.filename,
             content=content,
@@ -450,16 +501,36 @@ async def update_document_status(
 
 @router.get("/init")
 async def initialize_folder_structure(
+    empresa_id: Optional[str] = Query(None, description="ID de la empresa (solo admins)"),
     current_user: dict = Depends(get_current_user)
 ):
     """Initialize the predefined folder structure for the empresa."""
     try:
-        empresa_id = get_user_empresa_id(current_user)
-        user_id = current_user.get("user_id")
+        # Obtener empresa del token
+        token_empresa_id = None
+        try:
+            token_empresa_id = get_user_empresa_id(current_user, allow_superadmin=True)
+        except:
+            pass
+
+        final_empresa_id = token_empresa_id
+        
+        # Verificar permisos de superadmin
+        is_superadmin = (
+            current_user.get("is_superadmin") or 
+            current_user.get("role") in ["super_admin", "superadmin", "platform_admin"]
+        )
+
+        # Si es superadmin y especificó ID, usarlo
+        if is_superadmin and empresa_id:
+            final_empresa_id = empresa_id
+            
+        if not final_empresa_id:
+            raise HTTPException(status_code=400, detail="Se requiere ID de empresa para inicializar estructura")
         
         result = await knowledge_service.initialize_folder_structure(
-            empresa_id=empresa_id,
-            user_id=user_id
+            empresa_id=final_empresa_id,
+            user_id=current_user.get("user_id")
         )
         
         return {
@@ -467,6 +538,8 @@ async def initialize_folder_structure(
             "message": "Estructura de carpetas inicializada",
             **result
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error initializing folder structure: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -474,13 +547,28 @@ async def initialize_folder_structure(
 
 @router.get("/stats")
 async def get_repository_stats(
+    empresa_id: Optional[str] = Query(None),
     current_user: dict = Depends(get_current_user)
 ):
     """Get repository statistics for the empresa."""
     try:
-        empresa_id = get_user_empresa_id(current_user)
+        token_empresa_id = None
+        try:
+            token_empresa_id = get_user_empresa_id(current_user, allow_superadmin=True)
+        except:
+            pass
+
+        final_empresa_id = token_empresa_id
+        is_superadmin = current_user.get("is_superadmin") or current_user.get("role") in ["super_admin", "superadmin"]
         
-        stats = await knowledge_service.get_stats(empresa_id)
+        if is_superadmin and empresa_id:
+            final_empresa_id = empresa_id
+
+        if not final_empresa_id:
+            # Stats puede retornar vacío si no hay empresa, no necesariamente error
+            return {"success": True, "total_documents": 0, "total_size_bytes": 0}
+
+        stats = await knowledge_service.get_stats(final_empresa_id)
         
         return {
             "success": True,

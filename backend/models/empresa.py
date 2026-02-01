@@ -86,6 +86,10 @@ class EmpresaCreate(BaseModel):
 
 class EmpresaUpdate(BaseModel):
     nombre_comercial: Optional[str] = None
+    razon_social: Optional[str] = None
+    rfc: Optional[str] = None
+    industria: Optional[IndustriaEnum] = None
+    sitio_web: Optional[str] = None
     vision: Optional[str] = None
     mision: Optional[str] = None
     valores: Optional[List[str]] = None

@@ -53,6 +53,7 @@ export default function AdminPage() {
     razon_social: '',
     rfc: '',
     industria: '',
+    sitio_web: '',
     vision: '',
     mision: ''
   });
@@ -86,7 +87,8 @@ export default function AdminPage() {
         nombre_comercial: empresaForm.nombre_comercial,
         razon_social: empresaForm.razon_social,
         rfc: empresaForm.rfc,
-        industria: empresaForm.industria
+        industria: empresaForm.industria,
+        sitio_web: empresaForm.sitio_web
       });
 
       if (response.success) {
@@ -94,9 +96,14 @@ export default function AdminPage() {
         setEmpresaForm(prev => ({
           ...prev,
           vision: data.vision || prev.vision,
-          mision: data.mision || prev.mision
+          mision: data.mision || prev.mision,
+          razon_social: data.razon_social || prev.razon_social,
+          rfc: data.rfc || prev.rfc,
+          sitio_web: data.sitio_web || prev.sitio_web
         }));
-        setMessage({ type: 'success', text: 'Perfil generado con IA exitosamente' });
+        const source = response.source === 'deep_research' ? 'Deep Research + IA' :
+                       response.source === 'ai' ? 'IA' : 'plantilla';
+        setMessage({ type: 'success', text: `Perfil generado con ${source} exitosamente` });
       }
     } catch (error) {
       console.error('Error autofill:', error);
@@ -259,6 +266,7 @@ export default function AdminPage() {
       razon_social: empresa.razon_social || '',
       rfc: empresa.rfc || '',
       industria: empresa.industria || '',
+      sitio_web: empresa.sitio_web || '',
       vision: empresa.vision || '',
       mision: empresa.mision || ''
     });
@@ -271,6 +279,7 @@ export default function AdminPage() {
       razon_social: '',
       rfc: '',
       industria: '',
+      sitio_web: '',
       vision: '',
       mision: ''
     });
@@ -310,6 +319,7 @@ export default function AdminPage() {
           razon_social: '',
           rfc: '',
           industria: '',
+          sitio_web: '',
           vision: '',
           mision: ''
         });
@@ -1288,6 +1298,17 @@ export default function AdminPage() {
                     <option value="inmobiliario">Inmobiliario</option>
                     <option value="otro">Otro</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Sitio Web</label>
+                  <input
+                    type="url"
+                    value={empresaForm.sitio_web}
+                    onChange={(e) => setEmpresaForm({ ...empresaForm, sitio_web: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all outline-none"
+                    placeholder="https://www.ejemplo.com"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Opcional - Para investigacion con Deep Research</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Vision</label>
