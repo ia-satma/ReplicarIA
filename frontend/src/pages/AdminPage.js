@@ -60,6 +60,21 @@ export default function AdminPage() {
   const [showNewEmpresaModal, setShowNewEmpresaModal] = useState(false);
   const [autofillLoading, setAutofillLoading] = useState(false);
 
+  // Abogado del Diablo state (solo super_admin)
+  const [abogadoData, setAbogadoData] = useState({
+    bloques: [],
+    preguntas: [],
+    estadisticas: null,
+    loading: false,
+    error: null
+  });
+  const [selectedBloque, setSelectedBloque] = useState(null);
+  const [evaluacionProyecto, setEvaluacionProyecto] = useState({
+    proyecto_id: '',
+    respuestas: {},
+    resultado: null
+  });
+
   const autofillWithAI = async () => {
     if (!empresaForm.nombre_comercial) {
       setMessage({ type: 'error', text: 'Ingresa el nombre comercial primero' });
@@ -92,11 +107,106 @@ export default function AdminPage() {
     }
   };
 
+  const isSuperAdmin = user?.role === 'super_admin' || user?.is_superadmin;
+
+  const loadAbogadoDiablo = async () => {
+    if (!isSuperAdmin) return;
+
+    setAbogadoData(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const token = localStorage.getItem('auth_token');
+      const headers = { 'X-Admin-Token': token };
+
+      const [bloquesRes, preguntasRes, estadisticasRes] = await Promise.all([
+        api.get('/api/admin/abogado-diablo/preguntas-estructuradas/bloques', { headers }),
+        api.get('/api/admin/abogado-diablo/preguntas-estructuradas', { headers }),
+        api.get('/api/admin/abogado-diablo/estadisticas', { headers })
+      ]);
+
+      setAbogadoData({
+        bloques: bloquesRes || [],
+        preguntas: preguntasRes?.preguntas || [],
+        estadisticas: estadisticasRes,
+        loading: false,
+        error: null
+      });
+    } catch (error) {
+      console.error('Error loading Abogado del Diablo:', error);
+      setAbogadoData(prev => ({
+        ...prev,
+        loading: false,
+        error: error.message || 'Error al cargar datos del Abogado del Diablo'
+      }));
+    }
+  };
+
+  const evaluarProyecto = async () => {
+    if (!evaluacionProyecto.proyecto_id) {
+      setMessage({ type: 'error', text: 'Ingresa un ID de proyecto' });
+      return;
+    }
+
+    try {
+      setAbogadoData(prev => ({ ...prev, loading: true }));
+      const token = localStorage.getItem('auth_token');
+
+      const response = await api.post('/api/admin/abogado-diablo/preguntas-estructuradas/evaluar-completo', {
+        proyecto_id: evaluacionProyecto.proyecto_id,
+        respuestas: evaluacionProyecto.respuestas
+      }, {
+        headers: { 'X-Admin-Token': token }
+      });
+
+      setEvaluacionProyecto(prev => ({ ...prev, resultado: response }));
+      setMessage({ type: 'success', text: 'Evaluacion completada' });
+    } catch (error) {
+      console.error('Error evaluando proyecto:', error);
+      setMessage({ type: 'error', text: error.message || 'Error al evaluar proyecto' });
+    } finally {
+      setAbogadoData(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const generarReporteAbogado = async () => {
+    if (!evaluacionProyecto.proyecto_id) {
+      setMessage({ type: 'error', text: 'Ingresa un ID de proyecto' });
+      return;
+    }
+
+    try {
+      setAbogadoData(prev => ({ ...prev, loading: true }));
+      const token = localStorage.getItem('auth_token');
+
+      const response = await api.post('/api/admin/abogado-diablo/reporte/trigger-f9', {
+        proyecto_id: evaluacionProyecto.proyecto_id,
+        fase_actual: 'F9',
+        trigger: 'manual_admin'
+      }, {
+        headers: { 'X-Admin-Token': token }
+      });
+
+      if (response.success) {
+        setMessage({ type: 'success', text: `Reporte generado. ${response.email_enviado ? 'Email enviado.' : ''}` });
+        if (response.pcloud_link) {
+          window.open(response.pcloud_link, '_blank');
+        }
+      }
+    } catch (error) {
+      console.error('Error generando reporte:', error);
+      setMessage({ type: 'error', text: error.message || 'Error al generar reporte' });
+    } finally {
+      setAbogadoData(prev => ({ ...prev, loading: false }));
+    }
+  };
+
   useEffect(() => {
     if (user?.role === 'admin' || user?.role === 'super_admin' || user?.is_superadmin) {
       loadUsers();
       loadCompanies();
       loadEmpresas();
+    }
+    if (isSuperAdmin) {
+      loadAbogadoDiablo();
     }
   }, [user]);
 
@@ -395,6 +505,18 @@ export default function AdminPage() {
             >
               Empresas
             </button>
+            {isSuperAdmin && (
+              <button
+                onClick={() => setActiveTab('abogado-diablo')}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                  activeTab === 'abogado-diablo'
+                    ? 'bg-white text-red-600 border-t border-l border-r border-gray-200 -mb-px'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Abogado del Diablo
+              </button>
+            )}
           </div>
         </div>
 
@@ -738,6 +860,251 @@ export default function AdminPage() {
           </div>
         </div>
           </>
+        )}
+
+        {activeTab === 'abogado-diablo' && isSuperAdmin && (
+          <div className="space-y-6">
+            {/* Header del Abogado del Diablo */}
+            <div className="bg-gradient-to-r from-red-600 to-red-800 rounded-lg shadow-lg p-6 text-white">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-white/20 rounded-lg">
+                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Abogado del Diablo</h2>
+                  <p className="text-red-100 text-sm mt-1">
+                    Modulo interno de control y aprendizaje organizacional - Solo Super Admin
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 p-3 bg-red-900/50 rounded-lg text-sm">
+                <strong>ADVERTENCIA:</strong> Esta informacion es ALTAMENTE SENSIBLE.
+                Herramienta interna de compliance. NO compartir con terceros.
+              </div>
+            </div>
+
+            {/* Estadisticas Globales */}
+            {abogadoData.estadisticas && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+                  <div className="text-3xl font-bold text-gray-900">
+                    {abogadoData.estadisticas.total_proyectos || 0}
+                  </div>
+                  <div className="text-sm text-gray-500">Proyectos Analizados</div>
+                </div>
+                <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+                  <div className="text-3xl font-bold text-green-600">
+                    {abogadoData.estadisticas.aprobados || 0}
+                  </div>
+                  <div className="text-sm text-gray-500">Aprobados</div>
+                </div>
+                <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+                  <div className="text-3xl font-bold text-red-600">
+                    {abogadoData.estadisticas.rechazados || 0}
+                  </div>
+                  <div className="text-sm text-gray-500">Rechazados</div>
+                </div>
+                <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+                  <div className="text-3xl font-bold text-yellow-600">
+                    {abogadoData.estadisticas.banderas_rojas || 0}
+                  </div>
+                  <div className="text-sm text-gray-500">Banderas Rojas</div>
+                </div>
+              </div>
+            )}
+
+            {/* Evaluacion de Proyecto */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <h3 className="text-lg font-semibold text-gray-900">Evaluar Proyecto</h3>
+                <p className="text-sm text-gray-500 mt-1">Genera un reporte de las 25 preguntas estructuradas</p>
+              </div>
+              <div className="p-6">
+                <div className="flex gap-4 items-end">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">ID del Proyecto</label>
+                    <input
+                      type="text"
+                      value={evaluacionProyecto.proyecto_id}
+                      onChange={(e) => setEvaluacionProyecto(prev => ({ ...prev, proyecto_id: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                      placeholder="Ej: PROJ-2024-001"
+                    />
+                  </div>
+                  <button
+                    onClick={evaluarProyecto}
+                    disabled={abogadoData.loading || !evaluacionProyecto.proyecto_id}
+                    className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-medium rounded-lg hover:from-amber-600 hover:to-orange-700 disabled:opacity-50 transition-all shadow-sm"
+                  >
+                    {abogadoData.loading ? 'Evaluando...' : 'Evaluar'}
+                  </button>
+                  <button
+                    onClick={generarReporteAbogado}
+                    disabled={abogadoData.loading || !evaluacionProyecto.proyecto_id}
+                    className="px-6 py-2.5 bg-gradient-to-r from-red-600 to-red-700 text-white font-medium rounded-lg hover:from-red-700 hover:to-red-800 disabled:opacity-50 transition-all shadow-sm"
+                  >
+                    {abogadoData.loading ? 'Generando...' : 'Generar Reporte PDF'}
+                  </button>
+                </div>
+
+                {evaluacionProyecto.resultado && (
+                  <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <h4 className="font-semibold text-gray-900 mb-3">Resultado de Evaluacion</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div className="text-center p-3 bg-white rounded-lg border">
+                        <div className={`text-2xl font-bold ${
+                          evaluacionProyecto.resultado.evaluacion?.semaforo === 'verde' ? 'text-green-600' :
+                          evaluacionProyecto.resultado.evaluacion?.semaforo === 'amarillo' ? 'text-yellow-600' :
+                          'text-red-600'
+                        }`}>
+                          {evaluacionProyecto.resultado.evaluacion?.score_total?.toFixed(1) || 0}%
+                        </div>
+                        <div className="text-xs text-gray-500">Score Total</div>
+                      </div>
+                      <div className="text-center p-3 bg-white rounded-lg border">
+                        <div className={`text-xl font-bold uppercase ${
+                          evaluacionProyecto.resultado.evaluacion?.semaforo === 'verde' ? 'text-green-600' :
+                          evaluacionProyecto.resultado.evaluacion?.semaforo === 'amarillo' ? 'text-yellow-600' :
+                          'text-red-600'
+                        }`}>
+                          {evaluacionProyecto.resultado.evaluacion?.semaforo || 'N/A'}
+                        </div>
+                        <div className="text-xs text-gray-500">Semaforo</div>
+                      </div>
+                      <div className="text-center p-3 bg-white rounded-lg border">
+                        <div className="text-2xl font-bold text-red-600">
+                          {evaluacionProyecto.resultado.evaluacion?.banderas_rojas?.length || 0}
+                        </div>
+                        <div className="text-xs text-gray-500">Banderas Rojas</div>
+                      </div>
+                      <div className="text-center p-3 bg-white rounded-lg border">
+                        <div className="text-2xl font-bold text-yellow-600">
+                          {evaluacionProyecto.resultado.evaluacion?.alertas?.length || 0}
+                        </div>
+                        <div className="text-xs text-gray-500">Alertas</div>
+                      </div>
+                    </div>
+                    {evaluacionProyecto.resultado.evaluacion?.recomendacion && (
+                      <div className="p-3 bg-blue-50 rounded-lg text-blue-800 text-sm">
+                        <strong>Recomendacion:</strong> {evaluacionProyecto.resultado.evaluacion.recomendacion}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 25 Preguntas Estructuradas */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <h3 className="text-lg font-semibold text-gray-900">25 Preguntas Estructuradas</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Organizadas en 6 bloques con diferentes niveles de severidad
+                </p>
+              </div>
+
+              {abogadoData.loading ? (
+                <div className="p-12 text-center text-gray-500">
+                  <div className="animate-spin text-4xl mb-4">&#8987;</div>
+                  <p>Cargando preguntas...</p>
+                </div>
+              ) : abogadoData.error ? (
+                <div className="p-6 text-center text-red-500">
+                  <p>{abogadoData.error}</p>
+                  <button
+                    onClick={loadAbogadoDiablo}
+                    className="mt-4 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              ) : (
+                <div className="p-6">
+                  {/* Bloques */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+                    {abogadoData.bloques.map((bloque, idx) => (
+                      <button
+                        key={bloque.id || idx}
+                        onClick={() => setSelectedBloque(selectedBloque === bloque.id ? null : bloque.id)}
+                        className={`p-3 rounded-lg border text-left transition-all ${
+                          selectedBloque === bloque.id
+                            ? 'border-red-500 bg-red-50 shadow-sm'
+                            : 'border-gray-200 hover:border-red-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="text-xs font-semibold text-gray-500">{bloque.id || `B${idx + 1}`}</div>
+                        <div className="text-sm font-medium text-gray-900 truncate">
+                          {bloque.nombre || bloque.id?.replace(/_/g, ' ')}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          {bloque.peso_porcentaje || 0}%
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Lista de Preguntas */}
+                  <div className="space-y-3">
+                    {(Array.isArray(abogadoData.preguntas) ? abogadoData.preguntas : [])
+                      .filter(p => !selectedBloque || p.bloque === selectedBloque)
+                      .map((pregunta, idx) => (
+                        <div
+                          key={pregunta.id || idx}
+                          className={`p-4 rounded-lg border ${
+                            pregunta.severidad === 'critico' ? 'border-red-200 bg-red-50' :
+                            pregunta.severidad === 'importante' ? 'border-yellow-200 bg-yellow-50' :
+                            'border-gray-200 bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`px-2 py-1 text-xs font-bold rounded ${
+                              pregunta.severidad === 'critico' ? 'bg-red-600 text-white' :
+                              pregunta.severidad === 'importante' ? 'bg-yellow-500 text-white' :
+                              'bg-gray-400 text-white'
+                            }`}>
+                              {pregunta.numero || `P${String(idx + 1).padStart(2, '0')}`}
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-gray-900 font-medium">{pregunta.pregunta}</p>
+                              {pregunta.descripcion && (
+                                <p className="text-sm text-gray-500 mt-1">{pregunta.descripcion}</p>
+                              )}
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className={`px-2 py-0.5 text-xs rounded-full ${
+                                  pregunta.severidad === 'critico' ? 'bg-red-100 text-red-700' :
+                                  pregunta.severidad === 'importante' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {pregunta.severidad}
+                                </span>
+                                {pregunta.obligatoria && (
+                                  <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded-full">
+                                    Obligatoria
+                                  </span>
+                                )}
+                                {pregunta.norma_relacionada && (
+                                  <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">
+                                    {pregunta.norma_relacionada}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+
+                  {(!abogadoData.preguntas || abogadoData.preguntas.length === 0) && (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>No se encontraron preguntas estructuradas</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {activeTab === 'empresas' && (
