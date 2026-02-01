@@ -343,7 +343,15 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
             )
             
         except Exception as e:
-            logger.debug(f"JWT decode error: {e}")
+            logger.debug(f"JWT decode error: {e}, trying session lookup...")
+            # Fallback: check auth_sessions table for password/OTP sessions
+            try:
+                session_context = await self._check_session_token(token, empresa_header)
+                if session_context:
+                    return session_context
+            except Exception as session_err:
+                logger.debug(f"Session lookup error: {session_err}")
+
             return TenantContext(
                 empresa_id=empresa_header,
                 is_authenticated=False
@@ -407,6 +415,71 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
             return None
         except Exception as e:
             logger.debug(f"Could not resolve empresa_id for '{company_name}': {e}")
+            return None
+
+    async def _check_session_token(self, token: str, empresa_header: Optional[str]) -> Optional[TenantContext]:
+        """Check for valid session in auth_sessions or sesiones_otp tables."""
+        import hashlib
+        try:
+            from services.otp_auth_service import get_db_connection
+            conn = await get_db_connection()
+            if not conn:
+                return None
+
+            try:
+                # Check auth_sessions (password sessions)
+                token_hash = hashlib.sha256(token.encode()).hexdigest()
+                row = await conn.fetchrow('''
+                    SELECT s.user_id, u.role, u.empresa_id, u.company_name
+                    FROM auth_sessions s
+                    JOIN auth_users u ON u.id = s.user_id
+                    WHERE s.token_hash = $1 AND s.is_active = true
+                      AND s.expires_at > NOW() AND u.deleted_at IS NULL AND u.status = 'active'
+                ''', token_hash)
+
+                if row:
+                    is_admin = row['role'] in ('admin', 'super_admin')
+                    allowed = []
+                    if row['empresa_id']:
+                        allowed.append(str(row['empresa_id']).lower())
+                    if row['company_name']:
+                        allowed.append(row['company_name'].lower())
+
+                    return TenantContext(
+                        user_id=str(row['user_id']),
+                        empresa_id=empresa_header,
+                        allowed_companies=allowed,
+                        is_admin=is_admin,
+                        is_authenticated=True
+                    )
+
+                # Check sesiones_otp (OTP sessions)
+                otp_row = await conn.fetchrow('''
+                    SELECT s.usuario_id, u.rol, u.empresa
+                    FROM sesiones_otp s
+                    JOIN usuarios_autorizados u ON s.usuario_id::text = u.id::text
+                    WHERE s.token = $1 AND s.activa = true AND s.fecha_expiracion > NOW()
+                ''', token)
+
+                if otp_row:
+                    is_admin = otp_row['rol'] in ('admin', 'super_admin')
+                    allowed = []
+                    if otp_row['empresa']:
+                        allowed.append(otp_row['empresa'].lower())
+
+                    return TenantContext(
+                        user_id=str(otp_row['usuario_id']),
+                        empresa_id=empresa_header,
+                        allowed_companies=allowed,
+                        is_admin=is_admin,
+                        is_authenticated=True
+                    )
+
+                return None
+            finally:
+                await conn.close()
+        except Exception as e:
+            logger.debug(f"Session token check error: {e}")
             return None
 
 
