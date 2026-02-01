@@ -63,6 +63,7 @@ class CrearEntidadRequest(BaseModel):
     datos: Dict[str, Any]
     email_contacto: Optional[str] = ""
     archivos_ids: Optional[List[str]] = []
+    empresa_id: Optional[str] = None  # Para superadmins que necesitan especificar la empresa
 
 
 class InvestigarEmpresaRequest(BaseModel):
@@ -772,7 +773,13 @@ async def crear_entidad(request: CrearEntidadRequest, credentials: HTTPAuthoriza
         user_empresa_id = current_user.get("empresa_id") or current_user.get("company_id")
         user_id = current_user.get("user_id") or current_user.get("sub")
         role = current_user.get("role", "").lower()
-        is_admin = role in ["admin", "superadmin", "platform_admin"]
+        # Include super_admin (with underscore) and check is_superadmin flag
+        is_admin = role in ["admin", "superadmin", "super_admin", "platform_admin"] or current_user.get("is_superadmin", False)
+
+        # For superadmins, allow using request.empresa_id to specify target empresa
+        if is_admin and request.empresa_id:
+            user_empresa_id = request.empresa_id
+            logger.info(f"Superadmin {user_id} creating entity in empresa {request.empresa_id}")
     
     try:
         if current_user and not is_admin and not user_empresa_id:
