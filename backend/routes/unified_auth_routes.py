@@ -929,6 +929,64 @@ async def auth_health_check():
     )
 
 
+@router.post("/debug-validate-token", response_model=APIResponse)
+async def debug_validate_token(body: dict):
+    """Debug: validate a specific token."""
+    import hashlib
+    from services.otp_auth_service import get_db_connection
+
+    token = body.get('token', '')
+    if not token:
+        return APIResponse(success=False, message="No token provided")
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    try:
+        conn = await get_db_connection()
+        if not conn:
+            return APIResponse(success=False, message="No DB")
+
+        try:
+            # Search for the session
+            row = await conn.fetchrow('''
+                SELECT s.id, s.user_id, s.token_hash, s.is_active, s.expires_at,
+                       u.email, u.status
+                FROM auth_sessions s
+                JOIN auth_users u ON u.id = s.user_id
+                WHERE s.token_hash = $1
+            ''', token_hash)
+
+            if row:
+                return APIResponse(
+                    success=True,
+                    message="Session found",
+                    data={
+                        'computed_hash': token_hash[:16] + '...',
+                        'stored_hash': row['token_hash'][:16] + '...',
+                        'match': row['token_hash'] == token_hash,
+                        'is_active': row['is_active'],
+                        'user_status': row['status'],
+                        'expires_at': row['expires_at'].isoformat(),
+                        'email': row['email']
+                    }
+                )
+            else:
+                # Check if hash exists without join
+                raw = await conn.fetchrow('SELECT token_hash FROM auth_sessions WHERE token_hash = $1', token_hash)
+                return APIResponse(
+                    success=False,
+                    message="Session not found",
+                    data={
+                        'computed_hash': token_hash[:16] + '...',
+                        'raw_exists': bool(raw)
+                    }
+                )
+        finally:
+            await conn.close()
+    except Exception as e:
+        return APIResponse(success=False, message=str(e))
+
+
 @router.get("/debug-sessions", response_model=APIResponse)
 async def debug_sessions():
     """Debug: show auth_sessions content."""
