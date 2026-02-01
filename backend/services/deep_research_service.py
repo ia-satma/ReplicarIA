@@ -354,7 +354,7 @@ class DeepResearchService:
     
     async def _analizar_contenido_con_claude(self, content_list: List[Dict], url: str) -> Dict[str, Any]:
         """Usa Claude para analizar el contenido web y extraer datos estructurados."""
-        if not self.client:
+        if not self.available or not self.chat_fn:
             return {"success": False, "error": "Cliente AI no disponible"}
         
         combined_content = "\n\n---\n\n".join([
