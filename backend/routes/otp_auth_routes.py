@@ -274,44 +274,75 @@ async def logout(authorization: Optional[str] = Header(None)):
 @router.get("/test-email")
 async def test_email_connection():
     """
-    Endpoint para probar la conexión SMTP de DreamHost.
-    Solo para diagnóstico - muestra el error real si la conexión falla.
+    Endpoint para verificar configuración del servicio de email unificado (SendGrid/DreamHost).
+    Solo para diagnóstico.
     """
     import os
-    from services.dreamhost_email_service import email_service, AGENT_EMAILS, SMTP_HOST, SMTP_PORT
+    from services.email_service import is_configured, get_email_provider
 
-    password_configured = bool(os.environ.get('DREAMHOST_EMAIL_PASSWORD', ''))
-    password_length = len(os.environ.get('DREAMHOST_EMAIL_PASSWORD', ''))
+    sendgrid_key = os.environ.get('SENDGRID_API_KEY', '')
+    dreamhost_pwd = os.environ.get('DREAMHOST_EMAIL_PASSWORD', '')
 
     result = {
-        "smtp_host": SMTP_HOST,
-        "smtp_port": SMTP_PORT,
-        "password_configured": password_configured,
-        "password_length": password_length,
-        "service_initialized": email_service.initialized,
-        "agent_email_for_otp": AGENT_EMAILS.get("A2_PMO", "NOT FOUND"),
-        "test_result": None,
-        "error": None
+        "email_configured": is_configured(),
+        "provider": get_email_provider(),
+        "sendgrid_configured": bool(sendgrid_key),
+        "sendgrid_key_length": len(sendgrid_key) if sendgrid_key else 0,
+        "dreamhost_configured": bool(dreamhost_pwd),
+        "sendgrid_from_email": os.environ.get('SENDGRID_FROM_EMAIL', 'NOT SET'),
+        "status": "✅ EMAIL SERVICE OK" if is_configured() else "❌ EMAIL NOT CONFIGURED"
     }
 
-    if not password_configured:
-        result["error"] = "DREAMHOST_EMAIL_PASSWORD no está configurado en las variables de entorno"
-        result["fix"] = "Configura DREAMHOST_EMAIL_PASSWORD en Railway con la contraseña de los emails de DreamHost"
+    return result
+
+
+@router.get("/trigger-otp/{email}")
+async def trigger_otp_test(email: str):
+    """
+    Endpoint GET para probar el flujo completo de OTP.
+    SOLO PARA TESTING - envía un OTP real al email especificado.
+    """
+    from services.otp_auth_service import otp_auth_service, EMAIL_CONFIGURED
+
+    result = {
+        "email": email,
+        "email_configured": EMAIL_CONFIGURED,
+        "steps": []
+    }
+
+    if not EMAIL_CONFIGURED:
+        result["success"] = False
+        result["error"] = "Email service not configured"
         return result
 
-    # Intentar conexión de prueba
     try:
-        test = email_service.test_connection("A2_PMO")
-        result["test_result"] = test
+        # 1. Verificar email autorizado
+        user = await otp_auth_service.check_authorized_email(email)
+        result["steps"].append({"step": "check_email", "success": bool(user), "user": user.get("nombre") if user else None})
 
-        if test.get("success"):
-            result["status"] = "✅ SMTP CONNECTION OK"
-        else:
-            result["status"] = "❌ SMTP CONNECTION FAILED"
-            result["error"] = test.get("error", "Unknown error")
+        if not user:
+            result["success"] = False
+            result["error"] = f"Email {email} no está autorizado"
+            return result
+
+        # 2. Crear código OTP
+        codigo = await otp_auth_service.create_otp_code(email, user.get("id", 1))
+        result["steps"].append({"step": "create_otp", "success": bool(codigo), "codigo_created": bool(codigo)})
+
+        if not codigo:
+            result["success"] = False
+            result["error"] = "No se pudo crear el código OTP (rate limit o error DB)"
+            return result
+
+        # 3. Enviar email
+        email_result = await otp_auth_service.send_otp_email(email, codigo, user.get("nombre", ""))
+        result["steps"].append({"step": "send_email", "result": email_result})
+
+        result["success"] = email_result.get("success", False)
+        result["message"] = "OTP enviado exitosamente" if result["success"] else "Error al enviar OTP"
 
     except Exception as e:
-        result["status"] = "❌ EXCEPTION"
+        result["success"] = False
         result["error"] = str(e)
         result["error_type"] = type(e).__name__
 

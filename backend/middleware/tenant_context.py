@@ -123,6 +123,7 @@ SKIP_TENANT_CHECK_PATHS = {
     "/api/auth/otp/status",
     "/api/auth/otp/test-email",
     "/api/auth/otp/send-test-email",
+    "/api/auth/otp/trigger-otp",
     "/api/auth/companies",
     "/api/chat/archivo",
     "/api/chat/archivo/analyze-document",
