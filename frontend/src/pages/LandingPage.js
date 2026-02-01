@@ -29,7 +29,7 @@ const VideoCarousel = ({ videos }) => {
       if (event.origin && event.origin.includes('vimeo.com')) {
         try {
           const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-          
+
           if (data.event === 'play') {
             setIsVideoPlaying(true);
             setIsAutoPlaying(false);
@@ -58,7 +58,7 @@ const VideoCarousel = ({ videos }) => {
     <div className="relative">
       <div className="bg-white/80 backdrop-blur-sm border border-gray-200 shadow-xl p-2 sm:p-3 rounded-2xl sm:rounded-3xl overflow-hidden">
         <div className="relative overflow-hidden rounded-xl sm:rounded-2xl">
-          <div 
+          <div
             className="flex transition-transform duration-700 ease-in-out"
             style={{ transform: `translateX(-${currentIndex * 100}%)` }}
           >
@@ -78,7 +78,7 @@ const VideoCarousel = ({ videos }) => {
             ))}
           </div>
         </div>
-        
+
         <button
           onClick={prevSlide}
           className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 hover:bg-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110"
@@ -88,7 +88,7 @@ const VideoCarousel = ({ videos }) => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        
+
         <button
           onClick={nextSlide}
           className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 hover:bg-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110"
@@ -99,22 +99,21 @@ const VideoCarousel = ({ videos }) => {
           </svg>
         </button>
       </div>
-      
+
       <div className="flex justify-center gap-2 mt-4">
         {videos.map((video, index) => (
           <button
             key={index}
             onClick={() => goToSlide(index)}
-            className={`w-3 h-3 rounded-full transition-all ${
-              index === currentIndex 
-                ? 'bg-[#7FEDD8] w-8' 
+            className={`w-3 h-3 rounded-full transition-all ${index === currentIndex
+                ? 'bg-[#7FEDD8] w-8'
                 : 'bg-gray-300 hover:bg-gray-400'
-            }`}
+              }`}
             aria-label={`Ir a video ${index + 1}`}
           />
         ))}
       </div>
-      
+
       <p className="text-center text-sm text-gray-500 mt-2">
         {videos[currentIndex]?.title}
         {isVideoPlaying && (
@@ -148,7 +147,7 @@ const EmbeddedFacturarIA = () => {
 
   const handleEnviar = async () => {
     if (!input.trim() || loading) return;
-    
+
     const userMsg = {
       id: Date.now().toString(),
       tipo: 'usuario',
@@ -166,7 +165,7 @@ const EmbeddedFacturarIA = () => {
         body: JSON.stringify({ mensaje: userMsg.contenido, historial: mensajes })
       });
       const data = await response.json();
-      
+
       setMensajes(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         tipo: 'asistente',
@@ -188,7 +187,7 @@ const EmbeddedFacturarIA = () => {
 
   if (!showChat) {
     return (
-      <button 
+      <button
         onClick={() => setShowChat(true)}
         className="w-full bg-white/20 hover:bg-white/30 text-white font-semibold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-3 group"
       >
@@ -206,7 +205,7 @@ const EmbeddedFacturarIA = () => {
     <div className="bg-gray-900/80 backdrop-blur-sm rounded-xl border border-white/20 overflow-hidden">
       <div className="flex items-center justify-between p-3 border-b border-white/10">
         <span className="text-white/90 text-sm font-medium">Chat con Facturar.IA</span>
-        <button 
+        <button
           onClick={() => setShowChat(false)}
           className="text-white/60 hover:text-white p-1"
         >
@@ -215,15 +214,14 @@ const EmbeddedFacturarIA = () => {
           </svg>
         </button>
       </div>
-      
+
       <div className="h-48 overflow-y-auto p-3 space-y-2">
         {mensajes.map(msg => (
           <div key={msg.id} className={`flex ${msg.tipo === 'usuario' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-              msg.tipo === 'usuario' 
-                ? 'bg-blue-600 text-white' 
+            <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${msg.tipo === 'usuario'
+                ? 'bg-blue-600 text-white'
                 : 'bg-white/10 text-white/90'
-            }`}>
+              }`}>
               {msg.contenido}
               {msg.sugerencias?.length > 0 && (
                 <div className="mt-2 pt-2 border-t border-white/20">
@@ -242,15 +240,15 @@ const EmbeddedFacturarIA = () => {
             <div className="bg-white/10 rounded-lg px-3 py-2">
               <div className="flex gap-1">
                 <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
               </div>
             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
-      
+
       <div className="p-3 border-t border-white/10">
         <div className="flex gap-2">
           <input
@@ -278,116 +276,116 @@ const EmbeddedFacturarIA = () => {
 
 const ShieldIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
   </svg>
 );
 
 const BotIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="11" width="18" height="10" rx="2"/>
-    <circle cx="12" cy="5" r="2"/>
-    <path d="M12 7v4"/>
-    <line x1="8" y1="16" x2="8" y2="16"/>
-    <line x1="16" y1="16" x2="16" y2="16"/>
+    <rect x="3" y="11" width="18" height="10" rx="2" />
+    <circle cx="12" cy="5" r="2" />
+    <path d="M12 7v4" />
+    <line x1="8" y1="16" x2="8" y2="16" />
+    <line x1="16" y1="16" x2="16" y2="16" />
   </svg>
 );
 
 const LockIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
   </svg>
 );
 
 const ChartIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="20" x2="18" y2="10"/>
-    <line x1="12" y1="20" x2="12" y2="4"/>
-    <line x1="6" y1="20" x2="6" y2="14"/>
+    <line x1="18" y1="20" x2="18" y2="10" />
+    <line x1="12" y1="20" x2="12" y2="4" />
+    <line x1="6" y1="20" x2="6" y2="14" />
   </svg>
 );
 
 const TargetIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10"/>
-    <circle cx="12" cy="12" r="6"/>
-    <circle cx="12" cy="12" r="2"/>
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="6" />
+    <circle cx="12" cy="12" r="2" />
   </svg>
 );
 
 const ScaleIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 3v18"/>
-    <path d="M1 7l5 5-5 5"/>
-    <path d="M23 7l-5 5 5 5"/>
-    <path d="M4 12h16"/>
+    <path d="M12 3v18" />
+    <path d="M1 7l5 5-5 5" />
+    <path d="M23 7l-5 5 5 5" />
+    <path d="M4 12h16" />
   </svg>
 );
 
 const DollarIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="12" y1="1" x2="12" y2="23"/>
-    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+    <line x1="12" y1="1" x2="12" y2="23" />
+    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
   </svg>
 );
 
 const SettingsIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3"/>
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
   </svg>
 );
 
 const FileTextIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-    <polyline points="14 2 14 8 20 8"/>
-    <line x1="16" y1="13" x2="8" y2="13"/>
-    <line x1="16" y1="17" x2="8" y2="17"/>
-    <polyline points="10 9 9 9 8 9"/>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+    <polyline points="10 9 9 9 8 9" />
   </svg>
 );
 
 const StarIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
   </svg>
 );
 
 const CheckCircleIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-    <polyline points="22 4 12 14.01 9 11.01"/>
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
   </svg>
 );
 
 const TagIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-    <line x1="7" y1="7" x2="7.01" y2="7"/>
+    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+    <line x1="7" y1="7" x2="7.01" y2="7" />
   </svg>
 );
 
 const EyeIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-    <circle cx="12" cy="12" r="3"/>
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
   </svg>
 );
 
 const LayersIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-    <polyline points="2 17 12 22 22 17"/>
-    <polyline points="2 12 12 17 22 12"/>
+    <polygon points="12 2 2 7 12 12 22 7 12 2" />
+    <polyline points="2 17 12 22 22 17" />
+    <polyline points="2 12 12 17 22 12" />
   </svg>
 );
 
 const AlertTriangleIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-    <line x1="12" y1="9" x2="12" y2="13"/>
-    <line x1="12" y1="17" x2="12.01" y2="17"/>
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    <line x1="12" y1="9" x2="12" y2="13" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
   </svg>
 );
 
@@ -556,7 +554,7 @@ const evaluationPillars = [
 
 const RiskGauge = () => {
   const [hoveredSection, setHoveredSection] = useState(null);
-  
+
   const sections = [
     { range: '0-29', label: 'BAJO', color: '#10B981', startAngle: -90, endAngle: -45 },
     { range: '30-49', label: 'MODERADO', color: '#F59E0B', startAngle: -45, endAngle: 0 },
@@ -587,14 +585,14 @@ const RiskGauge = () => {
       <svg viewBox="0 0 200 120" className="w-full max-w-[280px]">
         <defs>
           <filter id="glow">
-            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+            <feGaussianBlur stdDeviation="2" result="coloredBlur" />
             <feMerge>
-              <feMergeNode in="coloredBlur"/>
-              <feMergeNode in="SourceGraphic"/>
+              <feMergeNode in="coloredBlur" />
+              <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
         </defs>
-        
+
         {sections.map((section, index) => (
           <path
             key={section.label}
@@ -612,16 +610,16 @@ const RiskGauge = () => {
             onMouseLeave={() => setHoveredSection(null)}
           />
         ))}
-        
-        <circle cx="100" cy="100" r="8" fill="#374151"/>
-        <line x1="100" y1="100" x2="100" y2="45" stroke="#374151" strokeWidth="3" strokeLinecap="round"/>
+
+        <circle cx="100" cy="100" r="8" fill="#374151" />
+        <line x1="100" y1="100" x2="100" y2="45" stroke="#374151" strokeWidth="3" strokeLinecap="round" />
       </svg>
-      
+
       <div className="grid grid-cols-4 gap-2 mt-4 w-full max-w-sm">
         {sections.map((section) => (
           <div key={section.label} className="text-center">
-            <div 
-              className="h-2 rounded-full mb-1" 
+            <div
+              className="h-2 rounded-full mb-1"
               style={{ backgroundColor: section.color }}
             />
             <p className="text-[10px] sm:text-xs font-bold" style={{ color: section.color }}>{section.label}</p>
@@ -639,7 +637,8 @@ const LandingPage = () => {
   const videos = [
     { id: '1156363021', title: 'VIDEO 1 - REVISAR-IA' },
     { id: '1156363031', title: 'VIDEO 2 - REVISAR-IA' },
-    { id: '1156561430', title: 'VIDEO 3 - REVISAR-IA' }
+    { id: '1156561430', title: 'VIDEO 3 - REVISAR-IA' },
+    { id: '1156646666', title: 'VIDEO 4 - REVISAR-IA' }
   ];
 
   return (
@@ -655,22 +654,22 @@ const LandingPage = () => {
             </div>
             <div className="flex items-center gap-3">
               {isAuthenticated ? (
-                <Link 
-                  to="/dashboard" 
+                <Link
+                  to="/dashboard"
                   className="px-5 py-2 bg-gradient-to-r from-[#7FEDD8] to-[#5DD5C0] text-gray-900 rounded-lg font-medium text-sm hover:shadow-lg transition-all"
                 >
                   Ir al Dashboard
                 </Link>
               ) : (
                 <>
-                  <Link 
-                    to="/login" 
+                  <Link
+                    to="/login"
                     className="px-4 py-2 text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors"
                   >
                     Iniciar Sesion
                   </Link>
-                  <Link 
-                    to="/register" 
+                  <Link
+                    to="/register"
                     className="px-5 py-2 bg-gradient-to-r from-[#7FEDD8] to-[#5DD5C0] text-gray-900 rounded-lg font-medium text-sm hover:shadow-lg transition-all"
                   >
                     Solicitar Acceso
@@ -692,16 +691,16 @@ const LandingPage = () => {
                 <ShieldIcon className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600" />
                 <span className="text-xs sm:text-sm font-medium text-indigo-700">Sistema de Auditoría Fiscal Inteligente</span>
               </div>
-              
+
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-4 sm:mb-6 leading-[1.1] tracking-tight">
                 Audita tus servicios e intangibles
                 <span className="block bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mt-1">antes de que lo haga el SAT</span>
               </h1>
-              
+
               <p className="text-lg sm:text-xl text-gray-500 mb-8 sm:mb-10 leading-relaxed font-light max-w-xl mx-auto lg:mx-0">
                 Revisar-IA tipifica tus servicios, aplica checklists fiscales, construye Defense Files y calcula el riesgo fiscal de cada proyecto. Tu equipo decide; la plataforma hace el trabajo pesado.
               </p>
-              
+
               <div className="flex flex-wrap justify-center lg:justify-start gap-2 sm:gap-3 mb-8">
                 <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border border-blue-100 rounded-xl shadow-sm">
                   <BotIcon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
@@ -736,11 +735,11 @@ const LandingPage = () => {
                 </a>
               </div>
             </div>
-            
+
             <div className="flex justify-center lg:justify-end">
-              <img 
-                src="/mascot.webp" 
-                alt="Revisar.IA Mascota" 
+              <img
+                src="/mascot.webp"
+                alt="Revisar.IA Mascota"
                 className="w-64 sm:w-80 lg:w-96 h-auto object-contain drop-shadow-2xl"
               />
             </div>
@@ -756,7 +755,7 @@ const LandingPage = () => {
             </h2>
             <p className="text-gray-500">Asistente de facturación y videos demostrativos</p>
           </div>
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
             <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-6 shadow-xl">
               <div className="flex items-center gap-3 mb-4">
@@ -770,14 +769,14 @@ const LandingPage = () => {
                   <p className="text-emerald-100 text-sm">Asistente de Facturación SAT</p>
                 </div>
               </div>
-              
+
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 mb-4">
                 <p className="text-white/90 text-sm leading-relaxed">
-                  Habla con nuestro asistente de voz para encontrar la clave SAT correcta para tus facturas. 
+                  Habla con nuestro asistente de voz para encontrar la clave SAT correcta para tus facturas.
                   Te ayudará a redactar conceptos deducibles y evitar errores fiscales.
                 </p>
               </div>
-              
+
               <div className="space-y-3 mb-6">
                 <div className="flex items-center gap-3 text-white/90">
                   <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
@@ -804,10 +803,10 @@ const LandingPage = () => {
                   <span className="text-sm">Análisis de documentos para facturación</span>
                 </div>
               </div>
-              
+
               <EmbeddedFacturarIA />
             </div>
-            
+
             <div>
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -846,7 +845,7 @@ const LandingPage = () => {
             {mainAgents.map((agent) => {
               const IconComponent = agent.icon;
               return (
-                <div 
+                <div
                   key={agent.id}
                   className={`bg-white rounded-2xl p-5 border-2 ${agent.borderColor} hover:shadow-xl transition-all duration-300 group`}
                 >
@@ -885,7 +884,7 @@ const LandingPage = () => {
             {subAgents.map((agent) => {
               const IconComponent = agent.icon;
               return (
-                <div 
+                <div
                   key={agent.id}
                   className="bg-white rounded-2xl p-5 border border-gray-200 hover:shadow-xl transition-all duration-300 group"
                 >
@@ -923,7 +922,7 @@ const LandingPage = () => {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
             {poePhases.map((phase, index) => (
-              <div 
+              <div
                 key={phase.id}
                 className={`relative bg-white rounded-xl p-4 border-2 ${phase.hasLock ? 'border-red-300 bg-red-50/50' : 'border-gray-200'} hover:shadow-lg transition-all group`}
               >
@@ -979,7 +978,7 @@ const LandingPage = () => {
             {evaluationPillars.map((pillar) => {
               const IconComponent = pillar.icon;
               return (
-                <div 
+                <div
                   key={pillar.name}
                   className="bg-white rounded-2xl p-5 border border-gray-200 hover:shadow-xl transition-all duration-300 group"
                 >
@@ -1031,14 +1030,14 @@ const LandingPage = () => {
             Solicita acceso a la plataforma y protege tu empresa ante auditorías del SAT con documentación robusta y expedientes de defensa automatizados.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <Link 
-              to="/register" 
+            <Link
+              to="/register"
               className="px-8 py-3.5 bg-gradient-to-r from-[#7FEDD8] to-[#5DD5C0] text-gray-900 rounded-xl font-semibold shadow-xl hover:shadow-2xl transition-all"
             >
               Solicitar Acceso
             </Link>
-            <a 
-              href="mailto:hola@revisar-ia.com" 
+            <a
+              href="mailto:hola@revisar-ia.com"
               className="px-8 py-3.5 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:border-indigo-300 hover:text-indigo-600 transition-all"
             >
               Contactar Ventas
