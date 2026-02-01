@@ -1,7 +1,10 @@
 """
 Devils Advocate Auto-Fill Service
 Automatically populates the 25 Devil's Advocate questions from agent outputs
-The PMO uses this to consolidate agent evaluations into a structured questionnaire
+The PMO uses this to consolidate agent evaluations into a structured questionnaire.
+
+This service integrates with the PMO Subagent Orchestrator to leverage parallel
+processing capabilities for analyzing, classifying, and summarizing agent outputs.
 """
 
 import logging
@@ -11,6 +14,14 @@ from datetime import datetime
 from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+# Import PMO subagent orchestrator for enhanced processing
+try:
+    from services.pmo_subagent_orchestrator import get_pmo_subagent_orchestrator
+    PMO_ORCHESTRATOR_AVAILABLE = True
+except ImportError:
+    PMO_ORCHESTRATOR_AVAILABLE = False
+    logger.warning("PMO Subagent Orchestrator not available - using basic mode")
 
 
 class FuenteRespuesta(str, Enum):
@@ -185,10 +196,24 @@ class DevilsAdvocateAutoFillService:
     Service that automatically populates Devil's Advocate questionnaire
     from agent outputs. The PMO uses this as the "oracle" to consolidate
     all agent evaluations into structured responses.
+
+    Features:
+    - Auto-extracts responses from agent outputs (A1-A8)
+    - Integrates with PMO Subagent Orchestrator for parallel processing
+    - Provides confidence scoring and source tracking
+    - Flags low-confidence responses for manual review
     """
 
     def __init__(self):
         self.min_confidence_threshold = 0.6  # Below this, flag for manual review
+        self.use_pmo_orchestrator = PMO_ORCHESTRATOR_AVAILABLE
+        self._pmo_orchestrator = None
+
+    def _get_pmo_orchestrator(self):
+        """Get the PMO Subagent Orchestrator instance (lazy loading)."""
+        if self._pmo_orchestrator is None and self.use_pmo_orchestrator:
+            self._pmo_orchestrator = get_pmo_subagent_orchestrator()
+        return self._pmo_orchestrator
 
     def auto_fill_from_agent_outputs(
         self,
@@ -521,6 +546,133 @@ class DevilsAdvocateAutoFillService:
             "por_fuente": by_source,
             "fecha_proceso": datetime.now().isoformat()
         }
+
+    async def auto_fill_with_pmo_enhancement(
+        self,
+        agent_outputs: Dict[str, Dict[str, Any]],
+        proyecto_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Enhanced auto-fill using PMO Subagent Orchestrator for parallel processing.
+
+        This method leverages the PMO's team of specialized subagents to:
+        - Analyze agent outputs in parallel
+        - Classify findings by severity
+        - Identify risks and red flags
+        - Generate executive summaries
+        - Verify completeness of information
+
+        Args:
+            agent_outputs: Dictionary with agent responses (A1-A8)
+            proyecto_data: Project metadata
+
+        Returns:
+            Dictionary with auto-filled responses and PMO enhancement data
+        """
+        # First do basic auto-fill
+        basic_autofill = self.auto_fill_from_agent_outputs(agent_outputs, proyecto_data)
+
+        # If PMO orchestrator available, enhance with parallel processing
+        pmo_enhancement = None
+        if self.use_pmo_orchestrator:
+            try:
+                orchestrator = self._get_pmo_orchestrator()
+                if orchestrator:
+                    logger.info("[PMO] Running enhanced processing with subagents...")
+                    pmo_enhancement = await orchestrator.procesar_para_abogado_diablo(
+                        agent_outputs=agent_outputs,
+                        proyecto_data=proyecto_data
+                    )
+                    logger.info("[PMO] Enhanced processing complete")
+
+                    # Enrich auto-fill with PMO analysis
+                    basic_autofill = self._enrich_with_pmo_data(
+                        basic_autofill, pmo_enhancement
+                    )
+            except Exception as e:
+                logger.warning(f"[PMO] Enhancement failed, using basic mode: {e}")
+                pmo_enhancement = {"error": str(e), "modo": "fallback"}
+
+        # Generate summary
+        summary = self.generate_autofill_summary(basic_autofill)
+
+        return {
+            "respuestas": self.generate_responses_dict(basic_autofill),
+            "auto_filled_objects": basic_autofill,
+            "summary": summary,
+            "pmo_enhancement": pmo_enhancement,
+            "manual_required": self.get_manual_required_questions(basic_autofill),
+            "procesado_por": "PMO_ENHANCED" if pmo_enhancement else "BASIC"
+        }
+
+    def _enrich_with_pmo_data(
+        self,
+        basic_autofill: Dict[str, RespuestaAutoFill],
+        pmo_data: Dict[str, Any]
+    ) -> Dict[str, RespuestaAutoFill]:
+        """
+        Enrich auto-fill responses with PMO subagent analysis.
+
+        Updates confidence levels and adds supporting data from PMO processing.
+        """
+        if not pmo_data:
+            return basic_autofill
+
+        # Get PMO analysis results
+        riesgos = pmo_data.get("riesgos_identificados", {})
+        clasificacion = pmo_data.get("clasificacion", {})
+        verificacion = pmo_data.get("verificacion", {})
+
+        # Use classification to boost confidence on critical findings
+        severidad_alta = clasificacion.get("severidad") in ["critico", "importante"]
+
+        # Enrich P22 (main weakness) with PMO risk identification
+        if "P22_DEBILIDAD_PRINCIPAL" in basic_autofill and (riesgos or severidad_alta):
+            resp = basic_autofill["P22_DEBILIDAD_PRINCIPAL"]
+            banderas = riesgos.get("banderas_rojas", [])
+            if banderas:
+                resp.datos_soporte.extend(banderas[:3])
+                if resp.confianza < 0.8:
+                    resp.confianza = min(0.85, resp.confianza + 0.15)
+                resp.notas = "Enriquecido con análisis PMO"
+
+        # Enrich P24/P25 (lessons/risk) with PMO consolidation
+        resumen = pmo_data.get("resumen_ejecutivo", {})
+        if resumen:
+            for pregunta_id in ["P24_LECCION_PREVENCION", "P25_RIESGO_ACEPTADO"]:
+                if pregunta_id in basic_autofill:
+                    resp = basic_autofill[pregunta_id]
+                    if resp.fuente == FuenteRespuesta.MANUAL:
+                        # Try to fill from PMO summary
+                        if pregunta_id == "P24_LECCION_PREVENCION":
+                            leccion = resumen.get("lecciones", resumen.get("patron", ""))
+                            if leccion:
+                                resp.respuesta = str(leccion)
+                                resp.fuente = FuenteRespuesta.PMO_CONSOLIDADO
+                                resp.confianza = 0.7
+                                resp.requiere_revision = True
+                        elif pregunta_id == "P25_RIESGO_ACEPTADO":
+                            riesgo = resumen.get("riesgo_residual", "")
+                            if riesgo:
+                                resp.respuesta = str(riesgo)
+                                resp.fuente = FuenteRespuesta.PMO_CONSOLIDADO
+                                resp.confianza = 0.65
+                                resp.requiere_revision = True
+
+        # Update completeness based on PMO verification
+        completitud = verificacion.get("completitud", {})
+        if completitud:
+            completitud_score = completitud.get("score", 0)
+            faltantes = completitud.get("faltantes", [])
+            logger.info(f"[PMO] Completitud score: {completitud_score}%, faltantes: {len(faltantes)}")
+            # Flag questions related to missing data
+            for pregunta_id, resp in basic_autofill.items():
+                for campo in faltantes:
+                    if campo.lower() in pregunta_id.lower():
+                        resp.requiere_revision = True
+                        resp.notas = f"Campo '{campo}' marcado como faltante por verificador PMO"
+
+        return basic_autofill
 
 
 # Global instance
