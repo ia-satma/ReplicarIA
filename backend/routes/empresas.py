@@ -312,8 +312,12 @@ Responde UNICAMENTE en formato JSON:
                             response_text = "\n".join(lines[1:-1])
 
                         ai_result = json.loads(response_text)
-                        research_data["vision"] = ai_result.get("vision")
-                        research_data["mision"] = ai_result.get("mision")
+                        # Check if AI returned an error
+                        if "error" not in ai_result:
+                            research_data["vision"] = ai_result.get("vision")
+                            research_data["mision"] = ai_result.get("mision")
+                        else:
+                            logger.warning(f"AI returned error: {ai_result.get('error')}")
                     except Exception as ai_err:
                         logger.warning(f"Error generando vision/mision con IA: {ai_err}")
 
@@ -373,6 +377,11 @@ Responde UNICAMENTE en este formato JSON exacto:
                 response_text = "\n".join(lines[1:-1])
 
             result = json.loads(response_text)
+
+            # Check if AI returned an error
+            if "error" in result:
+                logger.warning(f"AI returned error: {result.get('error')}")
+                raise ValueError(f"AI error: {result.get('error')}")
 
             return {
                 "success": True,
