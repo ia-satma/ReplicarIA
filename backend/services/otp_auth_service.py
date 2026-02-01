@@ -15,7 +15,7 @@ from typing import Optional, Dict, Any
 from pathlib import Path
 import asyncpg
 
-from services.email_service import email_service as unified_email
+from services.email_service import email_service as unified_email, is_configured as email_is_configured
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +46,8 @@ ADMIN_NAME = os.environ.get('ADMIN_NAME', 'Administrador SATMA')
 ADMIN_COMPANY = os.environ.get('ADMIN_COMPANY', 'SATMA')
 DEMO_OTP_CODE = '123456'  # Fixed OTP for demo mode
 
-# Email configuration check
-EMAIL_CONFIGURED = bool(os.environ.get('DREAMHOST_EMAIL_PASSWORD', ''))
+# Email configuration check - uses unified service (SendGrid or DreamHost)
+EMAIL_CONFIGURED = email_is_configured()
 
 OTP_EXPIRATION_MINUTES = 5
 SESSION_EXPIRATION_HOURS = 24
