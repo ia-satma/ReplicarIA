@@ -200,9 +200,10 @@ async def get_current_session(authorization: Optional[str] = Header(None)):
             status_code=401,
             detail="Token de autenticación requerido"
         )
-    
+
     token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
-    
+
+    # 1. Check OTP sessions (sesiones_otp table)
     session = await otp_auth_service.validate_session(token)
     if session:
         return OTPResponse(
@@ -210,46 +211,89 @@ async def get_current_session(authorization: Optional[str] = Header(None)):
             message="Sesión válida",
             data=session
         )
-    
+
+    # 2. Check password sessions (auth_sessions table)
+    import hashlib
+    from services.otp_auth_service import get_db_connection
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    try:
+        conn = await get_db_connection()
+        if conn:
+            try:
+                row = await conn.fetchrow('''
+                    SELECT s.id, s.user_id, s.auth_method, s.expires_at, s.created_at,
+                           u.email, u.full_name, u.role, u.status, u.empresa_id, u.company_name, u.metadata
+                    FROM auth_sessions s
+                    JOIN auth_users u ON u.id = s.user_id
+                    WHERE s.token_hash = $1 AND s.is_active = true
+                      AND s.expires_at > NOW() AND u.deleted_at IS NULL
+                ''', token_hash)
+
+                if row and row['status'] == 'active':
+                    return OTPResponse(
+                        success=True,
+                        message="Sesión válida (password)",
+                        data={
+                            "user": {
+                                "id": str(row['user_id']),
+                                "email": row['email'],
+                                "nombre": row['full_name'],
+                                "full_name": row['full_name'],
+                                "empresa": row['company_name'] or '',
+                                "company_name": row['company_name'],
+                                "rol": row['role'],
+                                "role": row['role'],
+                                "empresa_id": str(row['empresa_id']) if row['empresa_id'] else None,
+                                "is_superadmin": row['role'] == 'super_admin',
+                                "metadata": row['metadata'] or {}
+                            },
+                            "session": {
+                                "id": str(row['id']),
+                                "auth_method": row['auth_method'],
+                                "expires_at": row['expires_at'].isoformat(),
+                                "created_at": row['created_at'].isoformat() if row['created_at'] else None
+                            }
+                        }
+                    )
+            finally:
+                await conn.close()
+    except Exception as e:
+        logger.warning(f"Error checking auth_sessions: {e}")
+
+    # 3. Fallback to JWT validation
     from jose import jwt, exceptions as jose_exceptions
     import os
     SECRET_KEY = os.getenv("SECRET_KEY") or os.getenv("SESSION_SECRET") or os.getenv("JWT_SECRET_KEY")
     ALGORITHM = "HS256"
 
-    # Security: Validate SECRET_KEY exists
-    if not SECRET_KEY or len(SECRET_KEY) < 16:
-        logger.error("SECRET_KEY not configured or too short - JWT validation disabled")
-        raise HTTPException(
-            status_code=401,
-            detail="Sesión inválida o expirada"
-        )
+    if SECRET_KEY and len(SECRET_KEY) >= 16:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("user_id")
 
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("user_id")
-        
-        if user_id:
-            from services.user_db import user_service
-            user = await user_service.get_user_by_id(user_id)
-            if user:
-                return OTPResponse(
-                    success=True,
-                    message="Sesión válida (JWT)",
-                    data={
-                        "user": {
-                            "id": str(user.id),
-                            "email": str(user.email),
-                            "nombre": getattr(user, 'full_name', '') or '',
-                            "empresa": getattr(user, 'company', '') or '',
-                            "rol": str(user.role) if user.role else 'user',
-                            "role": str(user.role) if user.role else 'user'
-                        },
-                        "token": token
-                    }
-                )
-    except (jose_exceptions.ExpiredSignatureError, jose_exceptions.JWTError):
-        pass
-    
+            if user_id:
+                from services.user_db import user_service
+                user = await user_service.get_user_by_id(user_id)
+                if user:
+                    return OTPResponse(
+                        success=True,
+                        message="Sesión válida (JWT)",
+                        data={
+                            "user": {
+                                "id": str(user.id),
+                                "email": str(user.email),
+                                "nombre": getattr(user, 'full_name', '') or '',
+                                "empresa": getattr(user, 'company', '') or '',
+                                "rol": str(user.role) if user.role else 'user',
+                                "role": str(user.role) if user.role else 'user'
+                            },
+                            "token": token
+                        }
+                    )
+        except (jose_exceptions.ExpiredSignatureError, jose_exceptions.JWTError):
+            pass
+
     raise HTTPException(
         status_code=401,
         detail="Sesión inválida o expirada"
