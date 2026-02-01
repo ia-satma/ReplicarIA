@@ -199,22 +199,64 @@ class AutofillRequest(BaseModel):
     industria: Optional[str] = None
 
 
+# Templates por industria para fallback sin IA
+TEMPLATES_POR_INDUSTRIA = {
+    "tecnologia": {
+        "vision": "Ser la empresa tecnologica lider en innovacion y transformacion digital en Mexico, reconocida por la calidad y el impacto de nuestras soluciones.",
+        "mision": "Desarrollar soluciones tecnologicas que impulsen el crecimiento y la competitividad de nuestros clientes, generando valor a traves de la innovacion constante."
+    },
+    "servicios_profesionales": {
+        "vision": "Ser el referente en servicios profesionales de excelencia, reconocidos por nuestra integridad, conocimiento y compromiso con el exito de nuestros clientes.",
+        "mision": "Brindar servicios profesionales de alta calidad que superen las expectativas de nuestros clientes, contribuyendo a su crecimiento y desarrollo sostenible."
+    },
+    "manufactura": {
+        "vision": "Ser lider en manufactura de clase mundial, reconocidos por la calidad, eficiencia y sustentabilidad de nuestros procesos productivos.",
+        "mision": "Fabricar productos de la mas alta calidad que satisfagan las necesidades de nuestros clientes, optimizando recursos y cuidando el medio ambiente."
+    },
+    "comercio": {
+        "vision": "Ser la empresa comercial preferida por nuestros clientes, destacando por nuestra variedad, servicio y precios competitivos.",
+        "mision": "Ofrecer productos y servicios comerciales que cubran las necesidades de nuestros clientes, brindando una experiencia de compra excepcional."
+    },
+    "construccion": {
+        "vision": "Ser la constructora lider en el mercado, reconocida por la calidad, seguridad e innovacion en cada uno de nuestros proyectos.",
+        "mision": "Construir espacios que mejoren la calidad de vida de las personas, cumpliendo con los mas altos estandares de calidad y seguridad."
+    },
+    "salud": {
+        "vision": "Ser referente en servicios de salud de excelencia, comprometidos con el bienestar integral de nuestros pacientes y comunidad.",
+        "mision": "Brindar servicios de salud de calidad con calidez humana, utilizando tecnologia de vanguardia para el cuidado de nuestros pacientes."
+    },
+    "educacion": {
+        "vision": "Ser institucion educativa lider, formando profesionales competentes y comprometidos con el desarrollo de Mexico.",
+        "mision": "Formar personas integras con conocimientos, habilidades y valores que contribuyan al progreso de la sociedad."
+    },
+    "finanzas": {
+        "vision": "Ser la institucion financiera mas confiable y solida, reconocida por nuestra integridad y servicios innovadores.",
+        "mision": "Ofrecer soluciones financieras que impulsen el crecimiento de nuestros clientes, con transparencia, seguridad y servicio personalizado."
+    },
+    "inmobiliario": {
+        "vision": "Ser la empresa inmobiliaria lider en desarrollo de proyectos que transformen comunidades y generen valor duradero.",
+        "mision": "Desarrollar proyectos inmobiliarios que superen las expectativas de nuestros clientes, creando espacios que mejoren su calidad de vida."
+    },
+    "default": {
+        "vision": "Ser la empresa lider en nuestro sector, reconocida por la excelencia, innovacion y compromiso con nuestros clientes y colaboradores.",
+        "mision": "Ofrecer productos y servicios de la mas alta calidad que generen valor para nuestros clientes, colaboradores y la comunidad."
+    }
+}
+
+
 @router.post("/autofill-ia")
 async def autofill_empresa_con_ia(data: AutofillRequest):
     """
-    Auto-rellena los campos de perfil de empresa usando IA.
-    Genera vision, mision, valores y sugerencias basadas en el nombre/RFC.
+    Auto-rellena los campos de perfil de empresa usando IA o templates.
+    Genera vision, mision basadas en el nombre e industria.
     """
-    if not OPENAI_AVAILABLE:
-        raise HTTPException(
-            status_code=503,
-            detail="Servicio de IA no disponible. Configure OPENAI_API_KEY."
-        )
-    
-    try:
-        industria_texto = data.industria.replace("_", " ") if data.industria else "no especificada"
-        
-        prompt = f"""Eres un experto en desarrollo empresarial y estrategia corporativa en Mexico.
+    industria_key = data.industria or "default"
+    industria_texto = data.industria.replace("_", " ") if data.industria else "general"
+
+    # Intentar con IA si esta disponible
+    if OPENAI_AVAILABLE:
+        try:
+            prompt = f"""Eres un experto en desarrollo empresarial y estrategia corporativa en Mexico.
 Genera informacion de perfil empresarial para la siguiente empresa mexicana:
 
 DATOS DE LA EMPRESA:
@@ -226,40 +268,50 @@ DATOS DE LA EMPRESA:
 INSTRUCCIONES:
 Genera contenido profesional, realista y especifico para esta empresa mexicana.
 La vision y mision deben ser concisas (1-2 oraciones cada una).
-Los valores deben reflejar la industria y cultura empresarial mexicana.
 
 Responde UNICAMENTE en este formato JSON exacto, sin explicaciones adicionales:
 {{
     "vision": "La vision de la empresa en 1-2 oraciones...",
-    "mision": "La mision de la empresa en 1-2 oraciones...",
-    "valores": ["Valor 1", "Valor 2", "Valor 3", "Valor 4", "Valor 5"],
-    "modelo_negocio": "Descripcion breve del modelo de negocio sugerido...",
-    "mercados_objetivo": ["Mercado 1", "Mercado 2", "Mercado 3"],
-    "ventajas_competitivas": ["Ventaja 1", "Ventaja 2", "Ventaja 3"]
+    "mision": "La mision de la empresa en 1-2 oraciones..."
 }}"""
 
-        response_text = chat_completion_sync(
-            messages=[{"role": "user", "content": prompt}],
-            model="gpt-4o",
-            max_tokens=1024
-        ).strip()
-        
-        # Clean up response if wrapped in markdown code blocks
-        if response_text.startswith("```"):
-            lines = response_text.split("\n")
-            response_text = "\n".join(lines[1:-1])
-        
-        result = json.loads(response_text)
-        
-        return {
-            "success": True,
-            "data": result,
-            "message": "Perfil generado exitosamente con IA"
-        }
-        
-    except json.JSONDecodeError as e:
-        logger.error(f"Error parsing AI response: {e}")
-        raise HTTPException(status_code=500, detail="Error al procesar respuesta de IA")
-    except Exception as e:
-        logger.error(f"Error in autofill: {e}")
-        raise HTTPException(status_code=500, detail=f"Error al generar perfil: {str(e)}")
+            response_text = chat_completion_sync(
+                messages=[{"role": "user", "content": prompt}],
+                model="gpt-4o",
+                max_tokens=512
+            ).strip()
+
+            # Clean up response if wrapped in markdown code blocks
+            if response_text.startswith("```"):
+                lines = response_text.split("\n")
+                response_text = "\n".join(lines[1:-1])
+
+            result = json.loads(response_text)
+
+            return {
+                "success": True,
+                "data": result,
+                "message": "Perfil generado exitosamente con IA",
+                "source": "ai"
+            }
+
+        except Exception as e:
+            logger.warning(f"Error with AI autofill, using template: {e}")
+            # Continuar con fallback de templates
+
+    # Fallback: usar templates predefinidos
+    template = TEMPLATES_POR_INDUSTRIA.get(industria_key, TEMPLATES_POR_INDUSTRIA["default"])
+
+    # Personalizar con el nombre de la empresa
+    vision = template["vision"].replace("Ser la empresa", f"Ser {data.nombre_comercial} como la empresa")
+    mision = template["mision"]
+
+    return {
+        "success": True,
+        "data": {
+            "vision": vision,
+            "mision": mision
+        },
+        "message": "Perfil generado con plantilla de industria",
+        "source": "template"
+    }
