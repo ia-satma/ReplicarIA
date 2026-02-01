@@ -233,6 +233,7 @@ api.empresas = {
   get: (id) => api.get(`/api/empresas/${id}`),
   create: (data) => api.post('/api/empresas/', data),
   update: (id, data) => api.patch(`/api/empresas/${id}`, data),
+  autofill: (data) => api.post('/api/empresas/autofill-ia', data),
 };
 
 export default api;

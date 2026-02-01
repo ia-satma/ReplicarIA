@@ -64,6 +64,23 @@ export const empresaService = {
   },
 
   /**
+   * Auto-completar datos con IA
+   */
+  async autofill(data) {
+    try {
+      const response = await fetch(`${API_URL}/api/empresas/autofill-ia`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data)
+      });
+      return await handleResponse(response);
+    } catch (error) {
+      console.error('Error en autofill IA:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Obtener empresa por ID
    */
   async obtener(empresaId) {

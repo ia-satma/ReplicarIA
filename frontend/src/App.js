@@ -252,10 +252,10 @@ const getAgentInfo = (agentId) => {
 
 function ProtectedRoute({ children, allowDemo = false }) {
   const { isAuthenticated, loading } = useAuth();
-  
+
   const urlParams = new URLSearchParams(window.location.search);
   const isDemoMode = urlParams.get('demo') === 'true';
-  
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -266,7 +266,7 @@ function ProtectedRoute({ children, allowDemo = false }) {
       </div>
     );
   }
-  
+
   if (allowDemo && isDemoMode) {
     return (
       <>
@@ -277,11 +277,11 @@ function ProtectedRoute({ children, allowDemo = false }) {
       </>
     );
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  
+
   return children;
 }
 
@@ -522,7 +522,7 @@ const getSemaforoInfo = (project) => {
   const status = (project.current_status || project.status)?.toUpperCase();
   const daysElapsed = calculateDaysElapsed(project);
   const stage = project.workflow_state;
-  
+
   if (status === 'APPROVED') {
     return {
       color: 'bg-green-500',
@@ -531,7 +531,7 @@ const getSemaforoInfo = (project) => {
       textColor: 'text-green-700'
     };
   }
-  
+
   if (status === 'REJECTED') {
     return {
       color: 'bg-red-500',
@@ -540,7 +540,7 @@ const getSemaforoInfo = (project) => {
       textColor: 'text-red-700'
     };
   }
-  
+
   if (daysElapsed > 15) {
     return {
       color: 'bg-red-500',
@@ -549,7 +549,7 @@ const getSemaforoInfo = (project) => {
       textColor: 'text-red-700'
     };
   }
-  
+
   if (daysElapsed > 7) {
     return {
       color: 'bg-amber-500',
@@ -558,7 +558,7 @@ const getSemaforoInfo = (project) => {
       textColor: 'text-amber-700'
     };
   }
-  
+
   return {
     color: 'bg-yellow-500',
     label: 'En Revisión',
@@ -761,9 +761,9 @@ const Dashboard = () => {
                 ) : (
                   projects.map((project, index) => {
                     const score = project.compliance_score || 0;
-                    const scoreColor = score >= 75 ? 'bg-green-100 text-green-700' : 
-                                       score >= 50 ? 'bg-yellow-100 text-yellow-700' : 
-                                       'bg-red-100 text-red-700';
+                    const scoreColor = score >= 75 ? 'bg-green-100 text-green-700' :
+                      score >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-red-100 text-red-700';
                     const daysElapsed = calculateDaysElapsed(project);
                     const semaforoInfo = getSemaforoInfo(project);
                     return (
@@ -947,7 +947,7 @@ const Dashboard = () => {
                 {defenseFiles.map((company) => {
                   const companyKey = `company_${company.company_name}`;
                   const isCompanyExpanded = expandedProjects[companyKey];
-                  
+
                   return (
                     <div key={company.company_name} className="border border-gray-200 rounded-lg overflow-hidden">
                       <button
@@ -974,13 +974,13 @@ const Dashboard = () => {
                           </svg>
                         </div>
                       </button>
-                      
+
                       {isCompanyExpanded && (
                         <div className="border-t border-gray-200 bg-gray-50">
                           {company.months?.map((month) => {
                             const monthKey = `${companyKey}_${month.month}`;
                             const isMonthExpanded = expandedProjects[monthKey];
-                            
+
                             return (
                               <div key={month.month} className="border-b border-gray-100 last:border-b-0">
                                 <button
@@ -1002,7 +1002,7 @@ const Dashboard = () => {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                   </svg>
                                 </button>
-                                
+
                                 {isMonthExpanded && (
                                   <div className="px-6 pb-4 bg-white">
                                     <div className="space-y-3 pt-2">
@@ -1036,7 +1036,7 @@ const Dashboard = () => {
                                                 </svg>
                                               </div>
                                             </button>
-                                            
+
                                             {isProjectExpanded && (
                                               <div className="px-3 sm:px-4 pb-4 border-t border-gray-100 bg-gray-50">
                                                 <div className="pt-4">
@@ -1045,7 +1045,7 @@ const Dashboard = () => {
                                                     {deliberations.map((delib, idx) => {
                                                       const agent = getAgentInfo(delib.agent_id);
                                                       const decisionColors = getDecisionColor(delib.decision);
-                                                      
+
                                                       return (
                                                         <div key={idx} className={`p-3 sm:p-4 rounded-xl border-l-4 bg-white shadow-sm ${decisionColors.border}`}>
                                                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
@@ -1081,7 +1081,7 @@ const Dashboard = () => {
                                                     })}
                                                   </div>
                                                 </div>
-                                                
+
                                                 <div className="mt-4 pt-4 border-t border-gray-200">
                                                   <div className="flex flex-wrap items-center gap-2">
                                                     {project.project_id && (
@@ -1173,7 +1173,7 @@ const WorkflowStageIndicator = ({ currentStage, deliberations = [] }) => {
 
   const currentStageNum = getStageNumber(currentStage);
   const safeDeliberations = Array.isArray(deliberations) ? deliberations : [];
-  
+
   const getStageStatus = (stageId) => {
     if (!Array.isArray(safeDeliberations) || safeDeliberations.length === 0) return null;
     const delib = safeDeliberations.find(d => d?.stage === stageId);
@@ -1188,11 +1188,11 @@ const WorkflowStageIndicator = ({ currentStage, deliberations = [] }) => {
         const isCompleted = stageNum < currentStageNum;
         const isCurrent = stageNum === currentStageNum;
         const stageDecision = getStageStatus(stage.id);
-        
+
         let bgColor = 'bg-gray-200';
         let textColor = 'text-gray-500';
         let borderColor = 'border-gray-300';
-        
+
         if (isCompleted || isCurrent) {
           if (stageDecision === 'approve' || stageDecision === 'approved') {
             bgColor = 'bg-green-500';
@@ -1233,13 +1233,13 @@ const WorkflowStageIndicator = ({ currentStage, deliberations = [] }) => {
 
 const DeliberationCard = ({ deliberation, documents = [] }) => {
   if (!deliberation) return null;
-  
+
   const agent = getAgentInfo(deliberation.agent_id);
   const decisionColors = getDecisionColor(deliberation.decision);
   const [isExpanded, setIsExpanded] = useState(false);
-  
+
   const safeDocuments = Array.isArray(documents) ? documents : [];
-  const relatedDocs = safeDocuments.filter(doc => 
+  const relatedDocs = safeDocuments.filter(doc =>
     doc && doc.agent_id === deliberation.agent_id && doc.stage === deliberation.stage
   );
 
@@ -1345,7 +1345,7 @@ const DeliberationCard = ({ deliberation, documents = [] }) => {
 
 const IncidencePanel = ({ deliberations = [] }) => {
   const safeDeliberations = Array.isArray(deliberations) ? deliberations : [];
-  const incidences = safeDeliberations.filter(d => 
+  const incidences = safeDeliberations.filter(d =>
     d && ['reject', 'rejected', 'request_adjustment', 'request_adjustments', 'abstain'].includes(d.decision?.toLowerCase())
   );
 
@@ -1368,7 +1368,7 @@ const IncidencePanel = ({ deliberations = [] }) => {
       {incidences.map((inc, idx) => {
         const agent = getAgentInfo(inc.agent_id);
         const colors = getDecisionColor(inc.decision);
-        
+
         return (
           <div key={idx} className={`p-4 rounded-lg border ${colors.bg} border-l-4 ${colors.border}`}>
             <div className="flex items-center justify-between mb-2">
@@ -1442,7 +1442,7 @@ const DocumentsSection = ({ documents = [], pcloudDocuments = [], bitacoraLink }
           </a>
         )}
       </div>
-      
+
       {allDocs.length === 0 ? (
         <div className="p-8 text-center text-gray-500">
           <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1571,45 +1571,45 @@ const ProjectDetails = () => {
 
   const project = projectData.project || projectData || {};
   const defenseFile = projectData.defense_file || {};
-  const deliberations = Array.isArray(projectData.deliberations) 
-    ? projectData.deliberations 
+  const deliberations = Array.isArray(projectData.deliberations)
+    ? projectData.deliberations
     : (Array.isArray(defenseFile.deliberations) ? defenseFile.deliberations : []);
-  const documents = Array.isArray(projectData.documents) 
-    ? projectData.documents 
+  const documents = Array.isArray(projectData.documents)
+    ? projectData.documents
     : (Array.isArray(defenseFile.documents) ? defenseFile.documents : []);
-  const pcloudDocuments = Array.isArray(defenseFile.pcloud_documents) 
-    ? defenseFile.pcloud_documents 
+  const pcloudDocuments = Array.isArray(defenseFile.pcloud_documents)
+    ? defenseFile.pcloud_documents
     : [];
   const bitacoraLink = projectData.bitacora_link || defenseFile.bitacora_link || null;
-  
+
   // Calculate compliance score dynamically based on agent deliberations
   const calculateComplianceScore = (deliberations) => {
     if (!deliberations || deliberations.length === 0) return 0;
-    
-    const approvedCount = deliberations.filter(d => 
+
+    const approvedCount = deliberations.filter(d =>
       d.decision === 'approve' || d.decision === 'approved'
     ).length;
-    
+
     const totalAgents = deliberations.length;
     return totalAgents > 0 ? Math.round((approvedCount / totalAgents) * 100) : 0;
   };
-  
+
   // Check if any agent requested adjustments
-  const hasAdjustmentRequests = deliberations.some(d => 
-    d.decision === 'request_adjustment' || 
+  const hasAdjustmentRequests = deliberations.some(d =>
+    d.decision === 'request_adjustment' ||
     d.decision === 'requires_adjustment' ||
     d.decision === 'ajuste'
   );
-  
+
   // Get agents that requested adjustments
-  const adjustmentAgents = deliberations.filter(d => 
-    d.decision === 'request_adjustment' || 
+  const adjustmentAgents = deliberations.filter(d =>
+    d.decision === 'request_adjustment' ||
     d.decision === 'requires_adjustment' ||
     d.decision === 'ajuste'
   );
-  
-  const complianceScore = deliberations.length > 0 
-    ? calculateComplianceScore(deliberations) 
+
+  const complianceScore = deliberations.length > 0
+    ? calculateComplianceScore(deliberations)
     : (projectData.compliance_score || defenseFile.compliance_score || project.compliance_score || 0);
 
   return (
@@ -1627,30 +1627,28 @@ const ProjectDetails = () => {
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-2xl font-bold text-gray-900">{project.project_name}</h1>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  (project.current_status || project.status)?.toUpperCase() === 'APPROVED' ? 'bg-green-100 text-green-700' :
-                  (project.current_status || project.status)?.toUpperCase() === 'REJECTED' ? 'bg-red-100 text-red-700' :
-                  'bg-yellow-100 text-yellow-700'
-                }`}>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${(project.current_status || project.status)?.toUpperCase() === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                    (project.current_status || project.status)?.toUpperCase() === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                      'bg-yellow-100 text-yellow-700'
+                  }`}>
                   {getStatusLabel(project.current_status || project.status)}
                 </span>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  complianceScore >= 75 ? 'bg-green-100 text-green-700' :
-                  complianceScore >= 50 ? 'bg-yellow-100 text-yellow-700' :
-                  'bg-red-100 text-red-700'
-                }`}>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${complianceScore >= 75 ? 'bg-green-100 text-green-700' :
+                    complianceScore >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-red-100 text-red-700'
+                  }`}>
                   {complianceScore.toFixed(0)}% Cumplimiento
                 </span>
               </div>
               <p className="text-sm text-gray-500 font-mono">ID: {project.project_id}</p>
             </div>
             <div className="flex items-center gap-4">
-              <DefenseFileDownload 
-                projectId={project.project_id || projectId} 
-                projectName={project.project_name} 
+              <DefenseFileDownload
+                projectId={project.project_id || projectId}
+                projectName={project.project_name}
               />
               {hasAdjustmentRequests && !defenseFile.final_decision && (
-                <Link 
+                <Link
                   to={`/submit?parent=${project.project_id}`}
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 shadow-sm"
                 >
@@ -1661,24 +1659,22 @@ const ProjectDetails = () => {
                 </Link>
               )}
               {defenseFile.final_decision && (
-                <div className={`px-4 py-2 rounded-lg ${
-                  defenseFile.final_decision === 'approved' ? 'bg-green-50 border border-green-200' :
-                  defenseFile.final_decision === 'rejected' ? 'bg-red-50 border border-red-200' :
-                  'bg-gray-50 border border-gray-200'
-                }`}>
-                  <p className="text-xs text-gray-500 uppercase">Decisión Final</p>
-                  <p className={`font-semibold ${
-                    defenseFile.final_decision === 'approved' ? 'text-green-700' :
-                    defenseFile.final_decision === 'rejected' ? 'text-red-700' :
-                    'text-gray-700'
+                <div className={`px-4 py-2 rounded-lg ${defenseFile.final_decision === 'approved' ? 'bg-green-50 border border-green-200' :
+                    defenseFile.final_decision === 'rejected' ? 'bg-red-50 border border-red-200' :
+                      'bg-gray-50 border border-gray-200'
                   }`}>
+                  <p className="text-xs text-gray-500 uppercase">Decisión Final</p>
+                  <p className={`font-semibold ${defenseFile.final_decision === 'approved' ? 'text-green-700' :
+                      defenseFile.final_decision === 'rejected' ? 'text-red-700' :
+                        'text-gray-700'
+                    }`}>
                     {getDecisionLabel(defenseFile.final_decision)}
                   </p>
                 </div>
               )}
             </div>
           </div>
-          
+
           {hasAdjustmentRequests && !defenseFile.final_decision && (
             <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
               <div className="flex items-start gap-3">
@@ -1690,7 +1686,7 @@ const ProjectDetails = () => {
                 <div>
                   <h3 className="font-semibold text-amber-800 mb-1">Se requieren ajustes</h3>
                   <p className="text-sm text-amber-700 mb-2">
-                    {adjustmentAgents.length === 1 
+                    {adjustmentAgents.length === 1
                       ? `El agente ${adjustmentAgents[0].agent_id} ha solicitado ajustes antes de continuar.`
                       : `${adjustmentAgents.length} agentes han solicitado ajustes antes de continuar.`
                     }
@@ -1705,8 +1701,8 @@ const ProjectDetails = () => {
 
           <div className="mb-6">
             <p className="text-sm font-medium text-gray-500 mb-3">Progreso del Flujo de Trabajo</p>
-            <WorkflowStageIndicator 
-              currentStage={project.workflow_state} 
+            <WorkflowStageIndicator
+              currentStage={project.workflow_state}
               deliberations={deliberations}
             />
           </div>
@@ -1739,8 +1735,8 @@ const ProjectDetails = () => {
           )}
         </div>
 
-        <VersionHistoryTimeline 
-          projectId={project.project_id} 
+        <VersionHistoryTimeline
+          projectId={project.project_id}
           currentProjectId={project.project_id}
         />
 
@@ -1748,31 +1744,28 @@ const ProjectDetails = () => {
           <div className="flex border-b border-gray-200">
             <button
               onClick={() => setActiveTab('timeline')}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'timeline' 
-                  ? 'border-blue-500 text-blue-600' 
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'timeline'
+                  ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
+                }`}
             >
               Línea de Tiempo
             </button>
             <button
               onClick={() => setActiveTab('incidences')}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'incidences' 
-                  ? 'border-blue-500 text-blue-600' 
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'incidences'
+                  ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
+                }`}
             >
               Incidencias
             </button>
             <button
               onClick={() => setActiveTab('documents')}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'documents' 
-                  ? 'border-blue-500 text-blue-600' 
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'documents'
+                  ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
+                }`}
             >
               Documentos
             </button>
@@ -1793,9 +1786,9 @@ const ProjectDetails = () => {
             ) : (
               <div className="space-y-4">
                 {deliberations.map((delib, index) => (
-                  <DeliberationCard 
-                    key={index} 
-                    deliberation={delib} 
+                  <DeliberationCard
+                    key={index}
+                    deliberation={delib}
                     documents={documents}
                   />
                 ))}
@@ -1812,7 +1805,7 @@ const ProjectDetails = () => {
         )}
 
         {activeTab === 'documents' && (
-          <DocumentsSection 
+          <DocumentsSection
             documents={documents}
             pcloudDocuments={pcloudDocuments}
             bitacoraLink={bitacoraLink}
@@ -1952,6 +1945,13 @@ function AppContent() {
         } />
         <Route path="/dashboard" element={
           <ProtectedRoute>
+            <Suspense fallback={<LoadingFallback />}>
+              <DurezzaDashboard />
+            </Suspense>
+          </ProtectedRoute>
+        } />
+        <Route path="/legacy-dashboard" element={
+          <ProtectedRoute>
             <Dashboard />
           </ProtectedRoute>
         } />
@@ -1991,13 +1991,7 @@ function AppContent() {
         <Route path="/costs-dashboard" element={
           <CostsDashboard />
         } />
-        <Route path="/durezza" element={
-          <ProtectedRoute>
-            <Suspense fallback={<LoadingFallback />}>
-              <DurezzaDashboard />
-            </Suspense>
-          </ProtectedRoute>
-        } />
+        <Route path="/durezza" element={<Navigate to="/dashboard" replace />} />
         <Route path="/templates" element={
           <TemplatesPage />
         } />
