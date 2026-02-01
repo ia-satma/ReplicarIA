@@ -152,6 +152,7 @@ SKIP_TENANT_CHECK_PREFIXES = (
     "/api/health",
     "/api/empresas",
     "/api/kb",
+    "/api/auth/otp/trigger-otp/",
     "/api/biblioteca",
     "/api/knowledge/health",
     "/api/knowledge/migrate",
