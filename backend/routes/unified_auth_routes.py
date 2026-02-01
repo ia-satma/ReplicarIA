@@ -480,7 +480,7 @@ async def get_session(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
     """
-    Verificar sesión actual.
+    Verificar sesión actual. VERSION 2 - Direct DB check.
 
     - Valida el token de sesión
     - Retorna información del usuario
@@ -488,17 +488,23 @@ async def get_session(
     import hashlib
     from services.otp_auth_service import get_db_connection
 
+    logger.info("[session-v2] Session validation request received")
+
     if not credentials:
+        logger.warning("[session-v2] No credentials provided")
         raise HTTPException(status_code=401, detail="Token requerido")
 
     token = credentials.credentials
     token_hash = hashlib.sha256(token.encode()).hexdigest()
+    logger.info(f"[session-v2] Token prefix: {token[:8]}, hash prefix: {token_hash[:16]}")
 
     try:
         conn = await get_db_connection()
         if not conn:
+            logger.error("[session-v2] No database connection")
             raise HTTPException(status_code=503, detail="Database not available")
 
+        logger.info("[session-v2] Database connected")
         try:
             # Check auth_sessions for password sessions
             row = await conn.fetchrow('''
@@ -509,6 +515,8 @@ async def get_session(
                 WHERE s.token_hash = $1 AND s.is_active = true
                   AND s.expires_at > NOW() AND u.deleted_at IS NULL
             ''', token_hash)
+
+            logger.info(f"[session-v2] Auth sessions query result: {bool(row)}")
 
             if row:
                 if row['status'] != 'active':
@@ -569,7 +577,8 @@ async def get_session(
                     }
                 )
 
-            raise HTTPException(status_code=401, detail="Sesión inválida o expirada")
+            logger.warning(f"[session-v2] No session found for hash {token_hash[:16]}")
+            raise HTTPException(status_code=401, detail="Sesión inválida o expirada (v2)")
 
         finally:
             await conn.close()
@@ -577,8 +586,8 @@ async def get_session(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Session validation error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error validando sesión")
+        logger.error(f"[session-v2] Session validation error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error validando sesión: {str(e)}")
 
 
 @router.post("/otp/logout", response_model=APIResponse)
