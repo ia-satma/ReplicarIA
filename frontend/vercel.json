@@ -38,7 +38,7 @@
       "dest": "/mascot.webp"
     },
     {
-      "src": "/(.*\\.(png|jpg|jpeg|gif|webp|svg|ico|css|js|json|woff|woff2|ttf|eot))",
+      "src": "/(.*\\.(png|jpg|jpeg|gif|webp|svg|ico|css|js|json|woff|woff2|ttf|eot|mp4|webm|ogg))",
       "dest": "/$1"
     },
     {
