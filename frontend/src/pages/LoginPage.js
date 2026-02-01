@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { loginWithOTP, isAuthenticated } = useAuth();
 
   const [step, setStep] = useState('email');
@@ -12,6 +13,7 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [userInfo, setUserInfo] = useState(null);
+  const [autoSubmitDone, setAutoSubmitDone] = useState(false);
 
   const inputRefs = useRef([]);
 
@@ -20,6 +22,42 @@ const LoginPage = () => {
       navigate('/dashboard');
     }
   }, [isAuthenticated, navigate]);
+
+  // Auto-submit para testing con parámetro ?test_email=xxx
+  useEffect(() => {
+    const testEmail = searchParams.get('test_email');
+    if (testEmail && !autoSubmitDone && !loading && step === 'email') {
+      setEmail(testEmail);
+      setAutoSubmitDone(true);
+      // Auto-submit después de un pequeño delay
+      setTimeout(() => {
+        const submitOTP = async () => {
+          setLoading(true);
+          setError('');
+          const API_URL = process.env.REACT_APP_BACKEND_URL || '';
+          try {
+            const response = await fetch(`${API_URL}/api/auth/otp/request-code`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: testEmail.trim() })
+            });
+            const data = await response.json();
+            if (response.ok && data.success) {
+              setUserInfo(data.data);
+              setStep('code');
+            } else {
+              setError(data.detail || data.message || 'Correo no autorizado');
+            }
+          } catch (err) {
+            setError('Error al solicitar codigo: ' + err.message);
+          } finally {
+            setLoading(false);
+          }
+        };
+        submitOTP();
+      }, 500);
+    }
+  }, [searchParams, autoSubmitDone, loading, step]);
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
