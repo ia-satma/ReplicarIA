@@ -846,6 +846,69 @@ async def auth_health_check():
     )
 
 
+@router.post("/test-login", response_model=APIResponse)
+async def test_login(body: LoginRequest):
+    """
+    Test login without creating session (for debugging).
+    """
+    import bcrypt
+    from services.otp_auth_service import get_db_connection
+
+    steps = []
+    try:
+        steps.append("1. Starting test login")
+        conn = await get_db_connection()
+        if not conn:
+            return APIResponse(success=False, message="No database connection", data={'steps': steps})
+
+        steps.append("2. Connected to database")
+        try:
+            row = await conn.fetchrow('''
+                SELECT id, email, full_name, password_hash, role, status
+                FROM auth_users
+                WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL
+            ''', body.email)
+
+            steps.append(f"3. Query executed, row found: {bool(row)}")
+
+            if not row:
+                return APIResponse(success=False, message="User not found", data={'steps': steps})
+
+            steps.append(f"4. User status: {row['status']}, role: {row['role']}")
+            steps.append(f"5. Password hash exists: {bool(row['password_hash'])}")
+
+            if not row['password_hash']:
+                return APIResponse(success=False, message="No password hash", data={'steps': steps})
+
+            steps.append("6. Attempting bcrypt check...")
+            password_valid = bcrypt.checkpw(body.password.encode('utf-8'), row['password_hash'].encode('utf-8'))
+            steps.append(f"7. Password valid: {password_valid}")
+
+            if not password_valid:
+                return APIResponse(success=False, message="Invalid password", data={'steps': steps})
+
+            return APIResponse(
+                success=True,
+                message="Test login successful - password verified",
+                data={
+                    'steps': steps,
+                    'user': {
+                        'id': str(row['id']),
+                        'email': row['email'],
+                        'full_name': row['full_name'],
+                        'role': row['role']
+                    }
+                }
+            )
+
+        finally:
+            await conn.close()
+
+    except Exception as e:
+        steps.append(f"ERROR: {str(e)}")
+        return APIResponse(success=False, message=f"Error: {str(e)}", data={'steps': steps})
+
+
 @router.post("/init-auth-tables", response_model=APIResponse)
 async def init_auth_tables():
     """

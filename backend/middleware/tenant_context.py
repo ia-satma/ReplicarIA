@@ -131,6 +131,7 @@ SKIP_TENANT_CHECK_PATHS = {
     "/api/auth/debug-auth-users",
     "/api/auth/health",
     "/api/auth/init-auth-tables",
+    "/api/auth/test-login",
     "/api/chat/archivo",
     "/api/chat/archivo/analyze-document",
     "/api/onboarding/complete",
