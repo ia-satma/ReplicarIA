@@ -852,6 +852,37 @@ async def auth_health_check():
     )
 
 
+@router.get("/table-schema", response_model=APIResponse)
+async def get_table_schema():
+    """Get auth_users table schema for debugging."""
+    from services.otp_auth_service import get_db_connection
+
+    try:
+        conn = await get_db_connection()
+        if not conn:
+            return APIResponse(success=False, message="No DB connection")
+
+        try:
+            columns = await conn.fetch('''
+                SELECT column_name, data_type, is_nullable
+                FROM information_schema.columns
+                WHERE table_name = 'auth_users'
+                ORDER BY ordinal_position
+            ''')
+
+            return APIResponse(
+                success=True,
+                message="Table schema",
+                data={
+                    'columns': [dict(c) for c in columns]
+                }
+            )
+        finally:
+            await conn.close()
+    except Exception as e:
+        return APIResponse(success=False, message=str(e))
+
+
 @router.post("/test-login", response_model=APIResponse)
 async def test_login(body: LoginRequest):
     """
