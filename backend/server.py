@@ -1353,9 +1353,19 @@ async def startup_event():
         from services.user_db import init_db
         await init_db()
         await seed_usuarios_autorizados()
-        logger.info("✅ Sistema de autenticación inicializado")
+        logger.info("✅ Sistema de autenticación legacy inicializado")
     except Exception as e:
-        logger.error(f"Error inicializando autenticación: {e}")
+        logger.error(f"Error inicializando autenticación legacy: {e}")
+
+    # Inicializar unified_auth_service (para login con password)
+    try:
+        from services.unified_auth_service import DatabasePool as AuthDatabasePool
+        if await AuthDatabasePool.initialize():
+            logger.info("✅ Unified Auth Service inicializado")
+        else:
+            logger.warning("⚠️ Unified Auth Service no pudo inicializarse - login con password no disponible")
+    except Exception as e:
+        logger.error(f"Error inicializando unified auth: {e}")
     
     # Start Guardian Agent for system monitoring
     await start_guardian_agent()
