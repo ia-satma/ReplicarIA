@@ -671,8 +671,9 @@ api_router.include_router(stream_routes.router)
 api_router.include_router(metrics.router)
 
 # Include optional routers - only if dependencies available
-if auth:
-    api_router.include_router(auth.router)
+# NOTE: auth.router is DEPRECATED - use unified_auth_routes instead for proper DB connection
+# if auth:
+#     api_router.include_router(auth.router)
 if rag:
     api_router.include_router(rag.router)
 if kg_routes:
