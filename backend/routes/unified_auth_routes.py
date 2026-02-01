@@ -163,34 +163,39 @@ class CheckAuthMethodRequest(BaseModel):
 async def check_auth_method(body: CheckAuthMethodRequest):
     """
     Verificar qué método de autenticación usa un email.
-    
+
     - Retorna 'password' para superadmin
     - Retorna 'otp' para usuarios normales
     """
-    from services.unified_auth_service import DatabasePool
-    
+    # Usar la misma conexión que funciona para OTP
+    from services.otp_auth_service import get_db_connection
+
     try:
-        async with await DatabasePool.get_connection() as conn:
-            row = await conn.fetchrow('''
-                SELECT auth_method, role FROM auth_users
-                WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL AND status = 'active'
-            ''', body.email)
-            
-            if row and row['auth_method'] == 'password':
-                return APIResponse(
-                    success=True,
-                    message="Método de autenticación encontrado",
-                    data={
-                        'auth_method': 'password',
-                        'is_superadmin': row['role'] == 'super_admin'
-                    }
-                )
-            else:
-                return APIResponse(
-                    success=True,
-                    message="Método de autenticación: OTP",
-                    data={'auth_method': 'otp'}
-                )
+        conn = await get_db_connection()
+        if conn:
+            try:
+                row = await conn.fetchrow('''
+                    SELECT auth_method, role FROM auth_users
+                    WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL AND status = 'active'
+                ''', body.email)
+
+                if row and row['auth_method'] == 'password':
+                    return APIResponse(
+                        success=True,
+                        message="Método de autenticación encontrado",
+                        data={
+                            'auth_method': 'password',
+                            'is_superadmin': row['role'] == 'super_admin'
+                        }
+                    )
+            finally:
+                await conn.close()
+
+        return APIResponse(
+            success=True,
+            message="Método de autenticación: OTP",
+            data={'auth_method': 'otp'}
+        )
     except Exception as e:
         logger.error(f"Error checking auth method: {e}")
         return APIResponse(
@@ -208,39 +213,82 @@ async def login(request: Request, body: LoginRequest):
     - Para administradores y usuarios con auth_method='password'
     - Retorna token de sesión
     """
-    try:
-        result = await auth_service.login_with_password(
-            email=body.email,
-            password=body.password,
-            ip_address=get_client_ip(request),
-            user_agent=get_user_agent(request)
-        )
+    import bcrypt
+    import secrets
+    from datetime import datetime, timedelta, timezone
 
-        if result.success:
+    # Usar conexión que funciona (la misma que OTP)
+    from services.otp_auth_service import get_db_connection
+
+    try:
+        conn = await get_db_connection()
+        if not conn:
+            raise HTTPException(status_code=503, detail="Base de datos no disponible")
+
+        try:
+            # Buscar usuario
+            row = await conn.fetchrow('''
+                SELECT id, email, full_name, password_hash, role, status, auth_method,
+                       empresa_id, company_name, email_verified, metadata
+                FROM auth_users
+                WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL
+            ''', body.email)
+
+            if not row:
+                raise HTTPException(status_code=401, detail="Credenciales inválidas")
+
+            if row['status'] != 'active':
+                raise HTTPException(status_code=403, detail="Cuenta no activa")
+
+            if not row['password_hash']:
+                raise HTTPException(status_code=401, detail="Usuario no tiene contraseña configurada")
+
+            # Verificar contraseña
+            if not bcrypt.checkpw(body.password.encode('utf-8'), row['password_hash'].encode('utf-8')):
+                raise HTTPException(status_code=401, detail="Credenciales inválidas")
+
+            # Crear sesión
+            token = secrets.token_urlsafe(32)
+            token_hash = secrets.token_hex(32)  # Simple hash for now
+            expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+
+            await conn.execute('''
+                INSERT INTO auth_sessions (user_id, token_hash, token_prefix, auth_method, expires_at, ip_address, user_agent)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ''', row['id'], token_hash, token[:8], 'password', expires_at,
+                get_client_ip(request), get_user_agent(request))
+
+            # Actualizar último login
+            await conn.execute('''
+                UPDATE auth_users SET last_login_at = NOW() WHERE id = $1
+            ''', row['id'])
+
             return APIResponse(
                 success=True,
-                message=result.message,
+                message="Login exitoso",
                 data={
-                    'access_token': result.token,
+                    'access_token': token,
                     'token_type': 'bearer',
-                    'user': result.user.to_dict() if result.user else None,
-                    'expires_at': result.expires_at.isoformat() if result.expires_at else None
+                    'user': {
+                        'id': str(row['id']),
+                        'email': row['email'],
+                        'full_name': row['full_name'],
+                        'role': row['role'],
+                        'empresa_id': str(row['empresa_id']) if row['empresa_id'] else None,
+                        'company_name': row['company_name'],
+                        'metadata': row['metadata'] or {}
+                    },
+                    'expires_at': expires_at.isoformat()
                 }
             )
-        else:
-            raise HTTPException(
-                status_code=401 if result.error_code == 'INVALID_CREDENTIALS' else 403,
-                detail=result.message
-            )
+        finally:
+            await conn.close()
 
-    except RateLimitError as e:
-        raise HTTPException(
-            status_code=429,
-            detail=e.message,
-            headers={'Retry-After': str(e.retry_after)}
-        )
-    except AuthError as e:
-        raise HTTPException(status_code=e.status_code, detail=e.message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.post("/otp/request-code", response_model=APIResponse)
