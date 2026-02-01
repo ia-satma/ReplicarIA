@@ -929,6 +929,48 @@ async def auth_health_check():
     )
 
 
+@router.get("/debug-sessions", response_model=APIResponse)
+async def debug_sessions():
+    """Debug: show auth_sessions content."""
+    from services.otp_auth_service import get_db_connection
+
+    try:
+        conn = await get_db_connection()
+        if not conn:
+            return APIResponse(success=False, message="No DB")
+
+        try:
+            rows = await conn.fetch('''
+                SELECT id, user_id, token_hash, token_prefix, auth_method, is_active, expires_at, created_at
+                FROM auth_sessions
+                ORDER BY created_at DESC
+                LIMIT 5
+            ''')
+
+            sessions = []
+            for row in rows:
+                sessions.append({
+                    'id': str(row['id']),
+                    'user_id': str(row['user_id']),
+                    'token_prefix': row['token_prefix'],
+                    'token_hash_preview': row['token_hash'][:16] + '...',
+                    'auth_method': row['auth_method'],
+                    'is_active': row['is_active'],
+                    'expires_at': row['expires_at'].isoformat() if row['expires_at'] else None,
+                    'created_at': row['created_at'].isoformat() if row['created_at'] else None
+                })
+
+            return APIResponse(
+                success=True,
+                message=f"Found {len(sessions)} sessions",
+                data={'sessions': sessions}
+            )
+        finally:
+            await conn.close()
+    except Exception as e:
+        return APIResponse(success=False, message=str(e))
+
+
 @router.get("/table-schema", response_model=APIResponse)
 async def get_table_schema():
     """Get auth_users table schema for debugging."""
