@@ -1,8 +1,8 @@
 ---
 id: KB_TAGS_MASTER
 titulo: Mapa de referencias normativas y criterios para Revisar-IA
-version: 1.0
-fecha: 2026-01-23
+version: 2.0
+fecha: 2026-01-31
 ---
 
 # KB_TAGS_REFERENCIAS.md
@@ -56,13 +56,16 @@ fecha: 2026-01-23
 
 | Tag | Artículo | Archivo KB | Agentes | Prioridad |
 |-----|----------|------------|---------|-----------|
+| `@LIVA_1_2A` | Arts. 1, 2-A - Objeto y tasas | `LIVA/LIVA_ART_1_2A_OBJETO_TASAS.md` | A3, A5 | ⭐⭐ |
 | `@LIVA_5` | Art. 5 - Acreditamiento IVA | `LIVA/LIVA_ART_5_ACREDITAMIENTO_IVA.md` | A3, A5 | ⭐⭐⭐ |
+| `@LIVA_29_32` | Arts. 29, 32 - Obligaciones | `LIVA/LIVA_ART_29_32_OBLIGACIONES.md` | A3, A5 | ⭐⭐ |
 | `@LIVA_5_I` | Fr. I - IVA pagado | En BD | A3 | ⭐⭐⭐ |
 | `@LIVA_5_II` | Fr. II - Indispensable | En BD | A3 | ⭐⭐ |
 | `@LIVA_5_III` | Fr. III - Trasladado | En BD | A3 | ⭐⭐ |
 | `@LIVA_5_IV` | Fr. IV - Retenciones | En BD | A3 | ⭐⭐ |
 | `@LIVA_14` | Art. 14 - Servicios | En BD | A3 | ⭐ |
 | `@LIVA_15` | Art. 15 - Exentos | En BD | A3 | ⭐ |
+
 
 ---
 
@@ -75,6 +78,10 @@ fecha: 2026-01-23
 | `@LOTFJA_TFJA` | LOTFJA | `OTRAS_LEYES/LOTFJA_ESTRUCTURA_TFJA.md` | A7 | ⭐ |
 | `@LFDC_DERECHOS` | LFDC | `OTRAS_LEYES/LFDC_DERECHOS_CONTRIBUYENTE.md` | A7 | ⭐⭐ |
 | `@LFPIORPI_VULNERABLES` | LFPIORPI Art. 17 | `OTRAS_LEYES/LFPIORPI_ACTIVIDADES_VULNERABLES.md` | A6, A7 | ⭐ |
+| `@CCF_SERVICIOS` | CCF Libro IV - Contratos | `OTRAS_LEYES/CCF_LIBRO_IV_PRESTACION_SERVICIOS.md` | A4 | ⭐⭐ |
+| `@RMF_2025` | RMF 2025 - Reglas clave | `RMF/RMF_2025_REGLAS_CLAVE.md` | A3, A5, A8 | ⭐⭐⭐ |
+| `@SAT_URLS` | Servicios SAT en línea | `SERVICIOS_SAT_URLS.md` | A5, A6 | ⭐⭐⭐ |
+
 
 ---
 
@@ -94,6 +101,8 @@ fecha: 2026-01-23
 | `@TESIS_RN` | Razón de negocios | `TESIS_CRITERIOS/TESIS_RAZON_NEGOCIOS_5A_CFF.md` | A1, A3, A7 | ⭐⭐⭐ |
 | `@TESIS_MAT_69B` | Materialidad 69-B | `TESIS_CRITERIOS/TESIS_MATERIALIDAD_69B_CFF.md` | A3, A6, A7 | ⭐⭐⭐ |
 | `@TESIS_EI_LISR27` | Estricta indispensabilidad | `TESIS_CRITERIOS/TESIS_ESTRICTA_INDISPENSABILIDAD_LISR27.md` | A3, A1, A5, A7 | ⭐⭐ |
+| `@TFJA_69B_5A` | Criterios TFJA 69-B y 5-A | `TESIS_CRITERIOS/TFJA_CRITERIOS_69B_5A.md` | A3, A7 | ⭐⭐⭐ |
+| `@PRODECON_DED` | Criterios PRODECON deducibilidad | `TESIS_CRITERIOS/PRODECON_CRITERIOS_DEDUCIBILIDAD.md` | A3, A7 | ⭐⭐ |
 
 ---
 

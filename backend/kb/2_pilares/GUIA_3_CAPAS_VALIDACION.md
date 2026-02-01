@@ -1,161 +1,237 @@
-# [GUIA] Las 3 Capas de Validacion Fiscal - REVISAR.IA
+---
+id: GUIA_3_CAPAS_VALIDACION_V2
+titulo: Guía de 3 Capas de Validación - Deducibilidad Integral
+version: 2.0
+fecha: 2026-01-31
+agentes: [A1, A3, A5, A6, A7, A8]
+tags: [validacion, deducibilidad, materialidad, razon_negocios, evidencia]
+---
 
-## Objetivo
+# Guía de Validación: 3 Capas de Deducibilidad
 
-Este documento establece el marco de validacion de 3 capas que todos los agentes
-deben aplicar para evaluar la deducibilidad y defendibilidad de operaciones de servicios.
+## Modelo de Validación
+
+Toda operación de servicios debe validarse en **tres capas**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  CAPA 1: FORMAL-FISCAL                                      │
+│  ├─ CFDI válido y vigente                                   │
+│  ├─ Requisitos LISR 27                                      │
+│  ├─ Requisitos LIVA 5 (IVA)                                 │
+│  └─ CFF 29/29-A (comprobación)                              │
+├─────────────────────────────────────────────────────────────┤
+│  CAPA 2: MATERIALIDAD (CFF 69-B)                            │
+│  ├─ Proveedor fuera de lista 69-B                           │
+│  ├─ Evidencia de prestación efectiva                        │
+│  └─ Cadena documental completa                              │
+├─────────────────────────────────────────────────────────────┤
+│  CAPA 3: RAZÓN DE NEGOCIOS (CFF 5-A)                        │
+│  ├─ Propósito económico documentado                         │
+│  ├─ Vinculación con actividad del contribuyente             │
+│  └─ Justificación gerencial                                 │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## CAPA 1: FORMAL-FISCAL
+## Capa 1: Formal-Fiscal
 
-### Normativa aplicable
-- LISR 27 (Requisitos de deducciones)
-- LIVA 5 (Acreditamiento IVA)
-- CFF 28-29 (Contabilidad y CFDI)
+### LISR 27 - Checklist de Requisitos
 
-### Checklist de validacion
+| Fracción | Requisito | Condición Lógica | Evidencia Mínima |
+|----------|-----------|------------------|------------------|
+| **I** | Estrictamente indispensable | Gasto vinculado al giro | Contrato + descripción del servicio |
+| **III** | Amparado con CFDI | UUID válido en SAT | Consulta validador CFDI |
+| **IV** | Forma de pago | >$2,000 bancarizado | Estado de cuenta bancario |
+| **V** | Retenciones | ISR/IVA retenido si aplica | Constancia de retención |
+| **XVIII** | Registro contable | Póliza con CFDI vinculado | Póliza contable |
+| **XIX** | Partes relacionadas | Precio de mercado | Estudio de precios de transferencia |
 
-| # | Requisito | Evidencia minima | Agente responsable |
-|---|-----------|------------------|-------------------|
-| 1.1 | CFDI valido | UUID verificado en SAT | A3_FISCAL |
-| 1.2 | Descripcion coherente | CFDI con descripcion que coincide con contrato | A3_FISCAL |
-| 1.3 | Clave producto/servicio | Clave SAT congruente con servicio prestado | A3_FISCAL |
-| 1.4 | Pago bancarizado | Estado de cuenta con pago identificable | A5_FINANZAS |
-| 1.5 | Registro contable | Poliza contable con CFDI vinculado | A5_FINANZAS |
-| 1.6 | IVA trasladado | IVA expreso y separado en CFDI | A3_FISCAL |
-| 1.7 | Proveedor valido | RFC activo, no en lista 69-B | A6_PROVEEDOR |
-| 1.8 | Opinion 32-D | Positiva cuando aplica (gobierno/montos) | A6_PROVEEDOR |
+### LIVA 5 - Acreditamiento IVA
 
-### Resultado de CAPA 1
-- **CUMPLE**: 8/8 requisitos OK
-- **CUMPLE CON OBSERVACIONES**: 6-7/8 requisitos OK
-- **NO CUMPLE**: <6/8 requisitos OK
+| Requisito | Condición | Evidencia |
+|-----------|-----------|-----------|
+| IVA trasladado | Campo en CFDI | CFDI con desglose |
+| IVA pagado | Erogación efectiva | Estado de cuenta |
+| Gasto deducible ISR | Cumple capa 1 | Análisis integral |
 
----
+### CFF 29/29-A - Comprobación
 
-## CAPA 2: MATERIALIDAD
-
-### Normativa aplicable
-- CFF 69-B (Operaciones inexistentes / EFOS)
-- Jurisprudencia de materialidad
-
-### Objetivo
-Demostrar que el servicio REALMENTE se presto, no solo existe el CFDI.
-
-### Checklist de validacion
-
-| # | Requisito | Evidencia minima | Agente responsable |
-|---|-----------|------------------|-------------------|
-| 2.1 | Contrato detallado | Contrato/SOW con alcance, metricas, entregables | A2_PMO |
-| 2.2 | Ordenes de trabajo | SOW, actas de servicio por periodo | A2_PMO |
-| 2.3 | Entregables | Informes, reportes, productos digitales | A2_PMO |
-| 2.4 | Comunicacion | Correos, tickets, logs de interaccion | A2_PMO |
-| 2.5 | Capacidad del proveedor | Web, empleados, infraestructura verificable | A6_PROVEEDOR |
-| 2.6 | Uso en operacion | Evidencia de que el servicio se uso en el negocio | A1_SPONSOR |
-
-### Banderas rojas de materialidad
-- Proveedor en lista 69-B (presunto o definitivo)
-- Solo existe CFDI + contrato, sin mas evidencia
-- Proveedor sin infraestructura congruente con el servicio
-- Servicios "intangibles" sin entregables documentados
-
-### Resultado de CAPA 2
-- **MATERIALIDAD FUERTE**: 6/6 requisitos con evidencia solida
-- **MATERIALIDAD DEBIL**: 3-5/6 requisitos documentados
-- **SIN MATERIALIDAD**: <3/6 requisitos, alto riesgo 69-B
+| Elemento CFDI | Validación |
+|---------------|------------|
+| UUID | Vigente en SAT |
+| RFC Emisor | Válido, no en 69-B definitivo |
+| UsoCFDI | Coherente con tipo de gasto |
+| ClaveProdServ | Corresponde al servicio real |
+| ObjetoImp | Correctamente configurado |
 
 ---
 
-## CAPA 3: RAZON DE NEGOCIOS
+## Capa 2: Materialidad
 
-### Normativa aplicable
-- CFF 5-A (Razon de negocios)
-- Jurisprudencia relacionada
+### Validación de Proveedor
 
-### Objetivo
-Demostrar que la operacion tiene proposito economico REAL mas alla del beneficio fiscal.
+| Check | Fuente | Riesgo si falla |
+|-------|--------|-----------------|
+| No en lista 69-B | SAT portal | 🔴 CRÍTICO |
+| Opinión 32-D positiva | SAT portal | 🟡 ALTO (si aplica) |
+| RFC activo | SAT | 🔴 CRÍTICO |
+| Registro REPSE | STPS (si aplica) | 🔴 CRÍTICO |
 
-### Preguntas clave a documentar
+### Evidencia de Prestación Efectiva
 
-1. **¿Que problema de negocio resuelve el servicio?**
-   - Descripcion clara del problema/necesidad
-   - Situacion antes del servicio
+| Tipo de Evidencia | Descripción | Peso Probatorio |
+|-------------------|-------------|-----------------|
+| **Contrato/SOW** | Descripción detallada de servicios | ⭐⭐ |
+| **Orden de trabajo** | Solicitud formal del servicio | ⭐⭐ |
+| **Entregables** | Reportes, informes, productos | ⭐⭐⭐ |
+| **Correos/comunicaciones** | Gestión del servicio | ⭐⭐ |
+| **Actas de recepción** | Conformidad del cliente | ⭐⭐⭐ |
+| **Logs/registros** | Uso de sistemas, accesos | ⭐⭐ |
+| **Pagos bancarizados** | Transferencias identificables | ⭐⭐⭐ |
 
-2. **¿Cual habria sido el escenario SIN esta operacion?**
-   - Impacto en operaciones
-   - Alternativas consideradas
-   - Por que se eligio esta opcion
+### Banderas de Riesgo Materialidad
 
-3. **¿El beneficio economico supera el beneficio fiscal?**
-   - Cuantificacion del BEE (Beneficio Economico Esperado)
-   - Comparacion con ahorro fiscal
-   - Ratio BEE/BF > 1
-
-### Checklist de validacion
-
-| # | Requisito | Evidencia minima | Agente responsable |
-|---|-----------|------------------|-------------------|
-| 3.1 | Justificacion interna | Memorandos, minutas, aprobaciones de proyecto | A1_SPONSOR |
-| 3.2 | Analisis costo-beneficio | Documento de evaluacion economica | A1_SPONSOR |
-| 3.3 | Decision documentada | Acta de consejo, email de aprobacion | A1_SPONSOR |
-| 3.4 | Vinculacion con KPIs | Metricas de negocio afectadas | A5_FINANZAS |
-| 3.5 | Hipotesis de negocio | Documento explicando la logica de la operacion | A1_SPONSOR |
-
-### Resultado de CAPA 3
-- **RN SOLIDA**: 5/5 requisitos bien documentados, BEE > BF
-- **RN DEBIL**: 2-4/5 requisitos, BEE cercano a BF
-- **SIN RN**: <2/5 requisitos, unico beneficio visible es fiscal
-
----
-
-## SEMAFORO CONSOLIDADO
-
-### Evaluacion final de operacion
-
-| Color | Capa 1 | Capa 2 | Capa 3 | Dictamen |
-|-------|--------|--------|--------|----------|
-| VERDE | CUMPLE | MATERIALIDAD FUERTE | RN SOLIDA | Deducible, defendible |
-| AMARILLO | CUMPLE* | MATERIALIDAD DEBIL | RN DEBIL | Deducible con observaciones, documentar mas |
-| ROJO | NO CUMPLE | SIN MATERIALIDAD | SIN RN | No deducible / Alto riesgo auditoria |
-
-*CUMPLE o CUMPLE CON OBSERVACIONES
-
-### Acciones por color
-
-**VERDE**
-- Proceder con deduccion
-- Mantener expediente organizado
-- Score defendibilidad: 85-100
-
-**AMARILLO**
-- Documentar evidencia adicional antes de deducir
-- Alertar al cliente sobre gaps
-- Score defendibilidad: 60-84
-- Considerar reunion con cliente para fortalecer evidencia
-
-**ROJO**
-- NO DEDUCIR sin documentacion adicional
-- Alertar riesgo alto al cliente
-- Score defendibilidad: <60
-- Evaluar si se puede remediar antes de cierre fiscal
+```python
+def evaluar_materialidad(operacion):
+    banderas = []
+    
+    if proveedor_en_lista_69b(operacion.rfc_emisor):
+        banderas.append("🔴 PROVEEDOR EN LISTA 69-B")
+    
+    if sin_entregables(operacion):
+        banderas.append("🟡 SIN ENTREGABLES DOCUMENTADOS")
+    
+    if solo_cfdi_contrato(operacion):
+        banderas.append("🟡 SOLO CFDI Y CONTRATO - DÉBIL")
+    
+    if proveedor_sin_infraestructura(operacion):
+        banderas.append("🟡 PROVEEDOR SIN CAPACIDAD APARENTE")
+    
+    if descripcion_generica(operacion.cfdi.concepto):
+        banderas.append("🟡 DESCRIPCIÓN GENÉRICA EN CFDI")
+    
+    return banderas
+```
 
 ---
 
-## USO POR AGENTES
+## Capa 3: Razón de Negocios
 
-| Agente | Capas que valida | Responsabilidad principal |
-|--------|------------------|--------------------------|
-| A1_SPONSOR | Capa 3 | Razon de negocios, BEE |
-| A2_PMO | Capa 2 | Materialidad, entregables |
-| A3_FISCAL | Capa 1 | Formal-fiscal, CFDI, LISR 27 |
-| A5_FINANZAS | Capa 1, 3 | Pagos, contabilidad, KPIs |
-| A6_PROVEEDOR | Capa 1, 2 | Due diligence proveedor |
-| A7_DEFENSA | Todas | Consolidar para defensa fiscal |
-| A8_AUDITOR | Todas | Verificacion independiente |
+### Preguntas de Validación
+
+| Pregunta | Respuesta Esperada |
+|----------|-------------------|
+| ¿Qué problema de negocio resuelve? | Descripción concreta de necesidad |
+| ¿Qué pasaría sin este servicio? | Impacto operativo identificable |
+| ¿Quién aprobó la contratación? | Evidencia de decisión gerencial |
+| ¿El precio es razonable? | Comparables o justificación |
+
+### Evidencia Documental
+
+| Documento | Propósito |
+|-----------|-----------|
+| Memorando/minuta interna | Justificación de la necesidad |
+| Aprobación de directivos | Cadena de autorización |
+| Análisis costo-beneficio | Evaluación económica |
+| KPIs afectados | Vinculación con resultados |
+| Comparativos de mercado | Justificación del proveedor |
+
+### Banderas de Riesgo Razón de Negocios
+
+```python
+def evaluar_razon_negocios(operacion):
+    banderas = []
+    
+    if sin_aprobacion_gerencial(operacion):
+        banderas.append("🟡 SIN APROBACIÓN DOCUMENTADA")
+    
+    if beneficio_solo_fiscal(operacion):
+        banderas.append("🔴 SOLO BENEFICIO FISCAL APARENTE")
+    
+    if precio_fuera_mercado(operacion):
+        banderas.append("🟡 PRECIO FUERA DE MERCADO")
+    
+    if proveedor_parte_relacionada(operacion) and sin_tp(operacion):
+        banderas.append("🟡 PARTE RELACIONADA SIN TP")
+    
+    return banderas
+```
 
 ---
 
-## Tags relacionados
+## Semáforo de Deducibilidad
 
-@3_CAPAS @VALIDACION @SEMAFORO @LISR_27 @CFF_69B @CFF_5A @MATERIALIDAD @RAZON_NEGOCIOS @DEDUCIBILIDAD
+### Resultado Consolidado
+
+| Color | Significado | Criterio |
+|-------|-------------|----------|
+| 🟢 **VERDE** | Deducible | Cumple 3 capas con evidencia robusta |
+| 🟡 **AMARILLO** | Revisar | Formales OK, débil en materialidad o razón de negocios |
+| 🔴 **ROJO** | No deducible | Proveedor 69-B, sin CFDI válido, o sin evidencia mínima |
+
+### Matriz de Decisión
+
+| Capa 1 | Capa 2 | Capa 3 | Resultado |
+|--------|--------|--------|-----------|
+| ✅ | ✅ | ✅ | 🟢 VERDE |
+| ✅ | ✅ | ⚠️ | 🟡 AMARILLO |
+| ✅ | ⚠️ | ✅ | 🟡 AMARILLO |
+| ✅ | ⚠️ | ⚠️ | 🟡 AMARILLO (con alerta) |
+| ❌ | cualquier | cualquier | 🔴 ROJO |
+| cualquier | ❌ | cualquier | 🔴 ROJO |
+
+---
+
+## Evidencias Mínimas por Tipo de Servicio
+
+### Servicios de Consultoría/Asesoría
+
+| Evidencia | Obligatoria |
+|-----------|-------------|
+| Contrato con alcance específico | ✅ |
+| Entregables (reportes, informes) | ✅ |
+| Correos de gestión/revisión | ✅ |
+| Acta de recepción conformidad | Recomendada |
+
+### Servicios de TI/Desarrollo
+
+| Evidencia | Obligatoria |
+|-----------|-------------|
+| SOW/Orden de trabajo | ✅ |
+| Código fuente/sistema entregado | ✅ |
+| Logs de acceso/desarrollo | ✅ |
+| Documentación técnica | Recomendada |
+
+### Servicios de Marketing/Publicidad
+
+| Evidencia | Obligatoria |
+|-----------|-------------|
+| Brief de campaña | ✅ |
+| Materiales producidos | ✅ |
+| Reportes de métricas | ✅ |
+| Facturas de medios | Recomendada |
+
+### Servicios de Outsourcing/REPSE
+
+| Evidencia | Obligatoria |
+|-----------|-------------|
+| Contrato de subcontratación | ✅ |
+| Registro REPSE vigente | ✅ |
+| Listas de personal | ✅ |
+| Constancias IMSS/INFONAVIT | ✅ |
+
+---
+
+## Referencias Normativas
+
+- `@LISR_27_I` a `@LISR_27_XIX` - Requisitos de deducciones
+- `@CFF_5A` - Razón de negocios
+- `@CFF_69B` - Materialidad/EFOS
+- `@LIVA_5` - Acreditamiento IVA
+- `@NOM151` - Conservación electrónica
+
+---
+
+**Versión:** 2.0 | **Fecha:** 2026-01-31
