@@ -1,360 +1,266 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-import { useChatMessages, useFileUpload, useOnboardingSteps, useChatAPI } from '../hooks';
-import { MessageList, ChatInput, FileUploadArea, ProgressIndicator, ConfirmationCard } from './chatbot';
-import { Modal, ErrorMessage } from './shared';
-import { SYSTEM_MESSAGES, AGENTS, ONBOARDING_STEPS } from '../constants/onboarding';
 import { useAuth } from '../context/AuthContext';
 
+// Componente principal del Chatbot de Onboarding
 const ChatbotArchivo = () => {
   const navigate = useNavigate();
+  const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
-  const { empresaId, isSuperAdmin } = useAuth();
-  
-  const chat = useChatMessages();
-  const files = useFileUpload(handleFileAnalysisComplete);
-  const steps = useOnboardingSteps();
-  const api = useChatAPI();
 
-  const [showFileModal, setShowFileModal] = useState(false);
+  const { user, empresaId, isSuperAdmin, token } = useAuth();
+
+  // Estado del chat
+  const [messages, setMessages] = useState([]);
+  const [inputValue, setInputValue] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Estado del onboarding
+  const [step, setStep] = useState('select_type'); // select_type, upload_docs, enter_data, confirm, complete
+  const [entityType, setEntityType] = useState(null); // 'cliente' o 'proveedor'
+  const [extractedData, setExtractedData] = useState({});
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [emailContacto, setEmailContacto] = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Scroll automático al final de los mensajes
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   useEffect(() => {
-    if (chat.messages.length === 0) {
-      setTimeout(() => {
-        chat.addBotMessage(`¡Hola! 👋 Soy el Asistente de Archivo de REVISAR.IA.
+    scrollToBottom();
+  }, [messages]);
+
+  // Agregar mensaje al chat
+  const addMessage = useCallback((text, sender = 'bot', options = {}) => {
+    setMessages(prev => [...prev, {
+      id: Date.now(),
+      text,
+      sender,
+      timestamp: new Date(),
+      ...options
+    }]);
+  }, []);
+
+  // Mensaje inicial
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      addMessage(`Hola! Soy el Asistente de Archivo de REVISAR.IA.
 
 Puedo ayudarte a dar de alta nuevos **clientes** o **proveedores** de forma inteligente.
 
-**¿Cómo funciona?**
-1. 📁 Sube los documentos que tengas (contratos, facturas, CSF, etc.)
-2. 📧 Dame un email de contacto
-3. 🔍 Analizaré los documentos y buscaré datos faltantes en internet
-4. ✅ Confirmas y creamos el registro automáticamente
+**Como funciona?**
+1. Sube los documentos que tengas (contratos, facturas, CSF, etc.)
+2. Dame un email de contacto
+3. Analizare los documentos y extraere los datos automaticamente
+4. Confirmas y creamos el registro
 
-**¿Qué quieres dar de alta hoy?**`, {
-          agent: 'ARCHIVO',
-          suggestions: [
-            { text: 'Registrar cliente', value: 'cliente' },
-            { text: 'Registrar proveedor', value: 'proveedor' },
-          ],
-        });
-        steps.setCurrentStep('select_type');
-      }, 500);
-    }
-  }, []);
+**Que quieres dar de alta hoy?**`, 'bot', {
+        suggestions: [
+          { text: 'Registrar cliente', value: 'cliente' },
+          { text: 'Registrar proveedor', value: 'proveedor' },
+        ]
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [addMessage]);
 
+  // Seleccionar tipo de entidad
   const handleSelectEntityType = useCallback((tipo) => {
-    steps.selectEntityType(tipo);
-    steps.setIntelligentMode(true);
-    chat.addUserMessage(`Quiero dar de alta un ${tipo}`);
-    
+    setEntityType(tipo);
+    addMessage(`Quiero dar de alta un ${tipo}`, 'user');
+
     setTimeout(() => {
       if (tipo === 'cliente') {
-        chat.addBotMessage(`Perfecto, vamos a dar de alta un nuevo **cliente**.
+        addMessage(`Perfecto, vamos a dar de alta un nuevo **cliente**.
 
-Para clientes los requisitos son mínimos. Puedes:
+Para clientes los requisitos son minimos:
+- Nombre de la empresa
+- Email de contacto
+- RFC (opcional)
 
-📝 **Opción 1: Datos básicos**
-Simplemente dime el nombre de la empresa y un email de contacto.
+Puedes subir documentos para extraer datos automaticamente, o ingresar los datos manualmente.
 
-📁 **Opción 2: Con documentos** (opcional)
-Si tienes contratos u otros documentos, súbelos y extraeré los datos automáticamente.
-
-*El RFC y CSF no son obligatorios para clientes.*
-
-¿Cómo prefieres continuar?`, { agent: 'ARCHIVO' });
-      } else {
-        chat.addBotMessage(`Perfecto, vamos a dar de alta un nuevo **proveedor**.
-
-⚠️ **Para proveedores se requiere validación fiscal completa:**
-
-📋 **Documentos OBLIGATORIOS:**
-1. **Acta Constitutiva** - Para verificar el objeto social vs lo que facturan
-2. **Constancia de Situación Fiscal (CSF)** - Para validar régimen fiscal
-3. **Opinión de Cumplimiento del SAT** - Para verificar que esté al corriente
-
-📁 **Documentos opcionales:**
-- Contratos de servicio
-- Facturas de muestra
-- Identificación del representante legal
-
-Sube los documentos y analizaré que todo sea congruente.`, { agent: 'ARCHIVO' });
-      }
-      steps.setCurrentStep('upload_docs');
-    }, 500);
-  }, [chat, steps]);
-
-  const handleSendMessage = useCallback(async (content) => {
-    chat.addUserMessage(content);
-
-    // Handle post-completion actions
-    if (steps.currentStep === 'completed' || steps.onboardingStatus === 'completed') {
-      const contentLower = content.toLowerCase();
-      if (contentLower.includes('dashboard') || contentLower.includes('panel')) {
-        navigate('/dashboard');
-        return;
-      }
-      if (contentLower.includes('nuevo') || contentLower.includes('otro') || contentLower.includes('alta')) {
-        handleResetOnboarding();
-        return;
-      }
-      // If they type something else after completion, offer options again
-      chat.addBotMessage(`El registro ya fue completado. ¿Qué deseas hacer ahora?`, {
-        agent: 'ARCHIVO',
-        suggestions: [
-          { text: 'Dar de alta otro', value: 'nuevo' },
-          { text: 'Ir al Dashboard', value: 'dashboard' },
-        ],
-      });
-      return;
-    }
-
-    if (steps.currentStep === 'select_type') {
-      if (content.toLowerCase().includes('cliente')) {
-        handleSelectEntityType('cliente');
-        return;
-      } else if (content.toLowerCase().includes('proveedor')) {
-        handleSelectEntityType('proveedor');
-        return;
-      }
-    }
-
-    if (steps.currentStep === 'request_email') {
-      const emailMatch = content.match(/[^\s@]+@[^\s@]+\.[^\s@]+/);
-      if (emailMatch) {
-        steps.setEmailContacto(emailMatch[0]);
-        chat.addBotMessage(`✅ Email registrado: ${emailMatch[0]}`, { agent: 'ARCHIVO' });
-        showConfirmation();
-      } else {
-        chat.addBotMessage('⚠️ No encontré un email válido. Por favor proporciona un email como ejemplo@empresa.com', { agent: 'ARCHIVO' });
-      }
-      return;
-    }
-
-    if (steps.currentStep === 'awaiting_data') {
-      const nuevosDatos = { ...(steps.extractedData || {}) };
-      
-      if (!nuevosDatos.nombre && !nuevosDatos.razon_social) {
-        nuevosDatos.nombre = content;
-        nuevosDatos.razon_social = content;
-      }
-      
-      const rfcMatch = content.match(/[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}/i);
-      if (rfcMatch) nuevosDatos.rfc = rfcMatch[0].toUpperCase();
-      
-      const emailMatch = content.match(/[^\s@]+@[^\s@]+\.[^\s@]+/);
-      if (emailMatch) {
-        nuevosDatos.email = emailMatch[0];
-        steps.setEmailContacto(emailMatch[0]);
-      }
-      
-      steps.mergeExtractedData(nuevosDatos);
-      
-      if (!nuevosDatos.email && !steps.emailContacto) {
-        requestEmail();
-      } else {
-        showConfirmation();
-      }
-      return;
-    }
-
-    if (api.useRealAI) {
-      chat.setTyping(true);
-      try {
-        chat.startStreaming({ agent: 'ARCHIVO' });
-        
-        await api.sendToClaudeAPI({
-          message: content,
-          conversationHistory: chat.conversationHistory,
-          companyContext: steps.collectedData,
-          stream: true,
-          onStreamChunk: (chunk) => chat.updateStreamingMessage(chunk),
+**Que prefieres hacer?**`, 'bot', {
+          suggestions: [
+            { text: 'Subir documentos', value: 'upload' },
+            { text: 'Ingresar datos manualmente', value: 'manual' },
+          ]
         });
-        
-        chat.finalizeStreamingMessage();
-      } catch (error) {
-        chat.cancelStreaming();
-        chat.addSystemMessage(`Error: ${error.message}`, 'error');
-      }
-      chat.setTyping(false);
-    }
-  }, [chat, steps, api, handleSelectEntityType]);
+      } else {
+        addMessage(`Perfecto, vamos a dar de alta un nuevo **proveedor**.
 
+Para proveedores se requiere validacion fiscal:
+- RFC obligatorio
+- Constancia de Situacion Fiscal
+- Verificacion en Lista 69-B del SAT
+
+Sube los documentos del proveedor para analizarlos.`, 'bot', {
+          suggestions: [
+            { text: 'Subir documentos', value: 'upload' },
+          ]
+        });
+      }
+      setStep('upload_docs');
+    }, 300);
+  }, [addMessage]);
+
+  // Manejar archivo seleccionado
+  const handleFileChange = async (event) => {
+    const files = Array.from(event.target.files);
+    if (files.length === 0) return;
+
+    setIsLoading(true);
+    addMessage(`Subiendo ${files.length} archivo(s): ${files.map(f => f.name).join(', ')}`, 'user');
+    addMessage('Analizando documentos con IA...', 'bot');
+
+    const newFiles = [];
+    const allExtracted = {};
+
+    for (const file of files) {
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/chat/archivo/analyze-document', {
+          method: 'POST',
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          body: formData
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success !== false) {
+          newFiles.push({
+            id: Date.now() + Math.random(),
+            name: file.name,
+            status: 'analyzed',
+            result
+          });
+
+          // Extraer datos del resultado
+          if (result.extracted_data) {
+            Object.assign(allExtracted, result.extracted_data);
+          }
+          if (result.rfc) allExtracted.rfc = result.rfc;
+          if (result.razon_social) allExtracted.razon_social = result.razon_social;
+          if (result.nombre) allExtracted.nombre = result.nombre;
+          if (result.direccion) allExtracted.direccion = result.direccion;
+          if (result.regimen_fiscal) allExtracted.regimen_fiscal = result.regimen_fiscal;
+        } else {
+          newFiles.push({
+            id: Date.now() + Math.random(),
+            name: file.name,
+            status: 'error',
+            error: result.detail || 'Error al analizar'
+          });
+        }
+      } catch (err) {
+        newFiles.push({
+          id: Date.now() + Math.random(),
+          name: file.name,
+          status: 'error',
+          error: err.message
+        });
+      }
+    }
+
+    setUploadedFiles(prev => [...prev, ...newFiles]);
+
+    if (Object.keys(allExtracted).length > 0) {
+      setExtractedData(prev => ({ ...prev, ...allExtracted }));
+
+      const datosMsg = Object.entries(allExtracted)
+        .filter(([k, v]) => v)
+        .map(([k, v]) => `- **${k}:** ${v}`)
+        .join('\n');
+
+      addMessage(`Datos extraidos automaticamente:\n\n${datosMsg}\n\nPor favor proporciona un email de contacto para continuar.`, 'bot');
+      setStep('enter_data');
+    } else {
+      addMessage('No se pudieron extraer datos automaticamente. Por favor ingresa los datos manualmente.\n\nEscribe el nombre de la empresa:', 'bot');
+      setStep('enter_data');
+    }
+
+    setIsLoading(false);
+    event.target.value = '';
+  };
+
+  // Manejar envío de mensaje
+  const handleSendMessage = useCallback(() => {
+    if (!inputValue.trim() || isLoading) return;
+
+    const message = inputValue.trim();
+    setInputValue('');
+    addMessage(message, 'user');
+
+    // Procesar según el paso actual
+    if (step === 'enter_data') {
+      // Detectar email
+      const emailMatch = message.match(/[^\s@]+@[^\s@]+\.[^\s@]+/);
+      if (emailMatch) {
+        setEmailContacto(emailMatch[0]);
+        addMessage(`Email registrado: ${emailMatch[0]}`, 'bot');
+        setShowConfirmModal(true);
+        setStep('confirm');
+        return;
+      }
+
+      // Detectar RFC
+      const rfcMatch = message.match(/[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}/i);
+      if (rfcMatch) {
+        setExtractedData(prev => ({ ...prev, rfc: rfcMatch[0].toUpperCase() }));
+        addMessage(`RFC registrado: ${rfcMatch[0].toUpperCase()}`, 'bot');
+      }
+
+      // Si no hay nombre, usar el mensaje como nombre
+      if (!extractedData.nombre && !extractedData.razon_social && !emailMatch && !rfcMatch) {
+        setExtractedData(prev => ({
+          ...prev,
+          nombre: message,
+          razon_social: message
+        }));
+        addMessage(`Nombre registrado: ${message}\n\nAhora proporciona el email de contacto:`, 'bot');
+      }
+    }
+  }, [inputValue, isLoading, step, addMessage, extractedData]);
+
+  // Manejar sugerencias
   const handleSuggestionClick = useCallback((suggestion) => {
-    const value = typeof suggestion === 'string' ? suggestion : suggestion.value || suggestion.text;
+    const value = suggestion.value || suggestion.text;
 
     if (value === 'cliente' || value === 'proveedor') {
       handleSelectEntityType(value);
+    } else if (value === 'upload') {
+      fileInputRef.current?.click();
+    } else if (value === 'manual') {
+      addMessage('Ingresar datos manualmente', 'user');
+      addMessage('Escribe el nombre o razon social de la empresa:', 'bot');
+      setStep('enter_data');
     } else if (value === 'dashboard') {
       navigate('/dashboard');
     } else if (value === 'nuevo') {
-      handleResetOnboarding();
-    } else {
-      handleSendMessage(value);
+      // Reiniciar
+      setMessages([]);
+      setStep('select_type');
+      setEntityType(null);
+      setExtractedData({});
+      setUploadedFiles([]);
+      setEmailContacto('');
+      setShowConfirmModal(false);
     }
-  }, [handleSelectEntityType, handleSendMessage, handleResetOnboarding, navigate]);
+  }, [handleSelectEntityType, addMessage, navigate]);
 
-  async function handleFileAnalysisComplete(results) {
-    if (results.length === 0) return;
-
-    const allExtractedData = {};
-    results.forEach(result => {
-      if (result.extracted_data || result.extractedData) {
-        Object.assign(allExtractedData, result.extracted_data || result.extractedData);
-      }
-    });
-
-    if (Object.keys(allExtractedData).length > 0) {
-      steps.mergeExtractedData(allExtractedData);
-
-      // Show user what data was extracted
-      const datosExtraidos = [];
-      if (allExtractedData.rfc) datosExtraidos.push(`• **RFC:** ${allExtractedData.rfc}`);
-      if (allExtractedData.razon_social) datosExtraidos.push(`• **Razón Social:** ${allExtractedData.razon_social}`);
-      if (allExtractedData.nombre) datosExtraidos.push(`• **Nombre:** ${allExtractedData.nombre}`);
-      if (allExtractedData.regimen_fiscal) datosExtraidos.push(`• **Régimen Fiscal:** ${allExtractedData.regimen_fiscal}`);
-      if (allExtractedData.direccion) datosExtraidos.push(`• **Dirección:** ${allExtractedData.direccion}`);
-      if (allExtractedData.codigo_postal) datosExtraidos.push(`• **C.P.:** ${allExtractedData.codigo_postal}`);
-      if (allExtractedData.email) datosExtraidos.push(`• **Email:** ${allExtractedData.email}`);
-      if (allExtractedData.telefono) datosExtraidos.push(`• **Teléfono:** ${allExtractedData.telefono}`);
-
-      if (datosExtraidos.length > 0) {
-        chat.addBotMessage(`📊 **Datos extraídos automáticamente:**
-
-${datosExtraidos.join('\n')}
-
-🔍 *Revisa que la información sea correcta.*`, { agent: 'ARCHIVO' });
-      }
-    } else {
-      chat.addBotMessage(`📊 **Análisis completado**
-
-He analizado ${results.length} documento(s). No se detectaron datos estructurados automáticamente, pero puedes ingresarlos manualmente.`, { agent: 'ARCHIVO' });
-    }
-
-    if (!allExtractedData.email && !steps.emailContacto) {
-      requestEmail();
-    } else {
-      showConfirmation();
-    }
-  }
-
-  const handleFilesSelected = useCallback(async (selectedFiles) => {
-    const fileArray = Array.from(selectedFiles);
-    await files.handleFileSelect(fileArray);
-    
-    chat.addUserMessage(`📎 Subiendo ${fileArray.length} archivo(s): ${fileArray.map(f => f.name).join(', ')}`);
-    
-    const analyzingMsgId = `analyzing-${Date.now()}`;
-    chat.addBotMessage('🔍 Analizando documentos con IA...', { agent: 'ARCHIVO', id: analyzingMsgId });
-
-    const filesToAnalyze = fileArray.map((file, index) => ({
-      id: `file-${Date.now()}-${index}`,
-      file,
-      name: file.name,
-    }));
-    
-    try {
-      const results = await files.analyzeFiles(filesToAnalyze);
-      
-      chat.removeMessage(analyzingMsgId);
-      
-      const successCount = results.filter(r => r.success).length;
-      const errorCount = results.filter(r => !r.success).length;
-      
-      if (errorCount > 0) {
-        const errorFiles = results.filter(r => !r.success).map(r => r.fileName || r.file_name).join(', ');
-        chat.addBotMessage(`⚠️ Algunos archivos no pudieron analizarse: ${errorFiles}. Puedes continuar con los datos que tenemos o intentar subir nuevamente.`, { agent: 'ARCHIVO' });
-      }
-      
-      if (successCount > 0) {
-        // Mostrar detalles de lo que se analizó para dar confianza al usuario
-        const successResults = results.filter(r => r.success);
-        let detallesAnalisis = successResults.map(r => {
-          const nombre = r.fileName || r.file_name || 'Documento';
-          const clasificacion = r.classification || 'documento';
-          const tipoDoc = clasificacion === 'csf' ? 'Constancia de Situación Fiscal' :
-                         clasificacion === 'contrato' ? 'Contrato' :
-                         clasificacion === 'factura' ? 'Factura' :
-                         clasificacion === 'identificacion' ? 'Identificación' :
-                         clasificacion === 'acta_constitutiva' ? 'Acta Constitutiva' :
-                         clasificacion === 'poder_notarial' ? 'Poder Notarial' :
-                         'Documento General';
-          const palabras = r.word_count || (r.extracted_text ? r.extracted_text.split(' ').length : 0);
-          return `• **${nombre}** → ${tipoDoc} (${palabras} palabras extraídas)`;
-        }).join('\n');
-
-        chat.addBotMessage(`✅ **Análisis completado - ${successCount} archivo(s):**
-
-${detallesAnalisis}
-
-📋 Listo para extraer la información de tus documentos.`, { agent: 'ARCHIVO' });
-      } else if (errorCount > 0 && successCount === 0) {
-        chat.addBotMessage(`❌ No se pudo analizar ningún archivo. Intenta con otro formato (PDF, DOCX) o ingresa los datos manualmente.`, { agent: 'ARCHIVO' });
-      }
-    } catch (err) {
-      console.error('Error analizando archivos:', err);
-      chat.removeMessage(analyzingMsgId);
-      chat.addBotMessage(`❌ Error al analizar documentos: ${err.message || 'Error desconocido'}. Puedes intentar nuevamente o ingresar los datos manualmente.`, { agent: 'ARCHIVO' });
-    }
-    
-    setShowFileModal(false);
-  }, [files, chat]);
-
-  const requestEmail = useCallback(() => {
-    steps.setCurrentStep('request_email');
-    chat.addBotMessage(`📧 **¿Cuál es el email de contacto del ${steps.entityType || 'cliente'}?**
-
-Este email se usará para:
-- Enviar notificaciones
-- Comunicaciones del sistema
-- Solicitar documentos adicionales`, { agent: 'ARCHIVO' });
-  }, [steps, chat]);
-
-  const showConfirmation = useCallback(() => {
-    steps.setShowConfirmation(true);
-    chat.addBotMessage('✅ **¡Listo! He recopilado la siguiente información.** Revisa los datos y confirma para crear el registro.', { agent: 'ARCHIVO' });
-  }, [steps, chat]);
-
-  const handleConfirmData = useCallback(async (editedData) => {
-    // Use edited data if provided, otherwise use original extracted data
-    const finalData = editedData || steps.extractedData;
-
-    // Validate minimum required data
-    const hasRFC = finalData?.rfc && finalData.rfc.trim();
-    const hasName = (finalData?.razon_social && finalData.razon_social.trim()) ||
-                    (finalData?.nombre && finalData.nombre.trim());
-
-    if (!hasRFC && !hasName) {
-      chat.addBotMessage('⚠️ Se requiere al menos el RFC o el nombre de la empresa. Por favor, completa los datos.', { agent: 'ARCHIVO' });
-      return;
-    }
-
-    // Validar empresa_id para proveedores
-    const isProveedor = steps.entityType === 'proveedor';
-    const currentEmpresaId = empresaId || localStorage.getItem('selected_empresa_id');
-
-    if (isProveedor && !currentEmpresaId) {
-      chat.addBotMessage('⚠️ Para crear proveedores, primero debes seleccionar una empresa. Ve a **Proveedores** en el menú y selecciona una empresa.', { agent: 'ARCHIVO' });
-      return;
-    }
-
-    // Update extracted data with edited values
-    if (editedData) {
-      steps.mergeExtractedData(editedData);
-    }
-
-    steps.confirmExtractedData();
-    steps.setOnboardingStatus('loading');
-
-    chat.addBotMessage(`📋 Creando ${steps.entityType || 'cliente'}...`, { agent: 'ARCHIVO' });
+  // Confirmar y crear entidad
+  const handleConfirm = async () => {
+    setIsLoading(true);
+    setError(null);
+    addMessage(`Creando ${entityType}...`, 'bot');
 
     try {
-      const token = localStorage.getItem('auth_token');
-
-      if (!token) {
-        throw new Error('No estás autenticado. Por favor, inicia sesión primero.');
-      }
+      const currentEmpresaId = empresaId || localStorage.getItem('selected_empresa_id');
 
       const response = await fetch('/api/archivo/crear-entidad', {
         method: 'POST',
@@ -363,78 +269,52 @@ Este email se usará para:
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          tipo: steps.entityType || 'cliente',
-          datos: finalData,
-          email_contacto: steps.emailContacto || finalData?.email || '',
+          tipo: entityType || 'cliente',
+          datos: extractedData,
+          email_contacto: emailContacto || extractedData.email || '',
           archivos_ids: [],
-          empresa_id: currentEmpresaId  // Requerido para proveedores
+          empresa_id: currentEmpresaId
         })
       });
 
-      // Leer como text primero para evitar "Body is disturbed or locked"
-      const responseText = await response.text();
-      let data;
-      try {
-        data = responseText ? JSON.parse(responseText) : {};
-      } catch (parseErr) {
-        console.error('[ChatbotArchivo] JSON parse error:', parseErr, 'Response:', responseText.substring(0, 200));
-        throw new Error(`Respuesta inválida del servidor: ${responseText.substring(0, 100)}`);
-      }
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.detail || `Error del servidor (${response.status})`);
       }
 
-      steps.setOnboardingStatus('completed');
-      steps.setShowConfirmation(false);
-      // Reset current step to prevent confusion with future messages
-      steps.setCurrentStep('completed');
+      setShowConfirmModal(false);
+      setStep('complete');
 
-      // Get display name - prioritize razon_social, then nombre, with fallback
-      const displayName = finalData?.razon_social || finalData?.nombre || 'Cliente registrado';
+      const displayName = extractedData.razon_social || extractedData.nombre || 'Entidad';
 
-      chat.addBotMessage(`🎉 **¡${steps.entityType === 'proveedor' ? 'Proveedor' : 'Cliente'} creado exitosamente!**
+      addMessage(`**${entityType === 'proveedor' ? 'Proveedor' : 'Cliente'} creado exitosamente!**
 
 **${displayName}**
-RFC: ${finalData?.rfc || 'N/A'}
+RFC: ${extractedData.rfc || 'N/A'}
 
-✅ Registro creado en el sistema
-✅ Documentos guardados en su expediente
-${finalData?.email || steps.emailContacto ? `✅ Se enviará email de bienvenida a ${finalData?.email || steps.emailContacto}` : ''}
+- Registro creado en el sistema
+- Documentos guardados
+${emailContacto ? `- Se enviara email de bienvenida a ${emailContacto}` : ''}
 
-Puedes editar este ${steps.entityType || 'cliente'} desde el **Panel de Administración**.`, {
-        agent: 'ARCHIVO',
+Que deseas hacer ahora?`, 'bot', {
         suggestions: [
           { text: 'Dar de alta otro', value: 'nuevo' },
           { text: 'Ir al Dashboard', value: 'dashboard' },
-        ],
+        ]
       });
 
-    } catch (error) {
-      steps.setOnboardingStatus('error');
-      chat.addBotMessage(`⚠️ Error creando ${steps.entityType || 'cliente'}: ${error.message}`, { agent: 'ARCHIVO' });
+    } catch (err) {
+      setError(err.message);
+      addMessage(`Error creando ${entityType}: ${err.message}`, 'bot');
+    } finally {
+      setIsLoading(false);
     }
-  }, [steps, chat, empresaId]);
-
-  const handleResetOnboarding = useCallback(() => {
-    steps.resetOnboarding();
-    files.clearAllFiles();
-    chat.clearMessages();
-    
-    setTimeout(() => {
-      chat.addBotMessage(`¡Hola! 👋 ¿Qué quieres dar de alta hoy?`, {
-        agent: 'ARCHIVO',
-        suggestions: [
-          { text: 'Registrar cliente', value: 'cliente' },
-          { text: 'Registrar proveedor', value: 'proveedor' },
-        ],
-      });
-      steps.setCurrentStep('select_type');
-    }, 300);
-  }, [steps, files, chat]);
+  };
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      {/* Sidebar */}
       <aside className="hidden lg:block w-80 bg-black/30 backdrop-blur-sm border-r border-white/10 overflow-y-auto">
         <div className="p-4">
           <div className="flex items-center gap-3 mb-6">
@@ -447,24 +327,49 @@ Puedes editar este ${steps.entityType || 'cliente'} desde el **Panel de Administ
             </div>
           </div>
 
-          {steps.entityType && (
+          {entityType && (
             <div className="mb-4 p-3 bg-white/5 rounded-lg border border-white/10">
               <p className="text-sm text-gray-300">
-                Registrando: <span className="font-semibold text-indigo-400">{steps.entityType === 'cliente' ? 'Cliente' : 'Proveedor'}</span>
+                Registrando: <span className="font-semibold text-indigo-400">
+                  {entityType === 'cliente' ? 'Cliente' : 'Proveedor'}
+                </span>
               </p>
             </div>
           )}
 
-          {typeof steps.currentStep === 'number' && (
-            <ProgressIndicator
-              steps={steps.steps}
-              currentStep={steps.currentStep}
-              onStepClick={steps.goToStep}
-            />
+          {/* Archivos subidos */}
+          {uploadedFiles.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-gray-300 mb-2">Archivos</h3>
+              <div className="space-y-2">
+                {uploadedFiles.map(file => (
+                  <div key={file.id} className="p-2 bg-white/5 rounded text-xs">
+                    <span className={file.status === 'error' ? 'text-red-400' : 'text-green-400'}>
+                      {file.status === 'error' ? '✗' : '✓'}
+                    </span>
+                    <span className="ml-2 text-gray-300">{file.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Datos extraídos */}
+          {Object.keys(extractedData).length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-gray-300 mb-2">Datos</h3>
+              <div className="space-y-1 text-xs text-gray-400">
+                {Object.entries(extractedData).filter(([k,v]) => v).map(([key, val]) => (
+                  <div key={key}>
+                    <span className="text-gray-500">{key}:</span> {val}
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           <button
-            onClick={handleResetOnboarding}
+            onClick={() => handleSuggestionClick({ value: 'nuevo' })}
             className="w-full mt-4 px-4 py-2 text-sm text-gray-400 hover:text-gray-200 hover:bg-white/10 rounded-lg transition-colors"
           >
             🔄 Empezar de nuevo
@@ -472,113 +377,181 @@ Puedes editar este ${steps.entityType || 'cliente'} desde el **Panel de Administ
         </div>
       </aside>
 
+      {/* Main Chat Area */}
       <main className="flex-1 flex flex-col">
+        {/* Header móvil */}
         <header className="lg:hidden bg-black/30 backdrop-blur-sm border-b border-white/10 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xl">📁</span>
             <h1 className="font-semibold text-gray-100">ARCHIVO</h1>
           </div>
-          {steps.entityType && (
+          {entityType && (
             <span className="text-sm text-indigo-400">
-              {steps.entityType === 'cliente' ? 'Cliente' : 'Proveedor'}
+              {entityType === 'cliente' ? 'Cliente' : 'Proveedor'}
             </span>
           )}
         </header>
 
-        <MessageList
-          messages={chat.messages}
-          isTyping={chat.isTyping}
-          currentAgent="ARCHIVO"
-          onSuggestionClick={handleSuggestionClick}
-          className="flex-1"
-        />
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.map(msg => (
+            <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                msg.sender === 'user'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white/10 text-gray-100'
+              }`}>
+                <div className="whitespace-pre-wrap text-sm">
+                  {msg.text.split('**').map((part, i) =>
+                    i % 2 === 1 ? <strong key={i}>{part}</strong> : part
+                  )}
+                </div>
 
-        {(api.lastError || steps.onboardingError) && (
-          <div className="px-4">
-            <ErrorMessage
-              message={api.lastError || steps.onboardingError}
-              onDismiss={() => {
-                api.clearError();
-                steps.clearError();
-              }}
-            />
+                {/* Sugerencias */}
+                {msg.suggestions && msg.suggestions.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {msg.suggestions.map((sug, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleSuggestionClick(sug)}
+                        className="px-3 py-1.5 text-xs bg-white/20 hover:bg-white/30 rounded-full transition-colors"
+                      >
+                        {sug.text}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-white/10 rounded-2xl px-4 py-3">
+                <div className="flex gap-1">
+                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span>
+                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></span>
+                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="px-4 py-2 bg-red-900/50 border-t border-red-500/50">
+            <p className="text-sm text-red-300">{error}</p>
+            <button onClick={() => setError(null)} className="text-xs text-red-400 hover:text-red-200">
+              Cerrar
+            </button>
           </div>
         )}
 
-        <ChatInput
-          onSend={handleSendMessage}
-          onAttach={() => setShowFileModal(true)}
-          disabled={chat.isTyping || chat.isStreaming || api.isSearchingWeb}
-          placeholder={
-            steps.entityType
-              ? `Escribe aquí para continuar con el registro del ${steps.entityType}...`
-              : 'Escribe aquí para comenzar...'
-          }
-        />
+        {/* Input Area */}
+        <div className="p-4 border-t border-white/10 bg-black/20">
+          <div className="flex gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+              multiple
+              accept=".pdf,.docx,.xlsx,.txt,.xml,.png,.jpg,.jpeg"
+            />
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              className="px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-gray-300 transition-colors disabled:opacity-50"
+              title="Subir archivos"
+            >
+              📎
+            </button>
+
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              placeholder={step === 'enter_data' ? 'Escribe aqui...' : 'Selecciona una opcion arriba'}
+              disabled={isLoading || step === 'select_type'}
+              className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+            />
+
+            <button
+              onClick={handleSendMessage}
+              disabled={isLoading || !inputValue.trim()}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white transition-colors disabled:opacity-50"
+            >
+              Enviar
+            </button>
+          </div>
+        </div>
       </main>
 
-      <Modal
-        isOpen={showFileModal}
-        onClose={() => setShowFileModal(false)}
-        title="Subir documentos"
-        size="lg"
-      >
-        <FileUploadArea
-          onFilesSelected={handleFilesSelected}
-          uploadedFiles={files.uploadedFiles}
-          isProcessing={files.isProcessingFile}
-          onRemoveFile={files.removeFile}
-        />
+      {/* Modal de Confirmación */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-xl max-w-lg w-full p-6 border border-white/10">
+            <h2 className="text-xl font-bold text-gray-100 mb-4">
+              Confirmar {entityType === 'proveedor' ? 'Proveedor' : 'Cliente'}
+            </h2>
 
-        {files.uploadedFiles.length > 0 && (
-          <div className="mt-4 flex justify-end gap-3">
-            <button
-              onClick={() => setShowFileModal(false)}
-              className="px-4 py-2 text-gray-300 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={async () => {
-                await files.uploadFilesToCloud();
-                setShowFileModal(false);
-              }}
-              disabled={files.isUploadingDocuments}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              {files.isUploadingDocuments ? 'Subiendo...' : 'Confirmar'}
-            </button>
+            <div className="space-y-3 mb-6">
+              {extractedData.razon_social && (
+                <div>
+                  <span className="text-gray-400 text-sm">Razon Social:</span>
+                  <p className="text-gray-100">{extractedData.razon_social}</p>
+                </div>
+              )}
+              {extractedData.nombre && extractedData.nombre !== extractedData.razon_social && (
+                <div>
+                  <span className="text-gray-400 text-sm">Nombre:</span>
+                  <p className="text-gray-100">{extractedData.nombre}</p>
+                </div>
+              )}
+              {extractedData.rfc && (
+                <div>
+                  <span className="text-gray-400 text-sm">RFC:</span>
+                  <p className="text-gray-100">{extractedData.rfc}</p>
+                </div>
+              )}
+              {extractedData.direccion && (
+                <div>
+                  <span className="text-gray-400 text-sm">Direccion:</span>
+                  <p className="text-gray-100">{extractedData.direccion}</p>
+                </div>
+              )}
+              {emailContacto && (
+                <div>
+                  <span className="text-gray-400 text-sm">Email:</span>
+                  <p className="text-gray-100">{emailContacto}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                disabled={isLoading}
+                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-gray-200 transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirm}
+                disabled={isLoading}
+                className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white transition-colors disabled:opacity-50"
+              >
+                {isLoading ? 'Creando...' : 'Confirmar'}
+              </button>
+            </div>
           </div>
-        )}
-      </Modal>
-
-      <Modal
-        isOpen={steps.showConfirmation}
-        onClose={() => steps.setShowConfirmation(false)}
-        title="Confirmar información"
-        size="lg"
-      >
-        <ConfirmationCard
-          data={{ ...steps.collectedData, ...steps.extractedData, email: steps.emailContacto || steps.extractedData?.email }}
-          onConfirm={handleConfirmData}
-          onCancel={() => steps.setShowConfirmation(false)}
-          isLoading={steps.onboardingStatus === 'loading'}
-          missingFields={steps.extractedData?.missing_critical_fields || []}
-          onDataChange={(newData) => steps.mergeExtractedData(newData)}
-          fieldLabels={{
-            rfc: 'RFC',
-            razon_social: 'Razón Social',
-            nombre: 'Nombre Comercial',
-            regimen_fiscal: 'Régimen Fiscal',
-            direccion: 'Dirección',
-            codigo_postal: 'Código Postal',
-            ciudad: 'Ciudad',
-            estado: 'Estado',
-            email: 'Email',
-            telefono: 'Teléfono',
-          }}
-        />
-      </Modal>
+        </div>
+      )}
     </div>
   );
 };
