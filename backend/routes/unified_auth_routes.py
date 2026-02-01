@@ -846,6 +846,111 @@ async def auth_health_check():
     )
 
 
+@router.post("/init-auth-tables", response_model=APIResponse)
+async def init_auth_tables():
+    """
+    Initialize auth tables in the database.
+    Creates auth_users and auth_sessions if they don't exist.
+    """
+    from services.otp_auth_service import get_db_connection
+    import bcrypt
+
+    try:
+        conn = await get_db_connection()
+        if not conn:
+            return APIResponse(success=False, message="No database connection")
+
+        try:
+            # Check if tables already exist
+            auth_users_exists = await conn.fetchval('''
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = 'auth_users'
+                )
+            ''')
+
+            if auth_users_exists:
+                return APIResponse(
+                    success=True,
+                    message="Tables already exist",
+                    data={'auth_users_exists': True}
+                )
+
+            # Create auth_users table
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS auth_users (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    email VARCHAR(255) UNIQUE NOT NULL,
+                    email_verified BOOLEAN DEFAULT false,
+                    password_hash VARCHAR(255),
+                    full_name VARCHAR(255) NOT NULL,
+                    empresa_id UUID,
+                    company_name VARCHAR(255),
+                    role VARCHAR(50) DEFAULT 'user',
+                    status VARCHAR(50) DEFAULT 'pending',
+                    auth_method VARCHAR(20) DEFAULT 'otp',
+                    last_login_at TIMESTAMP WITH TIME ZONE,
+                    metadata JSONB DEFAULT '{}'::jsonb,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    deleted_at TIMESTAMP WITH TIME ZONE
+                )
+            ''')
+
+            # Create auth_sessions table
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS auth_sessions (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id UUID NOT NULL,
+                    token_hash VARCHAR(255) NOT NULL,
+                    token_prefix VARCHAR(8),
+                    auth_method VARCHAR(20) NOT NULL,
+                    is_active BOOLEAN DEFAULT true,
+                    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                    ip_address VARCHAR(50),
+                    user_agent TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                )
+            ''')
+
+            # Create indexes
+            await conn.execute('CREATE INDEX IF NOT EXISTS idx_auth_users_email ON auth_users(email)')
+            await conn.execute('CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id)')
+
+            # Create superadmin user
+            password_hash = bcrypt.hashpw('Sillybanana142#'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+            await conn.execute('''
+                INSERT INTO auth_users (email, full_name, password_hash, role, status, auth_method, email_verified)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (email) DO UPDATE SET
+                    password_hash = EXCLUDED.password_hash,
+                    role = EXCLUDED.role,
+                    status = EXCLUDED.status,
+                    auth_method = EXCLUDED.auth_method
+            ''', 'santiago@satma.mx', 'Santiago Superadmin', password_hash, 'super_admin', 'active', 'password', True)
+
+            return APIResponse(
+                success=True,
+                message="Auth tables created and superadmin initialized",
+                data={
+                    'tables_created': ['auth_users', 'auth_sessions'],
+                    'superadmin_created': 'santiago@satma.mx'
+                }
+            )
+
+        finally:
+            await conn.close()
+
+    except Exception as e:
+        logger.error(f"Init auth tables error: {e}", exc_info=True)
+        return APIResponse(
+            success=False,
+            message=f"Error: {str(e)}",
+            data={'error': str(e)}
+        )
+
+
 @router.get("/database-status", response_model=APIResponse)
 async def database_status():
     """
