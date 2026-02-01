@@ -230,7 +230,7 @@ class DreamHostEmailService:
         provider_email: Optional[str] = None
     ) -> Dict:
         """
-        Send email from an agent
+        Send email from an agent using SendGrid API (bypasses SMTP blocks on Railway)
         
         Args:
             from_agent_id: Agent ID (A1_SPONSOR, A2_PMO, etc.)
@@ -246,7 +246,10 @@ class DreamHostEmailService:
         Returns:
             Dict with success status and message_id
         """
-        if not self.initialized:
+        # Check for SendGrid API key first (preferred for Railway)
+        sendgrid_api_key = os.environ.get('SENDGRID_API_KEY', '')
+        
+        if not sendgrid_api_key and not self.initialized:
             logger.warning("Email service not initialized - logging email only")
             return self._log_email(from_agent_id, to_email, subject, body)
         
@@ -256,6 +259,155 @@ class DreamHostEmailService:
         if not from_email:
             return {"success": False, "error": f"Unknown agent: {from_agent_id}"}
         
+        # Use SendGrid API if available (bypasses Railway SMTP port blocks)
+        if sendgrid_api_key:
+            return self._send_via_sendgrid(
+                from_agent_id=from_agent_id,
+                from_email=from_email,
+                from_name=from_name,
+                to_email=to_email,
+                subject=subject,
+                body=body,
+                cc_emails=cc_emails,
+                bcc_emails=bcc_emails,
+                html_body=html_body,
+                attachment_path=attachment_path,
+                provider_email=provider_email,
+                api_key=sendgrid_api_key
+            )
+        
+        # Fallback to SMTP if SendGrid not available
+        return self._send_via_smtp(
+            from_agent_id=from_agent_id,
+            from_email=from_email,
+            from_name=from_name,
+            to_email=to_email,
+            subject=subject,
+            body=body,
+            cc_emails=cc_emails,
+            bcc_emails=bcc_emails,
+            html_body=html_body,
+            attachment_path=attachment_path,
+            provider_email=provider_email
+        )
+    
+    def _send_via_sendgrid(
+        self,
+        from_agent_id: str,
+        from_email: str,
+        from_name: str,
+        to_email: str,
+        subject: str,
+        body: str,
+        cc_emails: Optional[List[str]],
+        bcc_emails: Optional[List[str]],
+        html_body: Optional[str],
+        attachment_path: Optional[str],
+        provider_email: Optional[str],
+        api_key: str
+    ) -> Dict:
+        """Send email via SendGrid API"""
+        import httpx
+        import base64
+        
+        try:
+            # Use SendGrid from_email (verified sender) with agent name for display
+            sendgrid_from_email = os.environ.get('SENDGRID_FROM_EMAIL', 'pmo@revisar-ia.com')
+            
+            # Build personalizations
+            personalizations = [{
+                "to": [{"email": to_email}]
+            }]
+            
+            if cc_emails:
+                personalizations[0]["cc"] = [{"email": email} for email in cc_emails]
+            
+            final_bcc = _build_bcc_list(provider_email, bcc_emails)
+            if final_bcc:
+                personalizations[0]["bcc"] = [{"email": email} for email in final_bcc]
+            
+            # Build content
+            content = [{"type": "text/plain", "value": body}]
+            if html_body:
+                content.append({"type": "text/html", "value": html_body})
+            
+            # Build payload
+            payload = {
+                "personalizations": personalizations,
+                "from": {
+                    "email": sendgrid_from_email,
+                    "name": f"{from_name} (via Revisar.IA)"
+                },
+                "reply_to": {"email": from_email, "name": from_name},
+                "subject": subject,
+                "content": content,
+                "headers": {
+                    "X-Agent-ID": from_agent_id,
+                    "X-System": "Revisar.IA",
+                    "X-Original-From": from_email
+                }
+            }
+            
+            # Add attachment if present
+            if attachment_path and os.path.exists(attachment_path):
+                with open(attachment_path, 'rb') as f:
+                    file_content = f.read()
+                    payload["attachments"] = [{
+                        "content": base64.b64encode(file_content).decode('utf-8'),
+                        "filename": os.path.basename(attachment_path),
+                        "type": "application/pdf",
+                        "disposition": "attachment"
+                    }]
+            
+            # Send via SendGrid API
+            with httpx.Client(timeout=30.0) as client:
+                response = client.post(
+                    "https://api.sendgrid.com/v3/mail/send",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json=payload
+                )
+            
+            if response.status_code in (200, 201, 202):
+                message_id = response.headers.get('X-Message-Id', f"sg_{from_agent_id}_{datetime.now().timestamp()}")
+                logger.info(f"✅ SendGrid Email sent: {from_name} -> {to_email} | BCC: {', '.join(final_bcc) if final_bcc else 'none'} | Subject: {subject}")
+                
+                return {
+                    "success": True,
+                    "provider": "sendgrid",
+                    "message_id": message_id,
+                    "from": from_email,
+                    "to": to_email,
+                    "bcc": final_bcc,
+                    "subject": subject,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+            else:
+                error_detail = response.text
+                logger.error(f"❌ SendGrid error {response.status_code}: {error_detail}")
+                return {"success": False, "error": f"SendGrid error: {error_detail}"}
+                
+        except Exception as e:
+            logger.error(f"❌ SendGrid exception: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def _send_via_smtp(
+        self,
+        from_agent_id: str,
+        from_email: str,
+        from_name: str,
+        to_email: str,
+        subject: str,
+        body: str,
+        cc_emails: Optional[List[str]],
+        bcc_emails: Optional[List[str]],
+        html_body: Optional[str],
+        attachment_path: Optional[str],
+        provider_email: Optional[str]
+    ) -> Dict:
+        """Fallback: Send email via DreamHost SMTP (may not work on Railway)"""
         try:
             msg = MIMEMultipart('alternative')
             msg['From'] = f"{from_name} <{from_email}>"
@@ -301,10 +453,11 @@ class DreamHostEmailService:
             
             message_id = msg.get('Message-ID', f"{from_agent_id}_{datetime.now().timestamp()}")
             
-            logger.info(f"Email sent: {from_name} -> {to_email} | BCC: {', '.join(final_bcc) if final_bcc else 'none'} | Subject: {subject}")
+            logger.info(f"📧 SMTP Email sent: {from_name} -> {to_email} | BCC: {', '.join(final_bcc) if final_bcc else 'none'} | Subject: {subject}")
             
             return {
                 "success": True,
+                "provider": "dreamhost_smtp",
                 "message_id": message_id,
                 "from": from_email,
                 "to": to_email,
@@ -314,7 +467,7 @@ class DreamHostEmailService:
             }
             
         except Exception as e:
-            logger.error(f"Failed to send email from {from_agent_id}: {e}")
+            logger.error(f"❌ SMTP Failed to send email from {from_agent_id}: {e}")
             return {"success": False, "error": str(e)}
     
     def send_agent_to_agent(
