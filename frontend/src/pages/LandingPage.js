@@ -106,8 +106,8 @@ const VideoCarousel = ({ videos }) => {
             key={index}
             onClick={() => goToSlide(index)}
             className={`w-3 h-3 rounded-full transition-all ${index === currentIndex
-                ? 'bg-[#7FEDD8] w-8'
-                : 'bg-gray-300 hover:bg-gray-400'
+              ? 'bg-[#7FEDD8] w-8'
+              : 'bg-gray-300 hover:bg-gray-400'
               }`}
             aria-label={`Ir a video ${index + 1}`}
           />
@@ -219,8 +219,8 @@ const EmbeddedFacturarIA = () => {
         {mensajes.map(msg => (
           <div key={msg.id} className={`flex ${msg.tipo === 'usuario' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${msg.tipo === 'usuario'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white/10 text-white/90'
+              ? 'bg-blue-600 text-white'
+              : 'bg-white/10 text-white/90'
               }`}>
               {msg.contenido}
               {msg.sugerencias?.length > 0 && (
@@ -389,13 +389,56 @@ const AlertTriangleIcon = ({ className }) => (
   </svg>
 );
 
+const AgentCard = ({ agent, IconComponent }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div
+      onClick={() => setIsExpanded(!isExpanded)}
+      className={`bg-white rounded-2xl p-5 border-2 ${agent.borderColor} hover:shadow-xl transition-all duration-300 cursor-pointer group`}
+    >
+      <div className="flex items-center gap-3 mb-3">
+        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${agent.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}>
+          <IconComponent className="w-6 h-6 text-white" />
+        </div>
+        <span className={`text-xs font-bold ${agent.textColor} px-2 py-1 rounded-full bg-gray-100`}>
+          {agent.id}
+        </span>
+        <svg
+          className={`w-4 h-4 text-gray-400 ml-auto transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
+      <h3 className="text-lg font-bold text-gray-900 mb-1">{agent.name}</h3>
+      <p className="text-sm text-gray-600 mb-2">{agent.shortDesc}</p>
+
+      <div className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-40 opacity-100 mt-3' : 'max-h-0 opacity-0'}`}>
+        <div className="pt-3 border-t border-gray-100">
+          <p className="text-sm text-gray-500 leading-relaxed">{agent.longDesc}</p>
+        </div>
+      </div>
+
+      {!isExpanded && (
+        <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+          <span>Clic para más detalles</span>
+        </p>
+      )}
+    </div>
+  );
+};
+
 const mainAgents = [
   {
     id: 'A1',
-    name: 'A1-Estrategia',
+    name: 'Estrategia',
     persona: 'María',
     role: 'Validador Estratégico',
-    description: 'Alineación BEE, Razón de Negocios Art. 5-A CFF',
+    shortDesc: 'Verifica que cada gasto tenga una razón real de negocio',
+    longDesc: 'Antes de cualquier contratación, valida que el servicio tenga un propósito empresarial legítimo. Revisa la alineación con objetivos de negocio y asegura que cumpla con el Artículo 5-A del Código Fiscal (la famosa "razón de negocios").',
     color: 'from-purple-500 to-violet-600',
     borderColor: 'border-purple-500/30',
     textColor: 'text-purple-600',
@@ -403,10 +446,11 @@ const mainAgents = [
   },
   {
     id: 'A2',
-    name: 'A2-PMO',
+    name: 'Coordinación',
     persona: 'Carlos',
-    role: 'Orquestador Central',
-    description: 'Guardián del POE, gestiona estados F0-F9',
+    role: 'Director de Proyecto',
+    shortDesc: 'Coordina todo el proceso de auditoría paso a paso',
+    longDesc: 'Es el director de orquesta del sistema. Gestiona las 10 fases del proyecto (desde la aprobación inicial hasta el cierre), se asegura de que cada paso se complete antes de avanzar al siguiente, y mantiene a todos los agentes sincronizados.',
     color: 'from-blue-500 to-cyan-600',
     borderColor: 'border-blue-500/30',
     textColor: 'text-blue-600',
@@ -414,10 +458,11 @@ const mainAgents = [
   },
   {
     id: 'A3',
-    name: 'A3-Fiscal',
+    name: 'Fiscal',
     persona: 'Laura',
-    role: 'Motor de Cumplimiento',
-    description: 'Genera SIB, valida materialidad fiscal',
+    role: 'Experta en Cumplimiento',
+    shortDesc: 'Genera el expediente de defensa fiscal del proyecto',
+    longDesc: 'Analiza cada proyecto desde el punto de vista del SAT. Genera la "Sustancia Informática de Bitácora" (SIB), valida que exista evidencia real del servicio prestado, y calcula el nivel de riesgo fiscal de cada operación.',
     color: 'from-green-500 to-emerald-600',
     borderColor: 'border-green-500/30',
     textColor: 'text-green-600',
@@ -425,10 +470,11 @@ const mainAgents = [
   },
   {
     id: 'A4',
-    name: 'A4-Legal',
+    name: 'Legal',
     persona: 'Gestor IA',
-    role: 'Validador Contractual',
-    description: 'SOW, Fecha Cierta NOM-151',
+    role: 'Validador de Contratos',
+    shortDesc: 'Revisa contratos y asegura validez jurídica',
+    longDesc: 'Verifica que los contratos de servicios cumplan con los requisitos legales. Valida alcances, fechas ciertas conforme a NOM-151, y asegura que existan los documentos que demuestren la formalidad de la relación comercial.',
     color: 'from-amber-500 to-yellow-600',
     borderColor: 'border-amber-500/30',
     textColor: 'text-amber-600',
@@ -436,10 +482,11 @@ const mainAgents = [
   },
   {
     id: 'A5',
-    name: 'A5-Finanzas',
+    name: 'Finanzas',
     persona: 'Roberto',
     role: 'Controlador Financiero',
-    description: '3-Way Match (CFDI, SPEI)',
+    shortDesc: 'Verifica que factura, contrato y pago coincidan',
+    longDesc: 'Ejecuta la validación "3-Way Match": compara que el CFDI (factura), el contrato y el comprobante de pago (SPEI) sean consistentes. Si algo no cuadra, detiene el proceso antes de autorizar el pago.',
     color: 'from-red-500 to-rose-600',
     borderColor: 'border-red-500/30',
     textColor: 'text-red-600',
@@ -447,10 +494,11 @@ const mainAgents = [
   },
   {
     id: 'A6',
-    name: 'A6-Proveedor',
+    name: 'Proveedor',
     persona: 'Ana',
-    role: 'Ejecutor del Servicio',
-    description: 'Entregables y logs',
+    role: 'Gestor de Entregables',
+    shortDesc: 'Documenta evidencia de que el servicio se prestó',
+    longDesc: 'Se encarga de recopilar y organizar toda la evidencia de que el servicio realmente se ejecutó: reportes, bitácoras, correos, archivos entregados. Esta documentación es clave para demostrar "materialidad" ante el SAT.',
     color: 'from-teal-500 to-cyan-600',
     borderColor: 'border-teal-500/30',
     textColor: 'text-teal-600',
@@ -458,10 +506,11 @@ const mainAgents = [
   },
   {
     id: 'A7',
-    name: 'A7-Defensa',
+    name: 'Defensa',
     persona: 'Sistema',
-    role: 'Generador Defense File',
-    description: 'Compila expediente defensivo completo',
+    role: 'Generador de Expediente',
+    shortDesc: 'Compila toda la documentación para defenderse ante el SAT',
+    longDesc: 'Cuando el proyecto está completo, genera el "Defense File": un expediente integral con todos los documentos que demuestran la legalidad de la operación. Si el SAT cuestiona, tienes toda la evidencia lista para responder.',
     color: 'from-indigo-500 to-purple-600',
     borderColor: 'border-indigo-500/30',
     textColor: 'text-indigo-600',
@@ -469,38 +518,72 @@ const mainAgents = [
   }
 ];
 
+const supportAgents = [
+  {
+    id: 'A8',
+    name: 'Auditoría',
+    persona: 'Diego',
+    role: 'Auditor Documental',
+    shortDesc: 'Revisa que cada expediente esté completo',
+    longDesc: 'Realiza una auditoría interna de calidad sobre cada expediente antes de cerrarlo. Verifica que todos los documentos requeridos estén presentes, correctamente nombrados y en los formatos adecuados.',
+    color: 'from-slate-500 to-gray-600',
+    borderColor: 'border-slate-500/30',
+    textColor: 'text-slate-600',
+    icon: FileTextIcon
+  },
+  {
+    id: 'KB',
+    name: 'Biblioteca',
+    persona: 'Dra. Elena',
+    role: 'Gestora de Conocimiento',
+    shortDesc: 'Mantiene actualizada la base de conocimiento fiscal',
+    longDesc: 'Cura y organiza toda la documentación de referencia: criterios del SAT, jurisprudencia, normativas actualizadas. Cuando un agente necesita consultar un artículo o precedente, ella lo proporciona.',
+    color: 'from-cyan-500 to-blue-600',
+    borderColor: 'border-cyan-500/30',
+    textColor: 'text-cyan-600',
+    icon: LayersIcon
+  },
+  {
+    id: 'GRD',
+    name: 'Guardián',
+    persona: 'Sistema',
+    role: 'Monitor del Sistema',
+    shortDesc: 'Vigila la salud y seguridad del sistema',
+    longDesc: 'Monitorea el rendimiento de todos los agentes, detecta anomalías de seguridad, y alerta cuando algo no funciona correctamente. Es el "vigilante" que asegura que todo opere sin problemas.',
+    color: 'from-rose-500 to-pink-600',
+    borderColor: 'border-rose-500/30',
+    textColor: 'text-rose-600',
+    icon: ShieldIcon
+  }
+];
+
 const subAgents = [
   {
-    id: 'SUB_TIPIFICACION',
-    name: 'SUB_TIPIFICACION',
-    role: 'Clasificador de Proyectos',
-    description: 'Asigna tipología (8 tipos) y checklist',
+    id: 'S1',
+    name: 'Tipificador',
+    role: 'Clasificador de Servicios',
+    shortDesc: 'Clasifica automáticamente cada servicio contratado',
+    longDesc: 'Cuando recibes un nuevo servicio, este módulo lo clasifica en una de 8 categorías predefinidas (como "Consultoría Tecnológica" o "Servicios Legales") y genera el checklist específico de documentos que deberás reunir.',
     color: 'from-sky-400 to-blue-500',
     icon: TagIcon
   },
   {
-    id: 'SUB_MATERIALIDAD',
-    name: 'SUB_MATERIALIDAD',
-    role: 'Monitor de Evidencia',
-    description: 'Umbral 80% para VBC, bloquea si incompleto',
+    id: 'S2',
+    name: 'Materialidad',
+    role: 'Verificador de Evidencia',
+    shortDesc: 'Mide qué tan completa está la evidencia del servicio',
+    longDesc: 'Calcula un porcentaje de "materialidad" basado en la evidencia subida. Si no tienes al menos 80% de la documentación requerida, bloquea el avance del proyecto hasta que la completes.',
     color: 'from-emerald-400 to-green-500',
     icon: EyeIcon
   },
   {
-    id: 'SUB_RIESGOS',
-    name: 'SUB_RIESGOS_ESPECIALES',
-    role: 'Detector de Riesgos',
-    description: 'EFOS, partes relacionadas, TP, esquemas',
+    id: 'S3',
+    name: 'Riesgos',
+    role: 'Detector de Alertas Fiscales',
+    shortDesc: 'Detecta señales de alerta que el SAT buscaría',
+    longDesc: 'Escanea el proyecto en busca de banderas rojas: proveedores en lista 69-B (empresas fantasma), operaciones entre partes relacionadas, precios de transferencia sospechosos, o esquemas que el SAT suele cuestionar.',
     color: 'from-orange-400 to-red-500',
     icon: AlertTriangleIcon
-  },
-  {
-    id: 'A7_DEFENSA',
-    name: 'A7_DEFENSA',
-    role: 'Generador de Defensa',
-    description: 'Índice de defendibilidad 0-100',
-    color: 'from-violet-400 to-purple-500',
-    icon: ShieldIcon
   }
 ];
 
@@ -845,22 +928,7 @@ const LandingPage = () => {
             {mainAgents.map((agent) => {
               const IconComponent = agent.icon;
               return (
-                <div
-                  key={agent.id}
-                  className={`bg-white rounded-2xl p-5 border-2 ${agent.borderColor} hover:shadow-xl transition-all duration-300 group`}
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${agent.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}>
-                      <IconComponent className="w-6 h-6 text-white" />
-                    </div>
-                    <span className={`text-xs font-bold ${agent.textColor} bg-${agent.textColor.replace('text-', '')}/10 px-2 py-1 rounded-full`}>
-                      {agent.id}
-                    </span>
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-1">{agent.name}</h3>
-                  <p className="text-sm text-gray-500 mb-2">{agent.persona} - {agent.role}</p>
-                  <p className="text-xs text-gray-400">{agent.description}</p>
-                </div>
+                <AgentCard key={agent.id} agent={agent} IconComponent={IconComponent} />
               );
             })}
           </div>
@@ -870,32 +938,78 @@ const LandingPage = () => {
       <section className="py-12 sm:py-16 px-4 sm:px-6 bg-gradient-to-b from-slate-50 to-white">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-full mb-4">
-              <SettingsIcon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
-              <span className="text-xs sm:text-sm font-medium text-blue-700">Subagentes Especializados</span>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-full mb-4">
+              <BotIcon className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
+              <span className="text-xs sm:text-sm font-medium text-gray-700">Agentes de Soporte</span>
             </div>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-3">
-              4 Subagentes
+              3 Agentes de Respaldo
             </h2>
-            <p className="text-gray-500">Módulos especializados que complementan a los agentes principales</p>
+            <p className="text-gray-500">Agentes que complementan y supervisan el trabajo del equipo principal</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
+            {supportAgents.map((agent) => {
+              const IconComponent = agent.icon;
+              return (
+                <AgentCard key={agent.id} agent={agent} IconComponent={IconComponent} />
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-12 sm:py-16 px-4 sm:px-6 bg-gradient-to-b from-white to-slate-50">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-10">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-full mb-4">
+              <SettingsIcon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+              <span className="text-xs sm:text-sm font-medium text-blue-700">Módulos Automáticos</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-3">
+              3 Subagentes Especializados
+            </h2>
+            <p className="text-gray-500">Módulos que operan automáticamente dentro de cada proyecto</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
             {subAgents.map((agent) => {
               const IconComponent = agent.icon;
               return (
                 <div
                   key={agent.id}
-                  className="bg-white rounded-2xl p-5 border border-gray-200 hover:shadow-xl transition-all duration-300 group"
+                  className="bg-white rounded-2xl p-5 border border-gray-200 hover:shadow-xl transition-all duration-300 cursor-pointer group"
+                  onClick={(e) => {
+                    const content = e.currentTarget.querySelector('.expandable-content');
+                    const chevron = e.currentTarget.querySelector('.chevron');
+                    if (content.classList.contains('max-h-0')) {
+                      content.classList.remove('max-h-0', 'opacity-0');
+                      content.classList.add('max-h-40', 'opacity-100');
+                      chevron.classList.add('rotate-180');
+                    } else {
+                      content.classList.add('max-h-0', 'opacity-0');
+                      content.classList.remove('max-h-40', 'opacity-100');
+                      chevron.classList.remove('rotate-180');
+                    }
+                  }}
                 >
                   <div className="flex items-start gap-4">
                     <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${agent.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform flex-shrink-0`}>
                       <IconComponent className="w-6 h-6 text-white" />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900 mb-1">{agent.name}</h3>
-                      <p className="text-sm text-gray-600 font-medium mb-1">{agent.role}</p>
-                      <p className="text-xs text-gray-400">{agent.description}</p>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-gray-900">{agent.name}</h3>
+                        <svg className="chevron w-4 h-4 text-gray-400 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1">{agent.shortDesc}</p>
+                      <div className="expandable-content overflow-hidden transition-all duration-300 max-h-0 opacity-0">
+                        <div className="pt-3 mt-3 border-t border-gray-100">
+                          <p className="text-sm text-gray-500 leading-relaxed">{agent.longDesc}</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
