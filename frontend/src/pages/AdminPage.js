@@ -93,7 +93,7 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    if (user?.role === 'admin') {
+    if (user?.role === 'admin' || user?.role === 'super_admin' || user?.is_superadmin) {
       loadUsers();
       loadCompanies();
       loadEmpresas();
@@ -351,7 +351,8 @@ export default function AdminPage() {
     );
   }
 
-  if (!user || user.role !== 'admin') {
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin' || user?.is_superadmin;
+  if (!user || !isAdmin) {
     return <Navigate to="/" replace />;
   }
 
