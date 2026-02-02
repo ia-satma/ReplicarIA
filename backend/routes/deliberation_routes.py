@@ -380,7 +380,8 @@ async def get_user_auth_info(credentials: HTTPAuthorizationCredentials = Depends
     
     try:
         from jose import jwt
-        SECRET_KEY = os.getenv("SESSION_SECRET") or os.getenv("JWT_SECRET_KEY", "dev-secret-key-change-in-production")
+        from services.auth_service import get_secret_key
+        SECRET_KEY = get_secret_key()
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get("user_id")
         result["user_id"] = user_id

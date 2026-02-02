@@ -26,10 +26,10 @@ async def verify_stream_auth(credentials: HTTPAuthorizationCredentials = Depends
     """Verify JWT token for stream access - allows unauthenticated access for same-origin requests"""
     if not credentials:
         return None
-    
-    SECRET_KEY = os.getenv("SESSION_SECRET") or os.getenv("JWT_SECRET_KEY", "dev-secret-key-change-in-production")
-    
+
+    from services.auth_service import get_secret_key
     try:
+        SECRET_KEY = get_secret_key()
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=["HS256"])
         return payload
     except (jose_exceptions.ExpiredSignatureError, jose_exceptions.JWTError):

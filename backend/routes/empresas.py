@@ -294,27 +294,28 @@ async def autofill_empresa_con_ia(
     Investiga la empresa en internet y genera vision, mision, y datos adicionales.
     REQUIERE AUTENTICACIÓN para prevenir abuso de bots.
     """
-    industria_key = data.industria or "default"
-    industria_texto = data.industria.replace("_", " ") if data.industria else "general"
+    try:
+        industria_key = data.industria or "default"
+        industria_texto = data.industria.replace("_", " ") if data.industria else "general"
 
-    # 1. Intentar Deep Research primero (más completo)
-    if DEEP_RESEARCH_AVAILABLE and deep_research_service:
-        try:
-            logger.info(f"Iniciando Deep Research para: {data.nombre_comercial}")
-            resultado = await deep_research_service.investigar_empresa(
-                nombre=data.nombre_comercial,
-                rfc=data.rfc,
-                sitio_web=data.sitio_web
-            )
+        # 1. Intentar Deep Research primero (más completo)
+        if DEEP_RESEARCH_AVAILABLE and deep_research_service:
+            try:
+                logger.info(f"Iniciando Deep Research para: {data.nombre_comercial}")
+                resultado = await deep_research_service.investigar_empresa(
+                    nombre=data.nombre_comercial,
+                    rfc=data.rfc,
+                    sitio_web=data.sitio_web
+                )
 
-            if resultado and resultado.get("data"):
-                research_data = resultado["data"]
-                field_confidence = resultado.get("field_confidence", {})
+                if resultado and resultado.get("data"):
+                    research_data = resultado["data"]
+                    field_confidence = resultado.get("field_confidence", {})
 
-                # Generar vision/mision con IA basada en datos investigados
-                if OPENAI_AVAILABLE:
-                    try:
-                        context_info = f"""
+                    # Generar vision/mision con IA basada en datos investigados
+                    if OPENAI_AVAILABLE:
+                        try:
+                            context_info = f"""
 Nombre: {research_data.get('nombre') or data.nombre_comercial}
 Razon Social: {research_data.get('razon_social') or data.razon_social or 'No disponible'}
 RFC: {research_data.get('rfc') or data.rfc or 'No disponible'}
@@ -322,7 +323,7 @@ Giro/Actividad: {research_data.get('giro') or research_data.get('actividad_econo
 Direccion: {research_data.get('direccion') or 'No disponible'}
 Sitio Web: {data.sitio_web or 'No disponible'}
 """
-                        prompt = f"""Eres un experto en desarrollo empresarial en Mexico.
+                            prompt = f"""Eres un experto en desarrollo empresarial en Mexico.
 Con base en los siguientes datos investigados de una empresa real, genera su vision y mision:
 
 {context_info}
@@ -336,55 +337,55 @@ Responde UNICAMENTE en formato JSON:
     "mision": "Mision especifica para esta empresa (1-2 oraciones)..."
 }}"""
 
-                        response_text = chat_completion_sync(
-                            messages=[{"role": "user", "content": prompt}],
-                            model=AI_MODEL,
-                            max_tokens=512
-                        ).strip()
+                            response_text = chat_completion_sync(
+                                messages=[{"role": "user", "content": prompt}],
+                                model=AI_MODEL,
+                                max_tokens=512
+                            ).strip()
 
-                        if response_text.startswith("```"):
-                            lines = response_text.split("\n")
-                            response_text = "\n".join(lines[1:-1])
+                            if response_text.startswith("```"):
+                                lines = response_text.split("\n")
+                                response_text = "\n".join(lines[1:-1])
 
-                        ai_result = json.loads(response_text)
-                        # Check if AI returned an error
-                        if "error" not in ai_result:
-                            research_data["vision"] = ai_result.get("vision")
-                            research_data["mision"] = ai_result.get("mision")
-                        else:
-                            logger.warning(f"AI returned error: {ai_result.get('error')}")
-                    except Exception as ai_err:
-                        logger.warning(f"Error generando vision/mision con IA: {ai_err}")
+                            ai_result = json.loads(response_text)
+                            # Check if AI returned an error
+                            if "error" not in ai_result:
+                                research_data["vision"] = ai_result.get("vision")
+                                research_data["mision"] = ai_result.get("mision")
+                            else:
+                                logger.warning(f"AI returned error: {ai_result.get('error')}")
+                        except Exception as ai_err:
+                            logger.warning(f"Error generando vision/mision con IA: {ai_err}")
 
-                # If vision/mision are still empty, use templates
-                if not research_data.get("vision") or not research_data.get("mision"):
-                    template = TEMPLATES_POR_INDUSTRIA.get(industria_key, TEMPLATES_POR_INDUSTRIA["default"])
-                    if not research_data.get("vision"):
-                        research_data["vision"] = template["vision"].replace("Ser la empresa", f"Ser {data.nombre_comercial} como la empresa")
-                    if not research_data.get("mision"):
-                        research_data["mision"] = template["mision"]
+                    # If vision/mision are still empty, use templates
+                    if not research_data.get("vision") or not research_data.get("mision"):
+                        template = TEMPLATES_POR_INDUSTRIA.get(industria_key, TEMPLATES_POR_INDUSTRIA["default"])
+                        if not research_data.get("vision"):
+                            research_data["vision"] = template["vision"].replace("Ser la empresa", f"Ser {data.nombre_comercial} como la empresa")
+                        if not research_data.get("mision"):
+                            research_data["mision"] = template["mision"]
 
-                return {
-                    "success": True,
-                    "data": {
-                        "vision": research_data.get("vision"),
-                        "mision": research_data.get("mision"),
-                        "razon_social": research_data.get("razon_social"),
-                        "rfc": research_data.get("rfc"),
-                        "direccion": research_data.get("direccion"),
-                        "giro": research_data.get("giro") or research_data.get("actividad_economica"),
-                        "regimen_fiscal": research_data.get("regimen_fiscal"),
-                        "sitio_web": research_data.get("sitio_web") or data.sitio_web,
-                        "telefono": research_data.get("telefono"),
-                        "email": research_data.get("email")
-                    },
-                    "field_confidence": field_confidence,
-                    "message": "Datos investigados con Deep Research + IA",
-                    "source": "deep_research"
-                }
+                    return {
+                        "success": True,
+                        "data": {
+                            "vision": research_data.get("vision"),
+                            "mision": research_data.get("mision"),
+                            "razon_social": research_data.get("razon_social"),
+                            "rfc": research_data.get("rfc"),
+                            "direccion": research_data.get("direccion"),
+                            "giro": research_data.get("giro") or research_data.get("actividad_economica"),
+                            "regimen_fiscal": research_data.get("regimen_fiscal"),
+                            "sitio_web": research_data.get("sitio_web") or data.sitio_web,
+                            "telefono": research_data.get("telefono"),
+                            "email": research_data.get("email")
+                        },
+                        "field_confidence": field_confidence,
+                        "message": "Datos investigados con Deep Research + IA",
+                        "source": "deep_research"
+                    }
 
-        except Exception as e:
-            logger.warning(f"Error en Deep Research, intentando con IA basica: {e}")
+            except Exception as e:
+                logger.warning(f"Error en Deep Research, intentando con IA basica: {e}")
 
     # 2. Fallback: IA basica sin investigacion
     if OPENAI_AVAILABLE:
@@ -436,17 +437,31 @@ Responde UNICAMENTE en este formato JSON exacto:
         except Exception as e:
             logger.warning(f"Error con IA, usando template: {e}")
 
-    # 3. Fallback final: templates predefinidos
-    template = TEMPLATES_POR_INDUSTRIA.get(industria_key, TEMPLATES_POR_INDUSTRIA["default"])
-    vision = template["vision"].replace("Ser la empresa", f"Ser {data.nombre_comercial} como la empresa")
-    mision = template["mision"]
+        # 3. Fallback final: templates predefinidos
+        template = TEMPLATES_POR_INDUSTRIA.get(industria_key, TEMPLATES_POR_INDUSTRIA["default"])
+        vision = template["vision"].replace("Ser la empresa", f"Ser {data.nombre_comercial} como la empresa")
+        mision = template["mision"]
 
-    return {
-        "success": True,
-        "data": {
-            "vision": vision,
-            "mision": mision
-        },
-        "message": "Perfil generado con plantilla de industria",
-        "source": "template"
-    }
+        return {
+            "success": True,
+            "data": {
+                "vision": vision,
+                "mision": mision
+            },
+            "message": "Perfil generado con plantilla de industria",
+            "source": "template"
+        }
+    
+    except Exception as outer_error:
+        # Ultimate fallback - if everything fails, return a basic template
+        logger.error(f"Error crítico en autofill-ia: {outer_error}")
+        default_template = TEMPLATES_POR_INDUSTRIA["default"]
+        return {
+            "success": True,
+            "data": {
+                "vision": default_template["vision"].replace("Ser la empresa", f"Ser {data.nombre_comercial} como la empresa"),
+                "mision": default_template["mision"]
+            },
+            "message": "Perfil generado con plantilla por defecto",
+            "source": "fallback_template"
+        }

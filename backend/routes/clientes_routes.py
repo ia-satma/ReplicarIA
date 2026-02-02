@@ -15,13 +15,13 @@ from models.cliente import (
     TipoCliente, EstadoCliente
 )
 from services.cliente_service import cliente_service
+from services.auth_service import get_secret_key
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/clientes", tags=["clientes"])
 
 security = HTTPBearer(auto_error=False)
-SECRET_KEY = os.getenv("SESSION_SECRET") or os.getenv("JWT_SECRET_KEY", "dev-secret-key")
 ALGORITHM = "HS256"
 
 
@@ -30,6 +30,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     if not credentials:
         raise HTTPException(status_code=401, detail="Autenticación requerida")
     try:
+        SECRET_KEY = get_secret_key()
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
     except jose_exceptions.ExpiredSignatureError:

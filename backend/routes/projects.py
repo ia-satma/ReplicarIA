@@ -171,7 +171,8 @@ async def submit_project(
         if auth_header.startswith("Bearer "):
             token = auth_header.replace("Bearer ", "")
             try:
-                SECRET_KEY = os.getenv("SESSION_SECRET") or os.getenv("JWT_SECRET_KEY", "dev-secret-key-change-in-production")
+                from services.auth_service import get_secret_key
+                SECRET_KEY = get_secret_key()
                 payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
                 empresa_id = payload.get("empresa_id")
                 if not user_id:
