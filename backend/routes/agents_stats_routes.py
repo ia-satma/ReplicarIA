@@ -446,41 +446,157 @@ async def invoke_agent(request: InvokeAgentRequest):
 async def get_available_agents():
     """
     Get list of all available agents with their descriptions.
-    
-    Returns a list of all configured agents with:
+
+    Returns a list of all configured agents from the unified registry.
     - agent_id: Agent identifier
+    - name: Agent persona name
+    - role: Functional role
     - description: Agent description
     - icon: Emoji icon for the agent
+    - type: Agent type (principal, especializado, subagente)
+    - category: Functional category
     """
     try:
-        from services.agent_prompts import OPTIMIZED_PROMPTS
-        
-        AGENT_ICONS = {
-            'A1_RECEPCION': '📥',
-            'A2_ANALISIS': '🔍',
-            'A3_NORMATIVO': '📜',
-            'A4_CONTABLE': '📊',
-            'A5_OPERATIVO': '⚙️',
-            'A6_FINANCIERO': '💰',
-            'A7_LEGAL': '⚖️',
-            'A8_REDTEAM': '🛡️',
-            'A9_SINTESIS': '📝',
-            'A10_ARCHIVO': '📁',
-        }
-        
-        agents = []
-        for agent_id, prompt in OPTIMIZED_PROMPTS.items():
-            agents.append({
-                "agent_id": agent_id,
-                "description": prompt.description,
-                "icon": AGENT_ICONS.get(agent_id, '🤖')
-            })
-        
+        from config.agents_registry import get_all_agents_for_api
+
+        agents = get_all_agents_for_api()
+
         return {
             "agents": agents,
             "count": len(agents)
         }
-    
+
     except Exception as e:
         logger.error(f"Error getting available agents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/registry")
+async def get_agents_registry():
+    """
+    Get the complete agents registry with full configuration.
+
+    Returns all agents with complete metadata including:
+    - Phases where they participate
+    - Blocking capabilities
+    - Parent-child relationships (for subagents)
+    - LLM model configuration
+    """
+    try:
+        from config.agents_registry import (
+            get_all_agents_for_api,
+            get_principal_agents,
+            get_specialized_agents,
+            get_subagents,
+            get_registry_stats,
+            AGENT_ID_ALIASES
+        )
+
+        return {
+            "agents": get_all_agents_for_api(),
+            "stats": get_registry_stats(),
+            "aliases": AGENT_ID_ALIASES,
+            "principal_count": len(get_principal_agents()),
+            "specialized_count": len(get_specialized_agents()),
+            "subagent_count": len(get_subagents())
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting agents registry: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/by-phase/{phase}")
+async def get_agents_by_phase(phase: str):
+    """
+    Get agents that participate in a specific phase.
+
+    Parameters:
+    - phase: Phase identifier (F0-F9)
+
+    Returns agents active in that phase with their blocking status.
+    """
+    try:
+        from config.agents_registry import get_agents_for_phase, get_blocking_agents_for_phase
+
+        active_agents = get_agents_for_phase(phase)
+        blocking_agents = get_blocking_agents_for_phase(phase)
+        blocking_ids = {a.id for a in blocking_agents}
+
+        agents = []
+        for agent in active_agents:
+            agents.append({
+                "agent_id": agent.id,
+                "name": agent.name,
+                "role": agent.role,
+                "icon": agent.icon,
+                "can_block_this_phase": agent.id in blocking_ids
+            })
+
+        return {
+            "phase": phase,
+            "agents": agents,
+            "count": len(agents),
+            "blocking_agents": [a.id for a in blocking_agents]
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting agents for phase {phase}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/hierarchy")
+async def get_agents_hierarchy():
+    """
+    Get the agent hierarchy showing parent-child relationships.
+
+    Returns a tree structure with principal agents and their subagents.
+    """
+    try:
+        from config.agents_registry import (
+            get_principal_agents,
+            get_specialized_agents,
+            get_subagents_of
+        )
+
+        hierarchy = {
+            "principal_agents": [],
+            "specialized_agents": []
+        }
+
+        # Build principal agents with their subagents
+        for agent in get_principal_agents():
+            subagents = get_subagents_of(agent.id)
+            hierarchy["principal_agents"].append({
+                "agent_id": agent.id,
+                "name": agent.name,
+                "role": agent.role,
+                "icon": agent.icon,
+                "color": agent.color,
+                "phases": agent.phases,
+                "can_block": agent.can_block,
+                "subagents": [
+                    {
+                        "agent_id": s.id,
+                        "name": s.name,
+                        "role": s.role,
+                        "icon": s.icon
+                    } for s in subagents
+                ]
+            })
+
+        # Add specialized agents
+        for agent in get_specialized_agents():
+            hierarchy["specialized_agents"].append({
+                "agent_id": agent.id,
+                "name": agent.name,
+                "role": agent.role,
+                "icon": agent.icon,
+                "color": agent.color
+            })
+
+        return hierarchy
+
+    except Exception as e:
+        logger.error(f"Error getting agents hierarchy: {e}")
         raise HTTPException(status_code=500, detail=str(e))

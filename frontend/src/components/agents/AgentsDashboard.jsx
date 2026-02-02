@@ -313,24 +313,44 @@ const AgentsDashboard = ({ projectId = null }) => {
                 if (!processedAgents.has(msgId)) {
                   processedAgents.add(msgId);
 
-                  // Map backend agent ID to frontend display - ALL 10 AGENTS
+                  // Map backend agent ID to frontend display
+                  // SYNCED WITH: backend/config/agents_registry.py (18 agents total)
                   const agentMap = {
-                    // Core agents (match backend /api/agents/available)
-                    'A1_RECEPCION': { name: 'Recepción', emoji: '📥', id: 'A1' },
-                    'A2_ANALISIS': { name: 'Análisis', emoji: '🔍', id: 'A2' },
-                    'A3_NORMATIVO': { name: 'Normativo', emoji: '📜', id: 'A3' },
-                    'A4_CONTABLE': { name: 'Contable', emoji: '📊', id: 'A4' },
-                    'A5_OPERATIVO': { name: 'Operativo', emoji: '⚙️', id: 'A5' },
-                    'A6_FINANCIERO': { name: 'Financiero', emoji: '💰', id: 'A6' },
-                    'A7_LEGAL': { name: 'Legal', emoji: '⚖️', id: 'A7' },
-                    'A8_REDTEAM': { name: 'Red Team', emoji: '🛡️', id: 'A8' },
-                    'A9_SINTESIS': { name: 'Síntesis', emoji: '📝', id: 'A9' },
-                    'A10_ARCHIVO': { name: 'Archivo', emoji: '📁', id: 'A10' },
-                    // Legacy aliases (for backward compatibility with demo flow)
-                    'A1_SPONSOR': { name: 'Estrategia', emoji: '🎯', id: 'A1' },
-                    'A3_FISCAL': { name: 'Fiscal', emoji: '⚖️', id: 'A3' },
-                    'A5_FINANZAS': { name: 'Finanzas', emoji: '💰', id: 'A6' },
-                    'LEGAL': { name: 'Legal', emoji: '⚖️', id: 'A7' },
+                    // === AGENTES PRINCIPALES (7) ===
+                    'A1_SPONSOR': { name: 'María Rodríguez', emoji: '🎯', id: 'A1', role: 'Sponsor / Evaluador Estratégico' },
+                    'A2_PMO': { name: 'Carlos Mendoza', emoji: '📋', id: 'A2', role: 'Orquestador del Proceso F0-F9' },
+                    'A3_FISCAL': { name: 'Laura Sánchez', emoji: '⚖️', id: 'A3', role: 'Especialista en Cumplimiento Fiscal' },
+                    'A4_LEGAL': { name: 'Ana García', emoji: '📜', id: 'A4', role: 'Especialista en Contratos' },
+                    'A5_FINANZAS': { name: 'Roberto Sánchez', emoji: '💰', id: 'A5', role: 'Director Financiero' },
+                    'A6_PROVEEDOR': { name: 'Due Diligence', emoji: '🔍', id: 'A6', role: 'Validador de Proveedores' },
+                    'A7_DEFENSA': { name: 'Laura Vázquez', emoji: '🛡️', id: 'A7', role: 'Directora de Defense File' },
+                    // === AGENTES ESPECIALIZADOS (3) ===
+                    'A8_AUDITOR': { name: 'Diego Ramírez', emoji: '📊', id: 'A8', role: 'Auditor Documental' },
+                    'KB_CURATOR': { name: 'Dra. Elena Vázquez', emoji: '📚', id: 'KB', role: 'Curadora de Conocimiento' },
+                    'DEVILS_ADVOCATE': { name: 'Abogado del Diablo', emoji: '😈', id: 'DA', role: 'Control Interno' },
+                    // === SUBAGENTES FISCALES (3) - Reportan a A3_FISCAL ===
+                    'S1_TIPIFICACION': { name: 'Patricia López', emoji: '🏷️', id: 'S1', role: 'Clasificador de Tipología' },
+                    'S2_MATERIALIDAD': { name: 'Fernando Ruiz', emoji: '📎', id: 'S2', role: 'Especialista en Materialidad' },
+                    'S3_RIESGOS': { name: 'Gabriela Vega', emoji: '⚠️', id: 'S3', role: 'Detector de Riesgos' },
+                    // === SUBAGENTES PMO (5) - Reportan a A2_PMO ===
+                    'S_ANALIZADOR': { name: 'Subagente Analizador', emoji: '🔬', id: 'SA', role: 'Análisis de Datos' },
+                    'S_CLASIFICADOR': { name: 'Subagente Clasificador', emoji: '📁', id: 'SC', role: 'Clasificación por Severidad' },
+                    'S_RESUMIDOR': { name: 'Subagente Resumidor', emoji: '📝', id: 'SR', role: 'Compresión y Resumen' },
+                    'S_VERIFICADOR': { name: 'Subagente Verificador', emoji: '✅', id: 'SV', role: 'Control de Calidad' },
+                    'S_REDACTOR': { name: 'Subagente Redactor', emoji: '✍️', id: 'SRD', role: 'Redacción de Documentos' },
+                    // === ALIASES LEGACY (para compatibilidad con código antiguo) ===
+                    'A1_RECEPCION': { name: 'María Rodríguez', emoji: '🎯', id: 'A1', role: 'Sponsor / Evaluador Estratégico' },
+                    'A1_ESTRATEGIA': { name: 'María Rodríguez', emoji: '🎯', id: 'A1', role: 'Sponsor / Evaluador Estratégico' },
+                    'A2_ANALISIS': { name: 'Laura Sánchez', emoji: '⚖️', id: 'A3', role: 'Especialista en Cumplimiento Fiscal' },
+                    'A3_NORMATIVO': { name: 'Laura Sánchez', emoji: '⚖️', id: 'A3', role: 'Especialista en Cumplimiento Fiscal' },
+                    'A4_CONTABLE': { name: 'Roberto Sánchez', emoji: '💰', id: 'A5', role: 'Director Financiero' },
+                    'A5_OPERATIVO': { name: 'Due Diligence', emoji: '🔍', id: 'A6', role: 'Validador de Proveedores' },
+                    'A6_FINANCIERO': { name: 'Roberto Sánchez', emoji: '💰', id: 'A5', role: 'Director Financiero' },
+                    'A7_LEGAL': { name: 'Ana García', emoji: '📜', id: 'A4', role: 'Especialista en Contratos' },
+                    'A8_REDTEAM': { name: 'Abogado del Diablo', emoji: '😈', id: 'DA', role: 'Control Interno' },
+                    'A9_SINTESIS': { name: 'Laura Vázquez', emoji: '🛡️', id: 'A7', role: 'Directora de Defense File' },
+                    'A10_ARCHIVO': { name: 'Dra. Elena Vázquez', emoji: '📚', id: 'KB', role: 'Curadora de Conocimiento' },
+                    'LEGAL': { name: 'Ana García', emoji: '📜', id: 'A4', role: 'Especialista en Contratos' },
                   };
 
                   const agentInfo = agentMap[item.agent_id] || { name: item.agent_id, emoji: '🤖', id: item.agent_id };

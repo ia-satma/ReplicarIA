@@ -1,16 +1,31 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import api from '../../services/api';
 
+// SYNCED WITH: backend/config/agents_registry.py (18 agents total)
+// This is the fallback static list when API is unavailable
 const AGENTS = [
-  { id: 'A1', fullId: 'A1_RECEPCION', name: 'Recepción', icon: '📥', color: 'indigo', description: 'Clasificación y extracción de documentos' },
-  { id: 'A2', fullId: 'A2_ANALISIS', name: 'Análisis', icon: '🔍', color: 'purple', description: 'Análisis fiscal y deducibilidad' },
-  { id: 'A3', fullId: 'A3_NORMATIVO', name: 'Normativo', icon: '📜', color: 'violet', description: 'Normativa fiscal mexicana' },
-  { id: 'A4', fullId: 'A4_CONTABLE', name: 'Contable', icon: '📊', color: 'green', description: 'Verificación contable NIF' },
-  { id: 'A5', fullId: 'A5_OPERATIVO', name: 'Operativo', icon: '⚙️', color: 'yellow', description: 'Capacidad y materialidad' },
-  { id: 'A6', fullId: 'A6_FINANCIERO', name: 'Financiero', icon: '💰', color: 'emerald', description: 'Análisis financiero' },
-  { id: 'A7', fullId: 'A7_LEGAL', name: 'Legal', icon: '⚖️', color: 'red', description: 'Contratos y cláusulas' },
-  { id: 'A8', fullId: 'A8_REDTEAM', name: 'Red Team', icon: '🛡️', color: 'orange', description: 'Simulación auditoría SAT' },
-  { id: 'A9', fullId: 'A9_SINTESIS', name: 'Síntesis', icon: '📝', color: 'cyan', description: 'Dictamen final' },
-  { id: 'A10', fullId: 'A10_ARCHIVO', name: 'Archivo', icon: '📁', color: 'gray', description: 'Archivo documental' },
+  // === AGENTES PRINCIPALES (7) ===
+  { id: 'A1', fullId: 'A1_SPONSOR', name: 'María Rodríguez', icon: '🎯', color: 'indigo', description: 'Sponsor / Evaluador Estratégico - Evalúa razón de negocios y BEE', type: 'principal' },
+  { id: 'A2', fullId: 'A2_PMO', name: 'Carlos Mendoza', icon: '📋', color: 'blue', description: 'Orquestador del Proceso F0-F9 - Controla flujo y candados', type: 'principal' },
+  { id: 'A3', fullId: 'A3_FISCAL', name: 'Laura Sánchez', icon: '⚖️', color: 'purple', description: 'Especialista en Cumplimiento Fiscal - 4 pilares, VBC Fiscal', type: 'principal' },
+  { id: 'A4', fullId: 'A4_LEGAL', name: 'Ana García', icon: '📜', color: 'red', description: 'Especialista en Contratos y Trazabilidad - SOW, VBC Legal', type: 'principal' },
+  { id: 'A5', fullId: 'A5_FINANZAS', name: 'Roberto Sánchez', icon: '💰', color: 'emerald', description: 'Director Financiero - Proporción económica, 3-way match', type: 'principal' },
+  { id: 'A6', fullId: 'A6_PROVEEDOR', name: 'Due Diligence', icon: '🔍', color: 'yellow', description: 'Validador de Proveedores - Entregables y evidencias', type: 'principal' },
+  { id: 'A7', fullId: 'A7_DEFENSA', name: 'Laura Vázquez', icon: '🛡️', color: 'orange', description: 'Directora de Defense File - Expediente y defendibilidad', type: 'principal' },
+  // === AGENTES ESPECIALIZADOS (3) ===
+  { id: 'A8', fullId: 'A8_AUDITOR', name: 'Diego Ramírez', icon: '📊', color: 'cyan', description: 'Auditor Documental - Estructura y completitud', type: 'especializado' },
+  { id: 'KB', fullId: 'KB_CURATOR', name: 'Dra. Elena Vázquez', icon: '📚', color: 'violet', description: 'Curadora de Conocimiento - RAG normativa', type: 'especializado' },
+  { id: 'DA', fullId: 'DEVILS_ADVOCATE', name: 'Abogado del Diablo', icon: '😈', color: 'gray', description: 'Control Interno - Cuestionamiento sistemático', type: 'especializado' },
+  // === SUBAGENTES FISCALES (3) - Reportan a A3_FISCAL ===
+  { id: 'S1', fullId: 'S1_TIPIFICACION', name: 'Patricia López', icon: '🏷️', color: 'pink', description: 'Clasificador de Tipología - Asigna tipo de servicio', type: 'subagente', parent: 'A3_FISCAL' },
+  { id: 'S2', fullId: 'S2_MATERIALIDAD', name: 'Fernando Ruiz', icon: '📎', color: 'teal', description: 'Especialista en Materialidad - Art. 69-B CFF', type: 'subagente', parent: 'A3_FISCAL' },
+  { id: 'S3', fullId: 'S3_RIESGOS', name: 'Gabriela Vega', icon: '⚠️', color: 'red', description: 'Detector de Riesgos - EFOS, precios de transferencia', type: 'subagente', parent: 'A3_FISCAL' },
+  // === SUBAGENTES PMO (5) - Reportan a A2_PMO ===
+  { id: 'SA', fullId: 'S_ANALIZADOR', name: 'Subagente Analizador', icon: '🔬', color: 'blue', description: 'Análisis de Datos - Extrae datos de documentos', type: 'subagente', parent: 'A2_PMO' },
+  { id: 'SC', fullId: 'S_CLASIFICADOR', name: 'Subagente Clasificador', icon: '📁', color: 'blue', description: 'Clasificación por Severidad - Issues por tipo', type: 'subagente', parent: 'A2_PMO' },
+  { id: 'SR', fullId: 'S_RESUMIDOR', name: 'Subagente Resumidor', icon: '📝', color: 'blue', description: 'Compresión y Resumen - Resúmenes ejecutivos', type: 'subagente', parent: 'A2_PMO' },
+  { id: 'SV', fullId: 'S_VERIFICADOR', name: 'Subagente Verificador', icon: '✅', color: 'green', description: 'Control de Calidad - Completitud y calidad', type: 'subagente', parent: 'A2_PMO' },
+  { id: 'SRD', fullId: 'S_REDACTOR', name: 'Subagente Redactor', icon: '✍️', color: 'blue', description: 'Redacción de Documentos - Documentos formales', type: 'subagente', parent: 'A2_PMO' },
 ];
 
 const AgentCard = ({ agent, active, completed, onClick }) => {
@@ -108,27 +123,30 @@ export default function AgentPanel({
   useEffect(() => {
     const fetchAgents = async () => {
       try {
-        const response = await fetch('/api/agents/available');
-        if (response.ok) {
-          const data = await response.json();
-          const fetchedAgents = data.agents || [];
-          if (fetchedAgents.length > 0) {
-            const mergedAgents = fetchedAgents.map(apiAgent => {
-              const staticAgent = AGENTS.find(a => a.fullId === apiAgent.agent_id);
-              return {
-                id: apiAgent.agent_id.split('_')[0],
-                fullId: apiAgent.agent_id,
-                name: staticAgent?.name || apiAgent.agent_id.split('_')[1],
-                icon: apiAgent.icon || staticAgent?.icon || '🤖',
-                description: apiAgent.description || staticAgent?.description || '',
-                color: staticAgent?.color || 'gray',
-              };
-            });
-            setApiAgents(mergedAgents);
-          }
+        // Use api service (includes auth headers) - data from unified registry
+        const data = await api.get('/api/agents/available');
+        const fetchedAgents = data.agents || [];
+        if (fetchedAgents.length > 0) {
+          const mergedAgents = fetchedAgents.map(apiAgent => {
+            // Match by agent_id from unified registry
+            const staticAgent = AGENTS.find(a => a.fullId === apiAgent.agent_id);
+            return {
+              id: apiAgent.agent_id.split('_')[0] || apiAgent.agent_id,
+              fullId: apiAgent.agent_id,
+              name: apiAgent.name || staticAgent?.name || apiAgent.agent_id,
+              icon: apiAgent.icon || staticAgent?.icon || '🤖',
+              description: apiAgent.description || staticAgent?.description || '',
+              color: apiAgent.color || staticAgent?.color || 'gray',
+              type: apiAgent.type || staticAgent?.type || 'principal',
+              role: apiAgent.role || staticAgent?.description || '',
+              parent: apiAgent.parent_agent || staticAgent?.parent || null,
+            };
+          });
+          setApiAgents(mergedAgents);
         }
       } catch (error) {
-        console.error('Error fetching agents:', error);
+        console.error('Error fetching agents from registry:', error);
+        // Fallback to static AGENTS list is automatic (displayAgents logic)
       } finally {
         setLoading(false);
       }
