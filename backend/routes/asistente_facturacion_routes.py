@@ -131,7 +131,7 @@ async def _extraer_texto(content: bytes, extension: str, filename: str) -> str:
     if extension == '.txt':
         try:
             return content.decode('utf-8')
-        except:
+        except UnicodeDecodeError:
             return content.decode('latin-1')
     
     elif extension == '.pdf':

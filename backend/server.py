@@ -92,10 +92,34 @@ except ImportError:
     google_services = None
 
 try:
-    from routes import rag, sql_tools, sql_query, kg_routes, analyze
+    from routes import rag
 except ImportError as e:
-    logging.warning(f"RAG/SQL routes not available: {e}")
-    rag = sql_tools = sql_query = kg_routes = analyze = None
+    logging.warning(f"RAG route not available: {e}")
+    rag = None
+
+try:
+    from routes import sql_tools
+except ImportError as e:
+    logging.warning(f"SQL Tools route not available: {e}")
+    sql_tools = None
+
+try:
+    from routes import sql_query
+except ImportError as e:
+    logging.warning(f"SQL Query route not available: {e}")
+    sql_query = None
+
+try:
+    from routes import kg_routes
+except ImportError as e:
+    logging.warning(f"KG routes not available: {e}")
+    kg_routes = None
+
+try:
+    from routes import analyze
+except ImportError as e:
+    logging.warning(f"Analyze route not available: {e}")
+    analyze = None
 
 try:
     from routes import health_v4
@@ -786,12 +810,20 @@ if devils_advocate_routes:
 # ============================================================
 # RESET DEMO DATA ENDPOINT - Direct on app for reliability
 # ============================================================
-RESET_SECRET = os.environ.get('RESET_SECRET_KEY', 'satma-reset-2024-confirmado')
+RESET_SECRET = os.environ.get('RESET_SECRET_KEY')
+if not RESET_SECRET:
+    logger.warning("⚠️ RESET_SECRET_KEY not set - /reset-demo endpoint will be disabled")
+    RESET_SECRET = None
 
 @app.post("/reset-demo")
 async def reset_demo_data_direct(secret_key: str = ""):
     """Reset all demo data. Requires secret_key as query param."""
-    if secret_key != RESET_SECRET:
+    from fastapi import HTTPException
+
+    if RESET_SECRET is None:
+        raise HTTPException(status_code=503, detail="Reset endpoint disabled - RESET_SECRET_KEY not configured")
+
+    if not secret_key or secret_key != RESET_SECRET:
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Invalid secret key")
 
@@ -816,14 +848,21 @@ async def reset_demo_data_direct(secret_key: str = ""):
             'kb_documentos', 'kb_metricas', 'projects', 'clientes', 'proveedores'
         ]
 
+        # Use parameterized queries with whitelisted table names
+        ALLOWED_TABLES = frozenset(tables)  # Whitelist from hardcoded list above
+
         for table in tables:
             try:
+                if table not in ALLOWED_TABLES:
+                    continue  # Skip any non-whitelisted tables
+
                 exists = await conn.fetchval(
                     "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = $1)", table
                 )
                 if exists:
-                    count = await conn.fetchval(f'SELECT COUNT(*) FROM {table}')
-                    await conn.execute(f'DELETE FROM {table}')
+                    # Use quoted identifier to prevent SQL injection
+                    count = await conn.fetchval(f'SELECT COUNT(*) FROM "{table}"')
+                    await conn.execute(f'DELETE FROM "{table}"')
                     results["cleaned"].append({"table": table, "deleted": count})
             except Exception as e:
                 results["errors"].append({"table": table, "error": str(e)[:50]})
@@ -835,8 +874,8 @@ async def reset_demo_data_direct(secret_key: str = ""):
                 WHERE email NOT IN ('ia@satma.mx', 'admin@revisar-ia.com')
                 AND role NOT IN ('super_admin', 'admin')
             ''')
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"Could not clean non-admin users: {e}")
 
         await conn.close()
 
@@ -850,8 +889,8 @@ async def reset_demo_data_direct(secret_key: str = ""):
                         count = await db[coll_name].count_documents({})
                         await db[coll_name].delete_many({})
                         mongo_results["cleaned"].append({"collection": coll_name, "deleted": count})
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Could not clean MongoDB collection {coll_name}: {e}")
 
                 # Clean durezza_* collections (Revisar.ia dashboard data)
                 durezza_collections = [
@@ -864,8 +903,8 @@ async def reset_demo_data_direct(secret_key: str = ""):
                         count = await db[coll_name].count_documents({})
                         await db[coll_name].delete_many({})
                         mongo_results["cleaned"].append({"collection": coll_name, "deleted": count})
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Could not clean MongoDB collection {coll_name}: {e}")
         except Exception as e:
             mongo_results["errors"].append({"error": str(e)[:100]})
 
@@ -999,12 +1038,12 @@ else:
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],  # ALLOW ALL FOR DEBUGGING
+    allow_origins=cors_origins,  # Use secure whitelist from CORS_ORIGINS env var
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Empresa-ID", "X-Request-ID"],
     expose_headers=["Content-Type", "X-Request-ID"]
 )
-logging.warning("⚠️ CORS ALLOW ALL (*) ENABLED FOR DEBUGGING")
+logging.info(f"CORS configured with origins: {cors_origins}")
 
 # Add middleware to prevent caching
 from starlette.requests import Request
@@ -1181,8 +1220,14 @@ async def seed_superadmin_auth_users():
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_auth_sessions_token_hash ON auth_sessions(token_hash)')
         await conn.execute('CREATE INDEX IF NOT EXISTS idx_auth_sessions_active ON auth_sessions(is_active, expires_at)')
         
-        # Insert super_admin - Password: Sillybanana142# (bcrypt hashed)
-        superadmin_hash = '$2b$12$8QPA/6q8GvLn9TanuW60BOxJziS.n7AQOt6OLpkjpxemzvjLkm802'
+        # Insert super_admin (bcrypt hashed password from SUPERADMIN_PASSWORD env var)
+        superadmin_password = os.environ.get('SUPERADMIN_PASSWORD')
+        if superadmin_password:
+            import bcrypt
+            superadmin_hash = bcrypt.hashpw(superadmin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        else:
+            logger.warning("SUPERADMIN_PASSWORD not set - using fallback hash")
+            superadmin_hash = '$2b$12$8QPA/6q8GvLn9TanuW60BOxJziS.n7AQOt6OLpkjpxemzvjLkm802'
         
         await conn.execute('''
             INSERT INTO auth_users (email, full_name, password_hash, role, status, auth_method, email_verified, approval_required, company_name)

@@ -194,7 +194,7 @@ SKIP_TENANT_CHECK_PREFIXES = (
     "/api/loops",
     "/api/validacion",
     "/api/documentos",
-    "/api/projects",
+    # "/api/projects", # REMOVED: Now protected
     "/api/usage",
     "/api/stats",
     "/api/metrics",
@@ -232,12 +232,20 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
             # Set empty context on error
             set_tenant_context(TenantContext())
 
+        logger.info(f"TenantMiddleware: Checking path={path}")
+        
         # Skip validation for explicitly excluded paths
-        if path in SKIP_TENANT_CHECK_PATHS or path.startswith(SKIP_TENANT_CHECK_PREFIXES):
+        if path in SKIP_TENANT_CHECK_PATHS:
+            logger.info(f"TenantMiddleware: SKIPPING {path} (in SKIP_PATHS)")
+            return await call_next(request)
+            
+        if any(path.startswith(prefix) for prefix in SKIP_TENANT_CHECK_PREFIXES):
+            logger.info(f"TenantMiddleware: SKIPPING {path} (matches prefix)")
             return await call_next(request)
 
         # Skip non-API routes
         if not path.startswith("/api") and not path.startswith("/deliberation"):
+            logger.info(f"TenantMiddleware: SKIPPING {path} (not API/Deliberation)")
             return await call_next(request)
 
         try:

@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AgentFlowVisualization from './AgentFlowVisualization';
 import AgentChat from './AgentChat';
+import api from '../../services/api';
 
 /**
  * StatCard Component
@@ -109,6 +110,19 @@ const AgentsDashboard = ({ projectId = null }) => {
   const [showChat, setShowChat] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
 
+  // Ref for polling cleanup to prevent memory leaks
+  const pollIntervalRef = useRef(null);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, []);
+
   // Simulation Modal State
   const [showSimulationModal, setShowSimulationModal] = useState(false);
   const [caseDescription, setCaseDescription] = useState('');
@@ -145,16 +159,13 @@ const AgentsDashboard = ({ projectId = null }) => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch('/api/agents/stats');
-        if (response.ok) {
-          const data = await response.json();
-          setStats({
-            total_analisis: data.totalAnalyses || data.total_analisis || 0,
-            score_promedio: data.avgScore || data.score_promedio || 0,
-            latencia_ms: data.avgLatency || data.latencia_ms || 0,
-            tasa_exito: data.successRate || data.tasa_exito || 0,
-          });
-        }
+        const data = await api.get('/api/agents/stats');
+        setStats({
+          total_analisis: data.totalAnalyses || data.total_analisis || 0,
+          score_promedio: data.avgScore || data.score_promedio || 0,
+          latencia_ms: data.avgLatency || data.latencia_ms || 0,
+          tasa_exito: data.successRate || data.tasa_exito || 0,
+        });
       } catch (error) {
         console.error('Error fetching stats:', error);
       }
@@ -170,20 +181,17 @@ const AgentsDashboard = ({ projectId = null }) => {
     const fetchDeliberations = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/agents/deliberations/recent');
-        if (response.ok) {
-          const data = await response.json();
-          const rawData = Array.isArray(data) ? data : data.deliberations || [];
-          const normalizedData = rawData.map(d => ({
-            project_name: d.projectName || d.project_name || 'Sin proyecto',
-            created_at: d.timestamp || d.created_at || new Date().toISOString(),
-            score: d.score || 0,
-            agents: d.agentsInvolved || d.agents || [],
-            summary: d.summary || d.resumen || '',
-            id: d.id,
-          }));
-          setDeliberations(normalizedData);
-        }
+        const data = await api.get('/api/agents/deliberations/recent');
+        const rawData = Array.isArray(data) ? data : data.deliberations || [];
+        const normalizedData = rawData.map(d => ({
+          project_name: d.projectName || d.project_name || 'Sin proyecto',
+          created_at: d.timestamp || d.created_at || new Date().toISOString(),
+          score: d.score || 0,
+          agents: d.agentsInvolved || d.agents || [],
+          summary: d.summary || d.resumen || '',
+          id: d.id,
+        }));
+        setDeliberations(normalizedData);
       } catch (error) {
         console.error('Error fetching deliberations:', error);
         setDeliberations([]);
@@ -236,25 +244,24 @@ const AgentsDashboard = ({ projectId = null }) => {
     }]);
 
     try {
-      // 1. Trigger Real AI Deliberation
-      const response = await fetch('/api/deliberation/demo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(caseData)
-      });
+      // 1. Trigger Real AI Deliberation using api service (includes auth headers)
+      const response = await api.post('/api/deliberation/demo', caseData);
+      const project_id = response.project_id;
 
-      if (!response.ok) throw new Error('Error starting simulation');
+      if (!project_id) throw new Error('No project_id returned from server');
 
-      const { project_id } = await response.json();
-      let isFinished = false;
       const processedAgents = new Set();
 
-      // 2. Poll for updates
-      const pollInterval = setInterval(async () => {
+      // Clear any existing interval before creating new one
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+
+      // 2. Poll for updates (store in ref for cleanup)
+      pollIntervalRef.current = setInterval(async () => {
         try {
-          // Check processing status
-          const statusRes = await fetch(`/api/projects/processing-status/${project_id}`);
-          const statusData = await statusRes.json();
+          // Check processing status using api service
+          const statusData = await api.get(`/api/projects/processing-status/${project_id}`);
 
           if (statusData.success && statusData.data) {
             const { status, agent_statuses } = statusData.data;
@@ -263,68 +270,77 @@ const AgentsDashboard = ({ projectId = null }) => {
             if (agent_statuses) {
               const active = agent_statuses
                 .filter(a => a.status === 'En proceso')
-                .map(a => a.role); // e.g., "Estrategia", "Fiscal"
-
-              // Map backend roles to frontend IDs if needed, or just use names
-              // Frontend expects IDs like 'A1', 'A3' etc for visualization?
-              // Let's rely on the messages for now.
+                .map(a => a.role);
               setActiveAgents(active);
             }
 
             // Check if completed or failed
             if (status === 'completed' || status === 'failed') {
-              isFinished = true;
-              clearInterval(pollInterval);
+              clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
               setIsSimulating(false);
 
               if (status === 'completed') {
                 // Refresh recent deliberations list
-                const recentRes = await fetch('/api/agents/deliberations/recent');
-                if (recentRes.ok) {
-                  const recentData = await recentRes.json();
-                  // Update deliberations list logic here if exposed, or trigger a re-fetch
+                try {
+                  const recentData = await api.get('/api/agents/deliberations/recent');
+                  const rawData = Array.isArray(recentData) ? recentData : recentData.deliberations || [];
+                  const normalizedData = rawData.map(d => ({
+                    project_name: d.projectName || d.project_name || 'Sin proyecto',
+                    created_at: d.timestamp || d.created_at || new Date().toISOString(),
+                    score: d.score || 0,
+                    agents: d.agentsInvolved || d.agents || [],
+                    summary: d.summary || d.resumen || '',
+                    id: d.id,
+                  }));
+                  setDeliberations(normalizedData);
+                } catch (refreshErr) {
+                  console.error('Error refreshing deliberations:', refreshErr);
                 }
               }
             }
           }
 
           // 3. Fetch Real Trail (Analysis Content)
-          const trailRes = await fetch(`/api/deliberation/trail/${project_id}`);
-          if (trailRes.ok) {
-            const trail = await trailRes.json();
+          try {
+            const trail = await api.get(`/api/deliberation/trail/${project_id}`);
 
             // Iterate through trail and add new messages
-            trail.forEach((item) => {
-              const msgId = `${item.agent_id}_${item.stage}`;
+            if (Array.isArray(trail)) {
+              trail.forEach((item) => {
+                const msgId = `${item.agent_id}_${item.stage}`;
 
-              if (!processedAgents.has(msgId)) {
-                processedAgents.add(msgId);
+                if (!processedAgents.has(msgId)) {
+                  processedAgents.add(msgId);
 
-                // Map backend agent ID to frontend display
-                const agentMap = {
-                  'A1_SPONSOR': { name: 'Estrategia', emoji: '🎯', id: 'A1' },
-                  'A3_FISCAL': { name: 'Fiscal', emoji: '⚖️', id: 'A3' },
-                  'A5_FINANZAS': { name: 'Finanzas', emoji: '💰', id: 'A5' },
-                  'LEGAL': { name: 'Legal', emoji: '📜', id: 'A7' }, // 'A7' in frontend usually
-                };
+                  // Map backend agent ID to frontend display
+                  const agentMap = {
+                    'A1_SPONSOR': { name: 'Estrategia', emoji: '🎯', id: 'A1' },
+                    'A3_FISCAL': { name: 'Fiscal', emoji: '⚖️', id: 'A3' },
+                    'A5_FINANZAS': { name: 'Finanzas', emoji: '💰', id: 'A5' },
+                    'LEGAL': { name: 'Legal', emoji: '📜', id: 'A7' },
+                  };
 
-                const agentInfo = agentMap[item.agent_id] || { name: item.agent_id, emoji: '🤖', id: item.agent_id };
+                  const agentInfo = agentMap[item.agent_id] || { name: item.agent_id, emoji: '🤖', id: item.agent_id };
 
-                setSimulationMessages(prev => [...prev, {
-                  id: msgId,
-                  agentId: agentInfo.id,
-                  agentName: agentInfo.name,
-                  emoji: agentInfo.emoji,
-                  status: 'completed',
-                  content: item.analysis || item.decision || "Análisis completado",
-                  processingTime: 0, // Could calc from timestamp
-                  timestamp: new Date(item.timestamp),
-                  decision: item.decision
-                }]);
+                  setSimulationMessages(prev => [...prev, {
+                    id: msgId,
+                    agentId: agentInfo.id,
+                    agentName: agentInfo.name,
+                    emoji: agentInfo.emoji,
+                    status: 'completed',
+                    content: item.analysis || item.decision || "Análisis completado",
+                    processingTime: 0,
+                    timestamp: new Date(item.timestamp),
+                    decision: item.decision
+                  }]);
 
-                setCompletedAgents(prev => [...prev, agentInfo.id]);
-              }
-            });
+                  setCompletedAgents(prev => [...prev, agentInfo.id]);
+                }
+              });
+            }
+          } catch (trailErr) {
+            // Trail might not exist yet, ignore
           }
 
         } catch (err) {

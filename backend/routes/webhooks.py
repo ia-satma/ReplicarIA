@@ -147,7 +147,7 @@ async def wufoo_webhook(
     logger.info(f"Attachments found: {len(attachment_fields)}")
     
     # Iniciar Stage 1 en background para no bloquear la respuesta del webhook
-    from server import db
+    from services.database import db
     workflow_service = WorkflowService(db)
     
     background_tasks.add_task(
@@ -224,7 +224,7 @@ async def simulate_wufoo_submission(
         "wufoo_date": datetime.now().isoformat()
     }
     
-    from server import db
+    from services.database import db
     workflow_service = WorkflowService(db)
     
     background_tasks.add_task(

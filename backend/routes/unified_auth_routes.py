@@ -225,10 +225,10 @@ async def check_auth_method(body: CheckAuthMethodRequest):
 
 
 @router.get("/debug-auth-users", response_model=APIResponse)
-async def debug_auth_users():
+async def debug_auth_users(admin: User = Depends(get_admin_user)):
     """
     Debug endpoint para verificar contenido de auth_users.
-    Solo para diagnóstico.
+    Solo para diagnóstico. ADMIN ONLY.
     """
     from services.otp_auth_service import get_db_connection
 
@@ -946,8 +946,8 @@ async def auth_health_check():
 
 
 @router.post("/debug-validate-token", response_model=APIResponse)
-async def debug_validate_token(body: dict):
-    """Debug: validate a specific token."""
+async def debug_validate_token(body: dict, admin: User = Depends(get_admin_user)):
+    """Debug: validate a specific token. ADMIN ONLY."""
     import hashlib
     from services.otp_auth_service import get_db_connection
 
@@ -1004,8 +1004,8 @@ async def debug_validate_token(body: dict):
 
 
 @router.get("/debug-sessions", response_model=APIResponse)
-async def debug_sessions():
-    """Debug: show auth_sessions content."""
+async def debug_sessions(admin: User = Depends(get_admin_user)):
+    """Debug: show auth_sessions content. ADMIN ONLY."""
     from services.otp_auth_service import get_db_connection
 
     try:
@@ -1247,8 +1247,12 @@ async def init_auth_tables():
             await conn.execute('CREATE INDEX IF NOT EXISTS idx_auth_users_email ON auth_users(email)')
             await conn.execute('CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id)')
 
-            # Create superadmin user
-            password_hash = bcrypt.hashpw('Sillybanana142#'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            # Create superadmin user - use env var for password
+            import os
+            superadmin_pass = os.environ.get('SUPERADMIN_PASSWORD', 'CHANGE_ME_IMMEDIATELY')
+            if superadmin_pass == 'CHANGE_ME_IMMEDIATELY':
+                logger.warning("⚠️ SUPERADMIN_PASSWORD not set - using unsafe default!")
+            password_hash = bcrypt.hashpw(superadmin_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
             await conn.execute('''
                 INSERT INTO auth_users (email, full_name, password_hash, role, status, auth_method, email_verified)

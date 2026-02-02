@@ -13,8 +13,8 @@ python-multipart>=0.0.6
 # === AI/LLM Providers ===
 anthropic>=0.34.0
 openai>=1.0.0
-langchain>=0.1.0
-langchain-openai>=0.0.8
+langchain>=0.3.0
+langchain-openai>=0.2.0
 tiktoken>=0.5.0
 
 # === HTTP Clients ===
@@ -67,7 +67,7 @@ pytest-cov>=4.0.0
 redis>=5.0.0
 
 # === RAG / Vector Database (usando OpenAI embeddings - más ligero que torch) ===
-chromadb>=0.4.0
+chromadb>=0.5.0
 # NOTA: Usamos OpenAI embeddings en lugar de sentence-transformers
 # sentence-transformers requiere torch (915MB) y causa timeout en Railway
 

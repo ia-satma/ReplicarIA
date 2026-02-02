@@ -74,8 +74,8 @@ async def get_recent_interactions():
     """
     Obtener las interacciones recientes entre agentes.
     """
-    from server import db
-    
+    from services.database import db
+
     try:
         interactions = await db.agent_interactions.find(
             {}, {"_id": 0}

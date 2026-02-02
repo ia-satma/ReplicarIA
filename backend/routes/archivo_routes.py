@@ -611,7 +611,8 @@ async def add_company_to_user(user_id: str, company_id: str) -> bool:
     if user.allowed_companies:
         try:
             current_companies = json.loads(user.allowed_companies)
-        except:
+        except (json.JSONDecodeError, TypeError):
+            # Fallback: treat as comma-separated list
             current_companies = [c.strip() for c in user.allowed_companies.split(',') if c.strip()]
     
     if company_id not in current_companies:

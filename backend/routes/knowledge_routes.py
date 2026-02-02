@@ -266,8 +266,8 @@ async def browse_folder(
         token_empresa_id = None
         try:
             token_empresa_id = get_user_empresa_id(current_user, allow_superadmin=True)
-        except:
-            pass
+        except Exception:
+            pass  # User may not have empresa assigned, continue with None
 
         final_empresa_id = token_empresa_id
         
@@ -311,8 +311,8 @@ async def create_folder(
         token_empresa_id = None
         try:
             token_empresa_id = get_user_empresa_id(current_user, allow_superadmin=True)
-        except:
-            pass
+        except Exception:
+            pass  # User may not have empresa assigned, continue with None
 
         final_empresa_id = token_empresa_id
         is_superadmin = current_user.get("is_superadmin") or current_user.get("role") in ["super_admin", "superadmin"]
@@ -356,8 +356,8 @@ async def upload_file(
         token_empresa_id = None
         try:
             token_empresa_id = get_user_empresa_id(current_user, allow_superadmin=True)
-        except:
-            pass
+        except Exception:
+            pass  # User may not have empresa assigned, continue with None
 
         final_empresa_id = token_empresa_id
         is_superadmin = current_user.get("is_superadmin") or current_user.get("role") in ["super_admin", "superadmin"]
@@ -517,8 +517,8 @@ async def initialize_folder_structure(
         token_empresa_id = None
         try:
             token_empresa_id = get_user_empresa_id(current_user, allow_superadmin=True)
-        except:
-            pass
+        except Exception:
+            pass  # User may not have empresa assigned, continue with None
 
         final_empresa_id = token_empresa_id
         
@@ -562,8 +562,8 @@ async def get_repository_stats(
         token_empresa_id = None
         try:
             token_empresa_id = get_user_empresa_id(current_user, allow_superadmin=True)
-        except:
-            pass
+        except Exception:
+            pass  # User may not have empresa assigned, continue with None
 
         final_empresa_id = token_empresa_id
         is_superadmin = current_user.get("is_superadmin") or current_user.get("role") in ["super_admin", "superadmin"]

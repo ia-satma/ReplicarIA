@@ -95,8 +95,8 @@ async def get_agent_stats():
                         try:
                             d_dict = json.loads(decision)
                             score = d_dict.get("score")
-                        except:
-                            pass
+                        except (json.JSONDecodeError, TypeError):
+                            pass  # Invalid JSON, skip score extraction
                     
                     if score is not None:
                         try:
@@ -242,7 +242,7 @@ async def get_recent_deliberations(limit: int = Query(10, ge=1, le=100)):
             if not ts: return datetime.min.replace(tzinfo=timezone.utc)
             try:
                 return datetime.fromisoformat(ts)
-            except:
+            except (ValueError, TypeError):
                 return datetime.min.replace(tzinfo=timezone.utc)
 
         all_deliberations.sort(key=parse_date, reverse=True)

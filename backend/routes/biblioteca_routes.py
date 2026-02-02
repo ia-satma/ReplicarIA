@@ -1105,8 +1105,8 @@ async def reingestar_documento(
                     {'doc_id': doc_id, 'error': str(e)}
                 )
                 await session.commit()
-        except:
-            pass
+        except Exception as db_err:
+            logger.debug(f"Could not update error status: {db_err}")
         if "not found" in str(e).lower():
             status_code = 404
         elif "timeout" in str(e).lower() or "memory" in str(e).lower():
@@ -1371,7 +1371,7 @@ async def actualizar_version_documento(
                 update_fields.append("fecha_documento = :fecha_documento")
                 try:
                     params['fecha_documento'] = datetime.fromisoformat(request.fecha_documento.replace('Z', '+00:00'))
-                except:
+                except (ValueError, AttributeError):
                     params['fecha_documento'] = request.fecha_documento
             
             if request.ultima_reforma is not None:

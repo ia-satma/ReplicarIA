@@ -148,8 +148,8 @@ async def list_health_checks():
                 if row['configuracion']:
                     try:
                         config = json.loads(row['configuracion'])
-                    except:
-                        config = {}
+                    except (json.JSONDecodeError, TypeError):
+                        config = {}  # Invalid JSON, use empty config
                 
                 total = row['total_ejecuciones'] or 0
                 exitosas = row['total_exitosas'] or 0

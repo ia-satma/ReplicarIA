@@ -54,8 +54,8 @@ async def get_current_user_info(credentials: HTTPAuthorizationCredentials = Depe
                         companies = json.loads(user.allowed_companies)
                         if isinstance(companies, list):
                             result["allowed_companies"] = [c.lower().strip() for c in companies]
-                    except:
-                        pass
+                    except (json.JSONDecodeError, TypeError):
+                        pass  # Invalid JSON format, skip
     except Exception as e:
         logger.debug(f"Error getting user info: {e}")
     
@@ -292,8 +292,8 @@ async def list_personas():
                 'años_experiencia': p.años_experiencia,
                 'tono': p.tono.value
             })
-        except:
-            pass
+        except (KeyError, AttributeError, ValueError) as e:
+            logger.debug(f"Could not get persona {pid}: {e}")
     
     return {
         'success': True,
@@ -391,7 +391,7 @@ async def get_defense_files():
             if isinstance(created_at_str, str) and created_at_str:
                 try:
                     created_date = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
-                except:
+                except (ValueError, TypeError):
                     created_date = datetime.now()
             elif isinstance(created_at_str, datetime):
                 created_date = created_at_str

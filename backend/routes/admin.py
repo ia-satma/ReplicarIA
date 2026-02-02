@@ -741,8 +741,8 @@ async def reset_demo_data(request: ResetDemoRequest):
         # Limpiar sesiones expiradas
         try:
             await conn.execute('DELETE FROM auth_sessions WHERE expires_at < NOW()')
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not clean expired sessions: {e}")
 
         await conn.close()
 

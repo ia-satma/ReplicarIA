@@ -502,8 +502,8 @@ async def get_user_auth_info(credentials: HTTPAuthorizationCredentials = Depends
                         companies = json.loads(user.allowed_companies)
                         if isinstance(companies, list):
                             result["allowed_companies"] = [c.lower().strip() for c in companies]
-                    except:
-                        pass
+                    except (json.JSONDecodeError, TypeError):
+                        pass  # Invalid JSON format
     except Exception as e:
         logger.debug(f"Error getting user auth info: {e}")
     

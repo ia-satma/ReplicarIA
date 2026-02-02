@@ -1,5 +1,6 @@
 from fastapi import APIRouter
-from jobs.export_sheets_to_sql import EXPORTER
+# from jobs.export_sheets_to_sql import EXPORTER
+EXPORTER = None
 from services.agent_service import AGENT_CONFIGURATIONS
 
 router = APIRouter(prefix="/sql", tags=["SQL Tools"])

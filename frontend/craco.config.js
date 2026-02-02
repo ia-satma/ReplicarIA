@@ -85,15 +85,18 @@ webpackConfig.devServer = (devServerConfig) => {
   // Essential settings for Replit
   devServerConfig.port = 5000;
   devServerConfig.host = '0.0.0.0';
-  devServerConfig.allowedHosts = 'all';
+  // Restrict allowed hosts in production, allow all in development
+  devServerConfig.allowedHosts = process.env.NODE_ENV === 'production'
+    ? ['localhost', '.vercel.app', '.railway.app']
+    : 'all';
   devServerConfig.headers = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'http://localhost:3000',
   };
   
-  // Proxy API requests to backend
+  // Proxy API requests to backend (default port 5000 per CLAUDE.md)
   devServerConfig.proxy = {
     '/api': {
-      target: 'http://localhost:8000',
+      target: process.env.BACKEND_URL || 'http://localhost:5000',
       changeOrigin: true,
       secure: false,
     },
