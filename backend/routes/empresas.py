@@ -387,10 +387,10 @@ Responde UNICAMENTE en formato JSON:
             except Exception as e:
                 logger.warning(f"Error en Deep Research, intentando con IA basica: {e}")
 
-    # 2. Fallback: IA basica sin investigacion
-    if OPENAI_AVAILABLE:
-        try:
-            prompt = f"""Eres un experto en desarrollo empresarial y estrategia corporativa en Mexico.
+        # 2. Fallback: IA basica sin investigacion
+        if OPENAI_AVAILABLE:
+            try:
+                prompt = f"""Eres un experto en desarrollo empresarial y estrategia corporativa en Mexico.
 Genera informacion de perfil empresarial para la siguiente empresa mexicana:
 
 DATOS DE LA EMPRESA:
@@ -410,32 +410,32 @@ Responde UNICAMENTE en este formato JSON exacto:
     "mision": "La mision de la empresa en 1-2 oraciones..."
 }}"""
 
-            response_text = chat_completion_sync(
-                messages=[{"role": "user", "content": prompt}],
-                model=AI_MODEL,
-                max_tokens=512
-            ).strip()
+                response_text = chat_completion_sync(
+                    messages=[{"role": "user", "content": prompt}],
+                    model=AI_MODEL,
+                    max_tokens=512
+                ).strip()
 
-            if response_text.startswith("```"):
-                lines = response_text.split("\n")
-                response_text = "\n".join(lines[1:-1])
+                if response_text.startswith("```"):
+                    lines = response_text.split("\n")
+                    response_text = "\n".join(lines[1:-1])
 
-            result = json.loads(response_text)
+                result = json.loads(response_text)
 
-            # Check if AI returned an error
-            if "error" in result:
-                logger.warning(f"AI returned error: {result.get('error')}")
-                raise ValueError(f"AI error: {result.get('error')}")
+                # Check if AI returned an error
+                if "error" in result:
+                    logger.warning(f"AI returned error: {result.get('error')}")
+                    raise ValueError(f"AI error: {result.get('error')}")
 
-            return {
-                "success": True,
-                "data": result,
-                "message": "Perfil generado con IA",
-                "source": "ai"
-            }
+                return {
+                    "success": True,
+                    "data": result,
+                    "message": "Perfil generado con IA",
+                    "source": "ai"
+                }
 
-        except Exception as e:
-            logger.warning(f"Error con IA, usando template: {e}")
+            except Exception as e:
+                logger.warning(f"Error con IA, usando template: {e}")
 
         # 3. Fallback final: templates predefinidos
         template = TEMPLATES_POR_INDUSTRIA.get(industria_key, TEMPLATES_POR_INDUSTRIA["default"])
@@ -451,7 +451,7 @@ Responde UNICAMENTE en este formato JSON exacto:
             "message": "Perfil generado con plantilla de industria",
             "source": "template"
         }
-    
+
     except Exception as outer_error:
         # Ultimate fallback - if everything fails, return a basic template
         logger.error(f"Error crítico en autofill-ia: {outer_error}")
