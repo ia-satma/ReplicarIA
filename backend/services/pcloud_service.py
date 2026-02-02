@@ -446,26 +446,40 @@ class PCloudService:
             return None
 
     def find_revisar_ia_folder(self) -> Dict[str, Any]:
-        """Find the REVISAR.ia folder in the root directory"""
+        """Find the REVISAR.ia root folder, or create it if missing."""
         try:
             root_contents = self.list_folder(folder_id=0)
             if not root_contents.get("success"):
                 return root_contents
             
+            # 1. Search for existing folder
             for item in root_contents.get("items", []):
-                if item.get("is_folder") and item.get("name", "").lower() == REVISAR_IA_FOLDER_NAME.lower():
+                name = item.get("name", "")
+                if item.get("is_folder") and (name.lower() == REVISAR_IA_FOLDER_NAME.lower() or name == "REVISAR_IA"):
                     self.revisar_ia_folder_id = item.get("id")
-                    logger.info(f"Found REVISAR.ia folder with ID: {self.revisar_ia_folder_id}")
+                    logger.info(f"✅ Found root folder '{name}' with ID: {self.revisar_ia_folder_id}")
                     return {
                         "success": True,
                         "folder_id": self.revisar_ia_folder_id,
-                        "name": item.get("name")
+                        "name": name
                     }
             
-            return {"success": False, "error": f"Folder '{REVISAR_IA_FOLDER_NAME}' not found in root directory"}
+            # 2. Create if not found
+            logger.info(f"Root folder '{REVISAR_IA_FOLDER_NAME}' not found. Creating it...")
+            create_result = self.create_folder(parent_folder_id=0, folder_name=REVISAR_IA_FOLDER_NAME)
+            
+            if create_result.get("success"):
+                self.revisar_ia_folder_id = create_result.get("folder_id")
+                return {
+                    "success": True,
+                    "folder_id": self.revisar_ia_folder_id,
+                    "name": REVISAR_IA_FOLDER_NAME
+                }
+            else:
+                return create_result
             
         except Exception as e:
-            logger.error(f"Error finding REVISAR.ia folder: {str(e)}")
+            logger.error(f"Error finding/creating REVISAR.ia folder: {str(e)}")
             return {"success": False, "error": str(e)}
     
     def initialize_folder_structure(self) -> Dict[str, Any]:
