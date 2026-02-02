@@ -37,21 +37,47 @@ except ImportError:
 
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 
+# SYNCED WITH: backend/config/agents_registry.py
+# Colecciones ChromaDB por agente para RAG
 AGENT_COLLECTIONS = {
+    # Agentes Principales (7)
     "A1_SPONSOR": "estrategia_knowledge",
-    "A2_PMO": "pmo_knowledge", 
+    "A1_ESTRATEGIA": "estrategia_knowledge",  # Alias
+    "A2_PMO": "pmo_knowledge",
     "A3_FISCAL": "fiscal_knowledge",
+    "A4_LEGAL": "legal_knowledge",
+    "LEGAL": "legal_knowledge",  # Alias
     "A5_FINANZAS": "finanzas_knowledge",
-    "LEGAL": "legal_knowledge",
-    "A5_LEGAL": "legal_knowledge"
+    "A6_PROVEEDOR": "proveedor_knowledge",
+    "A7_DEFENSA": "defensa_knowledge",
+    # Agentes Especializados (3)
+    "A8_AUDITOR": "auditor_knowledge",
+    "KB_CURATOR": "knowledge_base",
+    "DEVILS_ADVOCATE": "control_knowledge",
+    # Subagentes Fiscales (3) - Comparten colección con A3_FISCAL
+    "S1_TIPIFICACION": "fiscal_knowledge",
+    "S2_MATERIALIDAD": "fiscal_knowledge",
+    "S3_RIESGOS": "fiscal_knowledge",
+    # Subagentes PMO (5) - Comparten colección con A2_PMO
+    "S_ANALIZADOR": "pmo_knowledge",
+    "S_CLASIFICADOR": "pmo_knowledge",
+    "S_RESUMIDOR": "pmo_knowledge",
+    "S_VERIFICADOR": "pmo_knowledge",
+    "S_REDACTOR": "pmo_knowledge",
 }
 
+# Links públicos de pCloud por agente (para acceso directo)
 AGENT_PCLOUD_LINKS = {
     "A1_SPONSOR": "https://u.pcloud.link/publink/show?code=kZHqng5ZeW36Cw3UbmY6lu1DsJ1QYj9hhCe7",
     "A2_PMO": "https://u.pcloud.link/publink/show?code=kZJqng5ZGDwXSRewkijTxOYa3WBCIkRXeUpV",
     "A3_FISCAL": "https://u.pcloud.link/publink/show?code=kZQqng5ZE3BXwURDwrhkgreFBT4xXbyJDOa7",
+    "A4_LEGAL": None,  # Pendiente crear link público
     "A5_FINANZAS": "https://u.pcloud.link/publink/show?code=kZhqng5ZpurMT7tJ7wH9vDUXiGy2Mbju5M0X",
-    "LEGAL": None
+    "A6_PROVEEDOR": None,
+    "A7_DEFENSA": None,
+    "A8_AUDITOR": None,
+    "KB_CURATOR": None,
+    "LEGAL": None,
 }
 
 

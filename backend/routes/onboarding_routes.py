@@ -573,9 +573,40 @@ async def analizar_documentos(
 
     logger.info(f"Analizando {len(files)} archivos para {tipo_entidad}")
 
+    # 1. Resolve Auth Context for RAG Ingestion
+    ks = None
+    empresa_id = None
+    user_id = None
+    try:
+        user_payload = await get_current_user(credentials)
+        if user_payload:
+            empresa_id = user_payload.get("empresa_id")
+            user_id = user_payload.get("id") or user_payload.get("user_id")
+            if empresa_id:
+                from services.knowledge_service import KnowledgeService
+                ks = KnowledgeService()
+    except Exception as auth_error:
+        logger.warning(f"Could not resolve auth for RAG ingestion: {auth_error}")
+
     for file in files:
         try:
             content = await file.read()
+            
+            # RAG Ingestion Hook (Dual-Write)
+            if ks and empresa_id:
+                try:
+                    await ks.upload_file(
+                        empresa_id=empresa_id,
+                        path="/onboarding/uploads",
+                        filename=file.filename or f"upload_{uuid.uuid4()}",
+                        content=content,
+                        mime_type=file.content_type,
+                        user_id=user_id
+                    )
+                    logger.info(f"Queued for RAG: {file.filename}")
+                except Exception as upload_err:
+                    logger.warning(f"Background RAG ingestion failed for {file.filename}: {upload_err}")
+
             texto = ""
             filename = file.filename or "unknown"
             content_type = file.content_type or ""
@@ -620,6 +651,28 @@ async def analizar_documentos(
             logger.error(f"Error processing file {file.filename}: {e}", exc_info=True)
             archivos_fallidos.append(file.filename or "unknown")
             continue
+
+    # Attempt RAG Ingestion if authenticated
+    try:
+        user_payload = await get_current_user(credentials)
+        if user_payload and user_payload.get("empresa_id"):
+            from services.knowledge_service import KnowledgeService
+            ks = KnowledgeService()
+            
+            # Re-iterate to upload. Note: We must manage file pointers if we were to re-read.
+            # But we already read 'content' in the previous loop. 
+            # FLAW: 'content' variable in previous loop is overwritten.
+            # We need to store content/filename pairs in `documentos_procesados` or a separate list to ingest.
+            
+            # Refactor: The previous loop extracts text. We should upload concurrently or capture the content.
+            # Since 'documentos_procesados' contains text, not raw bytes.
+            pass
+    except Exception as e:
+        logger.warning(f"RAG ingestion skipped: {e}")
+
+    # REFACTOR STRATEGY: 
+    # Modify the main loop to upload immediately if authenticated.
+
 
     if not documentos_procesados:
         error_msg = "No se pudo extraer texto de ningún documento"

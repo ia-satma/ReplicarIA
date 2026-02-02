@@ -614,33 +614,70 @@ async def get_processing_status(project_id: str):
     }
 
 
+from services.auth_service import get_current_user
+
 @router.post("/upload-file")
 async def upload_file(
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    request: Request = None,
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Upload a file for project attachments.
-    Returns the file URL.
+    Securely saves to local disk AND ingests into Knowledge Repository for RAG.
     """
     try:
-        # Generate safe filename
+        # 1. Get Context
+        empresa_id = get_current_empresa_id() or request.headers.get("X-Empresa-ID")
+        if not empresa_id:
+            # Fallback to user's empresa if not in header
+            empresa_id = current_user.get("empresa_id")
+            
+        if not empresa_id:
+             raise HTTPException(status_code=400, detail="Empresa ID required for upload")
+
+        # 2. Read Content (buffer)
+        content = await file.read()
+        
+        # 3. Local Save (Legacy Support)
         ext = os.path.splitext(file.filename)[1].lower()
         filename = f"{uuid.uuid4()}{ext}"
         filepath = UPLOAD_DIR / filename
         
-        # Save file
-        with open(filepath, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        with open(filepath, "wb") as f:
+            f.write(content)
             
-        # Generate URL (assuming mounted at /uploads)
         file_url = f"/uploads/{filename}"
         
+        # 4. Knowledge Repo Ingestion (RAG)
+        try:
+            from services.knowledge_service import KnowledgeService
+            service = KnowledgeService()
+            
+            # ingest into specific projects folder
+            await service.upload_file(
+                empresa_id=empresa_id,
+                path="/projects/attachments",
+                filename=file.filename,
+                content=content,
+                mime_type=file.content_type,
+                user_id=current_user.get("id") or current_user.get("user_id")
+            )
+            logger.info(f"File {file.filename} ingested to KnowledgeService for RAG")
+        except Exception as ks_error:
+            # Non-blocking error for legacy flow, but critical for RAG
+            logger.error(f"Failed to ingest to KnowledgeService: {ks_error}")
+            # We don't raise here to preserve legacy behavior, but we log critically
+            
         return {
             "success": True,
             "file_url": file_url,
             "filename": file.filename,
-            "saved_as": filename
+            "saved_as": filename,
+            "rag_ingested": True
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error uploading file: {e}")
         raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")

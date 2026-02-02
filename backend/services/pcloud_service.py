@@ -22,23 +22,34 @@ EVIDENCIAS_FOLDER_ID = 29799555482
 REVISAR_IA_FOLDER_NAME = "REVISAR.IA"
 
 REQUIRED_SUBFOLDERS = [
+    # Agentes Principales (7)
     "A1_ESTRATEGIA",
-    "A2_PMO", 
+    "A2_PMO",
     "A3_FISCAL",
     "A4_LEGAL",
     "A5_FINANZAS",
     "A6_PROVEEDOR",
     "A7_DEFENSA",
+    # Agentes Especializados (1 + KB)
     "A8_AUDITOR",
+    "KNOWLEDGE_BASE",  # KB_CURATOR
+    # Carpetas de Sistema
     "DEFENSE_FILES",
-    "KNOWLEDGE_BASE",
     "PROYECTOS",
+    # Subagentes Fiscales (3) - Reportan a A3_FISCAL
     "SUB_TIPIFICACION",
     "SUB_MATERIALIDAD",
-    "SUB_RIESGOS"
+    "SUB_RIESGOS",
+    # Subagentes PMO (5) - Reportan a A2_PMO
+    "SUB_ANALIZADOR",
+    "SUB_CLASIFICADOR",
+    "SUB_RESUMIDOR",
+    "SUB_VERIFICADOR",
+    "SUB_REDACTOR",
 ]
 
 AGENT_FOLDER_NAMES = {
+    # Agentes Principales
     "A1_ESTRATEGIA": ["a1_estrategia"],
     "A2_PMO": ["a2_pmo"],
     "A3_FISCAL": ["a3_fiscal"],
@@ -47,32 +58,57 @@ AGENT_FOLDER_NAMES = {
     "A6_PROVEEDOR": ["a6_proveedor"],
     "A7_DEFENSA": ["a7_defensa"],
     "A8_AUDITOR": ["a8_auditor", "auditoria"],
+    # Sistema
     "DEFENSE_FILES": ["defense_files"],
     "KNOWLEDGE_BASE": ["knowledge_base"],
     "PROYECTOS": ["proyectos"],
+    # Subagentes Fiscales
     "SUB_TIPIFICACION": ["sub_tipificacion"],
     "SUB_MATERIALIDAD": ["sub_materialidad"],
     "SUB_RIESGOS": ["sub_riesgos"],
+    # Subagentes PMO
+    "SUB_ANALIZADOR": ["sub_analizador"],
+    "SUB_CLASIFICADOR": ["sub_clasificador"],
+    "SUB_RESUMIDOR": ["sub_resumidor"],
+    "SUB_VERIFICADOR": ["sub_verificador"],
+    "SUB_REDACTOR": ["sub_redactor"],
 }
 
 AGENT_FOLDER_IDS = {
-    # Carpetas de agentes en REVISAR.IA (configuración)
+    # Carpetas de agentes principales en REVISAR.IA
     "A1_ESTRATEGIA": 29789474359,
-    "A1_SPONSOR": 29789474359,
+    "A1_SPONSOR": 29789474359,  # Alias
     "A2_PMO": 29789474388,
     "A3_FISCAL": 29789474414,
     "A4_LEGAL": 29789474435,
-    "LEGAL": 29789474435,
+    "LEGAL": 29789474435,  # Alias
     "A5_FINANZAS": 29789474462,
     "A6_PROVEEDOR": 29789474493,
     "A7_DEFENSA": 29789474511,
-    "A8_AUDITOR": 29897074462,  # Updated from pCloud
+    "A8_AUDITOR": 29897074462,
+    # Carpetas de sistema
     "DEFENSE_FILES": 29789474531,
     "KNOWLEDGE_BASE": 29789474559,
+    "KB_CURATOR": 29789474559,  # Alias
     "PROYECTOS": 29789474598,
-    "SUB_TIPIFICACION": 29897074474,  # Updated from pCloud
-    "SUB_MATERIALIDAD": 29897074492,  # Updated from pCloud
-    "SUB_RIESGOS": 29897074499,  # Updated from pCloud
+    # Subagentes Fiscales (reportan a A3_FISCAL)
+    "SUB_TIPIFICACION": 29897074474,
+    "S1_TIPIFICACION": 29897074474,  # Alias
+    "SUB_MATERIALIDAD": 29897074492,
+    "S2_MATERIALIDAD": 29897074492,  # Alias
+    "SUB_RIESGOS": 29897074499,
+    "S3_RIESGOS": 29897074499,  # Alias
+    # Subagentes PMO (reportan a A2_PMO) - Se crearán en pCloud
+    "SUB_ANALIZADOR": None,  # Pendiente crear en pCloud
+    "S_ANALIZADOR": None,  # Alias
+    "SUB_CLASIFICADOR": None,
+    "S_CLASIFICADOR": None,  # Alias
+    "SUB_RESUMIDOR": None,
+    "S_RESUMIDOR": None,  # Alias
+    "SUB_VERIFICADOR": None,
+    "S_VERIFICADOR": None,  # Alias
+    "SUB_REDACTOR": None,
+    "S_REDACTOR": None,  # Alias
     # Carpetas raíz
     "REVISAR_IA_CONFIG": 29789401752,  # REVISAR.IA - configuración agéntica
     "REVISAR_IA_OPERATIONS": 29799555433,  # REVISAR_IA - operaciones/evidencias
@@ -80,19 +116,39 @@ AGENT_FOLDER_IDS = {
 }
 
 # Modelo de permisos entre agentes
+# Todos los agentes pueden leer de todas las carpetas para contexto transversal
+_ALL_FOLDERS = list(AGENT_FOLDER_IDS.keys())
+
 AGENT_READ_PERMISSIONS = {
-    # Todos los agentes pueden leer de todas las carpetas
-    "A1_ESTRATEGIA": list(AGENT_FOLDER_IDS.keys()),
-    "A2_PMO": list(AGENT_FOLDER_IDS.keys()),
-    "A3_FISCAL": list(AGENT_FOLDER_IDS.keys()),
-    "A4_LEGAL": list(AGENT_FOLDER_IDS.keys()),
-    "A5_FINANZAS": list(AGENT_FOLDER_IDS.keys()),
-    "A6_PROVEEDOR": list(AGENT_FOLDER_IDS.keys()),
-    "A7_DEFENSA": list(AGENT_FOLDER_IDS.keys()),
-    "A8_AUDITOR": list(AGENT_FOLDER_IDS.keys()),
-    "SUB_TIPIFICACION": list(AGENT_FOLDER_IDS.keys()),
-    "SUB_MATERIALIDAD": list(AGENT_FOLDER_IDS.keys()),
-    "SUB_RIESGOS": list(AGENT_FOLDER_IDS.keys()),
+    # Agentes Principales
+    "A1_ESTRATEGIA": _ALL_FOLDERS,
+    "A1_SPONSOR": _ALL_FOLDERS,
+    "A2_PMO": _ALL_FOLDERS,
+    "A3_FISCAL": _ALL_FOLDERS,
+    "A4_LEGAL": _ALL_FOLDERS,
+    "A5_FINANZAS": _ALL_FOLDERS,
+    "A6_PROVEEDOR": _ALL_FOLDERS,
+    "A7_DEFENSA": _ALL_FOLDERS,
+    "A8_AUDITOR": _ALL_FOLDERS,
+    "KB_CURATOR": _ALL_FOLDERS,
+    # Subagentes Fiscales
+    "SUB_TIPIFICACION": _ALL_FOLDERS,
+    "S1_TIPIFICACION": _ALL_FOLDERS,
+    "SUB_MATERIALIDAD": _ALL_FOLDERS,
+    "S2_MATERIALIDAD": _ALL_FOLDERS,
+    "SUB_RIESGOS": _ALL_FOLDERS,
+    "S3_RIESGOS": _ALL_FOLDERS,
+    # Subagentes PMO
+    "SUB_ANALIZADOR": _ALL_FOLDERS,
+    "S_ANALIZADOR": _ALL_FOLDERS,
+    "SUB_CLASIFICADOR": _ALL_FOLDERS,
+    "S_CLASIFICADOR": _ALL_FOLDERS,
+    "SUB_RESUMIDOR": _ALL_FOLDERS,
+    "S_RESUMIDOR": _ALL_FOLDERS,
+    "SUB_VERIFICADOR": _ALL_FOLDERS,
+    "S_VERIFICADOR": _ALL_FOLDERS,
+    "SUB_REDACTOR": _ALL_FOLDERS,
+    "S_REDACTOR": _ALL_FOLDERS,
 }
 
 AGENT_WRITE_PERMISSIONS = {

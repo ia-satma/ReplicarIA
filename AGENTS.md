@@ -262,13 +262,107 @@ AGENT_ID_ALIASES = {
 
 ---
 
+## Estructura de pCloud
+
+Cada agente tiene su propia carpeta en pCloud para almacenar conocimiento especializado.
+
+### Carpetas Principales
+```
+REVISAR.IA (ID: 29789401752)
+├── A1_ESTRATEGIA/     # A1_SPONSOR - Estrategia y BEE
+├── A2_PMO/            # A2_PMO - Orquestación y flujos
+├── A3_FISCAL/         # A3_FISCAL - CFF, LISR, LIVA
+├── A4_LEGAL/          # A4_LEGAL - Contratos y SOW
+├── A5_FINANZAS/       # A5_FINANZAS - 3-way match
+├── A6_PROVEEDOR/      # A6_PROVEEDOR - Due diligence
+├── A7_DEFENSA/        # A7_DEFENSA - Defense files
+├── A8_AUDITOR/        # A8_AUDITOR - Auditoría
+├── KNOWLEDGE_BASE/    # KB_CURATOR - Base normativa
+├── DEFENSE_FILES/     # Expedientes de defensa
+├── PROYECTOS/         # Archivos de proyectos
+├── SUB_TIPIFICACION/  # S1 - Tipología de servicios
+├── SUB_MATERIALIDAD/  # S2 - Evidencias Art. 69-B
+├── SUB_RIESGOS/       # S3 - EFOS y riesgos
+├── SUB_ANALIZADOR/    # S_ANALIZADOR - Análisis datos
+├── SUB_CLASIFICADOR/  # S_CLASIFICADOR - Clasificación
+├── SUB_RESUMIDOR/     # S_RESUMIDOR - Resúmenes
+├── SUB_VERIFICADOR/   # S_VERIFICADOR - QA
+└── SUB_REDACTOR/      # S_REDACTOR - Documentos
+```
+
+### Capacidades por Agente
+
+| Agente | Carpeta pCloud | Colección RAG | Puede Crear Agentes | Puede Ingestar |
+|--------|----------------|---------------|---------------------|----------------|
+| A1_SPONSOR | A1_ESTRATEGIA | estrategia_knowledge | ❌ | ✅ |
+| A2_PMO | A2_PMO | pmo_knowledge | ✅ (subagentes) | ✅ |
+| A3_FISCAL | A3_FISCAL | fiscal_knowledge | ✅ (subagentes) | ✅ |
+| A4_LEGAL | A4_LEGAL | legal_knowledge | ❌ | ✅ |
+| A5_FINANZAS | A5_FINANZAS | finanzas_knowledge | ❌ | ✅ |
+| A6_PROVEEDOR | A6_PROVEEDOR | proveedor_knowledge | ❌ | ✅ |
+| A7_DEFENSA | A7_DEFENSA | defensa_knowledge | ❌ | ✅ |
+| A8_AUDITOR | A8_AUDITOR | auditor_knowledge | ❌ | ✅ |
+| KB_CURATOR | KNOWLEDGE_BASE | knowledge_base | ❌ | ✅ (admin) |
+| DEVILS_ADVOCATE | - | control_knowledge | ❌ | ❌ |
+
+### Subagentes con Carpeta Propia
+
+| Subagente | Carpeta pCloud | Colección RAG (heredada) |
+|-----------|----------------|--------------------------|
+| S1_TIPIFICACION | SUB_TIPIFICACION | fiscal_knowledge |
+| S2_MATERIALIDAD | SUB_MATERIALIDAD | fiscal_knowledge |
+| S3_RIESGOS | SUB_RIESGOS | fiscal_knowledge |
+| S_ANALIZADOR | SUB_ANALIZADOR | pmo_knowledge |
+| S_CLASIFICADOR | SUB_CLASIFICADOR | pmo_knowledge |
+| S_RESUMIDOR | SUB_RESUMIDOR | pmo_knowledge |
+| S_VERIFICADOR | SUB_VERIFICADOR | pmo_knowledge |
+| S_REDACTOR | SUB_REDACTOR | pmo_knowledge |
+
+---
+
+## Flujo de Conocimiento (RAG)
+
+```
+pCloud Folder         →  IngestionService  →  ChromaDB Collection
+     ↓                         ↓                      ↓
+[Documentos PDF/DOCX]   [Extrae texto]        [Embeddings]
+     ↓                         ↓                      ↓
+                        [Chunking]             [Query por agente]
+                               ↓                      ↓
+                        [PostgreSQL]           [Contexto para LLM]
+```
+
+### Sincronización Automática
+```bash
+POST /pcloud/sync/{agent_id}   # Sincroniza un agente
+POST /pcloud/sync-all          # Sincroniza todos
+POST /pcloud/setup-complete    # Setup inicial completo
+```
+
+---
+
 ## Cómo Agregar un Nuevo Agente
 
 1. Agregar en `backend/config/agents_registry.py` → `AGENTS_REGISTRY`
 2. Si es subagente, especificar `parent_agent`
 3. Definir `phases` donde participa
 4. Si puede bloquear, definir `can_block=True` y `blocking_phases`
-5. Los componentes frontend se actualizan automáticamente via API
+5. Asignar `pcloud_folder` si necesita conocimiento propio
+6. Agregar folder en `pcloud_service.py` → `REQUIRED_SUBFOLDERS`
+7. Agregar colección en `rag_service.py` → `AGENT_COLLECTIONS`
+8. Los componentes frontend se actualizan automáticamente via API
+
+---
+
+## Archivos Sincronizados
+
+| Archivo | Sincronizar Con |
+|---------|-----------------|
+| `backend/config/agents_registry.py` | **FUENTE ÚNICA** |
+| `backend/services/pcloud_service.py` | `REQUIRED_SUBFOLDERS`, `AGENT_FOLDER_IDS` |
+| `backend/services/rag_service.py` | `AGENT_COLLECTIONS` |
+| `frontend/src/components/agents/AgentsDashboard.jsx` | `agentMap` |
+| `frontend/src/components/agents/AgentPanel.jsx` | `AGENTS` array |
 
 ---
 

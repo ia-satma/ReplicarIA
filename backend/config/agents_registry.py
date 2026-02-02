@@ -264,7 +264,7 @@ AGENTS_REGISTRY: Dict[str, AgentConfig] = {
         blocking_phases=[],
         parent_agent="A3_FISCAL",
         llm_model="gpt-4o-mini",
-        pcloud_folder=None
+        pcloud_folder="SUB_TIPIFICACION"  # Carpeta propia en pCloud
     ),
 
     "S2_MATERIALIDAD": AgentConfig(
@@ -282,7 +282,7 @@ AGENTS_REGISTRY: Dict[str, AgentConfig] = {
         blocking_phases=[],
         parent_agent="A3_FISCAL",
         llm_model="gpt-4o-mini",
-        pcloud_folder=None
+        pcloud_folder="SUB_MATERIALIDAD"  # Carpeta propia en pCloud
     ),
 
     "S3_RIESGOS": AgentConfig(
@@ -300,7 +300,7 @@ AGENTS_REGISTRY: Dict[str, AgentConfig] = {
         blocking_phases=[],
         parent_agent="A3_FISCAL",
         llm_model="gpt-4o-mini",
-        pcloud_folder=None
+        pcloud_folder="SUB_RIESGOS"  # Carpeta propia en pCloud
     ),
 
     # =========================================================================
@@ -322,7 +322,7 @@ AGENTS_REGISTRY: Dict[str, AgentConfig] = {
         blocking_phases=[],
         parent_agent="A2_PMO",
         llm_model="gpt-4o-mini",
-        pcloud_folder=None
+        pcloud_folder="SUB_ANALIZADOR"  # Carpeta propia en pCloud
     ),
 
     "S_CLASIFICADOR": AgentConfig(
@@ -340,7 +340,7 @@ AGENTS_REGISTRY: Dict[str, AgentConfig] = {
         blocking_phases=[],
         parent_agent="A2_PMO",
         llm_model="gpt-4o-mini",
-        pcloud_folder=None
+        pcloud_folder="SUB_CLASIFICADOR"  # Carpeta propia en pCloud
     ),
 
     "S_RESUMIDOR": AgentConfig(
@@ -358,7 +358,7 @@ AGENTS_REGISTRY: Dict[str, AgentConfig] = {
         blocking_phases=[],
         parent_agent="A2_PMO",
         llm_model="gpt-4o-mini",
-        pcloud_folder=None
+        pcloud_folder="SUB_RESUMIDOR"  # Carpeta propia en pCloud
     ),
 
     "S_VERIFICADOR": AgentConfig(
@@ -376,7 +376,7 @@ AGENTS_REGISTRY: Dict[str, AgentConfig] = {
         blocking_phases=[],
         parent_agent="A2_PMO",
         llm_model="gpt-4o-mini",
-        pcloud_folder=None
+        pcloud_folder="SUB_VERIFICADOR"  # Carpeta propia en pCloud
     ),
 
     "S_REDACTOR": AgentConfig(
@@ -394,7 +394,7 @@ AGENTS_REGISTRY: Dict[str, AgentConfig] = {
         blocking_phases=[],
         parent_agent="A2_PMO",
         llm_model="gpt-4o-mini",
-        pcloud_folder=None
+        pcloud_folder="SUB_REDACTOR"  # Carpeta propia en pCloud
     ),
 }
 
