@@ -199,6 +199,7 @@ SKIP_TENANT_CHECK_PREFIXES = (
     "/api/stats",
     "/api/metrics",
     "/templates",
+    "/api/deliberation",
 )
 
 AUTH_ONLY_PREFIXES = (

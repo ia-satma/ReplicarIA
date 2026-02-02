@@ -923,6 +923,13 @@ app.include_router(dashboard.router)
 app.include_router(dashboard.dashboard_router)
 
 # ============================================================
+# SERVE UPLOADS - PUBLIC ACCESS FOR ATTACHMENTS
+# ============================================================
+if uploads_path.exists():
+    app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+    logging.info(f"✅ Mounted /uploads from {uploads_path}")
+
+# ============================================================
 # SERVE FRONTEND IN PRODUCTION - CORRECTED STATIC FILE HANDLING
 # ============================================================
 # FRONTEND_BUILD_PATH is defined earlier in the file

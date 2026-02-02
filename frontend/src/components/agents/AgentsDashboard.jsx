@@ -202,162 +202,151 @@ const AgentsDashboard = ({ projectId = null }) => {
   const [simulationMessages, setSimulationMessages] = useState([]);
 
   const handleSimularAnalisis = useCallback(async () => {
+    // Determine which case to use (demo or custom)
+    const activeCase = selectedDemoCase ? demoCases.find(c => c.id === selectedDemoCase) : null;
+    const caseData = activeCase ? {
+      case_id: activeCase.id,
+      title: activeCase.title.replace(/^[^\s]+\s/, ''), // Remove emoji
+      description: activeCase.description,
+      amount: activeCase.description.match(/\$([\d,]+)/) ? parseFloat(activeCase.description.match(/\$([\d,]+)/)[1].replace(/,/g, '')) : 0,
+    } : {
+      case_id: 'custom',
+      title: 'Análisis Personalizado',
+      description: caseDescription || 'Análisis fiscal general',
+      amount: 0
+    };
+
     setIsSimulating(true);
     setActiveAgents([]);
     setCompletedAgents([]);
     setSimulationMessages([]);
     setShowChat(true);
 
-    // Add initial case message
-    const caseContext = caseDescription || 'Análisis fiscal general';
+    // Initial message
     setSimulationMessages([{
       id: 'case_intro',
       agentId: 'SISTEMA',
       agentName: 'Caso Recibido',
       emoji: '📋',
       status: 'completed',
-      content: caseContext,
+      content: `Iniciando análisis con Inteligencia Artificial Real...\nCaso: ${caseData.title}`,
       processingTime: 0,
       timestamp: new Date(),
       isIntro: true
     }]);
 
-    await new Promise(r => setTimeout(r, 800));
+    try {
+      // 1. Trigger Real AI Deliberation
+      const response = await fetch('/api/deliberation/demo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(caseData)
+      });
 
-    // Determine case type for contextual messages
-    const isConsulting = caseContext.toLowerCase().includes('consultoria') || caseContext.toLowerCase().includes('consultoría') || caseContext.toLowerCase().includes('servicios');
-    const isTravel = caseContext.toLowerCase().includes('viaje') || caseContext.toLowerCase().includes('reembolso');
-    const isRealEstate = caseContext.toLowerCase().includes('inmueble') || caseContext.toLowerCase().includes('oficina') || caseContext.toLowerCase().includes('propiedad');
-    const isTech = caseContext.toLowerCase().includes('software') || caseContext.toLowerCase().includes('licencia') || caseContext.toLowerCase().includes('microsoft');
+      if (!response.ok) throw new Error('Error starting simulation');
 
-    // Dynamic agent messages based on case type
-    const getAgentMessages = (agentId) => {
-      const messages = {
-        A1: {
-          default: 'Caso recibido. Validando estructura del CFDI y verificando vigencia del RFC del emisor...',
-          consulting: 'Caso recibido: Factura de servicios de consultoría. CFDI validado, RFC del proveedor vigente en lista 69-B...',
-          travel: 'Caso recibido: Gastos de viaje corporativo. Validando comprobantes multinacionales y conversiones de divisa...',
-          realestate: 'Caso recibido: Operación inmobiliaria. Verificando escritura pública y RFC del notario...',
-          tech: 'Caso recibido: Adquisición de licencias tecnológicas. Validando RFC y régimen fiscal del proveedor...'
-        },
-        A2: {
-          default: 'Clasificando operación en catálogo fiscal. Identificando partida y requisitos de deducibilidad aplicables...',
-          consulting: 'Operación clasificada: Gastos por servicios independientes (Art. 27 LISR). Deducible si cumple materialidad y razón de negocios...',
-          travel: 'Clasificación: Gastos indirectos de operación. Art. 28 fracc. V LISR: viáticos deben ser estrictamente indispensables...',
-          realestate: 'Clasificación: Inversión en activo fijo (Art. 34 LISR). Deducción por depreciación al 5% anual para inmuebles...',
-          tech: 'Clasificación: Gastos diferidos (Art. 33 LISR). Licencias se amortizan al 15% anual, servidores al 30%...'
-        },
-        A3: {
-          default: 'Verificando cumplimiento normativo. CFF Art. 29-A requisitos fiscales obligatorios...',
-          consulting: 'Normatividad aplicable: CFDI con RFC del receptor, concepto detallado de servicios, método de pago PUE o PPD...',
-          travel: 'CFF Art. 29-A: Comprobantes de viaje deben especificar lugar, fecha y motivo del viaje directamente...',
-          realestate: 'Normativa inmobiliaria: Escritura ante notario, avalúo comercial, constancia de no adeudo predial...',
-          tech: 'Requisitos tech: Contrato de licenciamiento, carta de titularidad, comprobante de transferencia internacional...'
-        },
-        A4: {
-          default: 'Analizando registro contable. Verificando cuenta contable y clasificación de gastos/inversiones...',
-          consulting: 'Cuenta sugerida: 6010-Honorarios profesionales. IVA acreditable 16%. Retención ISR 10% si persona física...',
-          travel: 'Cuentas: 6030-Viáticos (deducibles), 6031-Gastos no deducibles (bebidas alcohólicas, propinas sin comprobante)...',
-          realestate: 'Registro: 1200-Inmuebles (activo fijo). Depreciación lineal a 20 años. ISR por ganancia de capital al enajenar...',
-          tech: 'Contabilización: 1500-Software (cargos diferidos). Amortización 15% anual. IVA 16% acreditable...'
-        },
-        A5: {
-          default: 'Evaluando materialidad de la operación. Verificando evidencia de sustancia económica...',
-          consulting: 'Materialidad: Se requiere contrato de servicios, entregables documentados, correos de comunicación, reportes entregados...',
-          travel: 'Sustancia económica: Boletos aéreos a nombre del empleado, reservación de hotel con RFC de la empresa...',
-          realestate: 'Materialidad inmobiliaria: Escritura pública, fotografías del inmueble, avalúo bancario independiente...',
-          tech: 'Evidencia operativa: Accesos activos a software, bitácora de usuarios, correos de activación de licencias...'
-        },
-        A6: {
-          default: 'Validando bancarización. Verificando flujo de fondos y congruencia de pagos...',
-          consulting: 'Bancarización OK: Transferencia SPEI por $174,000 (base + IVA) al RFC del proveedor detectada...',
-          travel: 'Flujos verificados: Tarjeta corporativa a nombre de la empresa, gastos dentro de límites de política...',
-          realestate: 'Flujo financiero: Crédito hipotecario $2.8M + recursos propios $700K. Comprobantes bancarios validados...',
-          tech: 'Pago internacional: Wire transfer USD a proveedor extranjero. Complemento de pago recibido post-transferencia...'
-        },
-        A7: {
-          default: 'Analizando marco legal. Verificando validez de contratos y obligaciones...',
-          consulting: 'Marco legal: Contrato de prestación de servicios con objeto determinado, vigencia y cláusula de terminación...',
-          travel: 'Legal: Política de viáticos de la empresa firmada por el empleado. Memorándum justificando viaje...',
-          realestate: 'Legal: Escritura inscrita en RPP, certificado de libertad de gravamen, pago de impuesto por adquisición...',
-          tech: 'Contrato EULA/MSA: Licencia enterprise con renovación automática, territorio México, usos permitidos...'
-        },
-        A8: {
-          default: '⚠️ OBJECIONES POTENCIALES DEL SAT: Posibles puntos de auditoría identificados...',
-          consulting: '⚠️ RED TEAM ALERT: 1) Proveedor sin local visible en maps, 2) Monto alto sin evidencia de entregables tangibles, 3) Posible "fantasma" si no demuestra capacidad operativa...',
-          travel: '⚠️ RIESGOS: 1) Gastos de alimentación superiores a $750/día (tope deducible), 2) Propinas sin comprobante, 3) ¿Era estrictamente indispensable el viaje?',
-          realestate: '⚠️ PUNTOS SAT: 1) Subvaluación si precio < 80% del avalúo, 2) Origen de fondos propios, 3) Retención ISR notarial correcta...',
-          tech: '⚠️ AUDITORÍA TECH: 1) Proveedor sin establecimiento en México (operaciones inexistentes), 2) ¿Licencias realmente utilizadas?, 3) Retención IVA 16% a extranjero...'
-        },
-        A9: {
-          default: 'Consolidando análisis. Generando score de defensa y recomendaciones...',
-          consulting: '📊 SÍNTESIS: Score 72%. Fortalezas: CFDI válido, pago bancarizado. Debilidades: Falta evidencia de entregables. Recomendación: Documentar reportes entregados antes de cierre fiscal...',
-          travel: '📊 SÍNTESIS: Score 85%. Operación con bajo riesgo si política de viáticos está firmada. Ajustar gastos no deducibles...',
-          realestate: '📊 SÍNTESIS: Score 91%. Operación sólida con documentación robusta. Verificar pago ISAI en entidad federativa...',
-          tech: '📊 SÍNTESIS: Score 78%. Riesgo medio por proveedor extranjero. Documentar uso efectivo de licencias...'
-        },
-        A10: {
-          default: 'Expediente digitalizado y listo para defensa fiscal. Documentos indexados y trazables...',
-          consulting: '📁 ARCHIVO: 8 documentos indexados (factura, contrato, pagos, correos). Expediente listo para exportar como PDF de defensa...',
-          travel: '📁 ARCHIVO: 15 documentos (vuelos, hotel, comidas, transporte). Carpeta organizada por fecha de gasto...',
-          realestate: '📁 ARCHIVO: 12 documentos críticos (escritura, avalúo, pagos, notarial). Formato apto para presentar ante SAT...',
-          tech: '📁 ARCHIVO: 6 documentos (contrato, factura, pago wire, activación). Expediente técnico de licenciamiento...'
+      const { project_id } = await response.json();
+      let isFinished = false;
+      const processedAgents = new Set();
+
+      // 2. Poll for updates
+      const pollInterval = setInterval(async () => {
+        try {
+          // Check processing status
+          const statusRes = await fetch(`/api/projects/processing-status/${project_id}`);
+          const statusData = await statusRes.json();
+
+          if (statusData.success && statusData.data) {
+            const { status, agent_statuses } = statusData.data;
+
+            // Update active agents visualization
+            if (agent_statuses) {
+              const active = agent_statuses
+                .filter(a => a.status === 'En proceso')
+                .map(a => a.role); // e.g., "Estrategia", "Fiscal"
+
+              // Map backend roles to frontend IDs if needed, or just use names
+              // Frontend expects IDs like 'A1', 'A3' etc for visualization?
+              // Let's rely on the messages for now.
+              setActiveAgents(active);
+            }
+
+            // Check if completed or failed
+            if (status === 'completed' || status === 'failed') {
+              isFinished = true;
+              clearInterval(pollInterval);
+              setIsSimulating(false);
+
+              if (status === 'completed') {
+                // Refresh recent deliberations list
+                const recentRes = await fetch('/api/agents/deliberations/recent');
+                if (recentRes.ok) {
+                  const recentData = await recentRes.json();
+                  // Update deliberations list logic here if exposed, or trigger a re-fetch
+                }
+              }
+            }
+          }
+
+          // 3. Fetch Real Trail (Analysis Content)
+          const trailRes = await fetch(`/api/deliberation/trail/${project_id}`);
+          if (trailRes.ok) {
+            const trail = await trailRes.json();
+
+            // Iterate through trail and add new messages
+            trail.forEach((item) => {
+              const msgId = `${item.agent_id}_${item.stage}`;
+
+              if (!processedAgents.has(msgId)) {
+                processedAgents.add(msgId);
+
+                // Map backend agent ID to frontend display
+                const agentMap = {
+                  'A1_SPONSOR': { name: 'Estrategia', emoji: '🎯', id: 'A1' },
+                  'A3_FISCAL': { name: 'Fiscal', emoji: '⚖️', id: 'A3' },
+                  'A5_FINANZAS': { name: 'Finanzas', emoji: '💰', id: 'A5' },
+                  'LEGAL': { name: 'Legal', emoji: '📜', id: 'A7' }, // 'A7' in frontend usually
+                };
+
+                const agentInfo = agentMap[item.agent_id] || { name: item.agent_id, emoji: '🤖', id: item.agent_id };
+
+                setSimulationMessages(prev => [...prev, {
+                  id: msgId,
+                  agentId: agentInfo.id,
+                  agentName: agentInfo.name,
+                  emoji: agentInfo.emoji,
+                  status: 'completed',
+                  content: item.analysis || item.decision || "Análisis completado",
+                  processingTime: 0, // Could calc from timestamp
+                  timestamp: new Date(item.timestamp),
+                  decision: item.decision
+                }]);
+
+                setCompletedAgents(prev => [...prev, agentInfo.id]);
+              }
+            });
+          }
+
+        } catch (err) {
+          console.error("Polling error:", err);
         }
-      };
+      }, 2000); // Poll every 2 seconds
 
-      const caseType = isConsulting ? 'consulting' : isTravel ? 'travel' : isRealEstate ? 'realestate' : isTech ? 'tech' : 'default';
-      return messages[agentId]?.[caseType] || messages[agentId]?.default;
-    };
-
-    // All 10 agents - fixed to include A8, A9, A10
-    const agents = [
-      { id: 'A1', name: 'Recepción', emoji: '📥' },
-      { id: 'A2', name: 'Análisis', emoji: '🔍' },
-      { id: 'A3', name: 'Normativo', emoji: '📜' },
-      { id: 'A4', name: 'Contable', emoji: '📊' },
-      { id: 'A5', name: 'Operativo', emoji: '⚙️' },
-      { id: 'A6', name: 'Financiero', emoji: '💰' },
-      { id: 'A7', name: 'Legal', emoji: '⚖️' },
-      { id: 'A8', name: 'Red Team', emoji: '🛡️' },
-      { id: 'A9', name: 'Síntesis', emoji: '📝' },
-      { id: 'A10', name: 'Archivo', emoji: '📁' },
-    ];
-
-    for (let i = 0; i < agents.length; i++) {
-      const agent = agents[i];
-
-      // Activate current agent
-      setActiveAgents([agent.id]);
-
-      // Add "processing" message
+    } catch (error) {
+      console.error('Simulation error:', error);
       setSimulationMessages(prev => [...prev, {
-        id: `${agent.id}_start`,
-        agentId: agent.id,
-        agentName: agent.name,
-        emoji: agent.emoji,
-        status: 'processing',
-        content: null,
+        id: 'error',
+        agentId: 'SISTEMA',
+        agentName: 'Error',
+        emoji: '❌',
+        status: 'error',
+        content: `Error al iniciar la simulación: ${error.message}`,
         timestamp: new Date()
       }]);
-
-      // Simulate processing time (variable per agent for realism)
-      const processingTime = 1500 + Math.random() * 1500;
-      await new Promise((resolve) => setTimeout(resolve, processingTime));
-
-      // Update message with agent's analysis
-      setSimulationMessages(prev => prev.map(msg =>
-        msg.id === `${agent.id}_start`
-          ? { ...msg, status: 'completed', content: getAgentMessages(agent.id), processingTime: processingTime }
-          : msg
-      ));
-
-      // Mark as completed
-      setCompletedAgents((prev) => [...prev, agent.id]);
-      setActiveAgents([]);
+      setIsSimulating(false);
     }
 
-    setIsSimulating(false);
-  }, [caseDescription]);
+  }, [caseDescription, selectedDemoCase, demoCases]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6 space-y-6">

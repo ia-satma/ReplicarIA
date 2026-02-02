@@ -81,9 +81,114 @@ async def run_agentic_deliberation(project: ProjectSubmission):
         if not result.get("success"):
             raise HTTPException(status_code=500, detail=result.get("error", "Unknown error"))
         
+
         return result
     except Exception as e:
         logger.error(f"Error in agentic deliberation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class DemoCase(BaseModel):
+    """Data for running a demo deliberation"""
+    case_id: str
+    title: str
+    description: str
+    amount: float = 0
+    client_name: str = "Empresa Demo S.A. de C.V."
+
+
+@router.post("/demo")
+async def run_demo_deliberation(case: DemoCase):
+    """
+    Run a real agentic deliberation for a demo case.
+    
+    This creates a temporary project and triggers the full AI orchestration,
+    allowing the frontend validation simulation to use real backend logic.
+    """
+    from services.defense_file_service import defense_file_service
+    from services.deliberation_orchestrator import orchestrator
+    import uuid
+    from datetime import datetime
+    
+    # Create a unique project ID for this demo run
+    project_id = f"DEMO-{uuid.uuid4().hex[:8].upper()}"
+    
+    try:
+        # Construct project data
+        project_data = {
+            "id": project_id,
+            "name": case.title,
+            "client_name": case.client_name,
+            "description": case.description,
+            "amount": case.amount,
+            "service_type": "Demostración",
+            "sponsor_name": "Usuario Demo",
+            "sponsor_email": "demo@revisar.ia",
+            "department": "Finanzas",
+            "created_at": datetime.now().isoformat(),
+            "is_demo": True,
+            "status": "processing"
+        }
+        
+        # Initialize defense file
+        defense_file = defense_file_service.get_or_create(project_id)
+        defense_file.project_data = project_data
+        defense_file.save()
+        
+        # Start the orchestration in the background (fire and forget from HTTP perspective, 
+        # but state will be updated for polling)
+        # We wrap it to ensure it runs independently
+        async def run_async():
+            try:
+                logger.info(f"Starting DEMO deliberation for {project_id}")
+                from routes.projects import processing_state, ProcessingStatus
+                
+                # Report initial status
+                await processing_state.set_status(
+                    project_id=project_id,
+                    status=ProcessingStatus.PROCESSING,
+                    message="Inicializando agentes para demostración...",
+                    progress=5,
+                    agent_statuses=[
+                        {"name": "María Rodríguez", "role": "Estrategia", "status": "En cola"},
+                        {"name": "Laura Sánchez", "role": "Fiscal", "status": "Pendiente"},
+                        {"name": "Roberto Torres", "role": "Finanzas", "status": "Pendiente"},
+                        {"name": "Equipo Legal", "role": "Legal", "status": "Pendiente"}
+                    ]
+                )
+                
+                # Run the actual orchestration
+                await orchestrator.run_agentic_deliberation(project_data)
+                
+                # Update final status
+                await processing_state.set_status(
+                    project_id=project_id,
+                    status=ProcessingStatus.COMPLETED,
+                    message="Demostración completada",
+                    progress=100
+                )
+                
+            except Exception as e:
+                logger.error(f"Error in demo run {project_id}: {e}")
+                from routes.projects import processing_state, ProcessingStatus
+                await processing_state.set_status(
+                    project_id=project_id,
+                    status=ProcessingStatus.FAILED,
+                    error=str(e)
+                )
+
+        import asyncio
+        asyncio.create_task(run_async())
+        
+        return {
+            "success": True,
+            "project_id": project_id,
+            "message": "Demo started successfully",
+            "poll_url": f"/api/projects/processing-status/{project_id}"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error starting demo deliberation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

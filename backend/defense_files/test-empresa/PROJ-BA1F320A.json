@@ -1,0 +1,155 @@
+{
+  "project_id": "PROJ-BA1F320A",
+  "empresa_id": "test-empresa",
+  "created_at": "2026-02-02T05:40:47.797030+00:00",
+  "project_data": {
+    "id": "PROJ-BA1F320A",
+    "empresa_id": "test-empresa",
+    "created_by": null,
+    "name": "Proyecto de Prueba Automática",
+    "client_name": "Empresa Test SA de CV",
+    "description": "Un proyecto de prueba para verificar el endpoint de submit.",
+    "amount": 50000.0,
+    "service_type": "Eficiencia",
+    "sponsor_name": "Test User",
+    "sponsor_email": "test@satma.mx",
+    "department": "IT",
+    "expected_benefit": 100000.0,
+    "duration_months": 6,
+    "urgency_level": "Alta",
+    "requires_human": "No",
+    "attachments": [],
+    "submitted_at": "2026-02-01T23:40:47.796854",
+    "is_modification": false,
+    "parent_folio": "",
+    "modification_notes": ""
+  },
+  "deliberation_count": 3,
+  "deliberations": [
+    {
+      "project_id": "PROJ-BA1F320A",
+      "empresa_id": "test-empresa",
+      "stage": "E1_ESTRATEGIA",
+      "agent_id": "A1_SPONSOR",
+      "decision": "pending",
+      "analysis": "Análisis no disponible",
+      "rag_context": [],
+      "email_sent": null,
+      "timestamp": "2026-02-02T05:40:48.349373+00:00",
+      "recorded_at": "2026-02-02T05:40:48.349391+00:00"
+    },
+    {
+      "project_id": "PROJ-BA1F320A",
+      "empresa_id": "test-empresa",
+      "stage": "E2_FISCAL",
+      "agent_id": "A3_FISCAL",
+      "decision": "pending",
+      "analysis": "Análisis no disponible",
+      "rag_context": [],
+      "email_sent": null,
+      "timestamp": "2026-02-02T05:41:04.206401+00:00",
+      "recorded_at": "2026-02-02T05:41:04.206421+00:00"
+    },
+    {
+      "project_id": "PROJ-BA1F320A",
+      "empresa_id": "test-empresa",
+      "stage": "E3_FINANZAS",
+      "agent_id": "A5_FINANZAS",
+      "decision": "pending",
+      "analysis": "Análisis no disponible",
+      "rag_context": [],
+      "email_sent": null,
+      "timestamp": "2026-02-02T05:41:26.189298+00:00",
+      "recorded_at": "2026-02-02T05:41:26.189346+00:00"
+    }
+  ],
+  "email_count": 0,
+  "emails": [],
+  "provider_communications": [],
+  "rag_contexts": [],
+  "documents": [
+    {
+      "project_id": "PROJ-BA1F320A",
+      "stage": "E1_ESTRATEGIA",
+      "agent_id": "A1_SPONSOR",
+      "doc_type": "reporte_estrategia",
+      "file_path": "/reports/IDPROJ-BA1_A1_SPONSOR_Reporte_estrategia_V1.pdf",
+      "pcloud_link": null,
+      "created_at": "2026-02-02T05:40:48.354821+00:00",
+      "version": 1
+    },
+    {
+      "project_id": "PROJ-BA1F320A",
+      "stage": "E2_FISCAL",
+      "agent_id": "A3_FISCAL",
+      "doc_type": "reporte_fiscal",
+      "file_path": "/reports/IDPROJ-BA1_A3_FISCAL_Reporte_fiscal_V1.pdf",
+      "pcloud_link": null,
+      "created_at": "2026-02-02T05:41:04.214061+00:00",
+      "version": 1
+    },
+    {
+      "project_id": "PROJ-BA1F320A",
+      "stage": "E3_FINANZAS",
+      "agent_id": "A5_FINANZAS",
+      "doc_type": "reporte_finanzas",
+      "file_path": "/reports/IDPROJ-BA1_A5_FINANZAS_Reporte_finanzas_V1.pdf",
+      "pcloud_link": null,
+      "created_at": "2026-02-02T05:41:26.201966+00:00",
+      "version": 1
+    },
+    {
+      "project_id": "PROJ-BA1F320A",
+      "stage": "E5_APROBADO",
+      "agent_id": "A2_PMO",
+      "doc_type": "reporte_consolidacion",
+      "file_path": "/reports/IDPROJ-BA1_A2_PMO_Reporte_consolidacion_V1.pdf",
+      "pcloud_link": null,
+      "created_at": "2026-02-02T05:41:27.991902+00:00",
+      "version": 1
+    }
+  ],
+  "document_count": 4,
+  "final_decision": "approved",
+  "final_justification": "Aprobado por todos los agentes. Deliberaciones: 3",
+  "compliance_checklist": {
+    "razon_de_negocios": false,
+    "beneficio_economico": false,
+    "materialidad": false,
+    "trazabilidad": true
+  },
+  "compliance_score": 25.0,
+  "pcloud_links": {
+    "A1_SPONSOR": "https://u.pcloud.link/publink/show?code=kZHqng5ZeW36Cw3UbmY6lu1DsJ1QYj9hhCe7",
+    "A2_PMO": "https://u.pcloud.link/publink/show?code=kZJqng5ZGDwXSRewkijTxOYa3WBCIkRXeUpV",
+    "A3_FISCAL": "https://u.pcloud.link/publink/show?code=kZQqng5ZE3BXwURDwrhkgreFBT4xXbyJDOa7",
+    "A5_FINANZAS": "https://u.pcloud.link/publink/show?code=kZhqng5ZpurMT7tJ7wH9vDUXiGy2Mbju5M0X"
+  },
+  "pcloud_documents": [],
+  "pcloud_document_count": 0,
+  "bitacora_link": null,
+  "consolidation_report": {
+    "full_report": "{\"error\": \"Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-xxxxx. You can find your API\"}",
+    "final_status": "APROBADO",
+    "tokens_used": 163,
+    "model_used": "gpt-4o",
+    "audit_metadata": {
+      "risk_score": 75,
+      "was_modified": false,
+      "hallucinations_removed": [],
+      "council_validated": true
+    },
+    "recorded_at": "2026-02-02T05:41:27.983559+00:00"
+  },
+  "agent_opinions": [],
+  "agent_opinions_count": 0,
+  "purchase_orders": [],
+  "purchase_orders_count": 0,
+  "contract_requests": [],
+  "contract_requests_count": 0,
+  "provider_change_requests": [],
+  "provider_change_requests_count": 0,
+  "version_history": [],
+  "version_history_count": 0,
+  "audit_ready": false
+}

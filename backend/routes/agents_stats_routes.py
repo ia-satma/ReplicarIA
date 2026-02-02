@@ -6,11 +6,13 @@ Endpoints for querying agent deliberations and statistics
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 import json
 
 from services.database_pg import get_connection
+import uuid
+
 
 logger = logging.getLogger(__name__)
 
@@ -58,42 +60,59 @@ class RecentDeliberationsResponse(BaseModel):
 async def get_agent_stats():
     """
     Get overall agent statistics from deliberations in the last 30 days.
-    
-    Returns:
-    - totalAnalyses: Count of all deliberations in last 30 days
-    - avgScore: Average score from decision field
-    - avgLatency: Average latency (placeholder 2.3)
-    - successRate: Success rate percentage (placeholder 97)
     """
     try:
-        async with get_connection() as conn:
-            # Query deliberations from last 30 days
-            thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        from services.defense_file_service import defense_file_service
+        
+        all_files = defense_file_service.list_all()
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+        
+        total_analyses = 0
+        total_score = 0
+        score_count = 0
+        
+        for df in all_files:
+            # Check date if available
+            created_at_str = df.get("created_at")
+            if created_at_str:
+                try:
+                    created_at = datetime.fromisoformat(created_at_str)
+                    if created_at < thirty_days_ago:
+                        continue
+                except ValueError:
+                    pass
+
+            deliberations = df.get("deliberations", [])
+            total_analyses += len(deliberations)
             
-            # Get total count and avg score
-            result = await conn.fetchrow("""
-                SELECT 
-                    COUNT(*) as total_analyses,
-                    AVG(CAST(decision->>'score' AS FLOAT)) as avg_score
-                FROM deliberations
-                WHERE created_at >= $1
-            """, thirty_days_ago)
-            
-            total_analyses = result['total_analyses'] or 0
-            avg_score = result['avg_score']
-            
-            # Handle None values safely
-            if avg_score is None:
-                avg_score = None
-            else:
-                avg_score = round(avg_score, 2)
-            
-            return {
-                "totalAnalyses": total_analyses,
-                "avgScore": avg_score,
-                "avgLatency": 2.3,
-                "successRate": 97
-            }
+            for delib in deliberations:
+                decision = delib.get("decision")
+                if decision:
+                    score = None
+                    if isinstance(decision, dict):
+                        score = decision.get("score")
+                    elif isinstance(decision, str):
+                        try:
+                            d_dict = json.loads(decision)
+                            score = d_dict.get("score")
+                        except:
+                            pass
+                    
+                    if score is not None:
+                        try:
+                            total_score += float(score)
+                            score_count += 1
+                        except ValueError:
+                            pass
+        
+        avg_score = round(total_score / score_count, 2) if score_count > 0 else 0
+        
+        return {
+            "totalAnalyses": total_analyses,
+            "avgScore": avg_score,
+            "avgLatency": 2.3, # Placeholder as we don't track latency per agent yet
+            "successRate": 97  # Placeholder
+        }
     
     except Exception as e:
         logger.error(f"Error getting agent stats: {e}")
@@ -103,51 +122,66 @@ async def get_agent_stats():
 @router.get("/stats/by-agent", response_model=StatsbyAgentResponse)
 async def get_stats_by_agent():
     """
-    Get agent statistics grouped by agente_id from deliberations in the last 30 days.
-    
-    Returns a list of agents with:
-    - agentId: The agent identifier
-    - invocations: Number of deliberations by this agent
-    - avgScore: Average score for this agent
+    Get agent statistics grouped by agent_id from deliberations.
     """
     try:
-        async with get_connection() as conn:
-            thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        from services.defense_file_service import defense_file_service
+        
+        all_files = defense_file_service.list_all()
+        agent_stats = {}
+        
+        for df in all_files:
+            deliberations = df.get("deliberations", [])
             
-            # Query agents and their stats
-            rows = await conn.fetch("""
-                SELECT 
-                    agente_id,
-                    COUNT(*) as invocations,
-                    AVG(CAST(decision->>'score' AS FLOAT)) as avg_score
-                FROM deliberations
-                WHERE created_at >= $1
-                GROUP BY agente_id
-                ORDER BY invocations DESC
-            """, thirty_days_ago)
-            
-            agents = []
-            for row in rows:
-                agent_id = row['agente_id']
-                invocations = row['invocations'] or 0
-                avg_score = row['avg_score']
+            for delib in deliberations:
+                agent_id = delib.get("agent_id") or delib.get("agente_id")
+                if not agent_id:
+                    continue
                 
-                # Handle None values safely
-                if avg_score is None:
-                    avg_score = None
-                else:
-                    avg_score = round(avg_score, 2)
+                if agent_id not in agent_stats:
+                    agent_stats[agent_id] = {"count": 0, "total_score": 0, "score_count": 0}
                 
-                agents.append({
-                    "agentId": agent_id,
-                    "invocations": invocations,
-                    "avgScore": avg_score
-                })
+                stats = agent_stats[agent_id]
+                stats["count"] += 1
+                
+                # Extract score logic
+                decision = delib.get("decision")
+                score = None
+                if isinstance(decision, dict):
+                    score = decision.get("score")
+                elif isinstance(decision, str):
+                    try:
+                        d_dict = json.loads(decision)
+                        score = d_dict.get("score")
+                    except:
+                        pass
+                
+                if score is not None:
+                    try:
+                        stats["total_score"] += float(score)
+                        stats["score_count"] += 1
+                    except ValueError:
+                        pass
+
+        agents = []
+        for agent_id, data in agent_stats.items():
+            avg = 0
+            if data["score_count"] > 0:
+                avg = round(data["total_score"] / data["score_count"], 2)
+                
+            agents.append({
+                "agentId": agent_id,
+                "invocations": data["count"],
+                "avgScore": avg
+            })
             
-            return {
-                "agents": agents,
-                "totalAgents": len(agents)
-            }
+        # Sort by invocations desc
+        agents.sort(key=lambda x: x["invocations"], reverse=True)
+            
+        return {
+            "agents": agents,
+            "totalAgents": len(agents)
+        }
     
     except Exception as e:
         logger.error(f"Error getting stats by agent: {e}")
@@ -157,88 +191,71 @@ async def get_stats_by_agent():
 @router.get("/deliberations/recent", response_model=RecentDeliberationsResponse)
 async def get_recent_deliberations(limit: int = Query(10, ge=1, le=100)):
     """
-    Get recent deliberations joined with project information.
-    
-    Parameters:
-    - limit: Number of recent deliberations to return (default: 10, max: 100)
-    
-    Returns a list of recent deliberations with:
-    - id: Deliberation ID
-    - projectName: Name of the project from projects table
-    - score: Decision score if available
-    - summary: Deliberation summary (resumen)
-    - agentsInvolved: List of agents involved in the project's deliberations
-    - timestamp: When the deliberation was created
+    Get recent deliberations from all projects.
     """
     try:
-        async with get_connection() as conn:
-            # Get recent deliberations with project info
-            rows = await conn.fetch("""
-                SELECT 
-                    d.id,
-                    p.nombre as project_name,
-                    d.decision,
-                    d.resumen,
-                    d.agente_id,
-                    d.created_at,
-                    d.project_id
-                FROM deliberations d
-                JOIN projects p ON d.project_id = p.id
-                ORDER BY d.created_at DESC
-                LIMIT $1
-            """, limit)
+        from services.defense_file_service import defense_file_service
+        
+        all_files = defense_file_service.list_all()
+        all_deliberations = []
+        
+        for df in all_files:
+            project_name = df.get("project_data", {}).get("name", "Sin nombre")
+            project_id = df.get("project_id")
+            deliberations = df.get("deliberations", [])
             
-            deliberations = []
+            # Get list of all agents involved in this project
+            agents_involved = set()
+            for d in deliberations:
+                aid = d.get("agent_id") or d.get("agente_id")
+                if aid:
+                    agents_involved.add(aid)
+            agents_list = list(agents_involved)
             
-            for row in rows:
-                deliberation_id = str(row['id']) if row['id'] else None
-                project_name = row['project_name']
-                
-                # Extract score from decision JSONB field
+            for delib in deliberations:
+                # Extract score logic
+                decision = delib.get("decision")
                 score = None
-                if row['decision']:
+                if isinstance(decision, dict):
+                    score = decision.get("score")
+                elif isinstance(decision, str):
                     try:
-                        if isinstance(row['decision'], str):
-                            decision_dict = json.loads(row['decision'])
-                        else:
-                            decision_dict = row['decision']
-                        score_val = decision_dict.get('score')
-                        if score_val is not None:
-                            score = float(score_val)
-                    except (json.JSONDecodeError, ValueError, TypeError):
-                        score = None
+                        d_dict = json.loads(decision)
+                        score = d_dict.get("score")
+                    except:
+                        pass
                 
-                summary = row['resumen']
-                timestamp = row['created_at'].isoformat() if row['created_at'] else None
-                project_id = row['project_id']
+                created_at = delib.get("created_at") or delib.get("timestamp") or df.get("created_at")
                 
-                # Get all agents involved in this project
-                agents_involved = await conn.fetch("""
-                    SELECT DISTINCT agente_id
-                    FROM deliberations
-                    WHERE project_id = $1
-                    ORDER BY agente_id
-                """, project_id)
-                
-                agents_list = [agent['agente_id'] for agent in agents_involved if agent['agente_id']]
-                
-                deliberations.append({
-                    "id": deliberation_id,
+                all_deliberations.append({
+                    "id": str(uuid.uuid4()), # Generate temp ID as delibs inside JSON don't have unique IDs across system
                     "projectName": project_name,
-                    "score": score,
-                    "summary": summary,
+                    "score": float(score) if score is not None else None,
+                    "summary": delib.get("resumen") or delib.get("analysis") or "Sin resumen",
                     "agentsInvolved": agents_list,
-                    "timestamp": timestamp
+                    "timestamp": created_at
                 })
-            
-            return {
-                "deliberations": deliberations,
-                "count": len(deliberations)
-            }
+        
+        # Sort by timestamp desc
+        def parse_date(x):
+            ts = x.get("timestamp")
+            if not ts: return datetime.min.replace(tzinfo=timezone.utc)
+            try:
+                return datetime.fromisoformat(ts)
+            except:
+                return datetime.min.replace(tzinfo=timezone.utc)
+
+        all_deliberations.sort(key=parse_date, reverse=True)
+        
+        return {
+            "deliberations": all_deliberations[:limit],
+            "count": len(all_deliberations[:limit])
+        }
     
     except Exception as e:
         logger.error(f"Error getting recent deliberations: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 # ============================================================================

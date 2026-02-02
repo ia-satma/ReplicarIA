@@ -3,18 +3,24 @@ Projects API Routes - PostgreSQL Backend.
 New endpoints using the consolidated PostgreSQL database.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File, Form
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import logging
 import uuid
+import os
+import shutil
+from pathlib import Path
 
 from middleware.tenant_context import get_current_empresa_id
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 class ProjectCreate(BaseModel):
@@ -47,6 +53,38 @@ class DeliberationCreate(BaseModel):
     contenido: str
     resumen: Optional[str] = None
     decision: Optional[Dict[str, Any]] = None
+
+
+from jose import jwt, exceptions as jose_exceptions
+import asyncio
+from enum import Enum
+
+class ProjectSubmitRequest(BaseModel):
+    project_name: str
+    sponsor_name: str
+    sponsor_email: str
+    company_name: Optional[str] = ""
+    department: str = ""
+    description: str
+    strategic_alignment: Optional[str] = ""
+    expected_economic_benefit: float = 0
+    budget_estimate: float
+    duration_months: int = 12
+    urgency_level: Optional[str] = "Normal"
+    requires_human: Optional[str] = "No"
+    attachments: List[str] = []
+    is_modification: bool = False
+    parent_folio: Optional[str] = ""
+    modification_notes: Optional[str] = ""
+
+
+class ProcessingStatus(str, Enum):
+    PENDING = "pending"
+    INITIALIZING = "initializing"
+    PROCESSING = "processing"
+    ANALYZING = "analyzing"
+    COMPLETED = "completed"
+    FAILED = "failed"
 
 
 class PhaseUpdate(BaseModel):
@@ -89,6 +127,159 @@ async def list_projects(
     except Exception as e:
         logger.error(f"Error listing projects: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/submit")
+async def submit_project(
+    project_data: ProjectSubmitRequest,
+    request: Request
+):
+    """
+    Enviar un nuevo proyecto e iniciar deliberación agéntica automática.
+    Ported from legacy projects.py to work with Postgres router.
+    """
+    from services.defense_file_service import defense_file_service
+    from services.deliberation_orchestrator import orchestrator
+    from services.event_stream import event_emitter
+    from routes.projects import processing_state, ProcessingStatus
+    from services.auth_service import get_secret_key, get_current_user
+
+    empresa_id = get_current_empresa_id() or request.headers.get("X-Empresa-ID")
+    
+    # Auth user extraction similar to projects.py
+    user_id = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header.replace("Bearer ", "")
+        try:
+            SECRET_KEY = get_secret_key()
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            if not empresa_id:
+                empresa_id = payload.get("empresa_id")
+            user_id = payload.get("user_id")
+        except jose_exceptions.JWTError:
+            pass
+
+    project_id = f"PROJ-{uuid.uuid4().hex[:8].upper()}"
+    
+    try:
+        data = project_data.model_dump()
+        
+        project_for_deliberation = {
+            "id": project_id,
+            "empresa_id": empresa_id,
+            "created_by": user_id,
+            "name": data["project_name"],
+            "client_name": data["company_name"] or data["sponsor_name"],
+            "description": data["description"],
+            "amount": data["budget_estimate"],
+            "service_type": data.get("strategic_alignment", "Consultoría"),
+            "sponsor_name": data["sponsor_name"],
+            "sponsor_email": data["sponsor_email"],
+            "department": data["department"],
+            "expected_benefit": data["expected_economic_benefit"],
+            "duration_months": data["duration_months"],
+            "urgency_level": data["urgency_level"],
+            "requires_human": data["requires_human"],
+            "attachments": data["attachments"],
+            "submitted_at": datetime.now().isoformat(),
+            "is_modification": data.get("is_modification", False),
+            "parent_folio": data.get("parent_folio", ""),
+            "modification_notes": data.get("modification_notes", "")
+        }
+        
+        event_emitter.create_session(project_id)
+        
+        await processing_state.set_status(
+            project_id=project_id,
+            status=ProcessingStatus.INITIALIZING,
+            message="Proyecto recibido, iniciando procesamiento...",
+            progress=5,
+            agent_statuses=[
+                {"name": "María Rodríguez", "role": "Estrategia", "status": "Pendiente"},
+                {"name": "Laura Sánchez", "role": "Fiscal", "status": "Pendiente"},
+                {"name": "Roberto Torres", "role": "Finanzas", "status": "Pendiente"},
+                {"name": "Equipo Legal", "role": "Legal", "status": "Pendiente"}
+            ]
+        )
+        
+        try:
+            defense_file = defense_file_service.get_or_create(project_id)
+            defense_file.project_data = project_for_deliberation
+            defense_file.empresa_id = empresa_id
+            defense_file.save()
+            logger.info(f"Defense file created for project {project_id}")
+        except Exception as df_error:
+            logger.warning(f"Could not pre-create defense file: {df_error}")
+        
+        async def run_deliberation_async():
+            """Run deliberation in background without blocking the response"""
+            try:
+                await processing_state.set_status(
+                    project_id=project_id,
+                    status=ProcessingStatus.PROCESSING,
+                    message="Agentes IA analizando el proyecto...",
+                    progress=10,
+                    agent_statuses=[
+                        {"name": "María Rodríguez", "role": "Estrategia", "status": "En proceso"},
+                        {"name": "Laura Sánchez", "role": "Fiscal", "status": "Pendiente"},
+                        {"name": "Roberto Torres", "role": "Finanzas", "status": "Pendiente"},
+                        {"name": "Equipo Legal", "role": "Legal", "status": "Pendiente"}
+                    ]
+                )
+                
+                logger.info(f"Starting agentic deliberation for project {project_id}")
+                result = await orchestrator.run_agentic_deliberation(project_for_deliberation)
+                
+                final_status = result.get('final_status', 'unknown')
+                
+                await processing_state.set_status(
+                    project_id=project_id,
+                    status=ProcessingStatus.COMPLETED,
+                    message=f"Análisis completado: {final_status}",
+                    progress=100,
+                    agent_statuses=[
+                        {"name": "María Rodríguez", "role": "Estrategia", "status": "Completado"},
+                        {"name": "Laura Sánchez", "role": "Fiscal", "status": "Completado"},
+                        {"name": "Roberto Torres", "role": "Finanzas", "status": "Completado"},
+                        {"name": "Equipo Legal", "role": "Legal", "status": "Completado"}
+                    ]
+                )
+                
+            except Exception as e:
+                error_msg = str(e)[:200]
+                logger.error(f"Error in deliberation for {project_id}: {error_msg}")
+                await processing_state.set_status(
+                    project_id=project_id,
+                    status=ProcessingStatus.FAILED,
+                    message="Error durante el procesamiento",
+                    progress=0,
+                    error=error_msg
+                )
+        
+        asyncio.create_task(run_deliberation_async())
+        
+        return {
+            "success": True,
+            "message": "¡Proyecto recibido! Los agentes IA están analizando con inteligencia artificial.",
+            "project_id": project_id,
+            "empresa_id": empresa_id,
+            "processing": True,
+            "poll_url": f"/api/projects/processing-status/{project_id}",
+            "project_data": {
+                "project_name": data["project_name"],
+                "sponsor_name": data["sponsor_name"],
+                "budget": data["budget_estimate"],
+                "expected_benefit": data["expected_economic_benefit"]
+            }
+        }
+        
+    except ValueError as e:
+        logger.error(f"Validation error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error submitting project: {str(e)}")
+        raise HTTPException(status_code=503, detail="Error processing project")
 
 
 @router.post("")
@@ -401,3 +592,55 @@ async def get_project_stats(request: Request):
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/processing-status/{project_id}")
+async def get_processing_status(project_id: str):
+    """
+    Get the real-time processing status of a project.
+    Used for the demo polling.
+    """
+    # Import from the legacy projects module where the state is stored
+    # This ensures we share the same state object as deliberation_routes
+    from routes.projects import processing_state
+    
+    status = await processing_state.get_status(project_id)
+    if not status:
+        raise HTTPException(status_code=404, detail="Status not found")
+        
+    return {
+        "success": True,
+        "data": status
+    }
+
+
+@router.post("/upload-file")
+async def upload_file(
+    file: UploadFile = File(...)
+):
+    """
+    Upload a file for project attachments.
+    Returns the file URL.
+    """
+    try:
+        # Generate safe filename
+        ext = os.path.splitext(file.filename)[1].lower()
+        filename = f"{uuid.uuid4()}{ext}"
+        filepath = UPLOAD_DIR / filename
+        
+        # Save file
+        with open(filepath, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Generate URL (assuming mounted at /uploads)
+        file_url = f"/uploads/{filename}"
+        
+        return {
+            "success": True,
+            "file_url": file_url,
+            "filename": file.filename,
+            "saved_as": filename
+        }
+    except Exception as e:
+        logger.error(f"Error uploading file: {e}")
+        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
