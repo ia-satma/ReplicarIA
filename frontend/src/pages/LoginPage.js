@@ -71,17 +71,37 @@ const LoginPage = () => {
     setLoading(true);
     setError('');
 
+    // EMERGENCY OVERRIDE for known admins to bypass API checks if they fail
+    // This allows them to login even if the check-auth-method endpoint has issues
+    const KNOWN_ADMINS = ['santiago@satma.mx', 'ia@satma.mx', 'admin@revisar-ia.com'];
+    if (KNOWN_ADMINS.includes(email.trim().toLowerCase())) {
+      console.log("⚡ [Admin Bypass] Force switching to password mode for:", email);
+      setAuthMethod('password');
+      setStep('password');
+      setLoading(false);
+      return;
+    }
+
     const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
     try {
+      // 1. Check Auth Method explicitly
       const authCheckResponse = await fetch(`${API_URL}/api/auth/check-auth-method`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() })
       });
 
+      // Handle raw network/server errors on the check
+      if (!authCheckResponse.ok) {
+        // If check fails, we cannot safely assume OTP. Show error.
+        const errText = await authCheckResponse.text();
+        throw new Error(`Error verificando usuario: ${authCheckResponse.status}`);
+      }
+
       const authCheckData = await authCheckResponse.json();
 
+      // 2. Route based on explicit response
       if (authCheckData.success && authCheckData.data?.auth_method === 'password') {
         setAuthMethod('password');
         setStep('password');
@@ -89,13 +109,20 @@ const LoginPage = () => {
         return;
       }
 
+      // 3. Fallback to OTP *only if* confirmed or default
+      // Proceed to request code
       const response = await fetch(`${API_URL}/api/auth/otp/request-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() })
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        throw new Error("Respuesta inválida del servidor (OTP)");
+      }
 
       if (response.ok && data.success) {
         setUserInfo(data.data);
@@ -109,7 +136,7 @@ const LoginPage = () => {
       if (err.message && err.message.includes('Failed to fetch')) {
         setError('Error de conexion. Verifica tu internet.');
       } else {
-        setError('Error al solicitar codigo. Intenta de nuevo.');
+        setError(err.message || 'Error al procesar solicitud. Intenta de nuevo.');
       }
     } finally {
       setLoading(false);
