@@ -15,6 +15,14 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 import contextlib
 from services.database_pg import get_pool, close_pool
+from services.database import db, DEMO_MODE
+
+# Configure logging early so logger is available throughout the file
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # ============================================================
 # RAILWAY AUTO-CONFIGURATION
@@ -497,9 +505,6 @@ if TenantContextMiddleware:
 # KB ROUTE REDIRECT MIDDLEWARE
 # Redirects /kb/* to /api/kb/* for frontend compatibility
 # ============================================================
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import RedirectResponse
-
 class KBRouteRedirectMiddleware(BaseHTTPMiddleware):
     """Redirect /kb/* requests to /api/kb/* for backward compatibility"""
     async def dispatch(self, request, call_next):
@@ -584,47 +589,6 @@ async def health_check():
         "database": "connected" if is_connected else "disconnected",
         "backend": "postgresql-unified",
         "timestamp": datetime.now().isoformat()
-    }
-
-    # 3. Check OpenAI API Key
-    openai_key = os.environ.get('OPENAI_API_KEY', '')
-    if openai_key and len(openai_key) > 10:
-        services["llm"] = "ready"
-    else:
-        services["llm"] = "missing_key"
-        overall_healthy = False
-
-    # 4. Check SECRET_KEY configuration
-    secret_key = os.environ.get('SECRET_KEY', '') or os.environ.get('JWT_SECRET_KEY', '')
-    if secret_key and len(secret_key) >= 16:
-        services["auth"] = "configured"
-    else:
-        services["auth"] = "insecure_default"
-        if is_production:
-            overall_healthy = False
-
-    # 5. Check Email Service
-    email_password = os.environ.get('DREAMHOST_EMAIL_PASSWORD', '')
-    if email_password and len(email_password) > 0:
-        services["email"] = "configured"
-    else:
-        services["email"] = "not_configured"
-
-    # 6. Check pCloud credentials
-    pcloud_user = os.environ.get('PCLOUD_USERNAME', '')
-    pcloud_pass = os.environ.get('PCLOUD_PASSWORD', '')
-    if pcloud_user and pcloud_pass:
-        services["pcloud"] = "configured"
-    else:
-        services["pcloud"] = "not_configured"
-
-    return {
-        "status": "healthy" if overall_healthy else "degraded",
-        "demo_mode": DEMO_MODE,
-        "environment": "production" if is_production else "development",
-        "services": services,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "version": "4.0.0"
     }
 
 @api_router.post("/status", response_model=StatusCheck)
@@ -718,8 +682,7 @@ if unified_auth_routes:
     api_router.include_router(unified_auth_routes.router)
 if vision_routes:
     api_router.include_router(vision_routes.router)
-if defense_routes:
-    api_router.include_router(defense_routes.router)
+# defense_routes removed - file was deleted
 if loops:
     app.include_router(loops.router)
 if versioning:
@@ -1036,7 +999,6 @@ app.add_middleware(
 )
 
 # Add middleware to prevent caching
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
 class NoCacheMiddleware(BaseHTTPMiddleware):
@@ -1050,13 +1012,6 @@ class NoCacheMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(NoCacheMiddleware)
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 async def seed_usuarios_autorizados():
     """Create default authorized users if they don't exist - seeds BOTH tables"""
@@ -1154,6 +1109,93 @@ async def start_guardian_agent():
     except Exception as e:
         logger.warning(f"Could not start Guardian Agent: {e}")
     return False
+
+
+async def seed_superadmin_auth_users():
+    """Create super_admin user in auth_users table for password-based login."""
+    import asyncpg
+    import re
+    
+    db_url = os.environ.get('DATABASE_URL', '')
+    if not db_url:
+        logger.warning("DATABASE_URL not set, skipping super_admin seeding")
+        return False
+    
+    # Clean URL for asyncpg
+    if db_url.startswith('postgres://'):
+        db_url = db_url.replace('postgres://', 'postgresql://', 1)
+    db_url = re.sub(r'[?&]sslmode=[^&]*', '', db_url)
+    
+    try:
+        conn = await asyncpg.connect(db_url, ssl='require')
+        
+        # Check if auth_users table exists and create if not
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS auth_users (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                email VARCHAR(255) UNIQUE NOT NULL,
+                full_name VARCHAR(255) NOT NULL,
+                password_hash VARCHAR(255),
+                role VARCHAR(50) DEFAULT 'user',
+                status VARCHAR(50) DEFAULT 'pending',
+                auth_method VARCHAR(50) DEFAULT 'otp',
+                empresa_id UUID,
+                company_name VARCHAR(255),
+                email_verified BOOLEAN DEFAULT false,
+                metadata JSONB DEFAULT '{}',
+                last_login_at TIMESTAMPTZ,
+                approved_at TIMESTAMPTZ,
+                approved_by UUID,
+                approval_required BOOLEAN DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                deleted_at TIMESTAMPTZ
+            )
+        ''')
+        
+        # Create auth_sessions table if not exists
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS auth_sessions (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id UUID NOT NULL,
+                token_hash VARCHAR(255) NOT NULL,
+                token_prefix VARCHAR(10),
+                auth_method VARCHAR(50) DEFAULT 'password',
+                is_active BOOLEAN DEFAULT true,
+                expires_at TIMESTAMPTZ NOT NULL,
+                ip_address VARCHAR(50),
+                user_agent TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        ''')
+        
+        # Create indexes
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_auth_sessions_token_hash ON auth_sessions(token_hash)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_auth_sessions_active ON auth_sessions(is_active, expires_at)')
+        
+        # Insert super_admin - Password: Sillybanana142# (bcrypt hashed)
+        superadmin_hash = '$2b$12$8QPA/6q8GvLn9TanuW60BOxJziS.n7AQOt6OLpkjpxemzvjLkm802'
+        
+        await conn.execute('''
+            INSERT INTO auth_users (email, full_name, password_hash, role, status, auth_method, email_verified, approval_required, company_name)
+            VALUES ('santiago@satma.mx', 'Santiago De Santiago', $1, 'super_admin', 'active', 'password', true, false, 'SATMA')
+            ON CONFLICT (email) DO UPDATE SET
+                password_hash = $1,
+                role = 'super_admin',
+                status = 'active',
+                auth_method = 'password',
+                email_verified = true,
+                approval_required = false,
+                updated_at = NOW()
+        ''', superadmin_hash)
+        
+        await conn.close()
+        logger.info("✅ Super Admin santiago@satma.mx seeded in auth_users")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error seeding super_admin: {e}")
+        return False
 
 
 async def start_trafico_ia():
@@ -1342,6 +1384,7 @@ async def startup_event():
         from services.user_db import init_db
         await init_db()
         await seed_usuarios_autorizados()
+        await seed_superadmin_auth_users()  # Create super_admin in auth_users for password login
         logger.info("✅ Sistema de autenticación legacy inicializado")
     except Exception as e:
         logger.error(f"Error inicializando autenticación legacy: {e}")

@@ -88,6 +88,8 @@ chainlit.md
 # Data and databases
 *.db
 *.sqlite
+*.sqlite3
+backend/chroma_db/
 agenthub/
 
 # Archive files and large assets

@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 const LoginPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { loginWithOTP, loginWithPassword, isAuthenticated } = useAuth();
+  const { loginWithOTP, isAuthenticated } = useAuth();
 
   const [step, setStep] = useState('email');
   const [email, setEmail] = useState('');

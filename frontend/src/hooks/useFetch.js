@@ -22,6 +22,10 @@ export function useFetch(url, dependencies = [], options = {}) {
   // Ref para evitar actualizar estado después de desmontar
   const isMounted = useRef(true);
 
+  // Ref para almacenar opciones de forma estable (evita re-renders infinitos)
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
   const fetchData = useCallback(async () => {
     if (!url) {
       setLoading(false);
@@ -33,7 +37,7 @@ export function useFetch(url, dependencies = [], options = {}) {
 
     try {
       let result;
-      const { method = 'GET', body, ...restOptions } = options;
+      const { method = 'GET', body, ...restOptions } = optionsRef.current;
 
       switch (method.toUpperCase()) {
         case 'POST':
@@ -66,7 +70,7 @@ export function useFetch(url, dependencies = [], options = {}) {
         setLoading(false);
       }
     }
-  }, [url, JSON.stringify(options)]);
+  }, [url]);
 
   useEffect(() => {
     isMounted.current = true;
