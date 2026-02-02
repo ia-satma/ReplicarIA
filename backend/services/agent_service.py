@@ -605,12 +605,15 @@ Respondes en español de México con terminología fiscal profesional."""
 
 class AgentService:
     """Servicio para gestionar agentes IA con diferentes personalidades y modelos LLM"""
-    
+
     def __init__(self):
-        self.api_key = os.getenv('EMERGENT_LLM_KEY', '')
-        self.demo_mode = not self.api_key or not EMERGENT_AVAILABLE
+        # Use OpenAI as primary provider (EMERGENT_LLM_KEY is deprecated)
+        self.api_key = os.getenv('OPENAI_API_KEY', '')
+        self.demo_mode = not self.api_key or not OPENAI_AVAILABLE
         if self.demo_mode:
-            logger.info("AgentService running in DEMO MODE (no LLM API key)")
+            logger.warning("⚠️ AgentService running in DEMO MODE (no OPENAI_API_KEY)")
+        else:
+            logger.info("✅ AgentService initialized with OpenAI")
         self.agents_cache: Dict[str, Any] = {}
         self.drive_service: Optional[Any] = None
         self.rag_service: Optional[Any] = None
