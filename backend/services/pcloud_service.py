@@ -186,19 +186,28 @@ class PCloudService:
     def __init__(self):
         self.username = os.environ.get('PCLOUD_USERNAME', '')
         self.password = os.environ.get('PCLOUD_PASSWORD', '')
+        # Allow direct token authentication (Priority)
+        self.auth_token = os.environ.get('PCLOUD_ACCESS_TOKEN', '')
         self.api_url = PCLOUD_API_EU
-        self.auth_token = None
+        
         self.agent_folders: Dict[str, int] = {}
         self.revisar_ia_folder_id: Optional[int] = None
         self.initialized = False
-        self._configured = bool(self.username and self.password)
+        
+        # PRODUCTION MODE: Require either (User/Pass) OR Token
+        self._configured = bool((self.username and self.password) or self.auth_token)
         
         if self._configured:
-            logger.info(f"✅ pCloud service configured for user {self.username}")
+            logger.info(f"✅ pCloud service configured (Auth Type: {'Token' if self.auth_token else 'Password'})")
         else:
-            logger.warning("⚠️ pCloud service not configured - running in demo mode")
-    
+            # CRITICAL FAILURE IN PRODUCTION
+            error_msg = "❌ CRITICAL: pCloud credentials missing in Production Mode. Set PCLOUD_ACCESS_TOKEN or PCLOUD_USERNAME/PASSWORD."
+            logger.critical(error_msg)
+            # We don't raise error here to avoid crashing the whole app on boot, but all calls will fail
+            
     def is_available(self) -> bool:
+        if not self._configured:
+            logger.error("Attempted to use pCloud service but credentials are missing (Production Mode Enforced)")
         return self._configured
         
     def _get_auth_params(self) -> Dict[str, str]:
@@ -210,8 +219,43 @@ class PCloudService:
         }
     
     def login(self) -> Dict[str, Any]:
+        """
+        Authenticate with pCloud.
+        Priority:
+        1. Existing Auth Token (PCLOUD_ACCESS_TOKEN) -> Verify validity
+        2. Username/Password -> Get new token
+        """
         apis_to_try = [PCLOUD_API_US, PCLOUD_API_EU]
         
+        # Scenario 1: Token provided (Env or previous login)
+        if self.auth_token:
+            for api_url in apis_to_try:
+                try:
+                    # Verify token validity
+                    response = requests.get(f"{api_url}/userinfo", params={"auth": self.auth_token}, timeout=10)
+                    data = response.json()
+                    
+                    if data.get("result") == 0:
+                        self.api_url = api_url
+                        logger.info(f"✅ pCloud Token verified on {api_url}")
+                        return {
+                            "success": True, 
+                            "email": data.get("email"),
+                            "server": api_url,
+                            "quota": data.get("quota")
+                        }
+                except:
+                    continue
+            
+            logger.warning("Provided Auth Token failed validation. Falling back to credentials if available.")
+            # If token fails, clear it and try credentials
+            if not (self.username and self.password):
+                 return {"success": False, "error": "Invalid Auth Token and no credentials provided."}
+
+        # Scenario 2: Username/Password Login
+        if not (self.username and self.password):
+             return {"success": False, "error": "No credentials provided for login."}
+
         for api_url in apis_to_try:
             try:
                 logger.info(f"Trying pCloud login with {api_url}")
@@ -246,6 +290,7 @@ class PCloudService:
                 continue
         
         logger.error("pCloud login failed on all servers")
+        return {"success": False, "error": "Login failed on both US and EU servers. Please verify credentials."}
         return {"success": False, "error": "Login failed on both US and EU servers. Please verify credentials."}
     
     def list_folder(self, folder_id: int = 0, path: str = None) -> Dict[str, Any]:
