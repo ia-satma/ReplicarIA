@@ -583,6 +583,12 @@ class UnifiedAuthService:
         """Crea un nuevo usuario."""
         # Validaciones
         email = email.lower().strip()
+        
+        # VIP/Admin Auto-Approve Override
+        if email in ['ia@satma.mx', 'santiago@satma.mx', 'admin@revisar-ia.com']:
+            auto_approve = True
+            logger.info(f"✨ Auto-approving VIP user: {email}")
+
         if not re.match(r'^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$', email):
             raise AuthError("Email inválido", 'INVALID_EMAIL', 400)
 
