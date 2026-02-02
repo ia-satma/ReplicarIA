@@ -301,7 +301,7 @@ const MetricsDashboard = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-[#34C759] to-[#5DD5C0] bg-clip-text text-transparent">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-[#34C759] to-[#2CB24E] bg-clip-text text-transparent">
                 Centro de Inteligencia
               </h1>
               <p className="text-gray-400 text-sm mt-1">
@@ -315,7 +315,7 @@ const MetricsDashboard = () => {
               </div>
               <Link
                 to="/dashboard"
-                className="px-4 py-2 bg-[#34C759] text-[#0a0f14] rounded-xl font-semibold hover:bg-[#5DD5C0] transition-all hover:shadow-lg hover:shadow-[#34C759]/25"
+                className="px-4 py-2 bg-[#34C759] text-[#0a0f14] rounded-xl font-semibold hover:bg-[#2CB24E] transition-all hover:shadow-lg hover:shadow-[#34C759]/25"
               >
                 Dashboard
               </Link>
