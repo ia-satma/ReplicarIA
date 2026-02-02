@@ -1082,6 +1082,15 @@ class UnifiedAuthService:
 
     async def _send_otp_email(self, user: User, code: str):
         """Envía el código OTP por email."""
+        # Check for DEMO MODE first
+        if getattr(AuthConfig, 'OTP_DEMO_MODE', False):
+             logger.warning("=" * 60)
+             logger.warning(f"⚠️  OTP EMAIL BYPASSED (DEMO MODE)")
+             logger.warning(f"📧 Email: {user.email}")
+             logger.warning(f"🔐 Code: {code}")
+             logger.warning("=" * 60)
+             return
+
         try:
             from services.dreamhost_email_service import email_service
             result = email_service.send_otp_email(
@@ -1091,11 +1100,21 @@ class UnifiedAuthService:
                 expires_minutes=AuthConfig.OTP_EXPIRY_MINUTES
             )
             if not result.get('success'):
+                # Si falló, y estamos en desarrollo, no explotar
+                if AuthConfig.IS_DEVELOPMENT:
+                     logger.warning(f"Email send failed but suppressed in DEV: {result.get('error')}")
+                     return
                 raise EmailSendError(result.get('error', 'Error desconocido al enviar email'))
         except ImportError:
             logger.warning(f"Email service no disponible. OTP para {user.email}: {code}")
             if AuthConfig.IS_DEVELOPMENT:
                 logger.info(f"🔑 [DEV] OTP Code for {user.email}: {code}")
+        except Exception as e:
+            logger.error(f"Error in _send_otp_email: {e}")
+            # If we are in dev/demo environment, don't crash the auth flow
+            if AuthConfig.IS_DEVELOPMENT or getattr(AuthConfig, 'OTP_DEMO_MODE', False):
+                return
+            raise
 
     # ========================================
     # LOGOUT
