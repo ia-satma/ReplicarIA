@@ -609,16 +609,22 @@ class UnifiedAuthService:
             if existing:
                 raise AuthError("El email ya está registrado", 'EMAIL_EXISTS', 400)
 
-            # Crear usuario
-            row = await conn.fetchrow('''
-                INSERT INTO auth_users (
-                    email, full_name, password_hash, role, status, auth_method,
-                    empresa_id, company_name, approval_required
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                RETURNING id, email, full_name, role, status, auth_method,
-                          empresa_id, company_name, email_verified, created_at
-            ''', email, full_name, password_hash, role, status, auth_method,
-                empresa_id, company_name, not auto_approve)
+            try:
+                # Crear usuario
+                row = await conn.fetchrow('''
+                    INSERT INTO auth_users (
+                        email, full_name, password_hash, role, status, auth_method,
+                        empresa_id, company_name, approval_required
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    RETURNING id, email, full_name, role, status, auth_method,
+                              empresa_id, company_name, email_verified, created_at
+                ''', email, full_name, password_hash, role, status, auth_method,
+                    empresa_id, company_name, not auto_approve)
+            except Exception as e:
+                # Handle asyncpg.UniqueViolationError manually if not imported
+                if 'UniqueViolationError' in str(type(e)):
+                     raise AuthError("El email ya está registrado", 'EMAIL_EXISTS', 400)
+                raise e
 
             user = User(
                 id=str(row['id']),

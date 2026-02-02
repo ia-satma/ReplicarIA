@@ -992,11 +992,12 @@ else:
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=cors_origins,
+    allow_origins=["*"],  # ALLOW ALL FOR DEBUGGING
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Empresa-ID", "X-Request-ID"],
     expose_headers=["Content-Type", "X-Request-ID"]
 )
+logging.warning("⚠️ CORS ALLOW ALL (*) ENABLED FOR DEBUGGING")
 
 # Add middleware to prevent caching
 from starlette.requests import Request

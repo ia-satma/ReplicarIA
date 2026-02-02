@@ -219,7 +219,7 @@ async def check_auth_method(body: CheckAuthMethodRequest):
         logger.error(f"[check-auth-method] Error: {e}", exc_info=True)
         return APIResponse(
             success=True,
-            message="Default to OTP",
+            message="Default to OTP (Error Recovery)",
             data={'auth_method': 'otp'}
         )
 
@@ -682,6 +682,13 @@ async def register(request: Request, body: RegisterRequest):
 
     except AuthError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
+    except Exception as e:
+        logger.error(f"CRITICAL ERROR in /register: {e}", exc_info=True)
+        return APIResponse(
+            success=False,
+            message="Error interno del servidor al crear usuario",
+            error=str(e) if request.app.debug else "Internal Server Error"
+        )
 
 
 # ============================================================
