@@ -165,7 +165,7 @@ class OTPAuthService:
             try:
                 row = await conn.fetchrow(
                     """
-                    SELECT id, email, nombre, empresa, rol, activo, empresa_id
+                    SELECT id, email, nombre, empresa, rol, activo
                     FROM usuarios_autorizados
                     WHERE LOWER(email) = LOWER($1) AND activo = true
                     """,
@@ -173,9 +173,6 @@ class OTPAuthService:
                 )
                 if row:
                     result = dict(row)
-                    # Ensure empresa_id is a string if present
-                    if result.get('empresa_id'):
-                        result['empresa_id'] = str(result['empresa_id'])
                     return result
                 return None
             except Exception as e:
