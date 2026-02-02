@@ -46,7 +46,20 @@ REQUIRED_SUBFOLDERS = [
     "SUB_RESUMIDOR",
     "SUB_VERIFICADOR",
     "SUB_REDACTOR",
+    # === ONBOARDING AUTOMÁTICO DE EMPRESAS ===
+    "CLIENTES_NUEVOS",  # Carpeta para onboarding automático
+    "CLIENTES",         # Empresas ya procesadas
 ]
+
+# Estructura esperada para onboarding automático:
+# CLIENTES_NUEVOS/
+# ├── {RFC_O_NOMBRE}/           # Carpeta por empresa nueva
+# │   ├── _info.json            # Opcional: datos de la empresa
+# │   ├── acta_constitutiva.pdf # Documentos
+# │   ├── cedula_fiscal.pdf
+# │   └── ...
+#
+# Cuando se procesa, la carpeta se mueve a CLIENTES/
 
 AGENT_FOLDER_NAMES = {
     # Agentes Principales
@@ -113,6 +126,9 @@ AGENT_FOLDER_IDS = {
     "REVISAR_IA_CONFIG": 29789401752,  # REVISAR.IA - configuración agéntica
     "REVISAR_IA_OPERATIONS": 29799555433,  # REVISAR_IA - operaciones/evidencias
     "EVIDENCIAS": 29799555482,  # Subcarpeta de evidencias mensuales
+    # Onboarding automático de empresas
+    "CLIENTES_NUEVOS": None,  # Se crea automáticamente
+    "CLIENTES": None,  # Se crea automáticamente
 }
 
 # Modelo de permisos entre agentes
@@ -304,7 +320,86 @@ class PCloudService:
         except Exception as e:
             logger.error(f"pCloud create folder error: {str(e)}")
             return {"success": False, "error": str(e)}
-    
+
+    def move_folder(self, folder_id: int, to_folder_id: int) -> Dict[str, Any]:
+        """Move a folder to another parent folder"""
+        try:
+            params = self._get_auth_params()
+            params["folderid"] = folder_id
+            params["tofolderid"] = to_folder_id
+
+            response = requests.get(
+                f"{self.api_url}/movefolder",
+                params=params,
+                timeout=30
+            )
+            data = response.json()
+
+            if data.get("result") == 0:
+                metadata = data.get("metadata", {})
+                logger.info(f"Moved folder {folder_id} to {to_folder_id}")
+                return {
+                    "success": True,
+                    "folder_id": metadata.get("folderid"),
+                    "new_path": metadata.get("path")
+                }
+            else:
+                return {"success": False, "error": data.get("error")}
+
+        except Exception as e:
+            logger.error(f"pCloud move folder error: {str(e)}")
+            return {"success": False, "error": str(e)}
+
+    def rename_folder(self, folder_id: int, new_name: str) -> Dict[str, Any]:
+        """Rename a folder"""
+        try:
+            params = self._get_auth_params()
+            params["folderid"] = folder_id
+            params["toname"] = new_name
+
+            response = requests.get(
+                f"{self.api_url}/renamefolder",
+                params=params,
+                timeout=15
+            )
+            data = response.json()
+
+            if data.get("result") == 0:
+                metadata = data.get("metadata", {})
+                logger.info(f"Renamed folder {folder_id} to {new_name}")
+                return {
+                    "success": True,
+                    "folder_id": metadata.get("folderid"),
+                    "name": metadata.get("name")
+                }
+            else:
+                return {"success": False, "error": data.get("error")}
+
+        except Exception as e:
+            logger.error(f"pCloud rename folder error: {str(e)}")
+            return {"success": False, "error": str(e)}
+
+    def get_or_create_folder(self, folder_name: str, parent_id: int) -> Optional[int]:
+        """Get folder ID if exists, otherwise create it and return the new ID"""
+        try:
+            # List parent folder contents
+            contents = self.list_folder(folder_id=parent_id)
+            if contents.get("success"):
+                for item in contents.get("items", []):
+                    if item.get("is_folder") and item.get("name", "").upper() == folder_name.upper():
+                        return item.get("id")
+
+            # Folder doesn't exist, create it
+            result = self.create_folder(parent_id, folder_name)
+            if result.get("success"):
+                return result.get("folder_id")
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error in get_or_create_folder: {str(e)}")
+            return None
+
     def find_revisar_ia_folder(self) -> Dict[str, Any]:
         """Find the REVISAR.ia folder in the root directory"""
         try:

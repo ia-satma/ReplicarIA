@@ -79,6 +79,176 @@ async def get_file_download_link(file_id: int):
     return result
 
 
+# ============================================================
+# ONBOARDING AUTOMÁTICO DE EMPRESAS DESDE pCLOUD
+# ============================================================
+
+@router.post("/onboarding/setup")
+async def setup_onboarding_folders():
+    """
+    Crea las carpetas necesarias para onboarding automático:
+    - CLIENTES_NUEVOS: donde se colocan las carpetas de nuevas empresas
+    - CLIENTES: donde se mueven las empresas ya procesadas
+    """
+    try:
+        from services.pcloud_onboarding_service import pcloud_onboarding_service
+        result = await pcloud_onboarding_service.ensure_onboarding_folders()
+        return result
+    except Exception as e:
+        logger.error(f"Error setting up onboarding folders: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/onboarding/scan")
+async def scan_new_clients():
+    """
+    Escanea la carpeta CLIENTES_NUEVOS para detectar empresas pendientes de procesar.
+
+    Retorna lista de carpetas con:
+    - folder_name: Nombre de la carpeta (idealmente RFC o nombre de empresa)
+    - folder_id: ID en pCloud para procesar
+    - has_info_file: Si tiene archivo _info.json con datos manuales
+    - document_count: Número de documentos en la carpeta
+
+    Estructura esperada en pCloud:
+    ```
+    REVISAR.IA/CLIENTES_NUEVOS/
+    ├── EMPRESA_ABC_RFC123/
+    │   ├── _info.json         # Opcional: {"nombre_comercial": "...", "rfc": "..."}
+    │   ├── acta_constitutiva.pdf
+    │   └── cedula_fiscal.pdf
+    └── OTRA_EMPRESA/
+        └── documentos...
+    ```
+    """
+    try:
+        from services.pcloud_onboarding_service import pcloud_onboarding_service
+        result = await pcloud_onboarding_service.scan_new_clients()
+        return result
+    except Exception as e:
+        logger.error(f"Error scanning new clients: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/onboarding/process/{folder_id}")
+async def process_client_folder(folder_id: int, folder_name: str = ""):
+    """
+    Procesa una carpeta específica de cliente nuevo:
+
+    1. Lee _info.json si existe para datos manuales
+    2. Analiza documentos PDF/DOCX para extraer RFC, razón social, etc.
+    3. Crea la empresa en la base de datos
+    4. Ingesta documentos en RAG para conocimiento
+    5. Mueve la carpeta a CLIENTES/ (procesados)
+
+    Args:
+        folder_id: ID de la carpeta en pCloud
+        folder_name: Nombre de la carpeta (opcional, para logging)
+    """
+    try:
+        from services.pcloud_onboarding_service import pcloud_onboarding_service
+        result = await pcloud_onboarding_service.process_client_folder(folder_id, folder_name)
+
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("errors", ["Error processing folder"]))
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing client folder {folder_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/onboarding/process-all")
+async def process_all_pending_clients():
+    """
+    Procesa TODAS las empresas pendientes en CLIENTES_NUEVOS.
+
+    Para cada carpeta encontrada:
+    1. Extrae datos de _info.json y/o documentos
+    2. Crea la empresa en el sistema
+    3. Ingesta documentos en RAG
+    4. Mueve carpeta a CLIENTES/
+
+    Retorna resumen con total encontradas, procesadas exitosamente y fallidas.
+
+    ⚠️ Use con cuidado: procesa TODO lo que encuentre en CLIENTES_NUEVOS
+    """
+    try:
+        from services.pcloud_onboarding_service import pcloud_onboarding_service
+        result = await pcloud_onboarding_service.process_all_pending()
+        return result
+    except Exception as e:
+        logger.error(f"Error processing all pending clients: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# WATCHER AUTOMÁTICO - Monitoreo continuo de nuevas empresas
+# ============================================================
+
+@router.get("/onboarding/watcher/status")
+async def get_watcher_status():
+    """
+    Obtiene el estado actual del watcher de onboarding.
+
+    Retorna:
+    - running: Si el watcher está activo
+    - interval_seconds: Intervalo de polling
+    - last_check: Última vez que se verificó CLIENTES_NUEVOS
+    """
+    try:
+        from services.pcloud_onboarding_service import pcloud_onboarding_watcher
+        return {
+            "success": True,
+            "status": pcloud_onboarding_watcher.status
+        }
+    except Exception as e:
+        logger.error(f"Error getting watcher status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/onboarding/watcher/start")
+async def start_onboarding_watcher(interval_seconds: int = 300):
+    """
+    Inicia el watcher automático de onboarding.
+
+    El watcher monitorea CLIENTES_NUEVOS cada `interval_seconds` segundos
+    y procesa automáticamente cualquier carpeta nueva que encuentre.
+
+    Args:
+        interval_seconds: Intervalo de polling en segundos (mínimo 60, default 300)
+
+    ⚠️ El watcher procesa automáticamente - asegúrate de que las carpetas
+       en CLIENTES_NUEVOS están listas antes de activarlo.
+    """
+    try:
+        from services.pcloud_onboarding_service import pcloud_onboarding_watcher
+        result = await pcloud_onboarding_watcher.start(interval_seconds)
+        return result
+    except Exception as e:
+        logger.error(f"Error starting watcher: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/onboarding/watcher/stop")
+async def stop_onboarding_watcher():
+    """
+    Detiene el watcher automático de onboarding.
+
+    Las carpetas que no han sido procesadas permanecerán en CLIENTES_NUEVOS
+    hasta que el watcher se reinicie o se use /onboarding/process-all manualmente.
+    """
+    try:
+        from services.pcloud_onboarding_service import pcloud_onboarding_watcher
+        result = await pcloud_onboarding_watcher.stop()
+        return result
+    except Exception as e:
+        logger.error(f"Error stopping watcher: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/list-root")
 async def list_root_folder():
     """List contents of the pCloud root folder"""
