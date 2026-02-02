@@ -239,6 +239,7 @@ AGENT_ID_ALIASES = {
 
 ## API Endpoints
 
+### Agentes
 | Endpoint | Descripción |
 |----------|-------------|
 | `GET /api/agents/available` | Lista todos los agentes con metadata |
@@ -249,6 +250,22 @@ AGENT_ID_ALIASES = {
 | `POST /api/agents/chat` | Chat con agentes |
 | `POST /api/agents/invoke` | Invocar agente específico |
 
+### pCloud y Onboarding Automático
+| Endpoint | Descripción |
+|----------|-------------|
+| `POST /pcloud/setup-complete` | Setup inicial de todas las carpetas |
+| `GET /pcloud/folders` | Lista carpetas de agentes en pCloud |
+| `POST /pcloud/sync/{agent_id}` | Sincroniza documentos de un agente a RAG |
+| `POST /pcloud/sync-all` | Sincroniza todos los agentes |
+| **Onboarding** | |
+| `POST /pcloud/onboarding/setup` | Crea carpetas CLIENTES_NUEVOS y CLIENTES |
+| `GET /pcloud/onboarding/scan` | Escanea empresas pendientes de procesar |
+| `POST /pcloud/onboarding/process/{folder_id}` | Procesa una carpeta de cliente |
+| `POST /pcloud/onboarding/process-all` | Procesa TODAS las empresas pendientes |
+| `GET /pcloud/onboarding/watcher/status` | Estado del watcher automático |
+| `POST /pcloud/onboarding/watcher/start` | Inicia monitoreo automático |
+| `POST /pcloud/onboarding/watcher/stop` | Detiene monitoreo automático |
+
 ---
 
 ## Archivos del Sistema
@@ -256,9 +273,13 @@ AGENT_ID_ALIASES = {
 | Archivo | Descripción |
 |---------|-------------|
 | `backend/config/agents_registry.py` | **FUENTE ÚNICA DE VERDAD** |
+| `backend/services/pcloud_service.py` | Integración con pCloud |
+| `backend/services/pcloud_onboarding_service.py` | Onboarding automático de empresas |
+| `backend/services/rag_service.py` | Colecciones RAG por agente |
+| `backend/routes/pcloud_routes.py` | Endpoints de pCloud y onboarding |
+| `backend/routes/agents_stats_routes.py` | Endpoints de agentes |
 | `frontend/src/components/agents/AgentsDashboard.jsx` | Dashboard con agentMap sincronizado |
 | `frontend/src/components/agents/AgentPanel.jsx` | Panel de selección de agentes |
-| `backend/routes/agents_stats_routes.py` | Endpoints de API |
 
 ---
 
@@ -287,6 +308,12 @@ REVISAR.IA (ID: 29789401752)
 ├── SUB_CLASIFICADOR/  # S_CLASIFICADOR - Clasificación
 ├── SUB_RESUMIDOR/     # S_RESUMIDOR - Resúmenes
 ├── SUB_VERIFICADOR/   # S_VERIFICADOR - QA
+├── CLIENTES_NUEVOS/   # 🆕 Onboarding automático - carpetas nuevas
+│   └── {RFC_O_NOMBRE}/
+│       ├── _info.json       # Opcional: datos de la empresa
+│       ├── acta_constitutiva.pdf
+│       └── ...
+├── CLIENTES/          # 🆕 Empresas ya procesadas (se mueven aquí)
 └── SUB_REDACTOR/      # S_REDACTOR - Documentos
 ```
 
@@ -337,6 +364,63 @@ pCloud Folder         →  IngestionService  →  ChromaDB Collection
 POST /pcloud/sync/{agent_id}   # Sincroniza un agente
 POST /pcloud/sync-all          # Sincroniza todos
 POST /pcloud/setup-complete    # Setup inicial completo
+```
+
+---
+
+## Onboarding Automático de Empresas
+
+El sistema puede detectar y procesar automáticamente nuevas empresas desde pCloud.
+
+### Flujo de Onboarding
+```
+pCloud: CLIENTES_NUEVOS/{carpeta}  →  Sistema detecta  →  Procesa documentos
+              ↓                            ↓                     ↓
+        [_info.json]                  [Lee RFC/datos]      [Crea empresa]
+        [documentos]                  [Analiza PDFs]       [Ingesta en RAG]
+              ↓                            ↓                     ↓
+                                    Mueve a CLIENTES/    ✅ Empresa lista
+```
+
+### Estructura de Carpeta para Nueva Empresa
+```
+CLIENTES_NUEVOS/
+└── ABC123456XYZ/              # Nombre = RFC o nombre de empresa
+    ├── _info.json             # Opcional - datos manuales
+    ├── acta_constitutiva.pdf
+    ├── cedula_fiscal.pdf
+    └── otros_documentos.pdf
+```
+
+### Formato de _info.json (Opcional)
+```json
+{
+  "nombre_comercial": "Mi Empresa SA",
+  "razon_social": "Mi Empresa SA de CV",
+  "rfc": "ABC123456XYZ",
+  "industria": "SERVICIOS_PROFESIONALES",
+  "email": "contacto@miempresa.com",
+  "telefono": "5555555555",
+  "direccion": "Av. Principal 123, CDMX"
+}
+```
+
+### Opciones de Procesamiento
+1. **Manual**: `POST /pcloud/onboarding/process-all` - Procesa todo lo pendiente
+2. **Individual**: `POST /pcloud/onboarding/process/{folder_id}` - Una empresa
+3. **Automático**: Activar watcher con `POST /pcloud/onboarding/watcher/start`
+
+### Watcher Automático
+El watcher monitorea `CLIENTES_NUEVOS/` cada 5 minutos (configurable):
+```bash
+# Iniciar watcher (intervalo en segundos, mínimo 60)
+POST /pcloud/onboarding/watcher/start?interval_seconds=300
+
+# Ver estado
+GET /pcloud/onboarding/watcher/status
+
+# Detener
+POST /pcloud/onboarding/watcher/stop
 ```
 
 ---

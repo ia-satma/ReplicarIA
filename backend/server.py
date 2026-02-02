@@ -71,14 +71,47 @@ async def lifespan(app: FastAPI):
         logger.info("✅ PostgreSQL Connection Pool Established")
     except Exception as e:
         logger.error(f"❌ PostgreSQL Connection Failed: {e}")
-        # We generally want to fail hard if DB is missing in this new architecture
-        # but for now we log error. Application might crash on requests.
+    
+    # Initialize pCloud Folder Structure
+    try:
+        from services.pcloud_service import pcloud_service
+        from services.pcloud_onboarding_service import pcloud_onboarding_watcher
+        
+        logger.info("☁️ Initializing pCloud structure...")
+        if pcloud_service.is_available():
+            # Run in executor to avoid blocking event loop
+            import asyncio
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, pcloud_service.initialize_folder_structure)
+            
+            if result.get("success"):
+                logger.info(f"✅ pCloud Structure Ready: {len(result.get('created_folders', []))} created, {len(result.get('existing_folders', []))} existing")
+                
+                # Start Onboarding Watcher
+                pcloud_onboarding_watcher.start()
+                logger.info("👀 pCloud Onboarding Watcher started")
+            else:
+                logger.error(f"❌ pCloud Initialization Failed: {result.get('error')}")
+        else:
+            logger.warning("⚠️ pCloud service not available (skipped init)")
+            
+    except Exception as e:
+        logger.error(f"❌ pCloud Startup Error: {e}")
     
     yield
     
     # Shutdown: Close Pool
     logger.info("🔌 Closing PostgreSQL Connection...")
     await close_pool()
+    
+    # Stop Watcher
+    try:
+        from services.pcloud_onboarding_service import pcloud_onboarding_watcher
+        pcloud_onboarding_watcher.stop()
+        logger.info("🛑 pCloud Watcher stopped")
+    except:
+        pass
+        
     logger.info("✅ Pool Closed")
 
 # Import core routes (minimal dependencies)
