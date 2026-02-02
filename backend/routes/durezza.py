@@ -434,10 +434,38 @@ async def get_estadisticas_dashboard():
     
     hay_datos = len(projects) > 0
     
+    monto_total = sum(p.get("monto", 0) for p in projects)
+    
+    # Format projects for the dashboard table (combining project + supplier info)
+    dashboard_projects = []
+    for p in proyectos_activos:
+        prov = next((s for s in suppliers if s["id"] == p.get("proveedor_id")), {})
+        dashboard_projects.append({
+            "id": p.get("proveedor_id") or "N/A",  # Using Prov ID for display as per UI
+            "nombre": prov.get("nombre_razon_social") or p.get("client_name") or "Proveedor Desconocido",
+            "rfc": prov.get("rfc") or "N/A",
+            "proyecto": p.get("nombre", "Sin Nombre"),
+            "monto": p.get("monto", 0),
+            "fase": p.get("fase_actual", "F0"),
+            "progreso": p.get("progreso", 0),
+            "ajustes_sol": 0, # TODO: Calculate from audit logs
+            "ajustes_res": 0,
+            "dias_sin_act": (datetime.utcnow() - datetime.fromisoformat(p.get("updated_at", datetime.utcnow().isoformat()))).days if p.get("updated_at") else 0,
+            "riesgo": p.get("riesgo_global", "bajo").lower()
+        })
+
     return {
+        "kpis": {
+            "diagnosticos_activos": len(proyectos_activos),
+            "ajustes_solicitados": 0, # Placeholder until adjustment tracking is implemented
+            "ajustes_resueltos": 0,
+            "versiones_totales": 0, # Placeholder
+            "monto_en_revision": monto_total
+        },
         "proyectos": {
             "total": len(projects),
             "activos": len(proyectos_activos),
+            "lista_dashboard": dashboard_projects,
             "fase_actual": fase_actual,
             "fases_completadas": fases_completadas
         },
@@ -454,6 +482,12 @@ async def get_estadisticas_dashboard():
         "proveedores": {
             "total": len(suppliers),
             "en_riesgo": proveedores_en_riesgo
+        },
+        "distribucion_riesgo": {
+            "critico": len([p for p in proyectos_activos if p.get("riesgo_global") == "CRITICO"]),
+            "alto": len([p for p in proyectos_activos if p.get("riesgo_global") == "ALTO"]),
+            "medio": len([p for p in proyectos_activos if p.get("riesgo_global") == "MEDIO"]),
+            "bajo": len([p for p in proyectos_activos if p.get("riesgo_global") == "BAJO"])
         },
         "puntos_control": {
             "configurados": puntos_control_configurados,

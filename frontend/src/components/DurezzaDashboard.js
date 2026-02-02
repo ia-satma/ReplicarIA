@@ -10,89 +10,89 @@ import RiskScoreMiniChart from './RiskScoreMiniChart';
 
 const BotIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="11" width="18" height="10" rx="2"/>
-    <circle cx="12" cy="5" r="2"/>
-    <path d="M12 7v4"/>
-    <line x1="8" y1="16" x2="8" y2="16"/>
-    <line x1="16" y1="16" x2="16" y2="16"/>
+    <rect x="3" y="11" width="18" height="10" rx="2" />
+    <circle cx="12" cy="5" r="2" />
+    <path d="M12 7v4" />
+    <line x1="8" y1="16" x2="8" y2="16" />
+    <line x1="16" y1="16" x2="16" y2="16" />
   </svg>
 );
 
 const ChartIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="20" x2="18" y2="10"/>
-    <line x1="12" y1="20" x2="12" y2="4"/>
-    <line x1="6" y1="20" x2="6" y2="14"/>
+    <line x1="18" y1="20" x2="18" y2="10" />
+    <line x1="12" y1="20" x2="12" y2="4" />
+    <line x1="6" y1="20" x2="6" y2="14" />
   </svg>
 );
 
 const LockIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
   </svg>
 );
 
 const CheckIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="20 6 9 17 4 12"/>
+    <polyline points="20 6 9 17 4 12" />
   </svg>
 );
 
 const ShieldIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-    <path d="M9 12l2 2 4-4"/>
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    <path d="M9 12l2 2 4-4" />
   </svg>
 );
 
 const MoonIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
   </svg>
 );
 
 const SunIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="5"/>
-    <line x1="12" y1="1" x2="12" y2="3"/>
-    <line x1="12" y1="21" x2="12" y2="23"/>
-    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-    <line x1="1" y1="12" x2="3" y2="12"/>
-    <line x1="21" y1="12" x2="23" y2="12"/>
-    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    <circle cx="12" cy="12" r="5" />
+    <line x1="12" y1="1" x2="12" y2="3" />
+    <line x1="12" y1="21" x2="12" y2="23" />
+    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+    <line x1="1" y1="12" x2="3" y2="12" />
+    <line x1="21" y1="12" x2="23" y2="12" />
+    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
   </svg>
 );
 
 const AlertTriangleIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-    <line x1="12" y1="9" x2="12" y2="13"/>
-    <line x1="12" y1="17" x2="12.01" y2="17"/>
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    <line x1="12" y1="9" x2="12" y2="13" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
   </svg>
 );
 
 const TagIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-    <line x1="7" y1="7" x2="7.01" y2="7"/>
+    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+    <line x1="7" y1="7" x2="7.01" y2="7" />
   </svg>
 );
 
 const ExternalLinkIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-    <polyline points="15 3 21 3 21 9"/>
-    <line x1="10" y1="14" x2="21" y2="3"/>
+    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+    <polyline points="15 3 21 3 21 9" />
+    <line x1="10" y1="14" x2="21" y2="3" />
   </svg>
 );
 
 const ClockIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10"/>
-    <polyline points="12 6 12 12 16 14"/>
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
   </svg>
 );
 
@@ -185,7 +185,29 @@ function DurezzaDashboard() {
       }
 
       if ((estadisticasRes?.status === 'fulfilled')) {
-        setEstadisticas((estadisticasRes?.value) || null);
+        const statsData = estadisticasRes.value;
+        setEstadisticas(statsData || null);
+
+        // Always update dashboard to reflect backend state (even if empty) to remove fake data
+        if (statsData) {
+          setDashboardData(prev => ({
+            ...prev,
+            kpis: statsData.kpis || {
+              diagnosticos_activos: 0,
+              ajustes_solicitados: 0,
+              ajustes_resueltos: 0,
+              versiones_totales: 0,
+              monto_en_revision: 0
+            },
+            proveedores: statsData.proyectos?.lista_dashboard || [],
+            distribucion_riesgo: statsData.distribucion_riesgo || {
+              critico: 0,
+              alto: 0,
+              medio: 0,
+              bajo: 0
+            }
+          }));
+        }
       } else {
         setEstadisticas(null);
       }
@@ -244,14 +266,14 @@ function DurezzaDashboard() {
           <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <pattern id="mesh" width="40" height="40" patternUnits="userSpaceOnUse">
-                <circle cx="20" cy="20" r="1" fill="rgba(255,255,255,0.3)"/>
+                <circle cx="20" cy="20" r="1" fill="rgba(255,255,255,0.3)" />
               </pattern>
             </defs>
-            <rect width="100%" height="100%" fill="url(#mesh)"/>
+            <rect width="100%" height="100%" fill="url(#mesh)" />
           </svg>
         </div>
         <div className="absolute inset-0 backdrop-blur-[1px]"></div>
-        
+
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="animate-fade-in-up">
@@ -265,7 +287,7 @@ function DurezzaDashboard() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex flex-wrap gap-2 sm:gap-3">
               <a
                 href={`/api/defense-file/${selectedProyectoId || 'demo-proyecto-001'}/download-complete`}
@@ -309,7 +331,7 @@ function DurezzaDashboard() {
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* New KPIs Section */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
-          <KPICardNew 
+          <KPICardNew
             title="Diagnósticos Activos"
             value={dashboardData.kpis.diagnosticos_activos}
             icon="🔍"
@@ -317,7 +339,7 @@ function DurezzaDashboard() {
             gradientTo="#9333EA"
             delay="0"
           />
-          <KPICardNew 
+          <KPICardNew
             title="Ajustes Solicitados"
             value={dashboardData.kpis.ajustes_solicitados}
             icon="📝"
@@ -325,7 +347,7 @@ function DurezzaDashboard() {
             gradientTo="#D97706"
             delay="100"
           />
-          <KPICardNew 
+          <KPICardNew
             title="Ajustes Resueltos"
             value={dashboardData.kpis.ajustes_resueltos}
             subtitle={`${((dashboardData.kpis.ajustes_resueltos / dashboardData.kpis.ajustes_solicitados) * 100).toFixed(1)}%`}
@@ -334,7 +356,7 @@ function DurezzaDashboard() {
             gradientTo="#059669"
             delay="200"
           />
-          <KPICardNew 
+          <KPICardNew
             title="Versiones Generadas"
             value={dashboardData.kpis.versiones_totales}
             icon="📋"
@@ -342,7 +364,7 @@ function DurezzaDashboard() {
             gradientTo="#2563EB"
             delay="300"
           />
-          <KPICardNew 
+          <KPICardNew
             title="Monto en Revisión"
             value={formatCurrency(dashboardData.kpis.monto_en_revision)}
             icon="💰"
@@ -364,28 +386,28 @@ function DurezzaDashboard() {
           </div>
           <div className="p-4 sm:p-6">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <RiskDistributionCard 
+              <RiskDistributionCard
                 label="Crítico"
                 count={dashboardData.distribucion_riesgo.critico}
                 color="#EF4444"
                 bgColor="bg-red-50 dark:bg-red-900/20"
                 borderColor="border-red-200 dark:border-red-800"
               />
-              <RiskDistributionCard 
+              <RiskDistributionCard
                 label="Alto"
                 count={dashboardData.distribucion_riesgo.alto}
                 color="#F59E0B"
                 bgColor="bg-amber-50 dark:bg-amber-900/20"
                 borderColor="border-amber-200 dark:border-amber-800"
               />
-              <RiskDistributionCard 
+              <RiskDistributionCard
                 label="Medio"
                 count={dashboardData.distribucion_riesgo.medio}
                 color="#3B82F6"
                 bgColor="bg-blue-50 dark:bg-blue-900/20"
                 borderColor="border-blue-200 dark:border-blue-800"
               />
-              <RiskDistributionCard 
+              <RiskDistributionCard
                 label="Bajo"
                 count={dashboardData.distribucion_riesgo.bajo}
                 color="#10B981"
@@ -482,12 +504,12 @@ function DurezzaDashboard() {
               </div>
               <div className="p-3 sm:p-6 overflow-x-auto">
                 {estadisticas?.hay_datos && estadisticas?.proyectos?.fase_actual ? (
-                  <TimelineFases 
-                    faseActual={estadisticas.proyectos.fase_actual} 
-                    fasesCompletadas={estadisticas.proyectos.fases_completadas || []} 
+                  <TimelineFases
+                    faseActual={estadisticas.proyectos.fase_actual}
+                    fasesCompletadas={estadisticas.proyectos.fases_completadas || []}
                   />
                 ) : (
-                  <EmptyStatePanel 
+                  <EmptyStatePanel
                     title="No hay proyectos activos"
                     message="Crea tu primer proyecto para ver el progreso de las fases"
                     icon={ChartIcon}
@@ -496,7 +518,7 @@ function DurezzaDashboard() {
               </div>
             </div>
           </div>
-          
+
           <div className="glass-card-hover overflow-hidden animate-fade-in">
             <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 px-4 sm:px-6 py-4 border-b border-slate-200/50 dark:border-slate-700/50">
               <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -537,13 +559,12 @@ function DurezzaDashboard() {
                     </div>
                     <div>
                       <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">Confianza</p>
-                      <span className={`inline-block px-3 py-1.5 rounded-lg text-sm font-medium ${
-                        tipificacionResult.resultado?.confianza_clasificacion === 'ALTA' 
-                          ? 'bg-gradient-to-r from-emerald-100 to-green-100 dark:from-emerald-900/50 dark:to-green-900/50 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700'
-                          : tipificacionResult.resultado?.confianza_clasificacion === 'MEDIA'
+                      <span className={`inline-block px-3 py-1.5 rounded-lg text-sm font-medium ${tipificacionResult.resultado?.confianza_clasificacion === 'ALTA'
+                        ? 'bg-gradient-to-r from-emerald-100 to-green-100 dark:from-emerald-900/50 dark:to-green-900/50 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700'
+                        : tipificacionResult.resultado?.confianza_clasificacion === 'MEDIA'
                           ? 'bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/50 dark:to-yellow-900/50 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-700'
                           : 'bg-gradient-to-r from-rose-100 to-red-100 dark:from-rose-900/50 dark:to-red-900/50 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-700'
-                      }`}>
+                        }`}>
                         {tipificacionResult.resultado?.confianza_clasificacion}
                       </span>
                     </div>
@@ -577,23 +598,21 @@ function DurezzaDashboard() {
                   <div className="flex items-center justify-between flex-wrap gap-4">
                     <div>
                       <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">Nivel Global</p>
-                      <span className={`inline-block px-4 py-2 rounded-xl text-sm font-bold shadow-lg ${
-                        riesgosResult.resultado?.nivel_riesgo_global === 'CRITICO'
-                          ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-red-500/30'
-                          : riesgosResult.resultado?.nivel_riesgo_global === 'ALTO'
+                      <span className={`inline-block px-4 py-2 rounded-xl text-sm font-bold shadow-lg ${riesgosResult.resultado?.nivel_riesgo_global === 'CRITICO'
+                        ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-red-500/30'
+                        : riesgosResult.resultado?.nivel_riesgo_global === 'ALTO'
                           ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-orange-500/30'
                           : 'bg-gradient-to-r from-yellow-400 to-amber-400 text-slate-900 shadow-yellow-500/30'
-                      }`}>
+                        }`}>
                         {riesgosResult.resultado?.nivel_riesgo_global}
                       </span>
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">Puede Continuar</p>
-                      <span className={`inline-block px-4 py-2 rounded-xl text-sm font-medium ${
-                        riesgosResult.resultado?.puede_continuar
-                          ? 'bg-gradient-to-r from-emerald-100 to-green-100 dark:from-emerald-900/50 dark:to-green-900/50 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700'
-                          : 'bg-gradient-to-r from-rose-100 to-red-100 dark:from-rose-900/50 dark:to-red-900/50 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-700'
-                      }`}>
+                      <span className={`inline-block px-4 py-2 rounded-xl text-sm font-medium ${riesgosResult.resultado?.puede_continuar
+                        ? 'bg-gradient-to-r from-emerald-100 to-green-100 dark:from-emerald-900/50 dark:to-green-900/50 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700'
+                        : 'bg-gradient-to-r from-rose-100 to-red-100 dark:from-rose-900/50 dark:to-red-900/50 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-700'
+                        }`}>
                         {riesgosResult.resultado?.puede_continuar ? 'SI' : 'NO - BLOQUEADO'}
                       </span>
                     </div>
@@ -623,7 +642,7 @@ function DurezzaDashboard() {
             </h2>
           </div>
           <div className="p-4 sm:p-6">
-            <RiskScoreDisplay 
+            <RiskScoreDisplay
               razonNegocios={5}
               beneficioEconomico={8}
               materialidad={3}
@@ -632,9 +651,9 @@ function DurezzaDashboard() {
           </div>
         </div>
       </main>
-      
+
       {showVersioning && (
-        <VersioningPanel 
+        <VersioningPanel
           proyectoId={selectedProyectoId}
           onClose={() => setShowVersioning(false)}
         />
@@ -656,7 +675,7 @@ function DurezzaDashboard() {
             </button>
           </div>
           <div className="p-4 sm:p-6">
-            <ListaDocumentos 
+            <ListaDocumentos
               proyectoId={selectedProyectoId}
               faseActual="F0"
               refreshTrigger={docRefreshTrigger}
@@ -682,7 +701,7 @@ function DurezzaDashboard() {
 
 function KPICard({ title, value, subtitle, icon: Icon, gradient, delay, valueColor }) {
   return (
-    <div 
+    <div
       className="group glass-card-hover p-5 sm:p-6 animate-fade-in-up"
       style={{ animationDelay: `${delay}ms` }}
     >
@@ -702,7 +721,7 @@ function KPICard({ title, value, subtitle, icon: Icon, gradient, delay, valueCol
 
 function SubagentCard({ subagent, index }) {
   return (
-    <div 
+    <div
       className="glass-card-hover p-3 sm:p-4 flex items-center justify-between gap-3 transition-all duration-300 cursor-default animate-fade-in"
       style={{ animationDelay: `${index * 50}ms` }}
     >
@@ -747,9 +766,9 @@ function AlertCard({ alerta }) {
       badge: 'bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200'
     }
   };
-  
+
   const config = severityConfig[alerta.severidad] || severityConfig.MEDIA;
-  
+
   return (
     <div className={`p-3 rounded-lg text-xs ${config.bg} ${config.border} transition-all duration-200 hover:shadow-md`}>
       <div className="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -798,11 +817,11 @@ function TimelineFases({ faseActual, fasesCompletadas = [] }) {
   return (
     <div className="relative min-w-[800px] lg:min-w-0">
       <div className="absolute top-6 left-0 right-0 h-2 bg-slate-200 dark:bg-slate-700 rounded-full" />
-      <div 
+      <div
         className="absolute top-6 left-0 h-2 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 rounded-full transition-all duration-1000 ease-out shadow-lg shadow-blue-500/30"
         style={{ width: `${progreso}%` }}
       />
-      
+
       <div className="relative flex justify-between">
         {fases.map((fase, index) => {
           const estado = getEstadoFase(fase.id);
@@ -811,11 +830,11 @@ function TimelineFases({ faseActual, fasesCompletadas = [] }) {
               <div className={`
                 w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold
                 transition-all duration-300 relative z-10 border-4
-                ${estado === 'completada' 
-                  ? 'bg-gradient-to-br from-emerald-400 to-green-500 text-white border-emerald-300 dark:border-emerald-600 shadow-lg shadow-emerald-500/30' 
-                  : estado === 'actual' 
-                  ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-blue-300 dark:border-blue-600 ring-4 ring-blue-200 dark:ring-blue-900 shadow-xl shadow-blue-500/40 scale-110' 
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-600'}
+                ${estado === 'completada'
+                  ? 'bg-gradient-to-br from-emerald-400 to-green-500 text-white border-emerald-300 dark:border-emerald-600 shadow-lg shadow-emerald-500/30'
+                  : estado === 'actual'
+                    ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-blue-300 dark:border-blue-600 ring-4 ring-blue-200 dark:ring-blue-900 shadow-xl shadow-blue-500/40 scale-110'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-600'}
                 ${fase.candado && estado !== 'completada' ? 'ring-2 ring-rose-300 dark:ring-rose-700' : ''}
                 group-hover:scale-110
               `}>
@@ -870,7 +889,7 @@ function EmptyStatePanel({ title, message, icon: Icon, actionLabel, onAction }) 
 
 function RiskScoreDisplay({ razonNegocios, beneficioEconomico, materialidad, trazabilidad }) {
   const total = razonNegocios + beneficioEconomico + materialidad + trazabilidad;
-  
+
   const pilares = [
     { nombre: 'Razón de Negocios', valor: razonNegocios, max: 25, gradient: 'from-blue-500 to-cyan-500', icon: '🎯', descripcion: 'Art. 5-A CFF' },
     { nombre: 'Beneficio Económico', valor: beneficioEconomico, max: 25, gradient: 'from-emerald-500 to-green-500', icon: '📈', descripcion: 'ROI documentado' },
@@ -919,7 +938,7 @@ function RiskScoreDisplay({ razonNegocios, beneficioEconomico, materialidad, tra
               fill="none"
               strokeLinecap="round"
               className={`${riskLevel.stroke} transition-all duration-1000 ease-out`}
-              style={{ 
+              style={{
                 strokeDasharray: circumference,
                 strokeDashoffset: offset
               }}
@@ -934,7 +953,7 @@ function RiskScoreDisplay({ razonNegocios, beneficioEconomico, materialidad, tra
           {riskLevel.label}
         </div>
       </div>
-      
+
       <div className="flex-1 w-full space-y-4">
         {pilares.map((pilar, i) => {
           const pilarLevel = getPilarLevel(pilar.valor, pilar.max);
@@ -956,7 +975,7 @@ function RiskScoreDisplay({ razonNegocios, beneficioEconomico, materialidad, tra
                 </div>
               </div>
               <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden shadow-inner">
-                <div 
+                <div
                   className={`h-full bg-gradient-to-r ${pilar.gradient} rounded-full transition-all duration-1000 ease-out shadow-lg`}
                   style={{ width: `${(pilar.valor / pilar.max) * 100}%` }}
                 />
@@ -971,7 +990,7 @@ function RiskScoreDisplay({ razonNegocios, beneficioEconomico, materialidad, tra
 
 function KPICardNew({ title, value, subtitle, icon, gradientFrom, gradientTo, delay, isLarge }) {
   return (
-    <div 
+    <div
       className={`group glass-card-hover p-4 sm:p-5 animate-fade-in-up ${isLarge ? 'col-span-2 lg:col-span-1' : ''}`}
       style={{ animationDelay: `${delay}ms` }}
     >
@@ -983,7 +1002,7 @@ function KPICardNew({ title, value, subtitle, icon, gradientFrom, gradientTo, de
             <p className="text-sm font-medium text-slate-600 dark:text-slate-300 mt-1">{subtitle}</p>
           )}
         </div>
-        <div 
+        <div
           className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-xl sm:text-2xl shadow-lg group-hover:shadow-xl transition-all duration-300 flex-shrink-0"
           style={{ background: `linear-gradient(135deg, ${gradientFrom}, ${gradientTo})` }}
         >
@@ -997,7 +1016,7 @@ function KPICardNew({ title, value, subtitle, icon, gradientFrom, gradientTo, de
 function RiskDistributionCard({ label, count, color, bgColor, borderColor }) {
   return (
     <div className={`${bgColor} ${borderColor} border-2 rounded-xl p-4 text-center transition-all duration-300 hover:shadow-lg hover:scale-105`}>
-      <div 
+      <div
         className="text-3xl sm:text-4xl font-bold mb-1"
         style={{ color }}
       >
@@ -1010,27 +1029,27 @@ function RiskDistributionCard({ label, count, color, bgColor, borderColor }) {
 
 function ProveedorRow({ proveedor }) {
   const riesgoConfig = {
-    critico: { 
-      bg: 'bg-red-100 dark:bg-red-900/50', 
-      text: 'text-red-700 dark:text-red-300', 
+    critico: {
+      bg: 'bg-red-100 dark:bg-red-900/50',
+      text: 'text-red-700 dark:text-red-300',
       border: 'border-red-200 dark:border-red-800',
       label: 'Crítico'
     },
-    alto: { 
-      bg: 'bg-amber-100 dark:bg-amber-900/50', 
-      text: 'text-amber-700 dark:text-amber-300', 
+    alto: {
+      bg: 'bg-amber-100 dark:bg-amber-900/50',
+      text: 'text-amber-700 dark:text-amber-300',
       border: 'border-amber-200 dark:border-amber-800',
       label: 'Alto'
     },
-    medio: { 
-      bg: 'bg-blue-100 dark:bg-blue-900/50', 
-      text: 'text-blue-700 dark:text-blue-300', 
+    medio: {
+      bg: 'bg-blue-100 dark:bg-blue-900/50',
+      text: 'text-blue-700 dark:text-blue-300',
       border: 'border-blue-200 dark:border-blue-800',
       label: 'Medio'
     },
-    bajo: { 
-      bg: 'bg-green-100 dark:bg-green-900/50', 
-      text: 'text-green-700 dark:text-green-300', 
+    bajo: {
+      bg: 'bg-green-100 dark:bg-green-900/50',
+      text: 'text-green-700 dark:text-green-300',
       border: 'border-green-200 dark:border-green-800',
       label: 'Bajo'
     }
@@ -1067,7 +1086,7 @@ function ProveedorRow({ proveedor }) {
       <td className="px-4 py-4">
         <div className="flex items-center gap-2 min-w-[120px]">
           <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-            <div 
+            <div
               className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
               style={{ width: `${proveedor.progreso}%` }}
             />
@@ -1095,7 +1114,7 @@ function ProveedorRow({ proveedor }) {
         </span>
       </td>
       <td className="px-4 py-4 text-center">
-        <a 
+        <a
           href={`https://pcloud.com/defense/${proveedor.id}`}
           target="_blank"
           rel="noopener noreferrer"
