@@ -313,12 +313,24 @@ const AgentsDashboard = ({ projectId = null }) => {
                 if (!processedAgents.has(msgId)) {
                   processedAgents.add(msgId);
 
-                  // Map backend agent ID to frontend display
+                  // Map backend agent ID to frontend display - ALL 10 AGENTS
                   const agentMap = {
+                    // Core agents (match backend /api/agents/available)
+                    'A1_RECEPCION': { name: 'Recepción', emoji: '📥', id: 'A1' },
+                    'A2_ANALISIS': { name: 'Análisis', emoji: '🔍', id: 'A2' },
+                    'A3_NORMATIVO': { name: 'Normativo', emoji: '📜', id: 'A3' },
+                    'A4_CONTABLE': { name: 'Contable', emoji: '📊', id: 'A4' },
+                    'A5_OPERATIVO': { name: 'Operativo', emoji: '⚙️', id: 'A5' },
+                    'A6_FINANCIERO': { name: 'Financiero', emoji: '💰', id: 'A6' },
+                    'A7_LEGAL': { name: 'Legal', emoji: '⚖️', id: 'A7' },
+                    'A8_REDTEAM': { name: 'Red Team', emoji: '🛡️', id: 'A8' },
+                    'A9_SINTESIS': { name: 'Síntesis', emoji: '📝', id: 'A9' },
+                    'A10_ARCHIVO': { name: 'Archivo', emoji: '📁', id: 'A10' },
+                    // Legacy aliases (for backward compatibility with demo flow)
                     'A1_SPONSOR': { name: 'Estrategia', emoji: '🎯', id: 'A1' },
                     'A3_FISCAL': { name: 'Fiscal', emoji: '⚖️', id: 'A3' },
-                    'A5_FINANZAS': { name: 'Finanzas', emoji: '💰', id: 'A5' },
-                    'LEGAL': { name: 'Legal', emoji: '📜', id: 'A7' },
+                    'A5_FINANZAS': { name: 'Finanzas', emoji: '💰', id: 'A6' },
+                    'LEGAL': { name: 'Legal', emoji: '⚖️', id: 'A7' },
                   };
 
                   const agentInfo = agentMap[item.agent_id] || { name: item.agent_id, emoji: '🤖', id: item.agent_id };
