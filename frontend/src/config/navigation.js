@@ -40,7 +40,7 @@ export const NAVIGATION_CONFIG = [
         label: 'Nuevo Proyecto',
         path: '/nuevo-proyecto',
         icon: FolderPlus,
-        gradient: 'from-[#54ddaf] to-[#3bb896]',
+        gradient: 'from-[#34C759] to-[#2CB24E]',
       },
       {
         id: 'dashboard',
@@ -73,7 +73,7 @@ export const NAVIGATION_CONFIG = [
         label: 'Onboarding',
         path: '/onboarding',
         icon: Briefcase,
-        gradient: 'from-emerald-500 to-teal-600',
+        gradient: 'from-[#34C759] to-[#249C43]',
       },
     ],
   },
@@ -135,7 +135,7 @@ export const NAVIGATION_CONFIG = [
         label: 'Checklist',
         path: '/agent-checklist',
         icon: ListChecks,
-        gradient: 'from-emerald-500 to-teal-600',
+        gradient: 'from-[#34C759] to-[#249C43]',
       },
       {
         id: 'agent-comms',
@@ -157,7 +157,7 @@ export const NAVIGATION_CONFIG = [
         label: 'Métricas',
         path: '/metrics',
         icon: BarChart3,
-        gradient: 'from-[#54ddaf] to-[#3bb896]',
+        gradient: 'from-[#34C759] to-[#2CB24E]',
       },
       {
         id: 'costs',

@@ -106,7 +106,7 @@ const VideoCarousel = ({ videos }) => {
             key={index}
             onClick={() => goToSlide(index)}
             className={`w-3 h-3 rounded-full transition-all ${index === currentIndex
-              ? 'bg-[#7FEDD8] w-8'
+              ? 'bg-[#34C759] w-8'
               : 'bg-gray-300 hover:bg-gray-400'
               }`}
             aria-label={`Ir a video ${index + 1}`}
@@ -739,7 +739,7 @@ const LandingPage = () => {
               {isAuthenticated ? (
                 <Link
                   to="/dashboard"
-                  className="px-5 py-2 bg-gradient-to-r from-[#7FEDD8] to-[#5DD5C0] text-gray-900 rounded-lg font-medium text-sm hover:shadow-lg transition-all"
+                  className="px-5 py-2 bg-gradient-to-r from-[#34C759] to-[#2CB24E] text-gray-900 rounded-lg font-medium text-sm hover:shadow-lg transition-all"
                 >
                   Ir al Dashboard
                 </Link>
@@ -753,7 +753,7 @@ const LandingPage = () => {
                   </Link>
                   <Link
                     to="/register"
-                    className="px-5 py-2 bg-gradient-to-r from-[#7FEDD8] to-[#5DD5C0] text-gray-900 rounded-lg font-medium text-sm hover:shadow-lg transition-all"
+                    className="px-5 py-2 bg-gradient-to-r from-[#34C759] to-[#2CB24E] text-gray-900 rounded-lg font-medium text-sm hover:shadow-lg transition-all"
                   >
                     Solicitar Acceso
                   </Link>
@@ -802,7 +802,7 @@ const LandingPage = () => {
               <div className="flex flex-wrap justify-center lg:justify-start gap-3 sm:gap-4">
                 <Link
                   to="/register"
-                  className="px-8 sm:px-10 py-3.5 sm:py-4 text-base sm:text-lg font-semibold bg-gradient-to-r from-[#7FEDD8] to-[#5DD5C0] text-gray-900 rounded-xl shadow-xl hover:shadow-2xl transition-all"
+                  className="px-8 sm:px-10 py-3.5 sm:py-4 text-base sm:text-lg font-semibold bg-gradient-to-r from-[#34C759] to-[#2CB24E] text-gray-900 rounded-xl shadow-xl hover:shadow-2xl transition-all"
                 >
                   Solicitar Acceso
                 </Link>
@@ -1103,7 +1103,7 @@ const LandingPage = () => {
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
                         <h3 className="text-lg font-bold text-gray-900">{pillar.name}</h3>
-                        <span className="text-lg font-bold text-[#7FEDD8]">{pillar.points} pts</span>
+                        <span className="text-lg font-bold text-[#34C759]">{pillar.points} pts</span>
                       </div>
                       <p className="text-sm text-indigo-600 font-medium mb-2">{pillar.article}</p>
                       <p className="text-sm text-gray-500">{pillar.description}</p>
@@ -1146,7 +1146,7 @@ const LandingPage = () => {
           <div className="flex flex-wrap justify-center gap-4">
             <Link
               to="/register"
-              className="px-8 py-3.5 bg-gradient-to-r from-[#7FEDD8] to-[#5DD5C0] text-gray-900 rounded-xl font-semibold shadow-xl hover:shadow-2xl transition-all"
+              className="px-8 py-3.5 bg-gradient-to-r from-[#34C759] to-[#2CB24E] text-gray-900 rounded-xl font-semibold shadow-xl hover:shadow-2xl transition-all"
             >
               Solicitar Acceso
             </Link>
@@ -1185,29 +1185,29 @@ const LandingPage = () => {
             </div>
 
             <div>
-              <h4 className="font-semibold mb-4 text-[#7FEDD8] text-sm">Características</h4>
+              <h4 className="font-semibold mb-4 text-[#34C759] text-sm">Características</h4>
               <ul className="space-y-2 text-gray-400 text-xs sm:text-sm">
-                <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Nuestro Producto</a></li>
-                <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Cómo Funciona</a></li>
-                <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Casos de Uso</a></li>
-                <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Preguntas Frecuentes</a></li>
+                <li><a href="#" className="hover:text-[#34C759] transition-colors">Nuestro Producto</a></li>
+                <li><a href="#" className="hover:text-[#34C759] transition-colors">Cómo Funciona</a></li>
+                <li><a href="#" className="hover:text-[#34C759] transition-colors">Casos de Uso</a></li>
+                <li><a href="#" className="hover:text-[#34C759] transition-colors">Preguntas Frecuentes</a></li>
               </ul>
             </div>
 
             <div>
-              <h4 className="font-semibold mb-4 text-[#7FEDD8] text-sm">Recursos</h4>
+              <h4 className="font-semibold mb-4 text-[#34C759] text-sm">Recursos</h4>
               <ul className="space-y-2 text-gray-400 text-xs sm:text-sm">
-                <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Términos y Condiciones</a></li>
-                <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Tu Privacidad</a></li>
-                <li><a href="#" className="hover:text-[#7FEDD8] transition-colors">Compliance SAT</a></li>
-                <li><a href="mailto:hola@revisar-ia.com" className="hover:text-[#7FEDD8] transition-colors">Hablemos</a></li>
+                <li><a href="#" className="hover:text-[#34C759] transition-colors">Términos y Condiciones</a></li>
+                <li><a href="#" className="hover:text-[#34C759] transition-colors">Tu Privacidad</a></li>
+                <li><a href="#" className="hover:text-[#34C759] transition-colors">Compliance SAT</a></li>
+                <li><a href="mailto:hola@revisar-ia.com" className="hover:text-[#34C759] transition-colors">Hablemos</a></li>
               </ul>
             </div>
           </div>
 
           <div className="border-t border-gray-800/50 mt-8 pt-8 text-center">
             <p className="text-gray-500 text-xs sm:text-sm flex items-center justify-center gap-2">
-              Construido con <BotIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#7FEDD8]" /> por el equipo de Revisar.IA • Gobernanza Fiscal Inteligente
+              Construido con <BotIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#34C759]" /> por el equipo de Revisar.IA • Gobernanza Fiscal Inteligente
             </p>
           </div>
         </div>

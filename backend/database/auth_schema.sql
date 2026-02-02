@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS auth_otp_codes (
 CREATE INDEX IF NOT EXISTS idx_otp_user_id ON auth_otp_codes(user_id);
 CREATE INDEX IF NOT EXISTS idx_otp_email ON auth_otp_codes(email);
 CREATE INDEX IF NOT EXISTS idx_otp_expires ON auth_otp_codes(expires_at) WHERE used = false;
-CREATE INDEX IF NOT EXISTS idx_otp_cleanup ON auth_otp_codes(created_at) WHERE used = true OR expires_at < NOW();
+CREATE INDEX IF NOT EXISTS idx_otp_cleanup ON auth_otp_codes(created_at);
 
 -- 3. SESIONES DE USUARIO (Stateful para control total)
 -- =====================================================
@@ -173,7 +173,7 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON auth_sessions(user_id) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON auth_sessions(token_hash) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON auth_sessions(expires_at) WHERE is_active = true;
-CREATE INDEX IF NOT EXISTS idx_sessions_cleanup ON auth_sessions(expires_at) WHERE is_active = false OR expires_at < NOW();
+CREATE INDEX IF NOT EXISTS idx_sessions_cleanup ON auth_sessions(expires_at);
 
 -- 4. RATE LIMITING (En DB, no en memoria)
 -- =====================================================
@@ -210,7 +210,7 @@ CREATE TABLE IF NOT EXISTS auth_rate_limits (
 
 -- Índices para auth_rate_limits
 CREATE INDEX IF NOT EXISTS idx_rate_limits_identifier ON auth_rate_limits(identifier, action);
-CREATE INDEX IF NOT EXISTS idx_rate_limits_blocked ON auth_rate_limits(blocked_until) WHERE blocked_until > NOW();
+CREATE INDEX IF NOT EXISTS idx_rate_limits_blocked ON auth_rate_limits(blocked_until);
 CREATE INDEX IF NOT EXISTS idx_rate_limits_cleanup ON auth_rate_limits(last_attempt_at);
 
 -- 5. AUDITORÍA DE AUTENTICACIÓN
@@ -460,38 +460,14 @@ CREATE TRIGGER update_auth_users_updated_at
 -- 9. MIGRACIÓN DE DATOS EXISTENTES
 -- =====================================================
 
--- Migrar usuarios de tabla 'users' a 'auth_users'
-INSERT INTO auth_users (
-    id, email, email_verified, password_hash, full_name,
-    company_name, role, status, auth_method,
-    created_at, updated_at
-)
-SELECT
-    CASE WHEN id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-         THEN id::UUID
-         ELSE gen_random_uuid()
-    END,
-    email,
-    COALESCE(is_active, false),
-    password_hash,
-    COALESCE(full_name, email),
-    company,
-    COALESCE(role, 'user'),
-    CASE
-        WHEN approval_status = 'approved' AND is_active = true THEN 'active'
-        WHEN approval_status = 'rejected' THEN 'blocked'
-        WHEN approval_status = 'pending' THEN 'pending'
-        ELSE 'pending'
-    END,
-    CASE WHEN password_hash IS NOT NULL THEN 'password' ELSE 'otp' END,
-    COALESCE(created_at, NOW()),
-    COALESCE(updated_at, NOW())
-FROM users
-WHERE email IS NOT NULL
-ON CONFLICT (email) DO UPDATE SET
-    password_hash = COALESCE(EXCLUDED.password_hash, auth_users.password_hash),
-    full_name = COALESCE(EXCLUDED.full_name, auth_users.full_name),
-    updated_at = NOW();
+-- Migrar usuarios de tabla 'users' a 'auth_users' (SKIP: Table users does not exist)
+-- INSERT INTO auth_users (
+--     id, email, email_verified, password_hash, full_name,
+--     company_name, role, status, auth_method,
+--     created_at, updated_at
+-- )
+-- SELECT ... (omitted)
+
 
 -- Migrar usuarios de tabla 'usuarios_autorizados' a 'auth_users'
 INSERT INTO auth_users (

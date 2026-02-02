@@ -91,7 +91,7 @@ const AnimatedCounter = ({ value, duration = 1500, prefix = '', suffix = '' }) =
 };
 
 // Animated Progress Ring
-const ProgressRing = ({ progress, size = 120, strokeWidth = 8, color = '#7FEDD8' }) => {
+const ProgressRing = ({ progress, size = 120, strokeWidth = 8, color = '#34C759' }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
   const [offset, setOffset] = useState(circumference);
@@ -180,7 +180,7 @@ const InsightCard = ({ insight, index }) => {
         <div className="flex-1">
           <h4 className="text-white font-semibold text-sm">{insight.title}</h4>
           <p className="text-gray-400 text-sm mt-1">{insight.message}</p>
-          <button className="text-[#7FEDD8] text-xs font-medium mt-2 hover:underline">
+          <button className="text-[#34C759] text-xs font-medium mt-2 hover:underline">
             {insight.action} →
           </button>
         </div>
@@ -214,11 +214,11 @@ const NetworkActivity = () => {
               animationDelay: `${i * 100}ms`
             }}
           >
-            <div className="w-3 h-3 rounded-full bg-[#7FEDD8] shadow-lg shadow-[#7FEDD8]/50" />
+            <div className="w-3 h-3 rounded-full bg-[#34C759] shadow-lg shadow-[#34C759]/50" />
           </div>
         ))}
       </div>
-      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#7FEDD8]/50 to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#34C759]/50 to-transparent" />
     </div>
   );
 };
@@ -276,7 +276,7 @@ const MetricsDashboard = () => {
     return (
       <div className="min-h-screen bg-[#0a0f14] flex items-center justify-center">
         <div className="relative">
-          <div className="w-20 h-20 border-4 border-[#7FEDD8]/20 rounded-full animate-spin border-t-[#7FEDD8]" />
+          <div className="w-20 h-20 border-4 border-[#34C759]/20 rounded-full animate-spin border-t-[#34C759]" />
           <div className="absolute inset-0 flex items-center justify-center">
             <span className="text-2xl animate-pulse">🧠</span>
           </div>
@@ -301,7 +301,7 @@ const MetricsDashboard = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-[#7FEDD8] to-[#5DD5C0] bg-clip-text text-transparent">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-[#34C759] to-[#5DD5C0] bg-clip-text text-transparent">
                 Centro de Inteligencia
               </h1>
               <p className="text-gray-400 text-sm mt-1">
@@ -315,7 +315,7 @@ const MetricsDashboard = () => {
               </div>
               <Link
                 to="/dashboard"
-                className="px-4 py-2 bg-[#7FEDD8] text-[#0a0f14] rounded-xl font-semibold hover:bg-[#5DD5C0] transition-all hover:shadow-lg hover:shadow-[#7FEDD8]/25"
+                className="px-4 py-2 bg-[#34C759] text-[#0a0f14] rounded-xl font-semibold hover:bg-[#5DD5C0] transition-all hover:shadow-lg hover:shadow-[#34C759]/25"
               >
                 Dashboard
               </Link>
@@ -329,7 +329,7 @@ const MetricsDashboard = () => {
         <div className="mb-8 p-4 rounded-2xl bg-white/5 border border-white/10">
           <div className="flex items-center justify-between mb-2">
             <span className="text-white/60 text-sm">🔴 Actividad de Red Multi-Agente en Vivo</span>
-            <span className="text-[#7FEDD8] text-xs">Último ping: {new Date().toLocaleTimeString('es-MX')}</span>
+            <span className="text-[#34C759] text-xs">Último ping: {new Date().toLocaleTimeString('es-MX')}</span>
           </div>
           <NetworkActivity />
         </div>
@@ -405,7 +405,7 @@ const MetricsDashboard = () => {
                 <ProgressRing progress={summaryMetrics.efficiency} size={180} strokeWidth={12} />
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <span className="text-5xl font-bold text-white">{summaryMetrics.efficiency}</span>
-                  <span className="text-[#7FEDD8] text-sm font-medium">PUNTOS</span>
+                  <span className="text-[#34C759] text-sm font-medium">PUNTOS</span>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4 mt-6 w-full">
@@ -440,7 +440,7 @@ const MetricsDashboard = () => {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-[#7FEDD8] text-2xl font-bold">
+                <p className="text-[#34C759] text-2xl font-bold">
                   ${metrics.query_router?.estimated_savings?.toFixed(2) || '0.00'}
                 </p>
                 <p className="text-gray-400 text-xs">Ahorro estimado</p>
@@ -488,7 +488,7 @@ const MetricsDashboard = () => {
               <div className="p-4 rounded-xl bg-white/5">
                 <h3 className="text-white font-semibold mb-3">RAG Paralelo</h3>
                 <div className="text-center">
-                  <p className="text-[#7FEDD8] text-3xl font-bold">
+                  <p className="text-[#34C759] text-3xl font-bold">
                     {metrics.rag_parallel?.avg_time_saved_seconds || 6}s
                   </p>
                   <p className="text-gray-400 text-xs mt-1">Tiempo ahorrado/proyecto</p>

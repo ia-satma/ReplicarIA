@@ -8,6 +8,9 @@ const AgentChecklist = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filtroFaltantes, setFiltroFaltantes] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState(null);
+
 
   useEffect(() => {
     loadAgentRequirements();
@@ -31,6 +34,28 @@ const AgentChecklist = () => {
     navigate('/biblioteca');
   };
 
+  const handleSyncKBLegal = async () => {
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const response = await api.post('/api/kb/ingest-kb-legal');
+      setSyncMessage({
+        type: 'success',
+        text: response.message || `✅ Sincronizados ${response.ingested} documentos legales`
+      });
+      // Reload requirements after sync
+      await loadAgentRequirements();
+    } catch (err) {
+      console.error('Error syncing KB legal:', err);
+      setSyncMessage({
+        type: 'error',
+        text: 'Error al sincronizar documentos legales'
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const getCompletitudColor = (completitud) => {
     if (completitud >= 100) return 'from-green-500 to-emerald-500';
     if (completitud >= 75) return 'from-blue-500 to-cyan-500';
@@ -39,7 +64,7 @@ const AgentChecklist = () => {
     return 'from-red-500 to-rose-500';
   };
 
-  const filteredAgentes = data?.agentes?.filter(agente => 
+  const filteredAgentes = data?.agentes?.filter(agente =>
     !filtroFaltantes || !agente.listo
   ) || [];
 
@@ -87,7 +112,7 @@ const AgentChecklist = () => {
                 Requerimientos documentales por agente de Revisar.IA
               </p>
             </div>
-            
+
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
                 <input
@@ -98,7 +123,25 @@ const AgentChecklist = () => {
                 />
                 Solo con documentos faltantes
               </label>
-              
+
+              <button
+                onClick={handleSyncKBLegal}
+                disabled={syncing}
+                className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-500 disabled:to-gray-600 text-white rounded-lg transition-all flex items-center gap-2 text-sm font-medium"
+              >
+                {syncing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Sincronizando...
+                  </>
+                ) : (
+                  <>
+                    <span>⚖️</span>
+                    Sincronizar Acervo Legal
+                  </>
+                )}
+              </button>
+
               <button
                 onClick={handleGoToBiblioteca}
                 className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-lg transition-all flex items-center gap-2 text-sm font-medium"
@@ -108,6 +151,23 @@ const AgentChecklist = () => {
               </button>
             </div>
           </div>
+
+          {/* Sync Message */}
+          {syncMessage && (
+            <div className={`mt-4 p-3 rounded-lg flex items-center gap-2 ${syncMessage.type === 'success'
+                ? 'bg-green-900/30 border border-green-700/50 text-green-300'
+                : 'bg-red-900/30 border border-red-700/50 text-red-300'
+              }`}>
+              <span>{syncMessage.type === 'success' ? '✅' : '❌'}</span>
+              {syncMessage.text}
+              <button
+                onClick={() => setSyncMessage(null)}
+                className="ml-auto text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
@@ -120,17 +180,17 @@ const AgentChecklist = () => {
                 />
               </div>
             </div>
-            
+
             <div className="bg-green-900/30 rounded-xl p-4 border border-green-700/50">
               <div className="text-3xl font-bold text-green-400">{resumen.agentes_listos || 0}</div>
               <div className="text-sm text-green-300 mt-1">Agentes Listos</div>
             </div>
-            
+
             <div className="bg-amber-900/30 rounded-xl p-4 border border-amber-700/50">
               <div className="text-3xl font-bold text-amber-400">{resumen.agentes_pendientes || 0}</div>
               <div className="text-sm text-amber-300 mt-1">Agentes Pendientes</div>
             </div>
-            
+
             <div className="bg-blue-900/30 rounded-xl p-4 border border-blue-700/50">
               <div className="text-3xl font-bold text-blue-400">
                 {resumen.total_documentos_disponibles || 0}/{resumen.total_documentos_requeridos || 0}
@@ -186,11 +246,10 @@ const AgentChecklist = () => {
                     {agente.documentos.map((doc, idx) => (
                       <div
                         key={idx}
-                        className={`flex items-center justify-between p-2 rounded-lg text-sm ${
-                          doc.disponible
-                            ? 'bg-green-900/20 border border-green-700/30'
-                            : 'bg-red-900/20 border border-red-700/30'
-                        }`}
+                        className={`flex items-center justify-between p-2 rounded-lg text-sm ${doc.disponible
+                          ? 'bg-green-900/20 border border-green-700/30'
+                          : 'bg-red-900/20 border border-red-700/30'
+                          }`}
                       >
                         <div className="flex items-center gap-2">
                           <span className="text-base">
@@ -217,7 +276,7 @@ const AgentChecklist = () => {
                     Cargar Documentos Faltantes
                   </button>
                 )}
-                
+
                 {agente.listo && (
                   <div className="mt-4 py-2.5 bg-green-900/20 text-green-400 rounded-lg flex items-center justify-center gap-2 text-sm font-medium border border-green-700/30">
                     <span>✨</span>

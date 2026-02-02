@@ -320,6 +320,98 @@ class DeepResearchService:
             if v:
                 merged[k] = v
         return merged
+    
+    def _extraer_datos_con_regex(self, content_list: List[Dict]) -> Dict[str, Any]:
+        """Extrae datos empresariales de contenido web usando regex patterns."""
+        datos = {}
+        confianza = {}
+        
+        # Combinar todo el contenido en un solo texto
+        all_text = " ".join([c.get("text", "") for c in content_list])
+        all_text_upper = all_text.upper()
+        
+        # Patrones para extracción
+        # RFC Pattern
+        rfc_pattern = r'\b([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})\b'
+        rfc_matches = re.findall(rfc_pattern, all_text_upper)
+        for match in rfc_matches:
+            validation = self.validar_rfc(match)
+            if validation.get("valido"):
+                datos["rfc"] = match
+                confianza["rfc"] = 90 if validation.get("digito_verificador_valido") else 75
+                datos["tipo_persona"] = validation.get("tipo_persona")
+                break
+        
+        # Email Pattern
+        email_pattern = r'\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b'
+        emails = re.findall(email_pattern, all_text.lower())
+        # Filter out obvious generic emails
+        valid_emails = [e for e in emails if not any(x in e for x in ['example', 'test', 'sentry', 'google', 'facebook'])]
+        if valid_emails:
+            datos["email"] = valid_emails[0]
+            confianza["email"] = 80
+        
+        # Phone Pattern (Mexico)
+        phone_patterns = [
+            r'(?:tel[éeEÉ]?fono|tel|phone|móvil|cel)[:\s]*([0-9\s\-\(\)]{8,})',
+            r'\+?(?:52)?[\s\-]?\(?(\d{2,3})\)?[\s\-]?(\d{4})[\s\-]?(\d{4})',
+        ]
+        for pattern in phone_patterns:
+            match = re.search(pattern, all_text, re.IGNORECASE)
+            if match:
+                phone = re.sub(r'[^\d]', '', match.group(0))
+                if len(phone) >= 10:
+                    datos["telefono"] = phone[-10:]  # Last 10 digits
+                    confianza["telefono"] = 70
+                    break
+        
+        # Address / Dirección
+        addr_patterns = [
+            r'(?:direcci[óo]n|domicilio|ubicaci[óo]n)[:\s]*([^\n\r]{20,100})',
+            r'(?:calle|avenida|av\.?|blvd\.?)[^\n\r]{10,80}(?:col\.?|colonia)[^\n\r]{5,30}',
+        ]
+        for pattern in addr_patterns:
+            match = re.search(pattern, all_text, re.IGNORECASE)
+            if match:
+                datos["direccion"] = match.group(0).strip()[:150]
+                confianza["direccion"] = 65
+                break
+        
+        # Código Postal
+        cp_pattern = r'(?:C\.?P\.?|C[óo]digo Postal)[:\s]*(\d{5})'
+        cp_match = re.search(cp_pattern, all_text, re.IGNORECASE)
+        if cp_match:
+            datos["codigo_postal"] = cp_match.group(1)
+            confianza["codigo_postal"] = 85
+        
+        # Razón Social patterns
+        razon_patterns = [
+            r'([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s\.,&]+(?:S\.?A\.?\s*(?:DE\s+)?C\.?V\.?|S\.?C\.?|S\.?A\.?P\.?I\.?|S\.?R\.?L\.?))',
+        ]
+        for pattern in razon_patterns:
+            match = re.search(pattern, all_text_upper)
+            if match and len(match.group(1)) > 5:
+                datos["razon_social"] = match.group(1).strip()
+                confianza["razon_social"] = 70
+                break
+        
+        # Nombre de la página (del título)
+        for c in content_list:
+            if c.get("title"):
+                title = c["title"].strip()
+                # Limpiar título
+                title = re.sub(r'\s*[|–-]\s*.*$', '', title)  # Remove everything after separator
+                if len(title) > 2 and len(title) < 60:
+                    datos["nombre"] = title
+                    confianza["nombre"] = 60
+                    break
+        
+        return {
+            "success": True,
+            "datos": datos,
+            "confianza_campos": confianza,
+            "metodo": "regex_extraction"
+        }
 
     async def _analizar_markdown_con_claude(self, markdown: str, url: str) -> Dict[str, Any]:
         """Usa Claude para analizar markdown de Firecrawl."""

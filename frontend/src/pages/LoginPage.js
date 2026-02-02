@@ -2,6 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+// Apple Green accent color
+const ACCENT = '#34C759';
+const ACCENT_LIGHT = '#3CD366';
+const ACCENT_GLOW = 'rgba(52, 199, 89, 0.4)';
+
 const LoginPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -11,7 +16,7 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
-  const [authMethod, setAuthMethod] = useState('otp'); // 'otp' or 'password'
+  const [authMethod, setAuthMethod] = useState('otp');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [userInfo, setUserInfo] = useState(null);
@@ -25,13 +30,11 @@ const LoginPage = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  // Auto-submit para testing con parámetro ?test_email=xxx
   useEffect(() => {
     const testEmail = searchParams.get('test_email');
     if (testEmail && !autoSubmitDone && !loading && step === 'email') {
       setEmail(testEmail);
       setAutoSubmitDone(true);
-      // Auto-submit después de un pequeño delay
       setTimeout(() => {
         const submitOTP = async () => {
           setLoading(true);
@@ -71,7 +74,6 @@ const LoginPage = () => {
     const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
     try {
-      // First check auth method for this email
       const authCheckResponse = await fetch(`${API_URL}/api/auth/check-auth-method`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -81,14 +83,12 @@ const LoginPage = () => {
       const authCheckData = await authCheckResponse.json();
 
       if (authCheckData.success && authCheckData.data?.auth_method === 'password') {
-        // Superadmin - switch to password mode
         setAuthMethod('password');
         setStep('password');
         setLoading(false);
         return;
       }
 
-      // Regular user - request OTP
       const response = await fetch(`${API_URL}/api/auth/otp/request-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -135,23 +135,21 @@ const LoginPage = () => {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // Store token and redirect
         localStorage.setItem('auth_token', data.data.access_token);
         localStorage.setItem('auth_user', JSON.stringify(data.data.user));
         window.location.href = '/dashboard';
       } else {
-        setError(data.detail || data.message || 'Contraseña incorrecta');
+        setError(data.detail || data.message || 'Contrasena incorrecta');
         setPassword('');
       }
     } catch (err) {
       console.error('Password login error:', err);
-      setError('Error de autenticación');
+      setError('Error de autenticacion');
       setPassword('');
     } finally {
       setLoading(false);
     }
   };
-
 
   const handleCodeChange = (index, value) => {
     if (!/^\d*$/.test(value)) return;
@@ -219,33 +217,30 @@ const LoginPage = () => {
     setError('');
   };
 
-  const inputStyle = {
-    background: 'rgba(0, 0, 0, 0.35)',
-    border: '1px solid rgba(127, 237, 216, 0.25)',
-    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.2)'
-  };
+  const Spinner = () => (
+    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  );
 
-  const handleInputFocus = (e) => {
-    e.target.style.borderColor = 'rgba(127, 237, 216, 0.7)';
-    e.target.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.2), 0 0 20px rgba(127, 237, 216, 0.3)';
-  };
-
-  const handleInputBlur = (e) => {
-    e.target.style.borderColor = 'rgba(127, 237, 216, 0.25)';
-    e.target.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.2)';
-  };
+  const ErrorMessage = ({ message }) => (
+    <div className="text-sm text-center rounded-xl p-3 bg-red-500/10 border border-red-500/20 text-red-400">
+      {message}
+    </div>
+  );
 
   const renderEmailForm = () => (
     <form onSubmit={handleEmailSubmit} className="space-y-5">
       <div className="text-center mb-4">
-        <h2 className="text-xl font-bold text-white" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
+        <h2 className="text-xl font-semibold text-white">
           Acceso Seguro
         </h2>
-        <p className="text-gray-300 text-sm mt-1">Recibe un codigo en tu correo</p>
+        <p className="text-gray-400 text-sm mt-1">Recibe un codigo en tu correo</p>
       </div>
 
       <div>
-        <label className="block text-xs text-gray-200 mb-2 font-semibold tracking-wide">
+        <label className="block text-xs text-gray-300 mb-2 font-medium tracking-wide">
           Correo electronico
         </label>
         <input
@@ -253,45 +248,33 @@ const LoginPage = () => {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="tu@empresa.com"
-          className="w-full px-4 py-3.5 rounded-xl text-white text-sm placeholder-gray-400 focus:outline-none transition-all"
-          style={inputStyle}
-          onFocus={handleInputFocus}
-          onBlur={handleInputBlur}
+          className="w-full px-4 py-3.5 rounded-xl text-white text-sm placeholder-gray-500
+                     bg-white/5 border border-white/10
+                     focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20
+                     transition-all duration-200"
           disabled={loading}
           autoFocus
           autoComplete="email"
         />
       </div>
 
-      {error && (
-        <div
-          className="text-sm text-center rounded-xl p-3"
-          style={{
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: '#fca5a5'
-          }}
-        >
-          {error}
-        </div>
-      )}
+      {error && <ErrorMessage message={error} />}
 
       <button
         type="submit"
         disabled={loading || !email.trim()}
-        className="w-full py-3.5 text-sm font-bold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02]"
+        className="w-full py-3.5 text-sm font-semibold rounded-xl transition-all
+                   disabled:opacity-40 disabled:cursor-not-allowed
+                   hover:scale-[1.02] active:scale-[0.98]
+                   text-gray-900"
         style={{
-          background: 'linear-gradient(135deg, #7FEDD8 0%, #5BC4AB 50%, #7FEDD8 100%)',
-          color: '#0a0f14',
-          boxShadow: '0 4px 20px rgba(127, 237, 216, 0.5), 0 0 40px rgba(127, 237, 216, 0.25), inset 0 1px 0 rgba(255,255,255,0.3)'
+          background: `linear-gradient(180deg, ${ACCENT_LIGHT} 0%, ${ACCENT} 100%)`,
+          boxShadow: `0 4px 14px ${ACCENT_GLOW}`
         }}
       >
         {loading ? (
           <span className="flex items-center justify-center gap-2">
-            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+            <Spinner />
             Enviando...
           </span>
         ) : (
@@ -300,14 +283,14 @@ const LoginPage = () => {
       </button>
 
       <div className="flex justify-center gap-6 pt-2">
-        <span className="text-gray-400 text-xs flex items-center gap-1.5">
-          <svg className="w-3.5 h-3.5 text-[#7FEDD8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <span className="text-gray-500 text-xs flex items-center gap-1.5">
+          <svg className="w-3.5 h-3.5" style={{ color: ACCENT }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
           Sin contrasenas
         </span>
-        <span className="text-gray-400 text-xs flex items-center gap-1.5">
-          <svg className="w-3.5 h-3.5 text-[#7FEDD8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <span className="text-gray-500 text-xs flex items-center gap-1.5">
+          <svg className="w-3.5 h-3.5" style={{ color: ACCENT }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
           </svg>
           Acceso seguro
@@ -321,69 +304,54 @@ const LoginPage = () => {
       <div className="text-center mb-4">
         <div
           className="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center"
-          style={{
-            background: 'rgba(127, 237, 216, 0.15)',
-            border: '1px solid rgba(127, 237, 216, 0.3)'
-          }}
+          style={{ background: `${ACCENT}15`, border: `1px solid ${ACCENT}30` }}
         >
-          <svg className="w-6 h-6 text-[#7FEDD8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-6 h-6" style={{ color: ACCENT }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
         </div>
-        <h2 className="text-xl font-bold text-white" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
+        <h2 className="text-xl font-semibold text-white">
           Acceso Super Admin
         </h2>
-        <p className="text-[#7FEDD8] text-sm mt-1 font-medium">{email}</p>
+        <p className="text-sm mt-1 font-medium" style={{ color: ACCENT }}>{email}</p>
       </div>
 
       <div>
-        <label className="block text-xs text-gray-200 mb-2 font-semibold tracking-wide">
-          Contraseña
+        <label className="block text-xs text-gray-300 mb-2 font-medium tracking-wide">
+          Contrasena
         </label>
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Ingresa tu contraseña"
-          className="w-full px-4 py-3.5 rounded-xl text-white text-sm placeholder-gray-400 focus:outline-none transition-all"
-          style={inputStyle}
-          onFocus={handleInputFocus}
-          onBlur={handleInputBlur}
+          placeholder="Ingresa tu contrasena"
+          className="w-full px-4 py-3.5 rounded-xl text-white text-sm placeholder-gray-500
+                     bg-white/5 border border-white/10
+                     focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20
+                     transition-all duration-200"
           disabled={loading}
           autoFocus
           autoComplete="current-password"
         />
       </div>
 
-      {error && (
-        <div
-          className="text-sm text-center rounded-xl p-3"
-          style={{
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: '#fca5a5'
-          }}
-        >
-          {error}
-        </div>
-      )}
+      {error && <ErrorMessage message={error} />}
 
       <button
         type="submit"
         disabled={loading || !password.trim()}
-        className="w-full py-3.5 text-sm font-bold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02]"
+        className="w-full py-3.5 text-sm font-semibold rounded-xl transition-all
+                   disabled:opacity-40 disabled:cursor-not-allowed
+                   hover:scale-[1.02] active:scale-[0.98]
+                   text-gray-900"
         style={{
-          background: 'linear-gradient(135deg, #7FEDD8 0%, #5BC4AB 50%, #7FEDD8 100%)',
-          color: '#0a0f14',
-          boxShadow: '0 4px 20px rgba(127, 237, 216, 0.5), 0 0 40px rgba(127, 237, 216, 0.25), inset 0 1px 0 rgba(255,255,255,0.3)'
+          background: `linear-gradient(180deg, ${ACCENT_LIGHT} 0%, ${ACCENT} 100%)`,
+          boxShadow: `0 4px 14px ${ACCENT_GLOW}`
         }}
       >
         {loading ? (
           <span className="flex items-center justify-center gap-2">
-            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+            <Spinner />
             Verificando...
           </span>
         ) : (
@@ -395,7 +363,7 @@ const LoginPage = () => {
         <button
           type="button"
           onClick={handleBack}
-          className="text-gray-400 hover:text-[#7FEDD8] text-xs transition-colors flex items-center gap-1"
+          className="text-gray-500 hover:text-white text-xs transition-colors flex items-center gap-1"
           disabled={loading}
         >
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -412,28 +380,25 @@ const LoginPage = () => {
       <div className="text-center">
         <div
           className="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center"
-          style={{
-            background: 'rgba(127, 237, 216, 0.15)',
-            border: '1px solid rgba(127, 237, 216, 0.3)'
-          }}
+          style={{ background: `${ACCENT}15`, border: `1px solid ${ACCENT}30` }}
         >
-          <svg className="w-6 h-6 text-[#7FEDD8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-6 h-6" style={{ color: ACCENT }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
         </div>
         <h2 className="text-xl font-semibold text-white mb-1">Verifica tu identidad</h2>
-        <p className="text-gray-400 text-sm">Codigo enviado a</p>
-        <p className="text-[#7FEDD8] text-sm font-medium mt-0.5">{email}</p>
+        <p className="text-gray-500 text-sm">Codigo enviado a</p>
+        <p className="text-sm font-medium mt-0.5" style={{ color: ACCENT }}>{email}</p>
         {userInfo?.nombre && (
-          <p className="text-gray-300 text-xs mt-2">Hola, {userInfo.nombre}</p>
+          <p className="text-gray-400 text-xs mt-2">Hola, {userInfo.nombre}</p>
         )}
         {userInfo?.rol && userInfo.rol !== 'user' && (
           <span
             className="inline-block mt-2 px-2 py-0.5 text-[10px] font-semibold rounded-full"
             style={{
-              background: 'rgba(127, 237, 216, 0.2)',
-              color: '#7FEDD8',
-              border: '1px solid rgba(127, 237, 216, 0.3)'
+              background: `${ACCENT}20`,
+              color: ACCENT,
+              border: `1px solid ${ACCENT}30`
             }}
           >
             {userInfo.rol === 'admin' ? 'Administrador' : userInfo.rol}
@@ -442,7 +407,7 @@ const LoginPage = () => {
       </div>
 
       <div>
-        <label className="block text-xs text-gray-300 mb-2.5 text-center font-medium">
+        <label className="block text-xs text-gray-400 mb-2.5 text-center font-medium">
           Codigo de 6 digitos
         </label>
         <div className="flex justify-center gap-2.5" onPaste={handlePaste}>
@@ -458,10 +423,10 @@ const LoginPage = () => {
               onKeyDown={(e) => handleKeyDown(index, e)}
               className="w-11 h-13 text-center text-xl font-bold rounded-xl transition-all focus:outline-none"
               style={{
-                background: code[index] ? 'rgba(127, 237, 216, 0.15)' : 'rgba(0, 0, 0, 0.4)',
-                border: code[index] ? '1px solid rgba(127, 237, 216, 0.5)' : '1px solid rgba(127, 237, 216, 0.15)',
-                color: code[index] ? '#7FEDD8' : 'white',
-                boxShadow: code[index] ? '0 0 15px rgba(127, 237, 216, 0.2)' : 'inset 0 2px 4px rgba(0,0,0,0.3)'
+                background: code[index] ? `${ACCENT}15` : 'rgba(255, 255, 255, 0.05)',
+                border: code[index] ? `1px solid ${ACCENT}50` : '1px solid rgba(255, 255, 255, 0.1)',
+                color: code[index] ? ACCENT : 'white',
+                boxShadow: code[index] ? `0 0 15px ${ACCENT}30` : 'none'
               }}
               disabled={loading}
             />
@@ -469,26 +434,12 @@ const LoginPage = () => {
         </div>
       </div>
 
-      {error && (
-        <div
-          className="text-sm text-center rounded-xl p-3"
-          style={{
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: '#fca5a5'
-          }}
-        >
-          {error}
-        </div>
-      )}
+      {error && <ErrorMessage message={error} />}
 
       {loading && (
         <div className="flex justify-center">
-          <div className="flex items-center gap-2 text-[#7FEDD8] text-sm">
-            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+          <div className="flex items-center gap-2 text-sm" style={{ color: ACCENT }}>
+            <Spinner />
             <span>Verificando...</span>
           </div>
         </div>
@@ -497,7 +448,7 @@ const LoginPage = () => {
       <div className="flex flex-col items-center gap-2 pt-1">
         <button
           onClick={handleBack}
-          className="text-gray-400 hover:text-[#7FEDD8] text-xs transition-colors flex items-center gap-1"
+          className="text-gray-500 hover:text-white text-xs transition-colors flex items-center gap-1"
           disabled={loading}
         >
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -505,7 +456,7 @@ const LoginPage = () => {
           </svg>
           Usar otro correo
         </button>
-        <span className="text-gray-500 text-[10px]">
+        <span className="text-gray-600 text-[10px]">
           El codigo expira en 5 minutos
         </span>
       </div>
@@ -513,33 +464,36 @@ const LoginPage = () => {
   );
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[#1C1C1E]">
+      {/* Video Background */}
       <video
         autoPlay
         loop
         muted
         playsInline
-        className="absolute inset-0 w-full h-full object-cover"
-        style={{ filter: 'brightness(0.85) contrast(1.15) saturate(1.2)' }}
+        className="absolute inset-0 w-full h-full object-cover opacity-60"
       >
         <source src="/revisar-ia-background.mp4" type="video/mp4" />
       </video>
 
+      {/* Gradient Overlay */}
       <div
         className="absolute inset-0"
         style={{
-          background: 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.05) 40%, rgba(0,0,0,0.25) 100%)'
+          background: 'linear-gradient(180deg, rgba(28,28,30,0.4) 0%, rgba(28,28,30,0.2) 40%, rgba(28,28,30,0.6) 100%)'
         }}
       />
 
+      {/* Content */}
       <div className="relative w-full max-w-sm z-10">
-        <div className="text-center mb-6">
+        {/* Logo */}
+        <div className="text-center mb-8">
           <img
             src="/logo-revisar-white.png"
             alt="Revisar.IA"
-            className="max-w-[280px] w-full mx-auto mb-3 object-contain"
+            className="max-w-[260px] w-full mx-auto mb-4 object-contain"
             style={{
-              filter: 'drop-shadow(0 0 35px rgba(127, 237, 216, 0.7)) drop-shadow(0 0 60px rgba(127, 237, 216, 0.4)) drop-shadow(0 4px 15px rgba(0,0,0,0.5))'
+              filter: `drop-shadow(0 0 30px ${ACCENT_GLOW})`
             }}
             onError={(e) => {
               e.target.onerror = null;
@@ -547,22 +501,19 @@ const LoginPage = () => {
             }}
           />
           <p
-            className="text-sm tracking-[0.35em] uppercase font-semibold"
-            style={{
-              color: '#7FEDD8',
-              textShadow: '0 0 30px rgba(127, 237, 216, 0.8), 0 0 60px rgba(127, 237, 216, 0.4), 0 2px 4px rgba(0,0,0,0.6)'
-            }}
+            className="text-xs tracking-[0.3em] uppercase font-medium"
+            style={{ color: ACCENT }}
           >
             Auditoria Fiscal Inteligente
           </p>
         </div>
 
+        {/* Login Card */}
         <div
-          className="backdrop-blur-xl rounded-2xl p-6 border"
+          className="backdrop-blur-2xl rounded-2xl p-6 border border-white/10"
           style={{
-            background: 'rgba(10, 15, 25, 0.65)',
-            borderColor: 'rgba(127, 237, 216, 0.35)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.3), 0 0 40px rgba(127, 237, 216, 0.1), inset 0 1px 0 rgba(255,255,255,0.1)'
+            background: 'rgba(28, 28, 30, 0.8)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
           }}
         >
           {step === 'email' && renderEmailForm()}
@@ -570,26 +521,22 @@ const LoginPage = () => {
           {step === 'code' && renderCodeForm()}
         </div>
 
+        {/* Register Link */}
         <div className="mt-6 text-center">
-          <p className="text-gray-400 text-sm mb-2">
+          <p className="text-gray-500 text-sm mb-2">
             No tienes acceso?
           </p>
           <Link
             to="/register"
-            className="text-[#7FEDD8] hover:underline text-sm font-medium"
-            style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}
+            className="text-sm font-medium hover:underline transition-colors"
+            style={{ color: ACCENT }}
           >
             Solicitar acceso a Revisar.IA
           </Link>
         </div>
 
-        <p
-          className="text-center text-[11px] mt-4 font-medium"
-          style={{
-            color: 'rgba(255,255,255,0.4)',
-            textShadow: '0 2px 4px rgba(0,0,0,0.8)'
-          }}
-        >
+        {/* Footer */}
+        <p className="text-center text-[11px] mt-6 text-gray-600">
           2026 Revisar.IA - Plataforma de Cumplimiento Fiscal
         </p>
       </div>

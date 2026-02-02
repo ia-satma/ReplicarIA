@@ -76,7 +76,7 @@ export function TopBar() {
             onClick={() => setShowDropdown(!showDropdown)}
             className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-[#54ddaf] to-[#3bb896] rounded-full flex items-center justify-center text-white font-medium text-sm">
+            <div className="w-8 h-8 bg-gradient-to-br from-[#3CD366] to-[#34C759] rounded-full flex items-center justify-center text-white font-medium text-sm shadow-sm">
               {user?.full_name?.charAt(0)?.toUpperCase() || 'U'}
             </div>
             <span className="text-sm text-gray-700 dark:text-gray-300 hidden sm:block max-w-[120px] truncate">

@@ -603,7 +603,7 @@ export default function AdminPage() {
         {editProfileUser && (
           <div className="fixed inset-0 bg-gradient-to-br from-slate-900/80 to-slate-800/80 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl max-w-md w-full mx-4 border border-white/20 overflow-hidden">
-              <div className="px-6 py-5 bg-gradient-to-r from-indigo-500 to-purple-600">
+              <div className="px-6 py-5 bg-primary text-white">
                 <h3 className="text-lg font-semibold text-white">Editar Usuario</h3>
                 <p className="text-sm text-indigo-100 mt-1">{editProfileUser.email}</p>
               </div>
@@ -663,7 +663,7 @@ export default function AdminPage() {
                 <button
                   onClick={saveUserProfile}
                   disabled={actionLoading === editProfileUser.user_id}
-                  className="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 disabled:opacity-50 transition-all font-medium shadow-lg shadow-indigo-500/25"
+                  className="px-5 py-2.5 bg-primary text-white text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-all font-medium shadow-lg shadow-primary/25"
                 >
                   {actionLoading === editProfileUser.user_id ? 'Guardando...' : 'Guardar'}
                 </button>
@@ -851,7 +851,8 @@ export default function AdminPage() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => setFullEditUser(listedUser)}
-                            className="px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-medium rounded-lg hover:from-emerald-600 hover:to-teal-700 transition-all shadow-sm"
+                            className="px-3 py-1.5 text-white text-sm font-medium rounded-lg transition-all shadow-sm"
+                            style={{ background: 'linear-gradient(180deg, #3CD366 0%, #34C759 100%)' }}
                           >
                             Editar
                           </button>
@@ -1127,12 +1128,12 @@ export default function AdminPage() {
                   <p className="text-sm text-gray-500 mt-1">Administra las empresas registradas en el sistema</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="px-3 py-1 bg-indigo-100 text-indigo-700 text-sm font-medium rounded-full">
+                  <span className="px-3 py-1 bg-primary/10 text-primary text-sm font-medium rounded-full">
                     {empresas.length} empresa{empresas.length !== 1 ? 's' : ''}
                   </span>
                   <button
                     onClick={() => setShowNewEmpresaModal(true)}
-                    className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all shadow-sm"
+                    className="px-4 py-2 bg-primary text-white text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all shadow-sm"
                   >
                     + Nueva Empresa
                   </button>
@@ -1186,7 +1187,7 @@ export default function AdminPage() {
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => openEmpresaEditor(empresa)}
-                                className="px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-medium rounded-lg hover:from-emerald-600 hover:to-teal-700 transition-all shadow-sm"
+                                className="px-3 py-1.5 bg-primary text-white text-sm font-medium rounded-lg hover:opacity-90 transition-all shadow-sm"
                               >
                                 Editar
                               </button>
@@ -1212,7 +1213,7 @@ export default function AdminPage() {
         {(editingEmpresa || showNewEmpresaModal) && (
           <div className="fixed inset-0 bg-gradient-to-br from-slate-900/80 to-slate-800/80 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl max-w-2xl w-full mx-4 border border-white/20 overflow-hidden max-h-[90vh] overflow-y-auto">
-              <div className="px-6 py-5 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-between">
+              <div className="px-6 py-5 bg-primary text-white flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-white">
                     {editingEmpresa ? 'Editar Empresa' : 'Nueva Empresa'}
@@ -1344,7 +1345,7 @@ export default function AdminPage() {
                 <button
                   onClick={editingEmpresa ? saveEmpresa : createEmpresa}
                   disabled={actionLoading === (editingEmpresa?.id || 'new') || !empresaForm.nombre_comercial}
-                  className="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 disabled:opacity-50 transition-all font-medium shadow-lg shadow-indigo-500/25"
+                  className="px-5 py-2.5 bg-primary text-white text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-all font-medium shadow-lg shadow-primary/25"
                 >
                   {actionLoading === (editingEmpresa?.id || 'new') ? 'Guardando...' : 'Guardar'}
                 </button>

@@ -47,7 +47,7 @@ export function Sidebar() {
               className="h-8 object-contain"
             />
           ) : (
-            <div className="w-10 h-10 bg-gradient-to-br from-[#54ddaf] to-[#3bb896] rounded-lg flex items-center justify-center text-white font-bold text-lg">
+            <div className="w-10 h-10 bg-gradient-to-br from-[#3CD366] to-[#34C759] rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-sm">
               R
             </div>
           )}

@@ -450,8 +450,8 @@ class OTPAuthService:
 
         greeting_name = nombre if nombre else "Usuario"
 
-        # Si el email no está configurado, solo loguea
-        if not EMAIL_CONFIGURED:
+        # Si el email no está configurado o estamos en modo demo, solo loguea
+        if not EMAIL_CONFIGURED or DEMO_MODE:
             logger.warning("=" * 60)
             logger.warning(f"⚠️  EMAIL NO CONFIGURADO - MODO DESARROLLO")
             logger.warning(f"📧 Email destino: {email}")

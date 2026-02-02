@@ -638,11 +638,12 @@ AGENT_REQUIREMENTS = {
         "color": "from-green-500 to-emerald-500",
         "icono": "⚖️",
         "documentos_requeridos": [
-            {"nombre": "CFF (Código Fiscal)", "categoria": "marco_legal", "keywords": ["cff", "codigo fiscal"]},
-            {"nombre": "LISR", "categoria": "marco_legal", "keywords": ["lisr", "impuesto sobre la renta"]},
-            {"nombre": "LIVA", "categoria": "marco_legal", "keywords": ["liva", "iva"]},
-            {"nombre": "RMF", "categoria": "marco_legal", "keywords": ["rmf", "resolucion miscelanea"]},
-            {"nombre": "Criterios SAT", "categoria": "criterios_sat", "keywords": ["criterio", "sat"]}
+            # Keywords match actual kb_legal files: CFF_ART_29_29A_CFDI.md, CFF_ART_69B_EFOS_MATERIALIDAD.md, etc.
+            {"nombre": "CFF (Código Fiscal)", "categoria": "marco_legal", "keywords": ["cff_art", "cff"]},
+            {"nombre": "LISR", "categoria": "marco_legal", "keywords": ["lisr_art", "lisr"]},
+            {"nombre": "LIVA", "categoria": "marco_legal", "keywords": ["liva_art", "liva"]},
+            {"nombre": "RMF", "categoria": "marco_legal", "keywords": ["rmf_", "rmf"]},
+            {"nombre": "Criterios SAT", "categoria": "jurisprudencias", "keywords": ["criterios", "prodecon", "sat"]}
         ]
     },
     "A4_LEGAL": {
@@ -653,8 +654,9 @@ AGENT_REQUIREMENTS = {
         "icono": "📜",
         "documentos_requeridos": [
             {"nombre": "Contratos Tipo", "categoria": "plantillas", "keywords": ["contrato", "tipo", "modelo"]},
-            {"nombre": "Jurisprudencia", "categoria": "jurisprudencias", "keywords": ["jurisprudencia", "tesis"]},
-            {"nombre": "Marco Legal", "categoria": "marco_legal", "keywords": ["marco", "legal", "ley"]},
+            # TESIS_CRITERIOS folder files
+            {"nombre": "Jurisprudencia", "categoria": "jurisprudencias", "keywords": ["jurisprudencia", "tesis", "prodecon"]},
+            {"nombre": "Marco Legal", "categoria": "marco_legal", "keywords": ["cff", "lisr", "liva", "art"]},
             {"nombre": "NOM-151 Digitalización", "categoria": "marco_legal", "keywords": ["nom", "151", "digital"]}
         ]
     },
@@ -678,10 +680,13 @@ AGENT_REQUIREMENTS = {
         "color": "from-red-500 to-rose-500",
         "icono": "🔍",
         "documentos_requeridos": [
-            {"nombre": "Lista 69-B", "categoria": "catalogos_sat", "keywords": ["69b", "69-b", "lista"]},
-            {"nombre": "Criterios EFOS", "categoria": "catalogos_sat", "keywords": ["efos", "factura", "operacion"]},
-            {"nombre": "Opiniones Cumplimiento", "categoria": "catalogos_sat", "keywords": ["opinion", "cumplimiento"]},
-            {"nombre": "Guía Entregables", "categoria": "plantillas", "keywords": ["guia", "entregable"]}
+            # Match CFF_ART_69B_EFOS_MATERIALIDAD.md, CFF_ART_69_LISTAS_PUBLICAS.md
+            {"nombre": "Lista 69-B", "categoria": "marco_legal", "keywords": ["69b", "69_listas", "efos"]},
+            {"nombre": "Criterios EFOS", "categoria": "marco_legal", "keywords": ["efos", "materialidad"]},
+            # Match CFF_ART_32D_OPINION_CUMPLIMIENTO.md
+            {"nombre": "Opiniones Cumplimiento", "categoria": "marco_legal", "keywords": ["32d", "opinion", "cumplimiento"]},
+            # Match SERVICIOS_SAT_URLS.md
+            {"nombre": "Servicios SAT", "categoria": "catalogos_sat", "keywords": ["servicios_sat", "sat_url"]}
         ]
     },
     "A7_DEFENSA": {
@@ -691,14 +696,171 @@ AGENT_REQUIREMENTS = {
         "color": "from-indigo-500 to-violet-500",
         "icono": "🛡️",
         "documentos_requeridos": [
-            {"nombre": "CFF Extracto", "categoria": "marco_legal", "keywords": ["cff", "codigo fiscal"]},
-            {"nombre": "LISR Extracto", "categoria": "marco_legal", "keywords": ["lisr", "renta"]},
-            {"nombre": "Jurisprudencia TFJA", "categoria": "jurisprudencias", "keywords": ["jurisprudencia", "tfja"]},
-            {"nombre": "Tesis Aisladas", "categoria": "jurisprudencias", "keywords": ["tesis", "aislada"]},
-            {"nombre": "Criterios Defendibilidad", "categoria": "jurisprudencias", "keywords": ["defendibilidad", "defensa"]}
+            {"nombre": "CFF Extracto", "categoria": "marco_legal", "keywords": ["cff_art", "cff"]},
+            {"nombre": "LISR Extracto", "categoria": "marco_legal", "keywords": ["lisr_art", "lisr"]},
+            # Match TESIS_CRITERIOS folder files
+            {"nombre": "Jurisprudencia TFJA", "categoria": "jurisprudencias", "keywords": ["tfja", "scjn", "prodecon"]},
+            {"nombre": "Tesis Aisladas", "categoria": "jurisprudencias", "keywords": ["tesis", "scjn"]},
+            {"nombre": "Criterios Defendibilidad", "categoria": "jurisprudencias", "keywords": ["deducibilidad", "defensa", "criterios"]}
         ]
     }
 }
+
+
+
+@router.post("/ingest-kb-legal")
+async def ingest_kb_legal_documents(
+    x_empresa_id: Optional[str] = Header(None, alias="X-Empresa-ID")
+):
+    """
+    Ingest all documents from kb_legal/ directory into the database.
+    This populates kb_documentos table so the Agent Checklist shows correct status.
+    """
+    try:
+        import yaml
+        kb_legal_path = Path(__file__).parent.parent / "kb_legal"
+        
+        if not kb_legal_path.exists():
+            raise HTTPException(status_code=404, detail="kb_legal directory not found")
+        
+        pool = await kb_processor.get_pool()
+        if not pool:
+            raise HTTPException(status_code=503, detail="Database pool not available")
+        
+        CATEGORY_MAPPING = {
+            "CFF": "marco_legal",
+            "LISR": "marco_legal", 
+            "LIVA": "marco_legal",
+            "RMF": "marco_legal",
+            "OTRAS_LEYES": "marco_legal",
+            "TESIS_CRITERIOS": "jurisprudencias",
+        }
+        
+        ingested = []
+        skipped = []
+        errors = []
+        
+        # Walk through all subdirectories
+        for subdir in kb_legal_path.iterdir():
+            if subdir.is_dir() and not subdir.name.startswith('.'):
+                categoria = CATEGORY_MAPPING.get(subdir.name, "marco_legal")
+                
+                for md_file in subdir.glob("*.md"):
+                    try:
+                        content = md_file.read_text(encoding='utf-8')
+                        
+                        # Parse YAML frontmatter if present
+                        metadata = {}
+                        if content.startswith('---'):
+                            try:
+                                parts = content.split('---', 2)
+                                if len(parts) >= 3:
+                                    metadata = yaml.safe_load(parts[1]) or {}
+                            except Exception:
+                                pass
+                        
+                        async with pool.acquire() as conn:
+                            # Check if exists
+                            existing = await conn.fetchval("""
+                                SELECT id FROM kb_documentos 
+                                WHERE nombre = $1 AND empresa_id IS NULL
+                            """, md_file.name)
+                            
+                            if existing:
+                                skipped.append(md_file.name)
+                                continue
+                            
+                            # Insert document
+                            doc_uuid = await conn.fetchval("""
+                                INSERT INTO kb_documentos (
+                                    nombre, tipo_archivo, categoria, subcategoria,
+                                    version, estado, procesado, contenido_completo,
+                                    total_chunks, empresa_id, created_at, updated_at
+                                ) VALUES (
+                                    $1, 'md', $2, $3,
+                                    '1.0', 'activo', TRUE, $4,
+                                    1, NULL, NOW(), NOW()
+                                )
+                                RETURNING id
+                            """, md_file.name, categoria, subdir.name, content)
+                            
+                            # Create chunk
+                            await conn.execute("""
+                                INSERT INTO kb_chunks (
+                                    documento_id, chunk_index, contenido, 
+                                    tipo_chunk, created_at
+                                ) VALUES ($1, 0, $2, 'full_document', NOW())
+                            """, doc_uuid, content[:10000])
+                            
+                            ingested.append({
+                                "file": md_file.name,
+                                "categoria": categoria,
+                                "subcategoria": subdir.name
+                            })
+                            logger.info(f"✅ Ingested: {md_file.name}")
+                            
+                    except Exception as e:
+                        errors.append({"file": str(md_file), "error": str(e)})
+                        logger.error(f"❌ Error ingesting {md_file.name}: {e}")
+        
+        # Also ingest root-level markdown files
+        for md_file in kb_legal_path.glob("*.md"):
+            try:
+                content = md_file.read_text(encoding='utf-8')
+                
+                async with pool.acquire() as conn:
+                    existing = await conn.fetchval("""
+                        SELECT id FROM kb_documentos 
+                        WHERE nombre = $1 AND empresa_id IS NULL
+                    """, md_file.name)
+                    
+                    if existing:
+                        skipped.append(md_file.name)
+                        continue
+                    
+                    doc_uuid = await conn.fetchval("""
+                        INSERT INTO kb_documentos (
+                            nombre, tipo_archivo, categoria, subcategoria,
+                            version, estado, procesado, contenido_completo,
+                            total_chunks, empresa_id, created_at, updated_at
+                        ) VALUES (
+                            $1, 'md', 'catalogos_sat', 'referencias',
+                            '1.0', 'activo', TRUE, $2,
+                            1, NULL, NOW(), NOW()
+                        )
+                        RETURNING id
+                    """, md_file.name, content)
+                    
+                    await conn.execute("""
+                        INSERT INTO kb_chunks (
+                            documento_id, chunk_index, contenido, 
+                            tipo_chunk, created_at
+                        ) VALUES ($1, 0, $2, 'full_document', NOW())
+                    """, doc_uuid, content[:10000])
+                    
+                    ingested.append({"file": md_file.name, "categoria": "catalogos_sat"})
+                    
+            except Exception as e:
+                errors.append({"file": str(md_file), "error": str(e)})
+        
+        return {
+            "success": True,
+            "ingested": len(ingested),
+            "skipped": len(skipped),
+            "errors": len(errors),
+            "message": f"✅ Ingestados {len(ingested)} documentos legales. {len(skipped)} ya existían.",
+            "details": {
+                "ingested": ingested,
+                "skipped": skipped,
+                "errors": errors
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error ingesting kb_legal: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/agent-requirements")
@@ -748,14 +910,17 @@ async def get_agent_requirements(
             ]
             
             def check_documento_exists(req):
-                categoria = req.get("categoria", "")
+                """Check if a required document exists in the database.
+                More flexible matching: checks keywords in both filename and subcategory.
+                """
                 keywords = req.get("keywords", [])
                 
                 for doc in doc_list:
-                    if categoria and doc["categoria"] == categoria:
-                        for kw in keywords:
-                            if kw.lower() in doc["nombre"]:
-                                return True
+                    # Check keywords in document name OR subcategory
+                    doc_search_text = f"{doc['nombre']} {doc['subcategoria']}".lower()
+                    for kw in keywords:
+                        if kw.lower() in doc_search_text:
+                            return True
                 return False
             
             agentes_result = []

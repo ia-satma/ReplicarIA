@@ -445,7 +445,7 @@ const ProjectForm = () => {
       <div className="max-w-4xl mx-auto">
         <div className="glass-card overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-[#54ddaf] to-[#3bb896] p-4 sm:p-6 lg:p-8">
+          <div className="bg-gradient-to-r from-[#34C759] to-[#2CB24E] p-4 sm:p-6 lg:p-8">
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[#021423] mb-2">
               🚀 Cuéntanos sobre tu Proyecto
             </h1>
@@ -827,7 +827,7 @@ const ProjectForm = () => {
                     key={dept}
                     className={`flex items-center p-3 rounded-xl border-2 cursor-pointer transition-all min-h-[44px] ${
                       formData.departments.includes(dept)
-                        ? 'border-[#54ddaf] bg-[#54ddaf]/10'
+                        ? 'border-[#34C759] bg-[#34C759]/10'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
@@ -835,7 +835,7 @@ const ProjectForm = () => {
                       type="checkbox"
                       checked={formData.departments.includes(dept)}
                       onChange={() => handleDepartmentToggle(dept)}
-                      className="w-5 h-5 min-w-[20px] text-[#54ddaf] rounded cursor-pointer focus:ring-[#54ddaf]"
+                      className="w-5 h-5 min-w-[20px] text-[#34C759] rounded cursor-pointer focus:ring-[#34C759]"
                     />
                     <span className="ml-2 text-sm text-gray-700">{dept}</span>
                   </label>
@@ -878,7 +878,7 @@ const ProjectForm = () => {
             </div>
 
             {/* Separador */}
-            <div className="border-t-2 border-[#54ddaf]/30 pt-6 mt-8">
+            <div className="border-t-2 border-[#34C759]/30 pt-6 mt-8">
               <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2 flex items-center gap-2">
                 <span>📄</span> Documentos de tu Proyecto
               </h3>
@@ -888,7 +888,7 @@ const ProjectForm = () => {
             </div>
 
             {/* Documentos del Proyecto - CAMPO PRINCIPAL */}
-            <div className="bg-gradient-to-br from-[#54ddaf]/10 to-[#3bb896]/10 border-2 border-dashed border-[#54ddaf] rounded-xl p-4 sm:p-6">
+            <div className="bg-gradient-to-br from-[#34C759]/10 to-[#2CB24E]/10 border-2 border-dashed border-[#34C759] rounded-xl p-4 sm:p-6">
               <label className="block text-sm sm:text-base font-bold text-gray-800 mb-2">
                 📎 Sube los Documentos de tu Proyecto *
               </label>
@@ -902,7 +902,7 @@ const ProjectForm = () => {
                   required
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.png,.jpeg"
                   onChange={handleAdditionalFiles}
-                  className="w-full px-4 py-3 rounded-xl bg-white/50 border-2 border-dashed border-[#54ddaf] text-transparent cursor-pointer hover:bg-white transition-colors file:hidden"
+                  className="w-full px-4 py-3 rounded-xl bg-white/50 border-2 border-dashed border-[#34C759] text-transparent cursor-pointer hover:bg-white transition-colors file:hidden"
                 />
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   <div className="w-8 h-8 flex items-center justify-center text-2xl mb-2 flex-shrink-0">📁</div>
