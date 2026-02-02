@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Link, Navigate, useParams } from "react-router-dom";
 import api from "./services/api";
 import "@/App.css";
+import { cn } from "@/lib/utils";
 import ProjectForm from "./ProjectForm";
 import LoginPage from "./pages/LoginPage";
 import LandingPage from "./pages/LandingPage";
@@ -34,6 +35,7 @@ import DefenseFileDownload from "./components/DefenseFileDownload";
 import UsageDashboard from "./components/UsageDashboard";
 import AgentsDashboard from "./components/agents/AgentsDashboard";
 import AgentCommsViewer from "./components/agents/AgentCommsViewer";
+import { Sidebar, TopBar, SidebarProvider, useSidebar } from "./components/layout";
 
 const DurezzaDashboard = lazy(() => import("./components/DurezzaDashboard"));
 
@@ -285,224 +287,7 @@ function ProtectedRoute({ children, allowDemo = false }) {
   return children;
 }
 
-function Navbar() {
-  const { user, logout, isAuthenticated } = useAuth();
-  const [showDropdown, setShowDropdown] = useState(false);
-
-  if (!isAuthenticated) return null;
-
-  return (
-    <nav className="bg-white border-b border-gray-200 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center">
-            <Link to="/" className="flex items-center">
-              <img src="/logo-revisar.png" alt="Revisar.ia" className="h-6 sm:h-8" />
-            </Link>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <Link
-              to="/nuevo-proyecto"
-              className="inline-flex items-center justify-center w-10 h-10 bg-[#54ddaf] text-[#021423] rounded-lg hover:bg-[#3bb896] transition-colors"
-              title="Iniciar Proyecto"
-              aria-label="Iniciar nuevo proyecto"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            </Link>
-
-            <Link
-              to="/onboarding"
-              className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg hover:from-emerald-600 hover:to-teal-700 transition-colors"
-              title="Onboarding Empresa"
-              aria-label="Registrar nueva empresa"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-              </svg>
-            </Link>
-
-            {(user?.role === 'admin' || user?.role === 'super_admin' || user?.is_superadmin) && (
-              <>
-                <Link
-                  to="/admin"
-                  className="inline-flex items-center justify-center w-10 h-10 bg-[#021423] text-white rounded-lg hover:bg-gray-800 transition-colors"
-                  title="Panel de Administración"
-                  aria-label="Ir al panel de administración"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                </Link>
-                <Link
-                  to="/admin/documentacion"
-                  className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-r from-slate-700 to-slate-900 text-white rounded-lg hover:from-slate-800 hover:to-slate-950 transition-colors"
-                  title="Documentación"
-                  aria-label="Ver documentación del sistema"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </Link>
-              </>
-            )}
-
-            <Link
-              to="/metrics"
-              className="inline-flex items-center justify-center w-10 h-10 bg-[#54ddaf] text-[#021423] rounded-lg hover:bg-[#3bb896] transition-colors"
-              title="Análisis de Rendimiento"
-              aria-label="Ver análisis de rendimiento"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </Link>
-
-            <Link
-              to="/durezza"
-              className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors"
-              title="Revisar.IA"
-              aria-label="Ir a Revisar.IA"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-            </Link>
-
-            <Link
-              to="/templates"
-              className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:from-amber-600 hover:to-orange-600 transition-colors"
-              title="Templates RAG"
-              aria-label="Ver plantillas RAG"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </Link>
-
-            <Link
-              to="/proveedores"
-              className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-r from-purple-500 to-violet-600 text-white rounded-lg hover:from-purple-600 hover:to-violet-700 transition-colors"
-              title="Proveedores"
-              aria-label="Gestión de proveedores"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-            </Link>
-
-            <Link
-              to="/biblioteca"
-              className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-colors"
-              title="Bibliotecar.IA"
-              aria-label="Base de Conocimiento"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-            </Link>
-
-            <Link
-              to="/repositorio"
-              className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg hover:from-cyan-600 hover:to-blue-700 transition-colors"
-              title="Repositorio de Conocimiento"
-              aria-label="Disco Duro Corporativo"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
-              </svg>
-            </Link>
-
-            <Link
-              to="/disenar"
-              className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-lg hover:from-purple-600 hover:to-pink-700 transition-colors"
-              title="Diseñar.IA"
-              aria-label="Auditoría de Diseño"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-              </svg>
-            </Link>
-
-            <Link
-              to="/agent-checklist"
-              className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg hover:from-emerald-600 hover:to-teal-700 transition-colors"
-              title="Checklist de Agentes"
-              aria-label="Requerimientos por Agente"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-              </svg>
-            </Link>
-
-            <Link
-              to="/agent-comms"
-              className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-lg hover:from-blue-700 hover:to-cyan-600 transition-colors animate-pulse"
-              title="Comunicaciones Inter-Agentes"
-              aria-label="Ver conversaciones entre agentes"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-            </Link>
-
-            <Link
-              to="/"
-              className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-r from-[#7FEDD8] to-[#5BC4AB] text-[#0a0f14] rounded-lg hover:from-[#6ddbc6] hover:to-[#4ab39a] transition-colors"
-              title="Acerca de Nosotros"
-              aria-label="Acerca de Revisar.IA"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </Link>
-
-            <div className="relative">
-              <button
-                onClick={() => setShowDropdown(!showDropdown)}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 font-medium">
-                  {user?.full_name?.charAt(0)?.toUpperCase() || 'U'}
-                </div>
-                <span className="text-sm text-gray-700 hidden sm:block">{user?.full_name}</span>
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-
-              {showDropdown && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                  <div className="px-4 py-3 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">{user?.full_name}</p>
-                    <p className="text-xs text-gray-500">{user?.email}</p>
-                    {user?.company && (
-                      <p className="text-xs text-gray-400 mt-1">{user?.company}</p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowDropdown(false);
-                      logout();
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                    Cerrar Sesión
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </nav>
-  );
-}
+// Navbar eliminado - ahora usamos Sidebar y TopBar
 
 const calculateDaysElapsed = (project) => {
   const startDate = project.submitted_at || project.created_at;
@@ -1931,13 +1716,32 @@ const AgentCommsPage = () => {
 };
 
 function AppContent() {
+  const { isAuthenticated } = useAuth();
+  const { isExpanded } = useSidebar();
+
   return (
-    <div className="App min-h-screen flex flex-col">
-      <Navbar />
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/" element={<LandingPage />} />
+    <div className="App min-h-screen bg-gray-50 dark:bg-gray-950">
+      {/* Sidebar y TopBar solo para usuarios autenticados */}
+      {isAuthenticated && (
+        <>
+          <Sidebar />
+          <TopBar />
+        </>
+      )}
+
+      {/* Contenido principal */}
+      <main
+        className={cn(
+          'min-h-screen',
+          isAuthenticated && 'pt-16 transition-all duration-300',
+          isAuthenticated && (isExpanded ? 'lg:pl-64' : 'lg:pl-20')
+        )}
+      >
+        <Routes>
+          {/* Rutas públicas */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/" element={<LandingPage />} />
         <Route path="/onboarding" element={
           <ProtectedRoute>
             <ChatbotArchivo />
@@ -2071,7 +1875,9 @@ function AppContent() {
             <HowItWorksPage />
           </ProtectedRoute>
         } />
-      </Routes>
+        </Routes>
+      </main>
+
       <Footer />
       <SupportChatWidget />
     </div>
@@ -2082,7 +1888,9 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppContent />
+        <SidebarProvider>
+          <AppContent />
+        </SidebarProvider>
       </AuthProvider>
     </BrowserRouter>
   );
