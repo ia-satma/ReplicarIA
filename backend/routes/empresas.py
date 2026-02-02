@@ -14,6 +14,7 @@ from models.empresa import (
     PilarEstrategico, OKR, ConfiguracionTipologia
 )
 from services.empresa_service import empresa_service
+from services.auth_service import get_secret_key
 
 logger = logging.getLogger(__name__)
 
@@ -67,17 +68,21 @@ security = HTTPBearer(auto_error=False)
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if not credentials:
         raise HTTPException(status_code=401, detail="No autorizado - Token requerido")
-    
+
     from jose import jwt, exceptions as jose_exceptions
-    SECRET_KEY = os.getenv("SESSION_SECRET") or os.getenv("JWT_SECRET_KEY", "dev-secret-key-change-in-production")
-    
+
     try:
+        SECRET_KEY = get_secret_key()
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=["HS256"])
         return payload
     except jose_exceptions.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expirado")
-    except jose_exceptions.JWTError:
+    except jose_exceptions.JWTError as e:
+        logger.error(f"Error verificando token: {e}")
         raise HTTPException(status_code=401, detail="Token inválido")
+    except RuntimeError as e:
+        logger.error(f"Error de configuración: {e}")
+        raise HTTPException(status_code=500, detail="Error de configuración del servidor")
 
 
 class VisionMisionRequest(BaseModel):

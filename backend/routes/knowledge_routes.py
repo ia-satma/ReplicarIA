@@ -281,7 +281,12 @@ async def browse_folder(
             final_empresa_id = empresa_id
             
         if not final_empresa_id:
-            raise HTTPException(status_code=400, detail="Se requiere ID de empresa")
+            if is_superadmin:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Por favor selecciona una empresa del menú desplegable para ver sus documentos"
+                )
+            raise HTTPException(status_code=400, detail="No tiene empresa asignada")
 
         result = await knowledge_service.browse(final_empresa_id, path)
         return {
