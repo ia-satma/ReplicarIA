@@ -1413,14 +1413,14 @@ const ProjectDetails = () => {
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-2xl font-bold text-gray-900">{project.project_name}</h1>
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${(project.current_status || project.status)?.toUpperCase() === 'APPROVED' ? 'bg-green-100 text-green-700' :
-                    (project.current_status || project.status)?.toUpperCase() === 'REJECTED' ? 'bg-red-100 text-red-700' :
-                      'bg-yellow-100 text-yellow-700'
+                  (project.current_status || project.status)?.toUpperCase() === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                    'bg-yellow-100 text-yellow-700'
                   }`}>
                   {getStatusLabel(project.current_status || project.status)}
                 </span>
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${complianceScore >= 75 ? 'bg-green-100 text-green-700' :
-                    complianceScore >= 50 ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-red-100 text-red-700'
+                  complianceScore >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                    'bg-red-100 text-red-700'
                   }`}>
                   {complianceScore.toFixed(0)}% Cumplimiento
                 </span>
@@ -1445,13 +1445,13 @@ const ProjectDetails = () => {
               )}
               {defenseFile.final_decision && (
                 <div className={`px-4 py-2 rounded-lg ${defenseFile.final_decision === 'approved' ? 'bg-green-50 border border-green-200' :
-                    defenseFile.final_decision === 'rejected' ? 'bg-red-50 border border-red-200' :
-                      'bg-gray-50 border border-gray-200'
+                  defenseFile.final_decision === 'rejected' ? 'bg-red-50 border border-red-200' :
+                    'bg-gray-50 border border-gray-200'
                   }`}>
                   <p className="text-xs text-gray-500 uppercase">Decisión Final</p>
                   <p className={`font-semibold ${defenseFile.final_decision === 'approved' ? 'text-green-700' :
-                      defenseFile.final_decision === 'rejected' ? 'text-red-700' :
-                        'text-gray-700'
+                    defenseFile.final_decision === 'rejected' ? 'text-red-700' :
+                      'text-gray-700'
                     }`}>
                     {getDecisionLabel(defenseFile.final_decision)}
                   </p>
@@ -1530,8 +1530,8 @@ const ProjectDetails = () => {
             <button
               onClick={() => setActiveTab('timeline')}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'timeline'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
             >
               Línea de Tiempo
@@ -1539,8 +1539,8 @@ const ProjectDetails = () => {
             <button
               onClick={() => setActiveTab('incidences')}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'incidences'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
             >
               Incidencias
@@ -1548,8 +1548,8 @@ const ProjectDetails = () => {
             <button
               onClick={() => setActiveTab('documents')}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'documents'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
             >
               Documentos
@@ -1633,79 +1633,94 @@ const AgentCommsPage = () => {
   }, [projectId]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-[#F5F5F7] p-8 font-sans text-gray-900">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-4 mb-2">
-            <span className="text-4xl">🤖</span>
-            <h1 className="text-3xl font-bold text-white">Comunicaciones Inter-Agentes</h1>
+        <div className="mb-8 flex items-center gap-4">
+          <div className="p-3 bg-white rounded-2xl shadow-apple border border-gray-100">
+            <span className="text-4xl filter drop-shadow-sm">🤖</span>
           </div>
-          <p className="text-gray-400 ml-14">
-            Visualiza en tiempo real cómo los agentes se comunican entre sí para revisar y aprobar documentos
-          </p>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Comunicaciones Inter-Agentes</h1>
+            <p className="text-gray-500 font-medium mt-1">
+              Visualiza en tiempo real la deliberación neural entre agentes para revisión y aprobación
+            </p>
+          </div>
         </div>
 
         {/* Project Selector (if no projectId in URL) */}
         {!projectId && (
-          <div className="bg-slate-800/50 rounded-xl p-6 mb-6">
-            <label className="block text-gray-300 mb-2 font-medium">Selecciona un proyecto:</label>
+          <div className="glass-card shadow-apple-lg border-white/50 p-8 mb-8 backdrop-blur-xl bg-white/60">
+            <label className="block text-gray-700 mb-3 font-semibold text-sm uppercase tracking-wide">Selecciona un proyecto para auditar:</label>
             {loading ? (
-              <div className="animate-pulse bg-slate-700 h-12 rounded-lg" />
+              <div className="animate-pulse bg-gray-200 h-12 rounded-xl" />
             ) : (
-              <select
-                value={selectedProject}
-                onChange={(e) => setSelectedProject(e.target.value)}
-                className="w-full bg-slate-700 text-white rounded-lg p-3 border border-slate-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">-- Selecciona un proyecto --</option>
-                {projects.map((p) => (
-                  <option key={p.id || p._id} value={p.folio || p.id || p._id}>
-                    {p.folio || p.id} - {p.name || p.titulo || p.provider || 'Sin nombre'}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={selectedProject}
+                  onChange={(e) => setSelectedProject(e.target.value)}
+                  className="w-full appearance-none bg-white text-gray-900 rounded-xl p-4 pl-5 border border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium transition-all hover:border-gray-300"
+                >
+                  <option value="">-- Selecciona un proyecto --</option>
+                  {projects.map((p) => (
+                    <option key={p.id || p._id} value={p.folio || p.id || p._id}>
+                      {p.folio || p.id} - {p.name || p.titulo || p.provider || 'Sin nombre'}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+              </div>
             )}
           </div>
         )}
 
         {/* Agent Communications Viewer */}
         {(projectId || selectedProject) ? (
-          <AgentCommsViewer
-            projectId={projectId || selectedProject}
-            autoRefresh={true}
-            refreshInterval={5000}
-          />
+          <div className="glass-card shadow-apple-lg border-white/50 p-1 overflow-hidden backdrop-blur-xl bg-white/80 rounded-3xl">
+            <AgentCommsViewer
+              projectId={projectId || selectedProject}
+              autoRefresh={true}
+              refreshInterval={5000}
+            />
+          </div>
         ) : (
-          <div className="bg-slate-800/30 rounded-xl p-12 text-center">
-            <span className="text-6xl block mb-4">📭</span>
-            <p className="text-gray-400 text-lg">Selecciona un proyecto para ver las comunicaciones entre agentes</p>
+          <div className="glass-card shadow-apple border-white/50 p-16 text-center mb-8 bg-white/40 border-dashed border-2">
+            <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+              <span className="text-5xl opacity-50">📭</span>
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Esperando Selección</h3>
+            <p className="text-gray-500 text-lg max-w-md mx-auto">Selecciona un proyecto arriba para acceder al registro inmutable de comunicaciones de los agentes.</p>
           </div>
         )}
 
         {/* Legend */}
-        <div className="mt-8 bg-slate-800/30 rounded-xl p-6">
-          <h3 className="text-white font-semibold mb-4">¿Cómo funciona?</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">📋</span>
+        <div className="mt-8 glass-card shadow-apple border-white/60 p-8 bg-white/60">
+          <h3 className="text-gray-900 font-bold mb-6 flex items-center gap-2">
+            <span className="w-1 h-6 bg-blue-500 rounded-full"></span>
+            Roles Clave en la Deliberación
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/50 border border-white/50 shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-2xl shadow-inner">📋</div>
               <div>
-                <p className="text-white font-medium">PMO (Orquestador)</p>
-                <p className="text-gray-400">Coordina el flujo y solicita revisiones</p>
+                <p className="text-gray-900 font-bold text-sm">PMO (Orquestador)</p>
+                <p className="text-gray-500 text-sm mt-1 leading-snug">Coordina el flujo de trabajo, asigna tareas y consolida la aprobación final.</p>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">⚖️</span>
+            <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/50 border border-white/50 shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center text-2xl shadow-inner">⚖️</div>
               <div>
-                <p className="text-white font-medium">Legal</p>
-                <p className="text-gray-400">Revisa cumplimiento y emite dictámenes</p>
+                <p className="text-gray-900 font-bold text-sm">Legal & Fiscal</p>
+                <p className="text-gray-500 text-sm mt-1 leading-snug">Verifica cumplimiento normativo (69-B, PLD) y valida contratos.</p>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">🏢</span>
+            <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/50 border border-white/50 shadow-sm hover:shadow-md transition-shadow">
+              <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-2xl shadow-inner">🏢</div>
               <div>
-                <p className="text-white font-medium">Proveedor</p>
-                <p className="text-gray-400">Recibe y aplica los cambios solicitados</p>
+                <p className="text-gray-900 font-bold text-sm">Proveedor Externo</p>
+                <p className="text-gray-500 text-sm mt-1 leading-snug">Recibe notificaciones automáticas y sube evidencias subsanadas.</p>
               </div>
             </div>
           </div>
@@ -1742,139 +1757,139 @@ function AppContent() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/" element={<LandingPage />} />
-        <Route path="/onboarding" element={
-          <ProtectedRoute>
-            <ChatbotArchivo />
-          </ProtectedRoute>
-        } />
-        <Route path="/dashboard" element={
-          <ProtectedRoute>
-            <Suspense fallback={<LoadingFallback />}>
-              <DurezzaDashboard />
-            </Suspense>
-          </ProtectedRoute>
-        } />
-        <Route path="/legacy-dashboard" element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        } />
-        <Route path="/nuevo-proyecto" element={
-          <ProtectedRoute allowDemo={true}>
-            <ProjectForm />
-          </ProtectedRoute>
-        } />
-        <Route path="/project/:projectId" element={
-          <ProtectedRoute>
-            <ProjectDetails />
-          </ProtectedRoute>
-        } />
-        <Route path="/admin" element={
-          <ProtectedRoute>
-            <AdminPage />
-          </ProtectedRoute>
-        } />
-        <Route path="/admin/documentacion" element={
-          <ProtectedRoute>
-            <AdminDocumentacion />
-          </ProtectedRoute>
-        } />
-        <Route path="/admin/clientes" element={
-          <ProtectedRoute>
-            <AdminClientes />
-          </ProtectedRoute>
-        } />
-        <Route path="/metrics" element={
-          <ProtectedRoute>
-            <MetricsDashboard />
-          </ProtectedRoute>
-        } />
-        <Route path="/costs" element={
-          <CostsDashboard />
-        } />
-        <Route path="/costs-dashboard" element={
-          <CostsDashboard />
-        } />
-        <Route path="/durezza" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/templates" element={
-          <TemplatesPage />
-        } />
-        <Route path="/empresas" element={
-          <ProtectedRoute>
-            <ListaEmpresas />
-          </ProtectedRoute>
-        } />
-        <Route path="/empresas/nueva" element={
-          <ProtectedRoute>
-            <OnboardingEmpresa />
-          </ProtectedRoute>
-        } />
-        <Route path="/empresa/:empresaId/configuracion" element={
-          <ProtectedRoute>
-            <ConfiguracionEmpresa />
-          </ProtectedRoute>
-        } />
-        <Route path="/proveedores" element={
-          <ProtectedRoute>
-            <ProveedoresPage />
-          </ProtectedRoute>
-        } />
-        <Route path="/biblioteca" element={
-          <ProtectedRoute>
-            <BibliotecaChat />
-          </ProtectedRoute>
-        } />
-        <Route path="/bibliotecaria" element={<Navigate to="/biblioteca" replace />} />
-        <Route path="/estado-acervo" element={
-          <ProtectedRoute>
-            <EstadoAcervo />
-          </ProtectedRoute>
-        } />
-        <Route path="/disenar" element={
-          <ProtectedRoute>
-            <DisenarIA />
-          </ProtectedRoute>
-        } />
-        <Route path="/agent-checklist" element={
-          <ProtectedRoute>
-            <AgentChecklist />
-          </ProtectedRoute>
-        } />
-        <Route path="/repositorio" element={
-          <ProtectedRoute>
-            <KnowledgeRepository />
-          </ProtectedRoute>
-        } />
-        <Route path="/agentes" element={
-          <ProtectedRoute>
-            <AgentsDashboard />
-          </ProtectedRoute>
-        } />
-        <Route path="/agent-comms" element={
-          <ProtectedRoute>
-            <AgentCommsPage />
-          </ProtectedRoute>
-        } />
-        <Route path="/agent-comms/:projectId" element={
-          <ProtectedRoute>
-            <AgentCommsPage />
-          </ProtectedRoute>
-        } />
-        <Route path="/base-legal" element={
-          <ProtectedRoute>
-            <BaseLegalPage />
-          </ProtectedRoute>
-        } />
-        <Route path="/faq" element={
-          <ProtectedRoute>
-            <FAQPage />
-          </ProtectedRoute>
-        } />
-        <Route path="/como-funciona" element={
-          <ProtectedRoute>
-            <HowItWorksPage />
-          </ProtectedRoute>
-        } />
+          <Route path="/onboarding" element={
+            <ProtectedRoute>
+              <ChatbotArchivo />
+            </ProtectedRoute>
+          } />
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Suspense fallback={<LoadingFallback />}>
+                <DurezzaDashboard />
+              </Suspense>
+            </ProtectedRoute>
+          } />
+          <Route path="/legacy-dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/nuevo-proyecto" element={
+            <ProtectedRoute allowDemo={true}>
+              <ProjectForm />
+            </ProtectedRoute>
+          } />
+          <Route path="/project/:projectId" element={
+            <ProtectedRoute>
+              <ProjectDetails />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin" element={
+            <ProtectedRoute>
+              <AdminPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/documentacion" element={
+            <ProtectedRoute>
+              <AdminDocumentacion />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/clientes" element={
+            <ProtectedRoute>
+              <AdminClientes />
+            </ProtectedRoute>
+          } />
+          <Route path="/metrics" element={
+            <ProtectedRoute>
+              <MetricsDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/costs" element={
+            <CostsDashboard />
+          } />
+          <Route path="/costs-dashboard" element={
+            <CostsDashboard />
+          } />
+          <Route path="/durezza" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/templates" element={
+            <TemplatesPage />
+          } />
+          <Route path="/empresas" element={
+            <ProtectedRoute>
+              <ListaEmpresas />
+            </ProtectedRoute>
+          } />
+          <Route path="/empresas/nueva" element={
+            <ProtectedRoute>
+              <OnboardingEmpresa />
+            </ProtectedRoute>
+          } />
+          <Route path="/empresa/:empresaId/configuracion" element={
+            <ProtectedRoute>
+              <ConfiguracionEmpresa />
+            </ProtectedRoute>
+          } />
+          <Route path="/proveedores" element={
+            <ProtectedRoute>
+              <ProveedoresPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/biblioteca" element={
+            <ProtectedRoute>
+              <BibliotecaChat />
+            </ProtectedRoute>
+          } />
+          <Route path="/bibliotecaria" element={<Navigate to="/biblioteca" replace />} />
+          <Route path="/estado-acervo" element={
+            <ProtectedRoute>
+              <EstadoAcervo />
+            </ProtectedRoute>
+          } />
+          <Route path="/disenar" element={
+            <ProtectedRoute>
+              <DisenarIA />
+            </ProtectedRoute>
+          } />
+          <Route path="/agent-checklist" element={
+            <ProtectedRoute>
+              <AgentChecklist />
+            </ProtectedRoute>
+          } />
+          <Route path="/repositorio" element={
+            <ProtectedRoute>
+              <KnowledgeRepository />
+            </ProtectedRoute>
+          } />
+          <Route path="/agentes" element={
+            <ProtectedRoute>
+              <AgentsDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/agent-comms" element={
+            <ProtectedRoute>
+              <AgentCommsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/agent-comms/:projectId" element={
+            <ProtectedRoute>
+              <AgentCommsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/base-legal" element={
+            <ProtectedRoute>
+              <BaseLegalPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/faq" element={
+            <ProtectedRoute>
+              <FAQPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/como-funciona" element={
+            <ProtectedRoute>
+              <HowItWorksPage />
+            </ProtectedRoute>
+          } />
         </Routes>
       </main>
 
