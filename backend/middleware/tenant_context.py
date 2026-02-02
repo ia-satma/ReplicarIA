@@ -386,9 +386,10 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
                 if user_company_str.lower() not in allowed_companies:
                     allowed_companies.append(user_company_str.lower())
             
-            user_role = getattr(user, 'role', '')
+            user_role = str(getattr(user, 'role', '')).lower()
+            is_superadmin = getattr(user, 'is_superadmin', False)
             return {
-                "is_admin": str(user_role) == "admin",
+                "is_admin": user_role in ("admin", "super_admin") or is_superadmin,
                 "allowed_companies": allowed_companies
             }
             
