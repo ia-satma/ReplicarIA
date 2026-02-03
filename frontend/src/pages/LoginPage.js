@@ -71,16 +71,7 @@ const LoginPage = () => {
     setLoading(true);
     setError('');
 
-    // EMERGENCY OVERRIDE for known admins to bypass API checks if they fail
-    // This allows them to login even if the check-auth-method endpoint has issues
-    const KNOWN_ADMINS = ['santiago@satma.mx', 'ia@satma.mx', 'admin@revisar-ia.com'];
-    if (KNOWN_ADMINS.includes(email.trim().toLowerCase())) {
-      console.log("⚡ [Admin Bypass] Force switching to password mode for:", email);
-      setAuthMethod('password');
-      setStep('password');
-      setLoading(false);
-      return;
-    }
+
 
     const API_URL = process.env.REACT_APP_BACKEND_URL || '';
 
