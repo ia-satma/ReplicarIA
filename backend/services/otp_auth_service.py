@@ -50,7 +50,7 @@ DEMO_OTP_CODE = '123456'  # Fixed OTP for demo mode
 EMAIL_CONFIGURED = email_is_configured()
 
 OTP_EXPIRATION_MINUTES = 5
-SESSION_EXPIRATION_HOURS = 24
+SESSION_EXPIRATION_HOURS = 720  # 30 Days
 
 # Security settings
 MAX_OTP_REQUESTS_PER_MINUTE = 3
@@ -165,7 +165,7 @@ class OTPAuthService:
             try:
                 row = await conn.fetchrow(
                     """
-                    SELECT id, email, nombre, empresa, rol, activo
+                    SELECT id, email, nombre, empresa, rol, activo, empresa_id
                     FROM usuarios_autorizados
                     WHERE LOWER(email) = LOWER($1) AND activo = true
                     """,
@@ -173,6 +173,9 @@ class OTPAuthService:
                 )
                 if row:
                     result = dict(row)
+                    # Ensure empresa_id is a string if present
+                    if result.get('empresa_id'):
+                        result['empresa_id'] = str(result['empresa_id'])
                     return result
                 return None
             except Exception as e:
@@ -289,13 +292,23 @@ class OTPAuthService:
                 token = generate_session_token()
                 session_id = f"ses-{uuid.uuid4().hex[:8]}"
 
-                session_row = await conn.fetchrow(
-                    """
+                # Use hours instead of hardcoded '24 hours' in SQL if we want flexibility, 
+                # but for simplicity we can just update the interval here to verify consistency.
+                # However, logic above SESSION_EXPIRATION_HOURS is 720.
+                # Let's adjust the SQL interval to 30 days (720h)
+                
+                await conn.execute(
+                    f"""
                     INSERT INTO sesiones_otp (id, usuario_id, token, activa, fecha_creacion, fecha_expiracion)
-                    VALUES ($1, $2, $3, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '24 hours')
-                    RETURNING fecha_expiracion
+                    VALUES ($1, $2, $3, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '{SESSION_EXPIRATION_HOURS} hours')
                     """,
                     session_id, row['usuario_id'], token
+                )
+                
+                # Fetch back the expiration to return correct time
+                session_row = await conn.fetchrow(
+                    "SELECT fecha_expiracion FROM sesiones_otp WHERE id = $1", 
+                    session_id
                 )
 
                 logger.info(f"Session created for {email}")
@@ -443,11 +456,12 @@ class OTPAuthService:
         - Loguea el código de manera visible
         - Devuelve el código en la respuesta para desarrollo
         """
-        subject = f"Codigo de acceso {codigo} - Revisar.IA"
+        subject = f"Código de Acceso: {codigo} - Revisar.IA"
 
         greeting_name = nombre if nombre else "Usuario"
 
-        # Si el email no está configurado o estamos en modo demo, solo loguea
+        # Si el email no está configurado o estamos en modo demo (explicitly set via env var, NO dynamic based on credentials)
+        # However, backend logic relies on EMAIL_CONFIGURED here.
         if not EMAIL_CONFIGURED or DEMO_MODE:
             logger.warning("=" * 60)
             logger.warning(f"⚠️  EMAIL NO CONFIGURADO - MODO DESARROLLO")
@@ -466,100 +480,83 @@ class OTPAuthService:
 
         logo_base64 = get_logo_base64()
         
-        if logo_base64:
-            logo_html = f'<img src="{logo_base64}" alt="Revisar.IA" style="max-width: 220px; height: auto; margin-bottom: 8px;" />'
-        else:
-            logo_html = '<h1 style="margin: 0; font-size: 32px; font-weight: 300; letter-spacing: 4px; color: #ffffff;">REVISAR<span style="color: #7FEDD8; font-weight: 600;">.IA</span></h1>'
-        
+        # Premium Modern Dark Design
         body_html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f5f5f5; padding: 40px 20px;">
-        <tr>
-            <td align="center">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 480px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.1);">
-                    
-                    <tr>
-                        <td style="background: linear-gradient(135deg, #0a0f14 0%, #1a2332 100%); padding: 32px 40px; text-align: center;">
-                            {logo_html}
-                            <p style="margin: 12px 0 0 0; font-size: 11px; letter-spacing: 3px; color: #7FEDD8; text-transform: uppercase;">
-                                Auditoria Fiscal Inteligente
-                            </p>
-                        </td>
-                    </tr>
-                    
-                    <tr>
-                        <td style="padding: 40px;">
-                            <p style="margin: 0 0 24px 0; font-size: 16px; color: #333333;">
-                                Hola <strong>{greeting_name}</strong>,
-                            </p>
-                            <p style="margin: 0 0 24px 0; font-size: 15px; color: #666666; line-height: 1.5;">
-                                Recibimos una solicitud para acceder a tu cuenta. Usa el siguiente codigo de verificacion:
-                            </p>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+            </style>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #000000; color: #ffffff;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #000000; padding: 40px 10px;">
+                <tr>
+                    <td align="center">
+                        <!-- Main Card -->
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 420px; background-color: #111111; border-radius: 20px; overflow: hidden; border: 1px solid #222222; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
                             
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 32px 0;">
-                                <tr>
-                                    <td align="center">
-                                        <div style="background: linear-gradient(135deg, #0a0f14 0%, #1a2332 100%); border-radius: 12px; padding: 24px 32px; display: inline-block;">
-                                            <span style="font-family: 'Monaco', 'Menlo', 'Consolas', monospace; font-size: 36px; font-weight: 700; letter-spacing: 6px; color: #7FEDD8;">
-                                                {codigo}
-                                            </span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </table>
+                            <!-- Header with Logo -->
+                            <tr>
+                                <td align="center" style="padding: 40px 0 20px 0;">
+                                    <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #1A1A1A, #0A0A0A); border-radius: 12px; border: 1px solid #333; display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                                        <span style="font-size: 32px; filter: drop-shadow(0 0 8px rgba(127, 237, 216, 0.4));">🔐</span>
+                                    </div>
+                                    <p style="margin-top: 15px; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #666; font-weight: 600;">
+                                        REVISAR.IA SECURITY
+                                    </p>
+                                </td>
+                            </tr>
                             
-                            <p style="margin: 0; font-size: 14px; color: #888888; text-align: center;">
-                                Este codigo expira en <strong style="color: #333333;">{OTP_EXPIRATION_MINUTES} minutos</strong>
-                            </p>
-                        </td>
-                    </tr>
-                    
-                    <tr>
-                        <td style="background-color: #f9f9f9; padding: 24px 40px; border-top: 1px solid #eeeeee;">
-                            <p style="margin: 0; font-size: 13px; color: #888888; line-height: 1.6;">
-                                Si no solicitaste este codigo, puedes ignorar este mensaje. Tu cuenta esta segura.
-                            </p>
-                        </td>
-                    </tr>
-                    
-                    <tr>
-                        <td style="background: linear-gradient(135deg, #0a0f14 0%, #1a2332 100%); padding: 20px 40px; text-align: center;">
-                            <p style="margin: 0; font-size: 12px; color: #666666;">
-                                2026 Revisar.IA - Plataforma de Cumplimiento Fiscal
-                            </p>
-                            <p style="margin: 8px 0 0 0; font-size: 11px; color: #555555;">
-                                Monterrey, N.L. Mexico
-                            </p>
-                        </td>
-                    </tr>
-                    
-                </table>
-            </td>
-        </tr>
-    </table>
-</body>
-</html>
+                            <!-- Content -->
+                            <tr>
+                                <td style="padding: 0 40px 40px 40px; text-align: center;">
+                                    <h1 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 600; color: #ffffff; letter-spacing: -0.5px;">
+                                        Código de Autenticación
+                                    </h1>
+                                    <p style="margin: 0 0 30px 0; font-size: 14px; color: #888888; line-height: 1.5;">
+                                        Hola <strong>{greeting_name}</strong>, usa este código para acceder a tu dashboard.
+                                    </p>
+
+                                    <!-- Code Box -->
+                                    <div style="background: linear-gradient(180deg, #1A1A1A 0%, #0D0D0D 100%); border: 1px solid #333; border-radius: 16px; padding: 25px 0; margin-bottom: 30px; position: relative;">
+                                        <div style="position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 80%; height: 1px; background: linear-gradient(90deg, transparent, #7FEDD8, transparent); opacity: 0.5;"></div>
+                                        <span style="font-family: 'SF Mono', 'Monaco', monospace; font-size: 36px; font-weight: 700; color: #7FEDD8; letter-spacing: 6px; text-shadow: 0 0 20px rgba(127, 237, 216, 0.3);">
+                                            {codigo}
+                                        </span>
+                                    </div>
+
+                                    <p style="margin: 0; font-size: 12px; color: #555555;">
+                                        Este enlace es válido por {OTP_EXPIRATION_MINUTES} minutos.<br>
+                                        Si no lo solicitaste, ignora este mensaje.
+                                    </p>
+                                </td>
+                            </tr>
+                            
+                            <!-- Footer -->
+                            <tr>
+                                <td style="background-color: #0A0A0A; padding: 20px; text-align: center; border-top: 1px solid #1A1A1A;">
+                                    <p style="margin: 0; font-size: 11px; color: #444444;">
+                                        © 2026 Revisar.IA. Sistema Seguro de Auditoría.
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <!-- Watermark -->
+                        <div style="margin-top: 30px;">
+                            <img src="{logo_base64}" alt="Revisar.IA" style="width: 100px; opacity: 0.2; filter: grayscale(100%);" />
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
         """
         
-        body_text = f"""
-Revisar.IA - Auditoria Fiscal Inteligente
-
-Hola {greeting_name},
-
-Tu codigo de verificacion es: {codigo}
-
-Este codigo expira en {OTP_EXPIRATION_MINUTES} minutos.
-
-Si no solicitaste este codigo, ignora este mensaje.
-
-2026 Revisar.IA - Plataforma de Cumplimiento Fiscal
-        """
+        body_text = f"REVISAR.IA\n\nHola {greeting_name},\n\nTu código de acceso es: {codigo}\n\nVálido por {OTP_EXPIRATION_MINUTES} minutos."
         
         # Usar el servicio de email unificado (SendGrid o DreamHost según config)
         result = await unified_email.send_email(
