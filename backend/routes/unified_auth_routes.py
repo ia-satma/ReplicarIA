@@ -194,16 +194,16 @@ async def check_auth_method(body: CheckAuthMethodRequest):
             if row:
                 if row['status'] != 'active':
                     logger.warning(f"[check-auth-method] User found but status is: {row['status']}")
-                elif row['auth_method'] == 'password':
-                    logger.info(f"[check-auth-method] Password auth for role: {row['role']}")
-                    return APIResponse(
-                        success=True,
-                        message="Método de autenticación encontrado",
-                        data={
-                            'auth_method': 'password',
-                            'is_superadmin': row['role'] == 'super_admin'
-                        }
-                    )
+                # elif row['auth_method'] == 'password':
+                #     logger.info(f"[check-auth-method] Password auth for role: {row['role']}")
+                #     return APIResponse(
+                #         success=True,
+                #         message="Método de autenticación encontrado",
+                #         data={
+                #             'auth_method': 'password',
+                #             'is_superadmin': row['role'] == 'super_admin'
+                #         }
+                #     )
             else:
                 logger.info(f"[check-auth-method] No user found in auth_users for {body.email}")
 
