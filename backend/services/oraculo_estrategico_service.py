@@ -1,5 +1,5 @@
 """
-Oráculo Estratégico Service - Integración con Cloudflare Workers
+Oráculo Estratégico Service - Integración con Cloudflare Workers + pCloud
 Proporciona investigación empresarial profunda mediante Workers desplegados en Cloudflare.
 
 Este servicio actúa como wrapper de los Cloudflare Workers para:
@@ -12,6 +12,11 @@ Los Workers se comunican vía HTTP y procesan en paralelo:
 2. Análisis con Claude (14 fases)
 3. Búsqueda con Perplexity (multi-query)
 4. Consolidación de resultados
+
+INTEGRACIÓN MULTI-TENANT:
+- Los resultados de investigación se guardan en pCloud: CLIENTES_NUEVOS/{RFC}/
+- Los agentes (A1-A7) consumen estos datos desde sus respectivas carpetas
+- Respeta la arquitectura multi-agente definida en agentes_config.py
 
 Última actualización: 2026-02-04
 """
@@ -26,6 +31,16 @@ from datetime import datetime
 from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+# Import pCloud service for data persistence
+try:
+    from services.pcloud_service import pcloud_service, AGENT_FOLDER_IDS
+    PCLOUD_AVAILABLE = True
+except ImportError:
+    pcloud_service = None
+    AGENT_FOLDER_IDS = {}
+    PCLOUD_AVAILABLE = False
+    logger.warning("pCloud service not available - investigation results won't be persisted")
 
 
 class TipoInvestigacion(str, Enum):
@@ -70,15 +85,219 @@ class OraculoEstrategicoService:
     def __init__(self):
         self.worker_url = self.WORKER_URL
         self.available = self._check_configuration()
+        self.pcloud_available = PCLOUD_AVAILABLE
 
         if self.available:
             logger.info(f"OraculoEstrategicoService inicializado: {self.worker_url}")
         else:
             logger.warning("OraculoEstrategicoService: Worker URL no configurada")
 
+        if self.pcloud_available:
+            logger.info("OraculoEstrategicoService: pCloud persistence enabled")
+
     def _check_configuration(self) -> bool:
         """Verifica si el servicio está correctamente configurado"""
         return bool(self.worker_url and "workers.dev" in self.worker_url)
+
+    # =========================================================================
+    # PERSISTENCIA EN PCLOUD - INTEGRACIÓN MULTI-TENANT
+    # =========================================================================
+
+    async def guardar_investigacion_pcloud(
+        self,
+        resultado: Dict[str, Any],
+        empresa: str,
+        rfc: Optional[str] = None,
+        empresa_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Guarda los resultados de investigación en pCloud para consumo de agentes.
+
+        Estructura:
+        CLIENTES_NUEVOS/{RFC_O_NOMBRE}/
+        ├── investigacion.json          # Resultado completo
+        ├── perfil_empresa.json         # Para A1_ESTRATEGIA
+        ├── analisis_sector.json        # Para A1_ESTRATEGIA
+        ├── due_diligence.json          # Para A6_PROVEEDOR
+        └── materialidad.json           # Para S2_MATERIALIDAD
+
+        Args:
+            resultado: Resultado de la investigación del Oráculo
+            empresa: Nombre de la empresa investigada
+            rfc: RFC de la empresa (si se tiene)
+            empresa_id: ID del tenant (empresa que realiza la investigación)
+
+        Returns:
+            Dict con rutas de archivos guardados y status
+        """
+        if not self.pcloud_available or not pcloud_service:
+            logger.warning("pCloud no disponible - investigación no persistida")
+            return {"success": False, "error": "pCloud not available"}
+
+        try:
+            # Normalizar identificador de carpeta
+            folder_name = rfc.upper().replace(" ", "_") if rfc else empresa.upper().replace(" ", "_")[:20]
+            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+
+            # Login a pCloud
+            login_result = pcloud_service.login()
+            if not login_result.get("success"):
+                logger.warning(f"pCloud login failed: {login_result.get('error')}")
+                return {"success": False, "error": "pCloud login failed"}
+
+            # Obtener o crear carpeta CLIENTES_NUEVOS
+            clientes_nuevos_id = await self._get_or_create_clientes_nuevos_folder()
+            if not clientes_nuevos_id:
+                return {"success": False, "error": "Could not access CLIENTES_NUEVOS folder"}
+
+            # Crear subcarpeta para esta empresa
+            empresa_folder = pcloud_service.create_folder(clientes_nuevos_id, folder_name)
+            empresa_folder_id = empresa_folder.get("folder_id", clientes_nuevos_id)
+
+            archivos_guardados = []
+
+            # 1. Guardar investigación completa
+            investigacion_completa = {
+                "meta": {
+                    "empresa": empresa,
+                    "rfc": rfc,
+                    "empresa_tenant_id": empresa_id,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "fuente": "oraculo_estrategico",
+                    "version": "2.0"
+                },
+                "resultado": resultado
+            }
+
+            result1 = pcloud_service.upload_file(
+                folder_id=empresa_folder_id,
+                filename=f"investigacion_{timestamp}.json",
+                content=json.dumps(investigacion_completa, indent=2, ensure_ascii=False, default=str).encode('utf-8')
+            )
+            if result1.get("success"):
+                archivos_guardados.append(f"investigacion_{timestamp}.json")
+
+            # 2. Extraer y guardar perfil para A1_ESTRATEGIA
+            consolidado = resultado.get("consolidado", {})
+            if consolidado:
+                perfil_empresa = {
+                    "empresa": empresa,
+                    "rfc": rfc,
+                    "resumen_ejecutivo": consolidado.get("resumen_ejecutivo"),
+                    "perfil": consolidado.get("perfil_empresa"),
+                    "sector": consolidado.get("analisis_sector"),
+                    "pestel": consolidado.get("pestel"),
+                    "porter": consolidado.get("porter"),
+                    "riesgos": consolidado.get("riesgos"),
+                    "oportunidades": consolidado.get("oportunidades"),
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "agente_destino": "A1_ESTRATEGIA"
+                }
+
+                result2 = pcloud_service.upload_file(
+                    folder_id=empresa_folder_id,
+                    filename="perfil_empresa.json",
+                    content=json.dumps(perfil_empresa, indent=2, ensure_ascii=False, default=str).encode('utf-8')
+                )
+                if result2.get("success"):
+                    archivos_guardados.append("perfil_empresa.json")
+
+            # 3. Guardar due diligence si existe (para A6_PROVEEDOR)
+            if resultado.get("due_diligence"):
+                dd_data = {
+                    "empresa": empresa,
+                    "rfc": rfc,
+                    "due_diligence": resultado.get("due_diligence"),
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "agente_destino": "A6_PROVEEDOR"
+                }
+
+                result3 = pcloud_service.upload_file(
+                    folder_id=empresa_folder_id,
+                    filename="due_diligence.json",
+                    content=json.dumps(dd_data, indent=2, ensure_ascii=False, default=str).encode('utf-8')
+                )
+                if result3.get("success"):
+                    archivos_guardados.append("due_diligence.json")
+
+            # 4. Guardar materialidad si existe (para S2_MATERIALIDAD)
+            if resultado.get("materialidad_sat"):
+                mat_data = {
+                    "empresa": empresa,
+                    "rfc": rfc,
+                    "materialidad_sat": resultado.get("materialidad_sat"),
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "agente_destino": "S2_MATERIALIDAD"
+                }
+
+                result4 = pcloud_service.upload_file(
+                    folder_id=empresa_folder_id,
+                    filename="materialidad.json",
+                    content=json.dumps(mat_data, indent=2, ensure_ascii=False, default=str).encode('utf-8')
+                )
+                if result4.get("success"):
+                    archivos_guardados.append("materialidad.json")
+
+            # 5. Crear archivo de estado para onboarding
+            estado_onboarding = {
+                "empresa": empresa,
+                "rfc": rfc,
+                "estado": "pendiente_onboarding",
+                "investigacion_completada": True,
+                "archivos_disponibles": archivos_guardados,
+                "fecha_investigacion": datetime.utcnow().isoformat(),
+                "score_confianza": resultado.get("consolidado", {}).get("score_confianza", 0),
+                "requiere_revision": resultado.get("consolidado", {}).get("score_confianza", 0) < 70
+            }
+
+            result5 = pcloud_service.upload_file(
+                folder_id=empresa_folder_id,
+                filename="_estado_onboarding.json",
+                content=json.dumps(estado_onboarding, indent=2, ensure_ascii=False, default=str).encode('utf-8')
+            )
+            if result5.get("success"):
+                archivos_guardados.append("_estado_onboarding.json")
+
+            logger.info(f"Investigación guardada en pCloud: CLIENTES_NUEVOS/{folder_name}/ - {len(archivos_guardados)} archivos")
+
+            return {
+                "success": True,
+                "pcloud_folder": f"CLIENTES_NUEVOS/{folder_name}",
+                "pcloud_folder_id": empresa_folder_id,
+                "archivos_guardados": archivos_guardados,
+                "listo_para_onboarding": True
+            }
+
+        except Exception as e:
+            logger.error(f"Error guardando investigación en pCloud: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _get_or_create_clientes_nuevos_folder(self) -> Optional[int]:
+        """Obtiene o crea la carpeta CLIENTES_NUEVOS en pCloud"""
+        try:
+            # Intentar obtener ID existente
+            clientes_nuevos_id = AGENT_FOLDER_IDS.get("CLIENTES_NUEVOS")
+
+            if clientes_nuevos_id:
+                return clientes_nuevos_id
+
+            # Si no existe, crear bajo REVISAR.IA
+            from services.pcloud_service import REVISAR_IA_CONFIG_FOLDER_ID
+
+            result = pcloud_service.create_folder(
+                REVISAR_IA_CONFIG_FOLDER_ID,
+                "CLIENTES_NUEVOS"
+            )
+
+            if result.get("folder_id"):
+                logger.info(f"Carpeta CLIENTES_NUEVOS creada: {result.get('folder_id')}")
+                return result.get("folder_id")
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error obteniendo/creando CLIENTES_NUEVOS: {e}")
+            return None
 
     async def investigar_completo(
         self,
@@ -86,7 +305,10 @@ class OraculoEstrategicoService:
         sitio_web: Optional[str] = None,
         sector: Optional[str] = None,
         contexto_adicional: Optional[str] = None,
-        tipos_investigacion: Optional[List[TipoInvestigacion]] = None
+        tipos_investigacion: Optional[List[TipoInvestigacion]] = None,
+        rfc: Optional[str] = None,
+        empresa_id: Optional[str] = None,
+        guardar_pcloud: bool = True
     ) -> Dict[str, Any]:
         """
         Ejecuta investigación empresarial completa (14 fases).
@@ -97,6 +319,9 @@ class OraculoEstrategicoService:
             sector: Sector/industria (opcional, se infiere si no se proporciona)
             contexto_adicional: Información adicional para contextualizar búsqueda
             tipos_investigacion: Lista de tipos específicos (None = todos)
+            rfc: RFC de la empresa (para nombrar carpeta en pCloud)
+            empresa_id: ID del tenant que realiza la investigación
+            guardar_pcloud: Si guardar automáticamente en pCloud (default: True)
 
         Returns:
             Dict con resultados consolidados de todas las fases de investigación
@@ -139,10 +364,31 @@ class OraculoEstrategicoService:
                         }
 
                         logger.info(f"Investigación completa exitosa: {empresa}")
-                        return {
+
+                        final_result = {
                             "success": True,
                             **result
                         }
+
+                        # =========================================================
+                        # INTEGRACIÓN PCLOUD - Guardar para sistema de agentes
+                        # =========================================================
+                        if guardar_pcloud and self.pcloud_available:
+                            pcloud_result = await self.guardar_investigacion_pcloud(
+                                resultado=final_result,
+                                empresa=empresa,
+                                rfc=rfc,
+                                empresa_id=empresa_id
+                            )
+
+                            final_result["pcloud"] = pcloud_result
+
+                            if pcloud_result.get("success"):
+                                logger.info(f"Investigación persistida en pCloud: {pcloud_result.get('pcloud_folder')}")
+                            else:
+                                logger.warning(f"No se pudo guardar en pCloud: {pcloud_result.get('error')}")
+
+                        return final_result
                     else:
                         error_text = await response.text()
                         logger.error(f"Error del Worker: {response.status} - {error_text}")
