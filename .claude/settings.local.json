@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "Bash(git commit:*)",
+      "Bash(git add:*)",
+      "Bash(npm run build:*)",
+      "Bash(python3:*)",
+      "Bash(git fetch:*)",
+      "Bash(git push:*)",
+      "Bash(railway logs:*)",
+      "Bash(expect:*)",
+      "Bash(grep:*)",
+      "Bash(wc:*)",
+      "Bash(vercel:*)",
+      "Bash(railway variables:*)"
+    ]
+  }
+}

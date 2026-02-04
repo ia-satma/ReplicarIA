@@ -1,0 +1,28 @@
+# Oráculo Estratégico - Cloudflare Worker Configuration
+# Desplegar con: npx wrangler deploy
+
+name = "oraculo-estrategico"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Variables de entorno (secrets se configuran con wrangler secret)
+[vars]
+WORKER_VERSION = "1.0.0"
+
+# Para configurar los secrets ejecutar:
+# npx wrangler secret put ANTHROPIC_API_KEY
+# npx wrangler secret put PERPLEXITY_API_KEY
+# npx wrangler secret put FIRECRAWL_API_KEY
+
+# Dominio personalizado (opcional)
+# routes = [
+#   { pattern = "oraculo.revisar-ia.com/*", zone_name = "revisar-ia.com" }
+# ]
+
+# Límites
+[limits]
+cpu_ms = 30000  # 30 segundos de CPU time
+
+# Observabilidad
+[observability]
+enabled = true

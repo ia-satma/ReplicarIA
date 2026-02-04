@@ -562,13 +562,23 @@ async def completar_onboarding(
         cliente_id = None
         if input.crear_en_bd:
             try:
+                import uuid
+                # Para clientes del Oráculo, generar un empresa_id único basado en el RFC o nombre
+                # Esto permite que sean clientes independientes en el sistema multi-tenant
+                if input.rfc:
+                    # Usar RFC como base para empresa_id determinístico
+                    empresa_id_oraculo = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"oraculo.{input.rfc.upper()}"))
+                else:
+                    # Generar UUID basado en nombre de empresa
+                    empresa_id_oraculo = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"oraculo.{input.empresa.upper()}"))
+
                 cliente = await cliente_service.create_cliente(
                     cliente_data={k: v for k, v in cliente_data.items() if v is not None},
-                    empresa_id=None,  # Admin puede crear sin tenant específico
+                    empresa_id=empresa_id_oraculo,
                     creado_por="admin_oraculo"
                 )
                 cliente_id = str(cliente.get("id") or cliente.get("cliente_uuid"))
-                logger.info(f"Cliente creado en BD: {cliente_id}")
+                logger.info(f"✅ Cliente creado en BD: {cliente_id} (empresa_id: {empresa_id_oraculo})")
             except Exception as e:
                 logger.warning(f"No se pudo crear cliente en BD: {e}")
 
