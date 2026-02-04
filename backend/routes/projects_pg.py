@@ -13,7 +13,7 @@ import os
 import shutil
 from pathlib import Path
 
-from middleware.tenant_context import get_current_empresa_id
+from middleware.tenant_context import get_current_empresa_id, get_current_tenant
 
 logger = logging.getLogger(__name__)
 
@@ -100,29 +100,37 @@ async def list_projects(
     limit: int = 50,
     offset: int = 0
 ):
-    """Listar proyectos (PostgreSQL)."""
+    """Listar proyectos (PostgreSQL). Admin ve TODOS los proyectos."""
     from services.database_pg import get_project_service
-    
+
+    # Check if user is admin
+    tenant = get_current_tenant()
+    is_admin = tenant.is_admin if tenant else False
+
     empresa_id = get_current_empresa_id() or request.headers.get("X-Empresa-ID")
-    if not empresa_id:
+
+    # Admin can see all projects without empresa_id
+    if not empresa_id and not is_admin:
         raise HTTPException(status_code=400, detail="empresa_id requerido")
-    
+
     try:
         service = await get_project_service()
+        # Pass None for admin to see all projects
         projects = await service.list_projects(
-            empresa_id=empresa_id,
+            empresa_id=empresa_id if empresa_id else None,
             estado=estado,
             fase=fase,
             limit=limit,
             offset=offset
         )
-        
+
         return {
             "success": True,
             "projects": projects,
             "count": len(projects),
             "limit": limit,
-            "offset": offset
+            "offset": offset,
+            "is_admin": is_admin
         }
     except Exception as e:
         logger.error(f"Error listing projects: {e}")
@@ -322,20 +330,27 @@ async def get_project(
     request: Request,
     project_id: str
 ):
-    """Obtener proyecto por ID (PostgreSQL)."""
+    """Obtener proyecto por ID (PostgreSQL). Admin puede ver cualquier proyecto."""
     from services.database_pg import get_project_service
-    
+
+    # Check if user is admin
+    tenant = get_current_tenant()
+    is_admin = tenant.is_admin if tenant else False
+
     empresa_id = get_current_empresa_id() or request.headers.get("X-Empresa-ID")
-    if not empresa_id:
+
+    # Admin can access any project without empresa_id
+    if not empresa_id and not is_admin:
         raise HTTPException(status_code=400, detail="empresa_id requerido")
-    
+
     try:
         service = await get_project_service()
-        project = await service.get_project(project_id, empresa_id)
-        
+        # Pass None for admin to access any project
+        project = await service.get_project(project_id, empresa_id if empresa_id else None)
+
         if not project:
             raise HTTPException(status_code=404, detail="Proyecto no encontrado")
-        
+
         return {
             "success": True,
             "project": project
@@ -574,20 +589,27 @@ async def search_projects(
 
 @router.get("/stats/summary")
 async def get_project_stats(request: Request):
-    """Obtener estadísticas de proyectos (PostgreSQL)."""
+    """Obtener estadísticas de proyectos (PostgreSQL). Admin ve estadísticas globales."""
     from services.database_pg import get_project_service
-    
+
+    # Check if user is admin
+    tenant = get_current_tenant()
+    is_admin = tenant.is_admin if tenant else False
+
     empresa_id = get_current_empresa_id() or request.headers.get("X-Empresa-ID")
-    if not empresa_id:
+
+    # Admin can see global stats without empresa_id
+    if not empresa_id and not is_admin:
         raise HTTPException(status_code=400, detail="empresa_id requerido")
-    
+
     try:
         service = await get_project_service()
-        stats = await service.get_project_stats(empresa_id)
-        
+        stats = await service.get_project_stats(empresa_id if empresa_id else None)
+
         return {
             "success": True,
-            "stats": stats
+            "stats": stats,
+            "is_global": is_admin and not empresa_id
         }
     except Exception as e:
         logger.error(f"Error getting stats: {e}")

@@ -56,23 +56,30 @@ class ProjectService:
     async def get_project(
         self,
         project_id: str,
-        empresa_id: str
+        empresa_id: Optional[str] = None
     ) -> Optional[dict]:
-        """Obtener proyecto por ID."""
-        
-        row = await self.db.fetchrow("""
-            SELECT * FROM projects
-            WHERE id = $1 AND empresa_id = $2
-        """, project_id, empresa_id)
-        
+        """Obtener proyecto por ID. Si empresa_id=None, admin puede ver cualquier proyecto."""
+
+        if empresa_id:
+            row = await self.db.fetchrow("""
+                SELECT * FROM projects
+                WHERE id = $1 AND empresa_id = $2
+            """, project_id, empresa_id)
+        else:
+            # Admin: puede ver cualquier proyecto
+            row = await self.db.fetchrow("""
+                SELECT * FROM projects
+                WHERE id = $1
+            """, project_id)
+
         if not row:
             return None
-        
+
         return self._row_to_dict(row)
     
     async def list_projects(
         self,
-        empresa_id: str,
+        empresa_id: Optional[str] = None,
         estado: Optional[str] = None,
         fase: Optional[int] = None,
         limit: int = 50,
@@ -80,30 +87,36 @@ class ProjectService:
         order_by: str = "created_at",
         order_dir: str = "DESC"
     ) -> List[dict]:
-        """Listar proyectos con filtros."""
-        
-        conditions: List[str] = ["empresa_id = $1"]
-        params: List[Any] = [empresa_id]
-        param_count = 1
-        
+        """Listar proyectos con filtros. Si empresa_id=None, retorna TODOS los proyectos (admin)."""
+
+        conditions: List[str] = []
+        params: List[Any] = []
+        param_count = 0
+
+        # Si empresa_id está presente, filtrar por empresa; si es None, admin ve todos
+        if empresa_id:
+            param_count += 1
+            conditions.append(f"empresa_id = ${param_count}")
+            params.append(empresa_id)
+
         if estado:
             param_count += 1
             conditions.append(f"estado = ${param_count}")
             params.append(estado)
-        
+
         if fase is not None:
             param_count += 1
             conditions.append(f"fase_actual = ${param_count}")
             params.append(fase)
-        
-        where_clause = " AND ".join(conditions)
-        
+
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+
         valid_columns = ["created_at", "updated_at", "nombre", "fase_actual", "risk_score"]
         if order_by not in valid_columns:
             order_by = "created_at"
-        
+
         order_dir = "DESC" if order_dir.upper() == "DESC" else "ASC"
-        
+
         query = f"""
             SELECT * FROM projects
             WHERE {where_clause}
@@ -111,7 +124,7 @@ class ProjectService:
             LIMIT ${param_count + 1} OFFSET ${param_count + 2}
         """
         params.extend([limit, offset])
-        
+
         rows = await self.db.fetch(query, *params)
         return [self._row_to_dict(row) for row in rows]
     
@@ -371,20 +384,32 @@ class ProjectService:
         
         return [self._row_to_dict(row) for row in rows]
     
-    async def get_project_stats(self, empresa_id: str) -> dict:
-        """Estadísticas de proyectos."""
-        
-        row = await self.db.fetchrow("""
-            SELECT 
-                COUNT(*) as total,
-                COUNT(*) FILTER (WHERE estado = 'activo') as activos,
-                COUNT(*) FILTER (WHERE estado = 'completado') as completados,
-                AVG(risk_score) FILTER (WHERE risk_score IS NOT NULL) as avg_risk_score,
-                SUM(monto_total) FILTER (WHERE estado = 'activo') as monto_activo
-            FROM projects
-            WHERE empresa_id = $1
-        """, empresa_id)
-        
+    async def get_project_stats(self, empresa_id: Optional[str] = None) -> dict:
+        """Estadísticas de proyectos. Si empresa_id=None, retorna estadísticas globales (admin)."""
+
+        if empresa_id:
+            row = await self.db.fetchrow("""
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE estado = 'activo') as activos,
+                    COUNT(*) FILTER (WHERE estado = 'completado') as completados,
+                    AVG(risk_score) FILTER (WHERE risk_score IS NOT NULL) as avg_risk_score,
+                    SUM(monto_total) FILTER (WHERE estado = 'activo') as monto_activo
+                FROM projects
+                WHERE empresa_id = $1
+            """, empresa_id)
+        else:
+            # Admin: estadísticas globales de TODOS los proyectos
+            row = await self.db.fetchrow("""
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE estado = 'activo') as activos,
+                    COUNT(*) FILTER (WHERE estado = 'completado') as completados,
+                    AVG(risk_score) FILTER (WHERE risk_score IS NOT NULL) as avg_risk_score,
+                    SUM(monto_total) FILTER (WHERE estado = 'activo') as monto_activo
+                FROM projects
+            """)
+
         return {
             "total": row["total"],
             "activos": row["activos"],
