@@ -1083,7 +1083,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_origins=["*"],  # FORCE WILDCARD
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Empresa-ID", "X-Request-ID"],
+    allow_headers=["Content-Type", "Authorization", "X-Empresa-ID", "X-Request-ID", "X-Admin-Token"],
     expose_headers=["Content-Type", "X-Request-ID"]
 )
 logging.info(f"CORS configured with origins: {cors_origins}")
