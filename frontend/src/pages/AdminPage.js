@@ -1342,7 +1342,7 @@ export default function AdminPage() {
                       value={oraculoForm.empresa}
                       onChange={(e) => setOraculoForm({ ...oraculoForm, empresa: e.target.value })}
                       className="input-premium"
-                      placeholder="Ej: Fortezza Consultores"
+                      placeholder="Ej: Empresa Ejemplo S.A. de C.V."
                     />
                   </div>
                   <div>
@@ -1847,7 +1847,7 @@ export default function AdminPage() {
                       value={empresaForm.nombre_comercial}
                       onChange={(e) => setEmpresaForm({ ...empresaForm, nombre_comercial: e.target.value })}
                       className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all outline-none"
-                      placeholder="Ej: Fortezza"
+                      placeholder="Ej: Mi Empresa"
                     />
                   </div>
                   <div>
@@ -1869,7 +1869,7 @@ export default function AdminPage() {
                     value={empresaForm.razon_social}
                     onChange={(e) => setEmpresaForm({ ...empresaForm, razon_social: e.target.value })}
                     className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all outline-none"
-                    placeholder="Ej: Fortezza Consultores S.A. de C.V."
+                    placeholder="Ej: Mi Empresa S.A. de C.V."
                   />
                 </div>
                 <div>

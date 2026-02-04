@@ -114,7 +114,7 @@ const StepInfoBasica = ({ data, onChange }) => {
             type="text"
             value={data.nombre_comercial || ''}
             onChange={(e) => onChange({ ...data, nombre_comercial: e.target.value })}
-            placeholder="Ej: Grupo Fortezza"
+            placeholder="Ej: Mi Empresa"
             className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
           />
         </div>
@@ -167,7 +167,7 @@ const StepInfoBasica = ({ data, onChange }) => {
             type="text"
             value={data.razon_social || ''}
             onChange={(e) => onChange({ ...data, razon_social: e.target.value })}
-            placeholder="Ej: Grupo Fortezza S.A. de C.V."
+            placeholder="Ej: Mi Empresa S.A. de C.V."
             className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
           />
         </div>
