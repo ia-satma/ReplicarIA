@@ -276,7 +276,9 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
                     )
 
                 # Super admin can access without empresa_id
+                logger.info(f"TenantMiddleware: is_admin={context.is_admin}, empresa_header={empresa_header}")
                 if not empresa_header and not context.is_admin:
+                    logger.warning(f"TenantMiddleware: Rejecting - no empresa_header and not admin")
                     return JSONResponse(
                         status_code=400,
                         content={
