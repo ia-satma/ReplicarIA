@@ -275,7 +275,8 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
                         }
                     )
 
-                if not empresa_header:
+                # Super admin can access without empresa_id
+                if not empresa_header and not context.is_admin:
                     return JSONResponse(
                         status_code=400,
                         content={
@@ -284,7 +285,7 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
                         }
                     )
 
-                if not context.can_access_empresa(empresa_header):
+                if empresa_header and not context.can_access_empresa(empresa_header):
                     logger.warning(
                         f"Tenant access denied: user={context.user_id} "
                         f"empresa={empresa_header} allowed={context.allowed_companies}"
