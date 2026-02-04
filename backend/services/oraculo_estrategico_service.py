@@ -61,7 +61,7 @@ class OraculoEstrategicoService:
     # URL del Worker desplegado en Cloudflare
     WORKER_URL = os.getenv(
         "ORACULO_WORKER_URL",
-        "https://oraculo-estrategico.tu-cuenta.workers.dev"
+        "https://oraculo-empresarial.ia-f44.workers.dev"
     )
 
     # Timeout para llamadas al worker (5 minutos para análisis profundo)
