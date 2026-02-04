@@ -210,6 +210,14 @@ async def investigar_empresa(
             if resultado.get("success"):
                 consolidado = resultado.get("consolidado", {})
                 pcloud_info = resultado.get("pcloud", {})
+                fases = resultado.get("fases_completadas", 0)
+
+                # Procesar riesgos
+                riesgos_raw = consolidado.get("riesgos", "")
+                if isinstance(riesgos_raw, str):
+                    riesgos_list = [{"descripcion": r.strip()} for r in riesgos_raw.split("\n") if r.strip()]
+                else:
+                    riesgos_list = riesgos_raw if isinstance(riesgos_raw, list) else []
 
                 response = InvestigacionResult(
                     success=True,
@@ -217,16 +225,29 @@ async def investigar_empresa(
                     timestamp=datetime.utcnow().isoformat(),
                     tipo_investigacion=input.tipo_investigacion.value,
                     nivel_profundidad=input.nivel_profundidad.value,
-                    resumen_ejecutivo=consolidado.get("resumen_ejecutivo"),
-                    perfil_empresa=consolidado.get("perfil_empresa"),
-                    analisis_industria=consolidado.get("analisis_sector"),
-                    analisis_pestel={"contenido": consolidado.get("pestel")},
-                    analisis_porter={"contenido": consolidado.get("porter")},
-                    analisis_esg={"contenido": consolidado.get("esg")},
-                    riesgos=[{"descripcion": r} for r in (consolidado.get("riesgos") or "").split("\n") if r],
-                    score_confianza=consolidado.get("score_confianza"),
+                    resumen_ejecutivo=consolidado.get("resumen_ejecutivo") or consolidado.get("reporte_completo", "")[:2000],
+                    perfil_empresa={"contenido": consolidado.get("perfil_empresa")} if consolidado.get("perfil_empresa") else None,
+                    analisis_industria={"contenido": consolidado.get("analisis_sector")} if consolidado.get("analisis_sector") else None,
+                    analisis_pestel={"contenido": consolidado.get("pestel")} if consolidado.get("pestel") else None,
+                    analisis_porter={"contenido": consolidado.get("porter")} if consolidado.get("porter") else None,
+                    analisis_esg={"contenido": consolidado.get("esg")} if consolidado.get("esg") else None,
+                    riesgos=riesgos_list,
+                    oportunidades=[consolidado.get("oportunidades")] if consolidado.get("oportunidades") else None,
+                    score_confianza=consolidado.get("score_confianza", int(fases / 14 * 100) if fases else 50),
                     fuentes_consultadas=consolidado.get("fuentes", {}).get("perplexity", 0)
                 )
+
+                # Agregar campos adicionales al response como atributos extra
+                response_dict = response.dict()
+                response_dict["reporte_completo"] = consolidado.get("reporte_completo")
+                response_dict["economia"] = consolidado.get("economia")
+                response_dict["competidores"] = consolidado.get("competidores")
+                response_dict["tendencias"] = consolidado.get("tendencias")
+                response_dict["ecosistema"] = consolidado.get("ecosistema")
+                response_dict["digital"] = consolidado.get("digital")
+                response_dict["materialidad"] = consolidado.get("materialidad")
+                response_dict["fases_completadas"] = fases
+                response_dict["pcloud"] = pcloud_info
 
                 # Log pCloud persistence status
                 if pcloud_info.get("success"):
@@ -234,7 +255,8 @@ async def investigar_empresa(
                 else:
                     logger.warning(f"⚠️ No se pudo guardar en pCloud: {pcloud_info.get('error')}")
 
-                return response
+                # Retornar diccionario con campos adicionales (no el modelo Pydantic)
+                return response_dict
             else:
                 raise Exception(resultado.get("error", "Error en Worker"))
 

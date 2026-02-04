@@ -337,6 +337,61 @@ export default function AdminPage() {
     }
   };
 
+  // Función para completar onboarding y crear cliente
+  const completarOnboarding = async () => {
+    if (!oraculoData.resultado || !oraculoData.resultado.empresa) {
+      setMessage({ type: 'error', text: 'Primero debes realizar una investigación' });
+      return;
+    }
+
+    setActionLoading('onboarding');
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await api.post('/api/admin/oraculo-estrategico/completar-onboarding', {
+        empresa: oraculoData.resultado.empresa,
+        rfc: oraculoForm.rfc || null,
+        pcloud_folder: oraculoData.resultado.pcloud?.pcloud_folder || null,
+        datos_adicionales: {
+          sitio_web: oraculoForm.sitio_web,
+          sector: oraculoForm.sector,
+          investigacion_fecha: oraculoData.resultado.timestamp
+        },
+        crear_en_bd: true,
+        asignar_agentes: true
+      }, {
+        headers: { 'X-Admin-Token': token }
+      });
+
+      if (response.success) {
+        setMessage({
+          type: 'success',
+          text: `✅ Cliente "${response.empresa}" creado exitosamente. ${response.agentes_preparados?.length > 0 ? `Agentes preparados: ${response.agentes_preparados.join(', ')}` : ''}`
+        });
+        // Recargar lista de empresas
+        loadEmpresas();
+        // Limpiar formulario
+        setOraculoForm({
+          empresa: '',
+          rfc: '',
+          sitio_web: '',
+          sector: '',
+          tipo_investigacion: 'completa',
+          nivel_profundidad: 'profundo',
+          servicio_contratado: '',
+          monto: ''
+        });
+        setOraculoData(prev => ({ ...prev, resultado: null }));
+      } else {
+        throw new Error(response.error || 'Error al completar onboarding');
+      }
+    } catch (error) {
+      console.error('Error en onboarding:', error);
+      setMessage({ type: 'error', text: error.message || 'Error al crear cliente' });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   useEffect(() => {
     if (user?.role === 'admin' || user?.role === 'super_admin' || user?.is_superadmin) {
       loadUsers();
@@ -1650,6 +1705,29 @@ export default function AdminPage() {
 
                     {/* Botones de Acción */}
                     <div className="flex flex-wrap gap-3 pt-4 border-t border-border">
+                      {/* Botón Principal: Agregar como Cliente */}
+                      <button
+                        onClick={completarOnboarding}
+                        disabled={actionLoading === 'onboarding'}
+                        className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-6 py-2.5 rounded-lg font-semibold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                      >
+                        {actionLoading === 'onboarding' ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Creando Cliente...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                            </svg>
+                            Agregar como Cliente
+                          </>
+                        )}
+                      </button>
                       <button
                         onClick={() => {
                           const dataStr = JSON.stringify(oraculoData.resultado, null, 2);

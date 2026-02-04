@@ -313,6 +313,22 @@ class OraculoEstrategicoService:
         """
         Ejecuta investigación empresarial completa (14 fases).
 
+        Las 14 fases del Worker de Cloudflare:
+        1. Scraping Web (si hay URL)
+        2. Perfil de Empresa
+        3. Análisis de Industria
+        4. Panorama Económico
+        5. Análisis Competitivo
+        6. PESTEL
+        7. 5 Fuerzas de Porter
+        8. Megatendencias Globales
+        9. Análisis ESG
+        10. Ecosistema de la Industria
+        11. Transformación Digital
+        12. Oportunidades y Proyectos
+        13. Materialidad SAT (Claude)
+        14. Reporte Final (Claude)
+
         Args:
             empresa: Nombre de la empresa a investigar
             sitio_web: URL del sitio web (opcional)
@@ -333,77 +349,273 @@ class OraculoEstrategicoService:
                 "message": "Configure ORACULO_WORKER_URL en variables de entorno"
             }
 
-        logger.info(f"Iniciando investigación completa: {empresa}")
+        logger.info(f"Iniciando investigación completa de 14 fases: {empresa}")
 
-        payload = {
-            "empresa": empresa,
-            "sitio_web": sitio_web or "",
-            "sector": sector or "",
-            "contexto": contexto_adicional or "",
-            "investigacion_completa": True
+        # Estructura para acumular resultados de cada fase
+        resultados = {
+            "scraping": None,
+            "empresa": None,
+            "industria": None,
+            "economia": None,
+            "competidores": None,
+            "pestel": None,
+            "porter": None,
+            "tendencias": None,
+            "esg": None,
+            "ecosistema": None,
+            "digital": None,
+            "oportunidades": None,
+            "materialidad": None,
+            "reporte": None
         }
+
+        fuentes_totales = []
+        fases_completadas = 0
+        contexto_acumulado = contexto_adicional or ""
+        sector_usado = sector or "general"
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.worker_url}/api/investigar",
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=self.REQUEST_TIMEOUT)
-                ) as response:
-                    if response.status == 200:
-                        result = await response.json()
 
-                        # Enriquecer resultado con metadata
-                        result["meta"] = {
-                            "timestamp": datetime.utcnow().isoformat(),
-                            "empresa_consultada": empresa,
-                            "sitio_web": sitio_web,
-                            "sector": sector,
-                            "fases_completadas": self._contar_fases(result),
-                            "source": "oraculo_estrategico_worker"
+                # ═══════════════════════════════════════════════════════════
+                # FASE 1: SCRAPING WEB (si hay URL)
+                # ═══════════════════════════════════════════════════════════
+                if sitio_web:
+                    logger.info(f"Fase 1/14: Scraping web de {sitio_web}")
+                    try:
+                        async with session.post(
+                            f"{self.worker_url}/api/scrape",
+                            json={"url": sitio_web},
+                            timeout=aiohttp.ClientTimeout(total=60)
+                        ) as resp:
+                            if resp.status == 200:
+                                data = await resp.json()
+                                if data.get("success"):
+                                    resultados["scraping"] = data
+                                    contexto_acumulado += f"\n\nSITIO WEB:\n{data.get('contenido', '')[:15000]}"
+                                    fases_completadas += 1
+                                    logger.info(f"✓ Fase 1: {data.get('paginas', 0)} páginas extraídas")
+                    except Exception as e:
+                        logger.warning(f"Fase 1 (scraping) falló: {e}")
+
+                # ═══════════════════════════════════════════════════════════
+                # FASES 2-12: INVESTIGACIONES CON PERPLEXITY
+                # ═══════════════════════════════════════════════════════════
+                investigaciones_perplexity = [
+                    ("empresa", "Fase 2/14: Perfil de Empresa"),
+                    ("industria", "Fase 3/14: Análisis de Industria"),
+                    ("economia", "Fase 4/14: Panorama Económico"),
+                    ("competidores", "Fase 5/14: Análisis Competitivo"),
+                    ("pestel", "Fase 6/14: Análisis PESTEL"),
+                    ("porter", "Fase 7/14: 5 Fuerzas de Porter"),
+                    ("tendencias", "Fase 8/14: Megatendencias Globales"),
+                    ("esg", "Fase 9/14: Análisis ESG"),
+                    ("ecosistema", "Fase 10/14: Ecosistema de la Industria"),
+                    ("digital", "Fase 11/14: Transformación Digital"),
+                    ("oportunidades", "Fase 12/14: Oportunidades y Proyectos"),
+                ]
+
+                for tipo, descripcion in investigaciones_perplexity:
+                    logger.info(descripcion)
+                    try:
+                        payload = {
+                            "tipo": tipo,
+                            "empresa": empresa,
+                            "sector": sector_usado,
+                            "contexto": contexto_acumulado[:8000] if tipo in ["competidores", "oportunidades"] else ""
                         }
 
-                        logger.info(f"Investigación completa exitosa: {empresa}")
+                        async with session.post(
+                            f"{self.worker_url}/api/investigar",
+                            json=payload,
+                            timeout=aiohttp.ClientTimeout(total=120)
+                        ) as resp:
+                            if resp.status == 200:
+                                data = await resp.json()
+                                if data.get("success"):
+                                    resultados[tipo] = data.get("resultado")
+                                    if data.get("fuentes"):
+                                        fuentes_totales.extend(data.get("fuentes", []))
+                                    # Acumular contexto para fases siguientes
+                                    if tipo in ["empresa", "industria", "economia", "competidores"]:
+                                        contexto_acumulado += f"\n\n{tipo.upper()}:\n{data.get('resultado', '')[:5000]}"
+                                    fases_completadas += 1
+                                    logger.info(f"✓ {descripcion} completada")
+                    except Exception as e:
+                        logger.warning(f"{descripcion} falló: {e}")
 
-                        final_result = {
-                            "success": True,
-                            **result
-                        }
+                # ═══════════════════════════════════════════════════════════
+                # FASE 13: MATERIALIDAD CON CLAUDE
+                # ═══════════════════════════════════════════════════════════
+                logger.info("Fase 13/14: Análisis de Materialidad (Claude)")
+                try:
+                    datos_materialidad = f"""
+=== PERFIL DE EMPRESA ===
+{resultados.get('empresa', 'No disponible')}
 
-                        # =========================================================
-                        # INTEGRACIÓN PCLOUD - Guardar para sistema de agentes
-                        # =========================================================
-                        if guardar_pcloud and self.pcloud_available:
-                            pcloud_result = await self.guardar_investigacion_pcloud(
-                                resultado=final_result,
-                                empresa=empresa,
-                                rfc=rfc,
-                                empresa_id=empresa_id
-                            )
+=== INDUSTRIA ===
+{resultados.get('industria', 'No disponible')}
 
-                            final_result["pcloud"] = pcloud_result
+=== SITIO WEB ===
+{resultados.get('scraping', {}).get('contenido', 'No disponible')[:5000] if resultados.get('scraping') else 'No disponible'}
+"""
+                    async with session.post(
+                        f"{self.worker_url}/api/analizar",
+                        json={"tipo": "materialidad", "empresa": empresa, "datos": datos_materialidad},
+                        timeout=aiohttp.ClientTimeout(total=120)
+                    ) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            if data.get("success"):
+                                resultados["materialidad"] = data.get("resultado")
+                                fases_completadas += 1
+                                logger.info("✓ Fase 13: Materialidad completada")
+                except Exception as e:
+                    logger.warning(f"Fase 13 (materialidad) falló: {e}")
 
-                            if pcloud_result.get("success"):
-                                logger.info(f"Investigación persistida en pCloud: {pcloud_result.get('pcloud_folder')}")
-                            else:
-                                logger.warning(f"No se pudo guardar en pCloud: {pcloud_result.get('error')}")
+                # ═══════════════════════════════════════════════════════════
+                # FASE 14: REPORTE FINAL CON CLAUDE
+                # ═══════════════════════════════════════════════════════════
+                logger.info("Fase 14/14: Generación de Reporte Final (Claude)")
+                try:
+                    todo_contexto = f"""
+=== PERFIL DE EMPRESA ===
+{resultados.get('empresa', 'No disponible')}
 
-                        return final_result
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"Error del Worker: {response.status} - {error_text}")
-                        return {
-                            "success": False,
-                            "error": f"Worker error: {response.status}",
-                            "details": error_text
-                        }
+=== ANÁLISIS DE INDUSTRIA ===
+{resultados.get('industria', 'No disponible')}
+
+=== PANORAMA ECONÓMICO ===
+{resultados.get('economia', 'No disponible')}
+
+=== ANÁLISIS COMPETITIVO ===
+{resultados.get('competidores', 'No disponible')}
+
+=== ANÁLISIS PESTEL ===
+{resultados.get('pestel', 'No disponible')}
+
+=== 5 FUERZAS DE PORTER ===
+{resultados.get('porter', 'No disponible')}
+
+=== MEGATENDENCIAS ===
+{resultados.get('tendencias', 'No disponible')}
+
+=== ANÁLISIS ESG ===
+{resultados.get('esg', 'No disponible')}
+
+=== ECOSISTEMA ===
+{resultados.get('ecosistema', 'No disponible')}
+
+=== TRANSFORMACIÓN DIGITAL ===
+{resultados.get('digital', 'No disponible')}
+
+=== OPORTUNIDADES Y PROYECTOS ===
+{resultados.get('oportunidades', 'No disponible')}
+
+=== MATERIALIDAD SAT ===
+{resultados.get('materialidad', 'No disponible')}
+"""
+                    async with session.post(
+                        f"{self.worker_url}/api/analizar",
+                        json={"tipo": "reporte_final", "empresa": empresa, "datos": todo_contexto[:50000]},
+                        timeout=aiohttp.ClientTimeout(total=180)
+                    ) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            if data.get("success"):
+                                resultados["reporte"] = data.get("resultado")
+                                fases_completadas += 1
+                                logger.info("✓ Fase 14: Reporte final completado")
+                except Exception as e:
+                    logger.warning(f"Fase 14 (reporte) falló: {e}")
+
+            # ═══════════════════════════════════════════════════════════
+            # CONSOLIDAR RESULTADOS
+            # ═══════════════════════════════════════════════════════════
+            logger.info(f"Investigación completada: {fases_completadas}/14 fases")
+
+            # Extraer resumen ejecutivo del reporte
+            resumen_ejecutivo = ""
+            if resultados.get("reporte"):
+                reporte = resultados["reporte"]
+                # Buscar sección de resumen ejecutivo
+                if "RESUMEN EJECUTIVO" in reporte:
+                    inicio = reporte.find("RESUMEN EJECUTIVO")
+                    fin = reporte.find("───", inicio + 20)
+                    if fin > inicio:
+                        resumen_ejecutivo = reporte[inicio:fin].replace("RESUMEN EJECUTIVO", "").strip()
+                if not resumen_ejecutivo and len(reporte) > 500:
+                    resumen_ejecutivo = reporte[:1500]
+
+            # Calcular score de confianza basado en fases completadas
+            score_confianza = int((fases_completadas / 14) * 100)
+
+            # Construir resultado consolidado
+            consolidado = {
+                "resumen_ejecutivo": resumen_ejecutivo or resultados.get("empresa", ""),
+                "perfil_empresa": resultados.get("empresa"),
+                "analisis_sector": resultados.get("industria"),
+                "economia": resultados.get("economia"),
+                "competidores": resultados.get("competidores"),
+                "pestel": resultados.get("pestel"),
+                "porter": resultados.get("porter"),
+                "tendencias": resultados.get("tendencias"),
+                "esg": resultados.get("esg"),
+                "ecosistema": resultados.get("ecosistema"),
+                "digital": resultados.get("digital"),
+                "oportunidades": resultados.get("oportunidades"),
+                "materialidad": resultados.get("materialidad"),
+                "reporte_completo": resultados.get("reporte"),
+                "riesgos": self._extraer_riesgos(resultados),
+                "score_confianza": score_confianza,
+                "fuentes": {
+                    "perplexity": len(set(fuentes_totales)),
+                    "lista": list(set(fuentes_totales))[:20]
+                }
+            }
+
+            final_result = {
+                "success": True,
+                "consolidado": consolidado,
+                "scraping": resultados.get("scraping"),
+                "fases_completadas": fases_completadas,
+                "meta": {
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "empresa_consultada": empresa,
+                    "sitio_web": sitio_web,
+                    "sector": sector_usado,
+                    "rfc": rfc,
+                    "fases_completadas": fases_completadas,
+                    "source": "oraculo_estrategico_worker_14_fases"
+                }
+            }
+
+            # =========================================================
+            # INTEGRACIÓN PCLOUD - Guardar para sistema de agentes
+            # =========================================================
+            if guardar_pcloud and self.pcloud_available:
+                pcloud_result = await self.guardar_investigacion_pcloud(
+                    resultado=final_result,
+                    empresa=empresa,
+                    rfc=rfc,
+                    empresa_id=empresa_id
+                )
+
+                final_result["pcloud"] = pcloud_result
+
+                if pcloud_result.get("success"):
+                    logger.info(f"Investigación persistida en pCloud: {pcloud_result.get('pcloud_folder')}")
+                else:
+                    logger.warning(f"No se pudo guardar en pCloud: {pcloud_result.get('error')}")
+
+            return final_result
 
         except asyncio.TimeoutError:
             logger.error(f"Timeout en investigación de {empresa}")
             return {
                 "success": False,
                 "error": "Timeout",
-                "message": f"La investigación excedió {self.REQUEST_TIMEOUT}s"
+                "message": f"La investigación excedió el tiempo límite"
             }
         except Exception as e:
             logger.error(f"Error en investigación: {e}")
@@ -411,6 +623,29 @@ class OraculoEstrategicoService:
                 "success": False,
                 "error": str(e)
             }
+
+    def _extraer_riesgos(self, resultados: Dict) -> str:
+        """Extrae riesgos de los diferentes análisis"""
+        riesgos = []
+
+        # Buscar riesgos en PESTEL
+        if resultados.get("pestel"):
+            pestel = resultados["pestel"]
+            if "AMENAZA" in pestel.upper() or "RIESGO" in pestel.upper():
+                # Extraer líneas que mencionen riesgos
+                for linea in pestel.split("\n"):
+                    if any(palabra in linea.upper() for palabra in ["AMENAZA", "RIESGO", "VULNERABILIDAD"]):
+                        riesgos.append(linea.strip())
+
+        # Buscar en Porter
+        if resultados.get("porter"):
+            porter = resultados["porter"]
+            if "ALTA" in porter.upper():
+                for linea in porter.split("\n"):
+                    if "ALTA" in linea.upper() and "INTENSIDAD" in linea.upper():
+                        riesgos.append(linea.strip())
+
+        return "\n".join(riesgos[:10]) if riesgos else "Sin riesgos críticos identificados"
 
     async def analisis_pestel(
         self,
