@@ -504,6 +504,13 @@ except ImportError as e:
     logging.warning(f"Devils Advocate routes not available: {e}")
     devils_advocate_routes = None
 
+try:
+    from routes import oraculo_estrategico_routes
+    logging.info("✅ Oráculo Estratégico routes loaded successfully (Admin Only)")
+except ImportError as e:
+    logging.warning(f"Oráculo Estratégico routes not available: {e}")
+    oraculo_estrategico_routes = None
+
 # Import middleware exception handlers
 try:
     from middleware.candados_middleware import CandadoBlockedException
@@ -839,6 +846,10 @@ if defense_mode_routes:
 if devils_advocate_routes:
     app.include_router(devils_advocate_routes.router, tags=["Abogado del Diablo (Admin)"])
     logging.info("✅ Devils Advocate routes registered at /api/admin/abogado-diablo (Admin Only)")
+
+if oraculo_estrategico_routes:
+    app.include_router(oraculo_estrategico_routes.router, tags=["Oráculo Estratégico (Admin)"])
+    logging.info("✅ Oráculo Estratégico routes registered at /api/admin/oraculo-estrategico (Admin Only)")
 
 # ============================================================
 # RESET DEMO DATA ENDPOINT - Direct on app for reliability

@@ -75,6 +75,24 @@ export default function AdminPage() {
     resultado: null
   });
 
+  // Oráculo Estratégico state (solo super_admin)
+  const [oraculoData, setOraculoData] = useState({
+    loading: false,
+    error: null,
+    resultado: null,
+    historial: []
+  });
+  const [oraculoForm, setOraculoForm] = useState({
+    empresa: '',
+    rfc: '',
+    sitio_web: '',
+    sector: '',
+    tipo_investigacion: 'completa',
+    nivel_profundidad: 'profundo',
+    servicio_contratado: '',
+    monto: ''
+  });
+
   const autofillWithAI = async () => {
     if (!empresaForm.nombre_comercial) {
       setMessage({ type: 'error', text: 'Ingresa el nombre comercial primero' });
@@ -207,6 +225,115 @@ export default function AdminPage() {
       setMessage({ type: 'error', text: error.message || 'Error al generar reporte' });
     } finally {
       setAbogadoData(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  // Funciones del Oráculo Estratégico
+  const investigarEmpresa = async () => {
+    if (!oraculoForm.empresa) {
+      setMessage({ type: 'error', text: 'Ingresa el nombre de la empresa' });
+      return;
+    }
+
+    setOraculoData(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await api.post('/api/admin/oraculo-estrategico/investigar', {
+        empresa: oraculoForm.empresa,
+        sitio_web: oraculoForm.sitio_web || null,
+        sector: oraculoForm.sector || null,
+        rfc: oraculoForm.rfc || null,
+        tipo_investigacion: oraculoForm.tipo_investigacion,
+        nivel_profundidad: oraculoForm.nivel_profundidad
+      }, {
+        headers: { 'X-Admin-Token': token }
+      });
+
+      setOraculoData(prev => ({
+        ...prev,
+        loading: false,
+        resultado: response,
+        historial: [response, ...prev.historial.slice(0, 9)]
+      }));
+      setMessage({ type: 'success', text: `Investigación de ${oraculoForm.empresa} completada` });
+    } catch (error) {
+      console.error('Error en investigación:', error);
+      setOraculoData(prev => ({
+        ...prev,
+        loading: false,
+        error: error.message || 'Error al investigar empresa'
+      }));
+      setMessage({ type: 'error', text: error.message || 'Error al investigar empresa' });
+    }
+  };
+
+  const ejecutarDueDiligence = async () => {
+    if (!oraculoForm.empresa || !oraculoForm.rfc) {
+      setMessage({ type: 'error', text: 'Ingresa empresa y RFC para Due Diligence' });
+      return;
+    }
+
+    setOraculoData(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await api.post('/api/admin/oraculo-estrategico/due-diligence', {
+        empresa: oraculoForm.empresa,
+        rfc: oraculoForm.rfc,
+        sitio_web: oraculoForm.sitio_web || null,
+        monto_operacion: oraculoForm.monto ? parseFloat(oraculoForm.monto) : null,
+        tipo_servicio: oraculoForm.servicio_contratado || null
+      }, {
+        headers: { 'X-Admin-Token': token }
+      });
+
+      setOraculoData(prev => ({
+        ...prev,
+        loading: false,
+        resultado: response
+      }));
+      setMessage({ type: 'success', text: `Due Diligence de ${oraculoForm.empresa} completado` });
+    } catch (error) {
+      console.error('Error en due diligence:', error);
+      setOraculoData(prev => ({
+        ...prev,
+        loading: false,
+        error: error.message || 'Error en due diligence'
+      }));
+    }
+  };
+
+  const documentarMaterialidad = async () => {
+    if (!oraculoForm.empresa || !oraculoForm.rfc || !oraculoForm.servicio_contratado || !oraculoForm.monto) {
+      setMessage({ type: 'error', text: 'Completa todos los campos para documentar materialidad' });
+      return;
+    }
+
+    setOraculoData(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await api.post('/api/admin/oraculo-estrategico/materialidad', {
+        empresa: oraculoForm.empresa,
+        rfc: oraculoForm.rfc,
+        servicio_contratado: oraculoForm.servicio_contratado,
+        monto: parseFloat(oraculoForm.monto),
+        sitio_web: oraculoForm.sitio_web || null
+      }, {
+        headers: { 'X-Admin-Token': token }
+      });
+
+      setOraculoData(prev => ({
+        ...prev,
+        loading: false,
+        resultado: response
+      }));
+      setMessage({ type: 'success', text: `Documentación de materialidad para ${oraculoForm.empresa} generada` });
+    } catch (error) {
+      console.error('Error en materialidad:', error);
+      setOraculoData(prev => ({
+        ...prev,
+        loading: false,
+        error: error.message || 'Error al documentar materialidad'
+      }));
     }
   };
 
@@ -526,6 +653,21 @@ export default function AdminPage() {
                 }`}
               >
                 Abogado del Diablo
+              </button>
+            )}
+            {isSuperAdmin && (
+              <button
+                onClick={() => setActiveTab('oraculo-estrategico')}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors flex items-center gap-2 ${
+                  activeTab === 'oraculo-estrategico'
+                    ? 'bg-white text-[#34C759] border-t border-l border-r border-gray-200 -mb-px'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Oráculo Estratégico
               </button>
             )}
           </div>
@@ -1116,6 +1258,456 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {activeTab === 'oraculo-estrategico' && isSuperAdmin && (
+          <div className="space-y-6">
+            {/* Header del Oráculo - Estilo ReplicarIA */}
+            <div className="card-premium overflow-hidden">
+              <div className="bg-gradient-to-r from-[#34C759] to-[#2CB24E] p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="icon-container-lg bg-white/20 text-white">
+                      <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-white">Oráculo Estratégico</h2>
+                      <p className="text-white/80 text-sm mt-1">
+                        Investigación profunda • Due Diligence • Materialidad SAT
+                      </p>
+                    </div>
+                  </div>
+                  <div className="hidden md:flex items-center gap-2">
+                    <span className="px-3 py-1 bg-white/20 rounded-full text-white text-xs font-medium">
+                      Art. 69-B CFF
+                    </span>
+                    <span className="px-3 py-1 bg-white/20 rounded-full text-white text-xs font-medium">
+                      14 Fases
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="px-6 py-3 bg-[#E8F9ED] border-t border-[#34C759]/20">
+                <div className="flex items-center gap-6 text-sm text-[#249C43]">
+                  <span className="flex items-center gap-1.5">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    PESTEL
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Porter
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    ESG
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Due Diligence
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Formulario de Investigación - Estilo ReplicarIA */}
+            <div className="card-premium">
+              <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">Investigar Empresa / Proveedor</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Ingresa los datos para iniciar la investigación</p>
+                </div>
+                <div className="icon-container">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label-premium">Nombre de la Empresa *</label>
+                    <input
+                      type="text"
+                      value={oraculoForm.empresa}
+                      onChange={(e) => setOraculoForm({ ...oraculoForm, empresa: e.target.value })}
+                      className="input-premium"
+                      placeholder="Ej: Fortezza Consultores"
+                    />
+                  </div>
+                  <div>
+                    <label className="label-premium">RFC</label>
+                    <input
+                      type="text"
+                      value={oraculoForm.rfc}
+                      onChange={(e) => setOraculoForm({ ...oraculoForm, rfc: e.target.value.toUpperCase() })}
+                      className="input-premium font-mono"
+                      placeholder="XAXX010101000"
+                      maxLength={13}
+                    />
+                  </div>
+                  <div>
+                    <label className="label-premium">Sitio Web</label>
+                    <input
+                      type="url"
+                      value={oraculoForm.sitio_web}
+                      onChange={(e) => setOraculoForm({ ...oraculoForm, sitio_web: e.target.value })}
+                      className="input-premium"
+                      placeholder="https://www.ejemplo.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="label-premium">Sector / Industria</label>
+                    <select
+                      value={oraculoForm.sector}
+                      onChange={(e) => setOraculoForm({ ...oraculoForm, sector: e.target.value })}
+                      className="input-premium"
+                    >
+                      <option value="">Seleccionar...</option>
+                      <option value="tecnologia">Tecnología</option>
+                      <option value="servicios_profesionales">Servicios Profesionales</option>
+                      <option value="manufactura">Manufactura</option>
+                      <option value="comercio">Comercio</option>
+                      <option value="construccion">Construcción</option>
+                      <option value="salud">Salud</option>
+                      <option value="finanzas">Finanzas</option>
+                      <option value="inmobiliario">Inmobiliario</option>
+                      <option value="otro">Otro</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Campos para Materialidad */}
+                <div className="divider-premium pt-4 mt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="icon-container-sm">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <p className="text-sm font-medium text-foreground">Para Documentación de Materialidad SAT:</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="label-premium">Servicio Contratado</label>
+                      <input
+                        type="text"
+                        value={oraculoForm.servicio_contratado}
+                        onChange={(e) => setOraculoForm({ ...oraculoForm, servicio_contratado: e.target.value })}
+                        className="input-premium"
+                        placeholder="Ej: Consultoría fiscal especializada"
+                      />
+                    </div>
+                    <div>
+                      <label className="label-premium">Monto de Operación (MXN)</label>
+                      <input
+                        type="number"
+                        value={oraculoForm.monto}
+                        onChange={(e) => setOraculoForm({ ...oraculoForm, monto: e.target.value })}
+                        className="input-premium"
+                        placeholder="500000"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Configuración */}
+                <div className="divider-premium pt-4 mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="label-premium">Tipo de Investigación</label>
+                      <select
+                        value={oraculoForm.tipo_investigacion}
+                        onChange={(e) => setOraculoForm({ ...oraculoForm, tipo_investigacion: e.target.value })}
+                        className="input-premium"
+                      >
+                        <option value="completa">Completa (14 fases)</option>
+                        <option value="empresa">Solo Empresa</option>
+                        <option value="industria">Análisis de Industria</option>
+                        <option value="competidores">Competidores</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label-premium">Nivel de Profundidad</label>
+                      <select
+                        value={oraculoForm.nivel_profundidad}
+                        onChange={(e) => setOraculoForm({ ...oraculoForm, nivel_profundidad: e.target.value })}
+                        className="input-premium"
+                      >
+                        <option value="profundo">Profundo (~3-5 min)</option>
+                        <option value="normal">Normal (~1-2 min)</option>
+                        <option value="rapido">Rápido (~30 seg)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botones de Acción - Estilo ReplicarIA */}
+                <div className="flex flex-wrap gap-3 pt-4 border-t border-border">
+                  <button
+                    onClick={investigarEmpresa}
+                    disabled={oraculoData.loading || !oraculoForm.empresa}
+                    className="btn-primary-premium flex items-center gap-2"
+                  >
+                    {oraculoData.loading ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Investigando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <span>Investigar Empresa</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={ejecutarDueDiligence}
+                    disabled={oraculoData.loading || !oraculoForm.empresa || !oraculoForm.rfc}
+                    className="btn-secondary-premium flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    <span>Due Diligence</span>
+                  </button>
+                  <button
+                    onClick={documentarMaterialidad}
+                    disabled={oraculoData.loading || !oraculoForm.empresa || !oraculoForm.rfc || !oraculoForm.servicio_contratado || !oraculoForm.monto}
+                    className="btn-secondary-premium flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>Documentar Materialidad SAT</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Resultados - Estilo ReplicarIA */}
+            {oraculoData.resultado && (
+              <div className="card-premium overflow-hidden animate-fade-in">
+                <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
+                  <div className="flex items-center gap-3">
+                    <div className={`icon-container ${oraculoData.resultado.success ? 'bg-primary/10 text-primary' : 'bg-red-100 text-red-600'}`}>
+                      {oraculoData.resultado.success ? (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-foreground">
+                        {oraculoData.resultado.empresa}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {oraculoData.resultado.timestamp ? new Date(oraculoData.resultado.timestamp).toLocaleString('es-MX') : 'Resultado de investigación'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`badge-premium ${oraculoData.resultado.success ? 'badge-success' : 'badge-error'}`}>
+                      {oraculoData.resultado.success ? 'Completado' : 'Error'}
+                    </span>
+                  </div>
+                </div>
+
+                {oraculoData.resultado.success ? (
+                  <div className="p-6 space-y-6">
+                    {/* Scores Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Score de Confianza */}
+                      {oraculoData.resultado.score_confianza && (
+                        <div className="card-premium-hover p-4 text-center">
+                          <div className="text-3xl font-bold text-primary">
+                            {oraculoData.resultado.score_confianza}%
+                          </div>
+                          <div className="text-sm font-medium text-foreground mt-1">Score de Confianza</div>
+                          <div className="text-xs text-muted-foreground">
+                            {oraculoData.resultado.fuentes_consultadas || 0} fuentes
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Score de Materialidad */}
+                      {oraculoData.resultado.score_materialidad !== undefined && (
+                        <div className="card-premium-hover p-4 text-center">
+                          <div className={`text-3xl font-bold ${
+                            oraculoData.resultado.score_materialidad >= 70 ? 'text-primary' :
+                            oraculoData.resultado.score_materialidad >= 50 ? 'text-amber-500' :
+                            'text-red-500'
+                          }`}>
+                            {oraculoData.resultado.score_materialidad}%
+                          </div>
+                          <div className="text-sm font-medium text-foreground mt-1">Materialidad SAT</div>
+                          <div className="text-xs text-muted-foreground">Art. 69-B CFF</div>
+                        </div>
+                      )}
+
+                      {/* Evaluación Riesgo */}
+                      {oraculoData.resultado.evaluacion_riesgo && (
+                        <div className="card-premium-hover p-4 text-center">
+                          <div className={`text-3xl font-bold ${
+                            oraculoData.resultado.evaluacion_riesgo.nivel === 'bajo' ? 'text-primary' :
+                            oraculoData.resultado.evaluacion_riesgo.nivel === 'medio' ? 'text-amber-500' :
+                            'text-red-500'
+                          }`}>
+                            {oraculoData.resultado.evaluacion_riesgo.nivel?.toUpperCase() || 'N/A'}
+                          </div>
+                          <div className="text-sm font-medium text-foreground mt-1">Nivel de Riesgo</div>
+                          <div className="text-xs text-muted-foreground">Evaluación general</div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Resumen Ejecutivo */}
+                    {oraculoData.resultado.resumen_ejecutivo && (
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-foreground flex items-center gap-2">
+                          <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Resumen Ejecutivo
+                        </h4>
+                        <div className="p-4 bg-muted/50 rounded-xl text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                          {oraculoData.resultado.resumen_ejecutivo}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Banderas Rojas */}
+                    {oraculoData.resultado.banderas_rojas && oraculoData.resultado.banderas_rojas.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-red-600 flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                          Banderas Rojas ({oraculoData.resultado.banderas_rojas.length})
+                        </h4>
+                        <ul className="space-y-2">
+                          {oraculoData.resultado.banderas_rojas.map((bandera, idx) => (
+                            <li key={idx} className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-700 dark:text-red-400 flex items-start gap-2">
+                              <span className="text-red-500 mt-0.5">•</span>
+                              {bandera}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Recomendaciones */}
+                    {oraculoData.resultado.recomendaciones && oraculoData.resultado.recomendaciones.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-foreground flex items-center gap-2">
+                          <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                          </svg>
+                          Recomendaciones
+                        </h4>
+                        <ul className="space-y-2">
+                          {oraculoData.resultado.recomendaciones.map((rec, idx) => (
+                            <li key={idx} className="p-3 bg-primary/5 border border-primary/20 rounded-xl text-sm text-foreground flex items-start gap-2">
+                              <span className="text-primary mt-0.5">✓</span>
+                              {rec}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Conclusión */}
+                    {oraculoData.resultado.conclusion && (
+                      <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
+                        <h4 className="font-semibold text-foreground mb-2 flex items-center gap-2">
+                          <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Conclusión
+                        </h4>
+                        <p className="text-sm text-foreground">{oraculoData.resultado.conclusion}</p>
+                      </div>
+                    )}
+
+                    {/* Botones de Acción */}
+                    <div className="flex flex-wrap gap-3 pt-4 border-t border-border">
+                      <button
+                        onClick={() => {
+                          const dataStr = JSON.stringify(oraculoData.resultado, null, 2);
+                          const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                          const url = URL.createObjectURL(dataBlob);
+                          const link = document.createElement('a');
+                          link.href = url;
+                          link.download = `oraculo_${oraculoData.resultado.empresa?.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
+                          link.click();
+                        }}
+                        className="btn-primary-premium flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Descargar Reporte
+                      </button>
+                      <button
+                        onClick={() => setOraculoData(prev => ({ ...prev, resultado: null }))}
+                        className="btn-secondary-premium flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Nueva Investigación
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-6">
+                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-400">
+                      <strong>Error:</strong> {oraculoData.resultado.error || 'Error desconocido'}
+                    </div>
+                    <button
+                      onClick={() => setOraculoData(prev => ({ ...prev, resultado: null }))}
+                      className="mt-4 btn-secondary-premium flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Reintentar
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Error General */}
+            {oraculoData.error && !oraculoData.resultado && (
+              <div className="card-premium p-4 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+                <div className="flex items-center gap-3 text-red-700 dark:text-red-400">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span><strong>Error:</strong> {oraculoData.error}</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
